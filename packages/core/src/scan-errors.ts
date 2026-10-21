@@ -27,6 +27,8 @@ export const SCAN_ERRORS = {
   sbomFailed: "Building the package inventory (SBOM) failed.",
   scannerFailed: "The vulnerability scanner failed. Check that the vulnerability database is installed.",
   unexpected: "The scan failed unexpectedly. The worker log has details.",
+  refNotFound: "The requested ref does not exist in the repository.",
+  commitMismatch: "The ref points to a different commit than the gate check expected.",
 } as const;
 
 export type ScanErrorCode = keyof typeof SCAN_ERRORS;

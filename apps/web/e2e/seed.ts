@@ -55,6 +55,12 @@ export async function seed(): Promise<void> {
        values ($1, $2, $3, 'succeeded', 'manual', 120, $4, 0, $5, $5, $5)`,
       [scanId, org.id, repoId, SEEDED.total, now],
     );
+    // Its gate result with the default modes: two critical findings with a fix, reported only.
+    await client.query(
+      `insert into gate_run (id, organization_id, repository_id, scan_id, result, matches, created_at)
+       values ('gate_e2eseeded00000001', $1, $2, $3, 'notes', $4, $5)`,
+      [org.id, repoId, scanId, JSON.stringify({ "critical-fixable": { count: 2, mode: "report" } }), now],
+    );
 
     for (let i = 1; i <= SEEDED.total; i++) {
       const severity =

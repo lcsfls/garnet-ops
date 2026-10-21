@@ -97,7 +97,7 @@ export const packageSearch = z.object({
 });
 export type PackageSearch = z.infer<typeof packageSearch>;
 
-export const AUDIT_FILTERS = ["auth", "repository", "finding", "organization", "update"] as const;
+export const AUDIT_FILTERS = ["auth", "repository", "finding", "gate", "organization", "update"] as const;
 export const auditSearch = z.object({
   /** Action group; the API filters by the prefix "<group>.". */
   group: z.enum(AUDIT_FILTERS).optional().catch(undefined),
@@ -105,6 +105,14 @@ export const auditSearch = z.object({
   pageSize,
 });
 export type AuditSearch = z.infer<typeof auditSearch>;
+
+export const gateSearch = z.object({
+  cursor: text(512),
+  pageSize,
+  /** The repository whose gate tokens and pipeline step are shown. */
+  repositoryId: text(40),
+});
+export type GateSearch = z.infer<typeof gateSearch>;
 
 export const SETTINGS_SECTIONS = ["scanning", "updates", "about"] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];

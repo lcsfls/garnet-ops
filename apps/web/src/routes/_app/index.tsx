@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { GateBadge } from "../../components/gate-badge.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import { RepositoryLink } from "../../components/repository-link.tsx";
@@ -39,7 +40,7 @@ import { formatDateTime, formatRelative } from "../../lib/format.ts";
 import { rowClick } from "../../lib/row-link.ts";
 import { useScanErrorText } from "../../lib/scan-error.ts";
 import { type TrendDay, trendDays } from "../../lib/trend.ts";
-import type { ActivityItem, Overview } from "../../lib/types.ts";
+import type { ActivityItem, GateRunRow, Overview, Page } from "../../lib/types.ts";
 
 export const Route = createFileRoute("/_app/")({ component: OverviewPage });
 
@@ -215,8 +216,8 @@ function Dashboard({ data }: { data: Overview }) {
       <div
         className={cn(
           "grid gap-4 @wide:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]",
-          "@wide:[grid-template-areas:'attn_act'_'scans_data'_'trend_trend']",
-          "@xwide:grid-cols-4 @xwide:[grid-template-areas:'attn_attn_scans_act'_'trend_trend_data_act']",
+          "@wide:[grid-template-areas:'attn_act'_'gates_scans'_'trend_data']",
+          "@xwide:grid-cols-4 @xwide:[grid-template-areas:'attn_attn_gates_act'_'trend_trend_data_scans']",
         )}
       >
         <div className="min-w-0 @wide:[grid-area:attn]">
@@ -224,6 +225,9 @@ function Dashboard({ data }: { data: Overview }) {
         </div>
         <div className="min-w-0 @wide:[grid-area:act]">
           <Activity items={data.activity} />
+        </div>
+        <div className="min-w-0 @wide:[grid-area:gates]">
+          <RecentGateRuns />
         </div>
         <div className="min-w-0 @wide:[grid-area:scans]">
           <RecentScans items={data.recentScans} />
@@ -339,6 +343,55 @@ function FixFirst({ items }: { items: Overview["fixFirst"] }) {
           </tbody>
         </table>
       )}
+    </Card>
+  );
+}
+
+/** The last gate results (mockup "Recent gate runs"); only "Passed" is green. */
+function RecentGateRuns() {
+  const { t } = useTranslation();
+  const runs = useQuery({
+    queryKey: ["gate-runs", "recent"],
+    queryFn: () => api<Page<GateRunRow>>("/gates/runs?pageSize=25"),
+  });
+  const items = runs.data?.items.slice(0, 5) ?? [];
+  return (
+    <Card className="h-full">
+      <CardHeader
+        title={t("gates.recentTitle")}
+        description={t("gates.recentDescription")}
+        actions={
+          <Link
+            to="/gates"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-text hover:underline"
+          >
+            {t("gates.allRuns")}
+            <ArrowRight aria-hidden="true" className="size-4" />
+          </Link>
+        }
+      />
+      <QueryStatus query={runs} />
+      {runs.data && items.length === 0 ? (
+        <p className="px-5 pb-6 text-muted-foreground">{t("gates.runsEmpty")}</p>
+      ) : null}
+      <ul className="px-5 pb-3">
+        {items.map((run) => (
+          <li key={run.id} className="flex items-center gap-2.5 border-t py-2.5 first:border-t-0">
+            <GateBadge result={run.result} />
+            <span className="min-w-0 flex-1 truncate">
+              <RepositoryLink id={run.repositoryId} name={run.repositoryName} />{" "}
+              <span className="text-muted-foreground">· {t(`gates.trigger.${run.trigger}`)}</span>
+            </span>
+            <time
+              dateTime={run.createdAt}
+              title={formatDateTime(run.createdAt)}
+              className="dash-time flex-none text-[13px] whitespace-nowrap text-muted-foreground"
+            >
+              {formatRelative(run.createdAt)}
+            </time>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

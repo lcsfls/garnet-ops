@@ -18,6 +18,7 @@ import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAuditLogRouteImport } from './routes/_app/audit-log'
 import { Route as AppFindingsRouteImport } from './routes/_app/findings'
+import { Route as AppGatesRouteImport } from './routes/_app/gates'
 import { Route as AppPackagesRouteImport } from './routes/_app/packages'
 import { Route as AppRepositoriesRouteImport } from './routes/_app/repositories'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
@@ -67,6 +68,11 @@ const AppFindingsRoute = AppFindingsRouteImport.update({
   path: '/findings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppGatesRoute = AppGatesRouteImport.update({
+  id: '/gates',
+  path: '/gates',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPackagesRoute = AppPackagesRouteImport.update({
   id: '/packages',
   path: '/packages',
@@ -97,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/two-factor': typeof TwoFactorRoute
   '/audit-log': typeof AppAuditLogRoute
   '/findings': typeof AppFindingsRoute
+  '/gates': typeof AppGatesRoute
   '/packages': typeof AppPackagesRoute
   '/repositories': typeof AppRepositoriesRoute
   '/settings': typeof AppSettingsRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/two-factor': typeof TwoFactorRoute
   '/audit-log': typeof AppAuditLogRoute
   '/findings': typeof AppFindingsRoute
+  '/gates': typeof AppGatesRoute
   '/packages': typeof AppPackagesRoute
   '/repositories': typeof AppRepositoriesRoute
   '/settings': typeof AppSettingsRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/two-factor': typeof TwoFactorRoute
   '/_app/audit-log': typeof AppAuditLogRoute
   '/_app/findings': typeof AppFindingsRoute
+  '/_app/gates': typeof AppGatesRoute
   '/_app/packages': typeof AppPackagesRoute
   '/_app/repositories': typeof AppRepositoriesRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/audit-log'
     | '/findings'
+    | '/gates'
     | '/packages'
     | '/repositories'
     | '/settings'
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/audit-log'
     | '/findings'
+    | '/gates'
     | '/packages'
     | '/repositories'
     | '/settings'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/_app/audit-log'
     | '/_app/findings'
+    | '/_app/gates'
     | '/_app/packages'
     | '/_app/repositories'
     | '/_app/settings'
@@ -252,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFindingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/gates': {
+      id: '/_app/gates'
+      path: '/gates'
+      fullPath: '/gates'
+      preLoaderRoute: typeof AppGatesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/packages': {
       id: '/_app/packages'
       path: '/packages'
@@ -286,6 +305,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppAuditLogRoute: typeof AppAuditLogRoute
   AppFindingsRoute: typeof AppFindingsRoute
+  AppGatesRoute: typeof AppGatesRoute
   AppPackagesRoute: typeof AppPackagesRoute
   AppRepositoriesRoute: typeof AppRepositoriesRoute
   AppSettingsRoute: typeof AppSettingsRoute
@@ -296,6 +316,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAuditLogRoute: AppAuditLogRoute,
   AppFindingsRoute: AppFindingsRoute,
+  AppGatesRoute: AppGatesRoute,
   AppPackagesRoute: AppPackagesRoute,
   AppRepositoriesRoute: AppRepositoriesRoute,
   AppSettingsRoute: AppSettingsRoute,

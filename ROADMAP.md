@@ -98,8 +98,9 @@ paginated findings, and every number on the overview leads to its details.
       time in an explicit zone, one run per local date, DST-tested, ADR 0005),
       settings screen to change it. Still open: scans on push via webhook
       (Forgejo, GitHub) with signature verification
-- [ ] Quality gate API for CI (token per repository), rules in report-only
-      mode by default, status check on the pull request
+- [x] Quality gate API for CI (token per repository), rules in report-only
+      mode by default, status check on the pull request (the pipeline step) (ADR 0008).
+      Still open: per-repository rule overrides, secret and SAST rules (Phase 5)
 - [ ] Per-user forge connections (OAuth app / GitHub App) with repository
       listing and import
 - [ ] Local vulnerability database: vunnel + grype-db build job, offline import

@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { newId, scanErrorMessage } from "@garnetops/core";
+import { evaluateGate, GATE_RULES, type GateMode, type GateRule } from "@garnetops/core/gates";
 import { parseKnownHosts } from "@garnetops/core/ssh";
 import { open, type SecretPurpose } from "@garnetops/core/vault";
 import { schema } from "@garnetops/db";
@@ -98,7 +99,15 @@ export async function runScan(scanId: string): Promise<void> {
       plain.fill(0);
     }
 
-    const cloned = await shallowClone({ url: repo.url, dir: src, home, branch: repo.branch, token, ssh })
+    const cloned = await shallowClone({
+      url: repo.url,
+      dir: src,
+      home,
+      branch: repo.branch,
+      ref: scan.ref,
+      token,
+      ssh,
+    })
       .catch((e: Error) => {
         throw new UserFacingError(e.message);
       })
@@ -109,6 +118,11 @@ export async function runScan(scanId: string): Promise<void> {
         await rm(ssh.privateKeyFile, { force: true });
         if (!ssh.pinned) await pinHostKeys(repo.id, ssh.knownHostsFile);
       });
+
+    // A gate check for a pull request names the commit it tested; anything else is not that change.
+    if (scan.expectedSha && cloned.commitSha.toLowerCase() !== scan.expectedSha.toLowerCase()) {
+      throw new UserFacingError(scanErrorMessage("commitMismatch"));
+    }
 
     const sizeMb = await directorySizeMb(src, env.GARNETOPS_MAX_REPO_MB);
     if (sizeMb > env.GARNETOPS_MAX_REPO_MB) {
@@ -130,7 +144,10 @@ export async function runScan(scanId: string): Promise<void> {
     });
     const parsed = parseReport(json, repo.id);
     addAdvisoryDates(parsed.vulnerabilities, env.GARNETOPS_GRYPE_DB_DIR);
-    await persist(scan.id, repo, parsed, cloned, inventory);
+    // A check of another ref (a pull request) must not change the repository's findings or
+    // inventory, which describe its configured branch; it only records its gate result.
+    if (scan.ref) await persistCheck(scan.id, repo, parsed, cloned, inventory);
+    else await persist(scan.id, repo, parsed, cloned, inventory);
   } catch (error) {
     if (error instanceof UserFacingError) await fail(scanId, error.message);
     else {
@@ -197,6 +214,7 @@ async function persist(
     counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
 
   await db.transaction(async (tx) => {
+    const gate = await evaluateScanGate(tx, repo, parsed, inventory);
     const vulns = [...parsed.vulnerabilities.values()];
     for (let i = 0; i < vulns.length; i += 500) {
       await tx
@@ -323,5 +341,110 @@ async function persist(
       .update(schema.repository)
       .set({ lastScanId: scanId, lastScanAt: now, updatedAt: now })
       .where(eq(schema.repository.id, repo.id));
+    await insertGateRun(tx, scanId, repo, gate);
+  });
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * The gate result of a scan (ADR 0008): its findings minus the repository's accepted risks,
+ * its packages, and the organisation's rule modes as they are right now. Evaluated once;
+ * a later rule change never rewrites it.
+ */
+async function evaluateScanGate(
+  tx: Tx,
+  repo: typeof schema.repository.$inferSelect,
+  parsed: ParsedReport,
+  inventory: Inventory | null,
+) {
+  const [rules, accepted] = await Promise.all([
+    tx.select().from(schema.gateRule).where(eq(schema.gateRule.organizationId, repo.organizationId)),
+    tx
+      .select({ dedupKey: f.dedupKey })
+      .from(f)
+      .where(
+        and(
+          eq(f.repositoryId, repo.id),
+          eq(f.state, "accepted"),
+          or(isNull(f.acceptedUntil), sql`${f.acceptedUntil} > now()`),
+        ),
+      ),
+  ]);
+  const acceptedKeys = new Set(accepted.map((a) => a.dedupKey));
+  const modes: Partial<Record<GateRule, GateMode>> = {};
+  let deniedLicenses: string[] = [];
+  for (const row of rules) {
+    if (!(GATE_RULES as readonly string[]).includes(row.rule)) continue;
+    modes[row.rule as GateRule] = row.mode;
+    if (row.rule === "license-denied" && Array.isArray(row.config?.deniedLicenses)) {
+      deniedLicenses = row.config.deniedLicenses.filter((l): l is string => typeof l === "string");
+    }
+  }
+  return evaluateGate({
+    findings: [...parsed.findings.values()]
+      .filter((p) => !acceptedKeys.has(p.dedupKey))
+      .map((p) => {
+        const v = parsed.vulnerabilities.get(p.vulnerabilityId);
+        return {
+          severity: p.severity,
+          cvssScore: v?.cvssScore ?? null,
+          knownExploited: v?.knownExploited ?? false,
+          fixable: p.fixedIn.length > 0,
+        };
+      }),
+    packages: (inventory?.packages ?? []).map((pkg) => ({ licenses: pkg.licenses })),
+    modes,
+    deniedLicenses,
+  });
+}
+
+async function insertGateRun(
+  tx: Tx,
+  scanId: string,
+  repo: typeof schema.repository.$inferSelect,
+  gate: ReturnType<typeof evaluateGate>,
+) {
+  await tx.insert(schema.gateRun).values({
+    id: newId("gate"),
+    organizationId: repo.organizationId,
+    repositoryId: repo.id,
+    scanId,
+    result: gate.result,
+    matches: gate.matches as Record<string, { count: number; mode: string }>,
+  });
+}
+
+/** A gate check of another ref: the scan's summary and its gate result, nothing else. */
+async function persistCheck(
+  scanId: string,
+  repo: typeof schema.repository.$inferSelect,
+  parsed: ParsedReport,
+  cloned: { commitSha: string; branch: string },
+  inventory: Inventory | null,
+) {
+  const counts: Record<string, number> = {};
+  for (const finding of parsed.findings.values())
+    counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
+  await db.transaction(async (tx) => {
+    const gate = await evaluateScanGate(tx, repo, parsed, inventory);
+    await tx
+      .update(schema.scan)
+      .set({
+        state: "succeeded",
+        finishedAt: new Date(),
+        branch: cloned.branch,
+        commitSha: cloned.commitSha,
+        packageCount: inventory ? inventory.total : null,
+        severityCounts: counts,
+        scannerVersions: {
+          ...(parsed.grypeVersion ? { grype: parsed.grypeVersion } : {}),
+          ...(inventory?.syftVersion ? { syft: inventory.syftVersion } : {}),
+        },
+        vulnDbBuiltAt: parsed.dbBuiltAt,
+        error: null,
+      })
+      .where(eq(schema.scan.id, scanId));
+    await insertGateRun(tx, scanId, repo, gate);
   });
 }

@@ -174,3 +174,40 @@ export interface PatchRow {
   firstSeenAt: string;
   currentVersions: string[];
 }
+
+export type GateMode = "off" | "report" | "block";
+export type GateResult = "passed" | "notes" | "blocked";
+export type GateMatches = Record<string, { count: number; mode: GateMode }>;
+
+export interface GateRuleState {
+  rule: "critical-fixable" | "known-exploited" | "high-fixable" | "license-denied";
+  mode: GateMode;
+  defaultMode: GateMode;
+  deniedLicenses?: string[];
+  updatedAt: string | null;
+}
+
+export interface GateRunRow {
+  id: string;
+  createdAt: string;
+  result: GateResult;
+  matches: GateMatches;
+  repositoryId: string;
+  repositoryName: string;
+  scanId: string;
+  trigger: "manual" | "schedule" | "webhook" | "ci";
+  ref: string | null;
+  branch: string | null;
+  commitSha: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface GateTokenRow {
+  id: string;
+  label: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  createdBy: string | null;
+}

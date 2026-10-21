@@ -10,6 +10,18 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- Quality gates (ADR 0008, `docs/quality-gates.md`): rules for critical and high
+  vulnerabilities with a fix, known exploited vulnerabilities and denied licences, each
+  Off, Report or Block. **Every rule starts as Report or Off; nothing blocks until an admin
+  sets it to Block.** Every scan gets a gate result (Passed, With notes, Blocked), shown on
+  the new Quality gates page, as a column in the repositories list and on the overview.
+- Gate API for CI: per-repository gate tokens (shown once, stored as a hash, revocable,
+  audited, rate-limited) request a check of a pull request's exact commit
+  (`POST /api/v1/gate/checks`, `GET /api/v1/gate/checks/{id}`) and get the result with rule
+  names and counts only. Checks of other refs never change the repository's findings. A
+  ready-to-copy pipeline step for Forgejo, Gitea and GitHub Actions.
+- Migration 0007 (additive): tables `gate_rule`, `gate_token`, `gate_run`; scans gain `ref`
+  and `expected_sha`.
 - Sortable columns in the findings, repositories and packages lists: the first click
   sorts in the column's natural order, the second reverses it, the third returns to the
   default; the order is in the URL and page-by-page loading keeps every row exactly once

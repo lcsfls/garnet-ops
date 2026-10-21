@@ -42,6 +42,7 @@ test.describe("signed in", () => {
     { path: "/findings?id=fnd_e2e0000000000000001", heading: "Findings", name: "findings-detail" },
     { path: "/repositories", heading: "Repositories", name: "repositories" },
     { path: "/packages", heading: "Packages", name: "packages" },
+    { path: "/gates?repositoryId=repo_e2eseeded000000001", heading: "Quality gates", name: "gates" },
     { path: "/settings", heading: "Settings", name: "settings" },
     { path: "/settings?section=updates", heading: "Settings", name: "settings-updates" },
     { path: "/settings?section=about", heading: "Settings", name: "settings-about" },

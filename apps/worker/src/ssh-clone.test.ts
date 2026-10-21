@@ -26,6 +26,7 @@ describe.skipIf(!ready)("clone over SSH with a deploy key", () => {
   let server: Server;
   let url = "";
   let run = 0;
+  let prHead = "";
 
   beforeAll(async () => {
     const git = (...args: string[]) => execFileSync("git", ["-C", repoDir, ...args], { stdio: "ignore" });
@@ -34,6 +35,14 @@ describe.skipIf(!ready)("clone over SSH with a deploy key", () => {
     writeFileSync(join(repoDir, "package.json"), '{"name":"fixture","version":"1.0.0"}\n');
     git("add", ".");
     git("-c", "user.name=t", "-c", "user.email=t@example.test", "commit", "-q", "-m", "fixture");
+    // A pull request head as forges publish it: a commit that is not on any branch.
+    git("checkout", "-q", "-b", "feature");
+    writeFileSync(join(repoDir, "package.json"), '{"name":"fixture","version":"2.0.0"}\n');
+    git("-c", "user.name=t", "-c", "user.email=t@example.test", "commit", "-q", "-am", "pull request");
+    prHead = execFileSync("git", ["-C", repoDir, "rev-parse", "HEAD"]).toString().trim();
+    git("update-ref", "refs/pull/1/head", "HEAD");
+    git("checkout", "-q", "main");
+    git("branch", "-q", "-D", "feature");
 
     server = new Server({ hostKeys: [hostKey.privateKey] }, (client) => {
       client.on("authentication", (ctx) => {
@@ -73,7 +82,7 @@ describe.skipIf(!ready)("clone over SSH with a deploy key", () => {
     rmSync(work, { recursive: true, force: true });
   });
 
-  async function cloneWith(options: { knownHosts: string; pinned: boolean; key?: string }) {
+  async function cloneWith(options: { knownHosts: string; pinned: boolean; key?: string; ref?: string }) {
     const dir = join(work, `run-${++run}`);
     await mkdir(join(dir, "home"), { recursive: true });
     const privateKeyFile = join(dir, "id_ed25519");
@@ -86,10 +95,11 @@ describe.skipIf(!ready)("clone over SSH with a deploy key", () => {
       dir: join(dir, "src"),
       home: join(dir, "home"),
       branch: null,
+      ref: options.ref ?? null,
       token: null,
       ssh: { ...client, privateKeyFile, knownHostsFile, pinned: options.pinned },
     });
-    return { result, knownHostsFile };
+    return { result, knownHostsFile, dir: join(dir, "src") };
   }
 
   it("offers a hybrid post-quantum key exchange first when the client has one", async () => {
@@ -114,6 +124,26 @@ describe.skipIf(!ready)("clone over SSH with a deploy key", () => {
     const line = `[127.0.0.1]:${port} ${hostKey.publicKey.split(" ").slice(0, 2).join(" ")}\n`;
     const { result } = await cloneWith({ knownHosts: line, pinned: true });
     expect((await result).commitSha).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it("fetches a pull request ref that is on no branch, shallow and detached", async () => {
+    const { result, dir } = await cloneWith({ knownHosts: "", pinned: false, ref: "refs/pull/1/head" });
+    const cloned = await result;
+    expect(cloned.commitSha).toBe(prHead);
+    expect(cloned.branch).toBe("refs/pull/1/head");
+    expect(readFileSync(join(dir, "package.json"), "utf8")).toContain('"2.0.0"');
+    const depth = execFileSync("git", ["-C", dir, "rev-list", "--count", "HEAD"]).toString().trim();
+    expect(depth).toBe("1");
+  });
+
+  it("reports a ref the repository does not have", async () => {
+    const { result } = await cloneWith({ knownHosts: "", pinned: false, ref: "refs/pull/99/head" });
+    await expect(result).rejects.toThrow("The requested ref does not exist in the repository.");
+  });
+
+  it("refuses a ref that could be read as an option before running git", async () => {
+    const { result } = await cloneWith({ knownHosts: "", pinned: false, ref: "--upload-pack=evil" });
+    await expect(result).rejects.toThrow("Unsafe ref");
   });
 
   it("refuses a server whose host key differs from the pinned one", async () => {

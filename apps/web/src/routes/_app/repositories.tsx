@@ -14,6 +14,7 @@ import {
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SearchInput, Segmented } from "../../components/filters.tsx";
+import { GateBadge } from "../../components/gate-badge.tsx";
 import { Card, PageHeader } from "../../components/page-header.tsx";
 import { Pagination } from "../../components/pagination.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
@@ -38,7 +39,7 @@ import { BULK_LIMIT, parseUrlList } from "../../lib/repo-urls.ts";
 import { rowClick } from "../../lib/row-link.ts";
 import { useScanErrorText } from "../../lib/scan-error.ts";
 import { type RepositorySearch, repositorySearch, toQuery } from "../../lib/search.ts";
-import type { Page, RepositoryRow, Severity } from "../../lib/types.ts";
+import type { GateResult, Page, RepositoryRow, Severity } from "../../lib/types.ts";
 
 export const Route = createFileRoute("/_app/repositories")({
   validateSearch: repositorySearch,
@@ -80,6 +81,13 @@ function Repositories() {
         ? 4000
         : false,
   });
+
+  // The latest gate result of each repository's own branch (pull request checks excluded).
+  const gates = useQuery({
+    queryKey: ["gate-latest"],
+    queryFn: () => api<{ repositoryId: string; result: GateResult }[]>("/gates/latest"),
+  });
+  const gateOf = new Map((gates.data ?? []).map((g) => [g.repositoryId, g.result]));
 
   const counts = useQuery({
     queryKey: ["repository-counts", search.q ?? ""],
@@ -176,6 +184,7 @@ function Repositories() {
               <th className="hidden px-3 py-2.5 font-medium @xwide:table-cell">
                 {t("repositories.columnTrend")}
               </th>
+              <th className="hidden px-3 py-2.5 font-medium @5xl:table-cell">{t("gates.columnGate")}</th>
               <SortHeader
                 column="lastScan"
                 label={t("repositories.columnLastScan")}
@@ -190,7 +199,13 @@ function Repositories() {
           </thead>
           <tbody>
             {query.data?.items.map((repo) => (
-              <RepositoryRowView key={repo.id} repo={repo} canEdit={canEdit} canDelete={canDelete} />
+              <RepositoryRowView
+                key={repo.id}
+                repo={repo}
+                gate={gateOf.get(repo.id) ?? null}
+                canEdit={canEdit}
+                canDelete={canDelete}
+              />
             ))}
           </tbody>
         </table>
@@ -214,10 +229,12 @@ function Repositories() {
 
 function RepositoryRowView({
   repo,
+  gate,
   canEdit,
   canDelete,
 }: {
   repo: RepositoryRow;
+  gate: GateResult | null;
   canEdit: boolean;
   canDelete: boolean;
 }) {
@@ -327,6 +344,9 @@ function RepositoryRowView({
           </td>
         );
       })}
+      <td className="hidden px-3 py-3 @5xl:table-cell">
+        {gate ? <GateBadge result={gate} /> : <span className="text-muted-foreground">–</span>}
+      </td>
       <td className="hidden px-3 py-3 @xwide:table-cell">
         <div className="flex flex-wrap gap-1">
           {repo.scanners.map((scanner) => (
@@ -346,7 +366,15 @@ function RepositoryRowView({
         />
       </td>
       <td className="px-3 py-3">
-        <ScanStateBadge state={state} />
+        <div className="flex flex-wrap gap-1">
+          <ScanStateBadge state={state} />
+          {/* Narrow screens have no gate column; the result moves here instead of disappearing. */}
+          {gate ? (
+            <span className="@5xl:hidden">
+              <GateBadge result={gate} />
+            </span>
+          ) : null}
+        </div>
         {when && !busy ? (
           <time
             dateTime={when}

@@ -9,7 +9,8 @@
     "./vault": "./src/vault.ts",
     "./pagination": "./src/pagination.ts",
     "./password": "./src/password.ts",
-    "./ssh": "./src/ssh.ts"
+    "./ssh": "./src/ssh.ts",
+    "./gates": "./src/gates.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

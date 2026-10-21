@@ -3,7 +3,7 @@ import { pageSizeSchema } from "@garnetops/core/pagination";
 import { fingerprint, generateDeployKey, parseKnownHosts } from "@garnetops/core/ssh";
 import { seal } from "@garnetops/core/vault";
 import { isTimeZone, openFindingsTrend, openTotalsByRepository, schema } from "@garnetops/db";
-import { and, count, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
@@ -242,7 +242,8 @@ export const repositoryRoutes = new Hono<AppEnv>()
             error: schema.scan.error,
           })
           .from(schema.scan)
-          .where(inArray(schema.scan.repositoryId, repoIds))
+          // Checks of other refs (pull requests) are not the repository's state.
+          .where(and(inArray(schema.scan.repositoryId, repoIds), isNull(schema.scan.ref)))
           .orderBy(schema.scan.repositoryId, desc(schema.scan.createdAt))
       : [];
     const latestScan = new Map(scans.map(({ repositoryId, ...s }) => [repositoryId, s]));
@@ -592,7 +593,9 @@ export async function queueScan(
   organizationId: string,
   repositoryId: string,
   requestedBy: string | null,
-  trigger: "manual" | "schedule" | "webhook",
+  trigger: "manual" | "schedule" | "webhook" | "ci",
+  /** Gate checks of another ref (ADR 0008): scanned on their own, never changing the repository's findings. */
+  check: { ref: string | null; expectedSha: string | null } = { ref: null, expectedSha: null },
 ): Promise<string> {
   const scanId = newId("scan");
   await db.insert(schema.scan).values({
@@ -602,13 +605,20 @@ export async function queueScan(
     state: "queued",
     trigger,
     requestedBy,
+    ref: check.ref,
+    expectedSha: check.expectedSha,
     // Millisecond precision on purpose: this column is a pagination key (see lib/paginate.ts).
     createdAt: new Date(),
   });
   await boss.send(
     QUEUES.scanRepository,
     { scanId },
-    { singletonKey: repositoryId, retryLimit: 1, expireInSeconds: 1800 },
+    // One job per repository and ref at a time; a check of a pull request does not wait for the nightly scan.
+    {
+      singletonKey: check.ref ? `${repositoryId}@${check.ref}@${check.expectedSha ?? ""}` : repositoryId,
+      retryLimit: 1,
+      expireInSeconds: 1800,
+    },
   );
   return scanId;
 }

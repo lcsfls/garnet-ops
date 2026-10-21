@@ -228,9 +228,16 @@ export const scan = pgTable(
       .notNull()
       .references(() => repository.id, { onDelete: "cascade" }),
     state: text("state", { enum: ["queued", "running", "succeeded", "failed"] }).notNull(),
-    trigger: text("trigger", { enum: ["manual", "schedule", "webhook"] }).notNull(),
+    trigger: text("trigger", { enum: ["manual", "schedule", "webhook", "ci"] }).notNull(),
     requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
     branch: text("branch"),
+    /**
+     * Ref a gate check asked for (a branch, tag or pull request ref such as
+     * "refs/pull/12/head"); null scans the repository's configured branch.
+     */
+    ref: text("ref"),
+    /** Commit the gate check expects; the scan fails if the fetched ref points elsewhere. */
+    expectedSha: text("expected_sha"),
     commitSha: text("commit_sha"),
     packageCount: integer("package_count"),
     /** Counts of findings by severity seen in this scan. */
@@ -248,6 +255,77 @@ export const scan = pgTable(
   (t) => [
     index("scan_org_created_idx").on(t.organizationId, t.createdAt, t.id),
     index("scan_repo_created_idx").on(t.repositoryId, t.createdAt),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
+/* Quality gates (ADR 0008)                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** A rule's mode for one organisation. A missing row means the rule's default (never "block"). */
+export const gateRule = pgTable(
+  "gate_rule",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    rule: text("rule").notNull(),
+    mode: text("mode", { enum: ["off", "report", "block"] }).notNull(),
+    /** Rule settings, e.g. { deniedLicenses: ["AGPL-3.0-only"] }. */
+    config: jsonb("config").$type<Record<string, unknown>>(),
+    updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.rule] })],
+);
+
+/** CI token for one repository: can request a gate check and read its result, nothing else. */
+export const gateToken = pgTable(
+  "gate_token",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    repositoryId: text("repository_id")
+      .notNull()
+      .references(() => repository.id, { onDelete: "cascade" }),
+    /** SHA-256 of the token; the token itself is shown once and never stored. */
+    tokenHash: text("token_hash").notNull(),
+    /** First characters of the token, so people can tell their tokens apart. */
+    prefix: text("prefix").notNull(),
+    label: text("label").notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("gate_token_hash_uq").on(t.tokenHash), index("gate_token_repo_idx").on(t.repositoryId)],
+);
+
+/** The gate result of one scan, evaluated once with the modes in force at that time. */
+export const gateRun = pgTable(
+  "gate_run",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    repositoryId: text("repository_id")
+      .notNull()
+      .references(() => repository.id, { onDelete: "cascade" }),
+    scanId: text("scan_id")
+      .notNull()
+      .references(() => scan.id, { onDelete: "cascade" }),
+    result: text("result", { enum: ["passed", "notes", "blocked"] }).notNull(),
+    /** Matching count and mode per rule, e.g. { "critical-fixable": { count: 2, mode: "block" } }. */
+    matches: jsonb("matches").$type<Record<string, { count: number; mode: string }>>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("gate_run_scan_uq").on(t.scanId),
+    index("gate_run_org_created_idx").on(t.organizationId, t.createdAt, t.id),
+    index("gate_run_repo_created_idx").on(t.repositoryId, t.createdAt),
   ],
 );
 

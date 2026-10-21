@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { cloneCommand, cloneErrorMessage, PREFERRED_KEX, sshCommand, sshKexAlgorithms } from "./git.ts";
+import {
+  cloneCommand,
+  cloneErrorMessage,
+  fetchRefCommands,
+  PREFERRED_KEX,
+  sshCommand,
+  sshKexAlgorithms,
+} from "./git.ts";
 
 const base = { url: "https://git.example.test/team/app.git", dir: "/w/src", home: "/w/home", branch: null };
 const configOf = (args: string[]) => args.flatMap((a, i) => (args[i - 1] === "-c" ? [a] : []));
@@ -47,6 +54,31 @@ describe("cloneCommand", () => {
   it("passes a branch as its own argument", () => {
     const { args } = cloneCommand({ ...base, branch: "release/1.2", token: null });
     expect(args).toEqual(expect.arrayContaining(["--branch", "release/1.2"]));
+  });
+});
+
+describe("fetchRefCommands", () => {
+  it("fetches one ref shallowly with the same hardening and checks it out detached", () => {
+    const { steps } = fetchRefCommands({ ...base, ref: "refs/pull/12/head", token: null });
+    expect(steps).toHaveLength(4);
+    for (const args of steps) {
+      expect(configOf(args)).toEqual(
+        expect.arrayContaining(["protocol.allow=never", "http.followRedirects=false"]),
+      );
+    }
+    expect(steps[2]?.slice(-6)).toEqual([
+      "fetch",
+      "--depth=1",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "origin",
+      "refs/pull/12/head",
+    ]);
+    expect(steps[3]?.slice(-4)).toEqual(["checkout", "--quiet", "--detach", "FETCH_HEAD"]);
+  });
+
+  it("refuses a ref that is not plain", () => {
+    expect(() => fetchRefCommands({ ...base, ref: "-oops", token: null })).toThrow("Unsafe ref");
   });
 });
 

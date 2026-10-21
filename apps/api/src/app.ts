@@ -10,6 +10,8 @@ import { type AppEnv, requireActor } from "./lib/context.ts";
 import { handleError, ProblemError } from "./lib/problem.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { findingRoutes } from "./routes/findings.ts";
+import { gateCiRoutes } from "./routes/gate-ci.ts";
+import { gateRoutes } from "./routes/gates.ts";
 import { meRoutes } from "./routes/me.ts";
 import { organizationRoutes } from "./routes/organization.ts";
 import { overviewRoutes } from "./routes/overview.ts";
@@ -71,6 +73,12 @@ export const app = new Hono()
   })
   .use("/api/auth/*", sameOrigin)
   .on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
+  /**
+   * The gate API for CI (ADR 0008): bearer gate token only, no cookies, so it is
+   * registered before the same-origin check and the session middleware and answers
+   * on its own.
+   */
+  .route("/api/v1/gate", gateCiRoutes)
   .use("/api/v1/*", sameOrigin)
   .route("/api/v1/setup", setupRoutes);
 
@@ -82,6 +90,7 @@ const v1 = new Hono<AppEnv>()
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)
+  .route("/gates", gateRoutes)
   .route("/packages", packageRoutes)
   .route("/organization", organizationRoutes)
   .route("/audit-log", auditRoutes)

@@ -1,8 +1,17 @@
-import { Bug, GitBranch, LayoutGrid, type LucideIcon, Package, ScrollText, Settings } from "lucide-react";
+import {
+  Bug,
+  GitBranch,
+  LayoutGrid,
+  type LucideIcon,
+  Package,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+} from "lucide-react";
 import type { MessageKey } from "../lib/i18n.ts";
 import type { Me } from "../lib/session.ts";
 
-export type NavTo = "/" | "/findings" | "/repositories" | "/packages" | "/settings" | "/audit-log";
+export type NavTo = "/" | "/findings" | "/repositories" | "/gates" | "/packages" | "/settings" | "/audit-log";
 
 export interface NavItem {
   to: NavTo;
@@ -24,6 +33,7 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     label: "shell.groupCode",
     items: [
       { to: "/repositories", label: "nav.repositories", icon: GitBranch },
+      { to: "/gates", label: "nav.gates", icon: ShieldCheck },
       { to: "/packages", label: "nav.packages", icon: Package },
     ],
   },

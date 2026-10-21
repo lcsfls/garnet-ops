@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { platform } from "node:os";
 import { delimiter, isAbsolute, join } from "node:path";
 import { scanErrorMessage } from "@garnetops/core";
+import { isSafeGitRef } from "@garnetops/core/gates";
 import { CommandError, run } from "./run.ts";
 
 export interface SshOptions {
@@ -23,6 +24,11 @@ export interface CloneOptions {
   /** Empty scratch directory used as HOME, so git finds no user files. */
   home: string;
   branch: string | null;
+  /**
+   * A ref to fetch instead of a branch (gate checks: a pull request ref such as
+   * "refs/pull/12/head"). Must pass isSafeGitRef; checked again here.
+   */
+  ref?: string | null;
   token: string | null;
   ssh?: SshOptions | null;
 }
@@ -139,6 +145,46 @@ export async function sshClient(): Promise<{ bin: string; kex: string[] }> {
  *   so a server cannot redirect git to another host and receive the token there.
  */
 export function cloneCommand(options: CloneOptions): { args: string[]; env: NodeJS.ProcessEnv } {
+  const { config, env } = hardenedGit(options);
+  const args = [
+    ...config,
+    "clone",
+    "--depth=1",
+    "--single-branch",
+    "--no-tags",
+    "--no-recurse-submodules",
+    ...(options.branch ? ["--branch", options.branch] : []),
+    "--",
+    options.url,
+    options.dir,
+  ];
+  return { args, env };
+}
+
+/**
+ * The commands that fetch exactly one ref, shallow, into an empty directory and check it
+ * out detached: init, add the remote, fetch the ref, check out what was fetched. Same
+ * hardening as {@link cloneCommand}; the ref was validated before it gets here.
+ */
+export function fetchRefCommands(options: CloneOptions & { ref: string }): {
+  steps: string[][];
+  env: NodeJS.ProcessEnv;
+} {
+  if (!isSafeGitRef(options.ref)) throw new Error("Unsafe ref");
+  const { config, env } = hardenedGit(options);
+  const inDir = [...config, "-C", options.dir];
+  return {
+    steps: [
+      [...config, "init", "--quiet", "--", options.dir],
+      [...inDir, "remote", "add", "origin", options.url],
+      [...inDir, "fetch", "--depth=1", "--no-tags", "--no-recurse-submodules", "origin", options.ref],
+      [...inDir, "checkout", "--quiet", "--detach", "FETCH_HEAD"],
+    ],
+    env,
+  };
+}
+
+function hardenedGit(options: CloneOptions): { config: string[]; env: NodeJS.ProcessEnv } {
   const nullDevice = platform() === "win32" ? "NUL" : "/dev/null";
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH,
@@ -178,27 +224,26 @@ export function cloneCommand(options: CloneOptions): { args: string[]; env: Node
         ]
       : []),
   ];
-
-  const args = [
-    ...config,
-    "clone",
-    "--depth=1",
-    "--single-branch",
-    "--no-tags",
-    "--no-recurse-submodules",
-    ...(options.branch ? ["--branch", options.branch] : []),
-    "--",
-    options.url,
-    options.dir,
-  ];
-  return { args, env };
+  return { config, env };
 }
 
 export async function shallowClone(options: CloneOptions): Promise<{ commitSha: string; branch: string }> {
   if (options.ssh && options.token) throw new Error("A clone uses a token or an SSH key, not both");
+  const redact = options.token ? [options.token] : [];
+  if (options.ref) {
+    const { steps, env } = fetchRefCommands({ ...options, ref: options.ref });
+    try {
+      for (const args of steps) await run("git", args, { env, timeoutMs: 5 * 60_000, redact });
+    } catch (error) {
+      if (error instanceof CommandError) throw new Error(cloneErrorMessage(error.stderr));
+      throw error;
+    }
+    const head = await run("git", ["-C", options.dir, "rev-parse", "HEAD"], { env, timeoutMs: 30_000 });
+    return { commitSha: head.stdout.trim(), branch: options.ref };
+  }
   const { args, env } = cloneCommand(options);
   try {
-    await run("git", args, { env, timeoutMs: 5 * 60_000, redact: options.token ? [options.token] : [] });
+    await run("git", args, { env, timeoutMs: 5 * 60_000, redact });
   } catch (error) {
     if (error instanceof CommandError) throw new Error(cloneErrorMessage(error.stderr));
     throw error;
@@ -221,6 +266,9 @@ export function cloneErrorMessage(stderr: string): string {
   if (s.includes("permission denied (publickey")) return scanErrorMessage("deployKeyRefused");
   if (s.includes("no matching key exchange")) return scanErrorMessage("serverNoKeyExchange");
   if (s.includes("remote branch") && s.includes("not found")) return scanErrorMessage("branchNotFound");
+  if (s.includes("couldn't find remote ref") || s.includes("could not find remote ref")) {
+    return scanErrorMessage("refNotFound");
+  }
   if (s.includes("authentication failed") || s.includes("could not read username") || s.includes("403")) {
     return scanErrorMessage("accessRefused");
   }

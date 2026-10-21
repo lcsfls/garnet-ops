@@ -459,3 +459,72 @@ test("sorting: a column header sorts the findings and says so", async ({ page })
   await header.getByRole("button").click();
   await expect(header).toHaveAttribute("aria-sort", "none");
 });
+
+test("quality gates: report by default, an admin blocks a rule, a pipeline checks with its token", async ({
+  page,
+  playwright,
+}) => {
+  const problems = watchForProblems(page);
+  await page.goto("/gates");
+  await expect(page.getByRole("heading", { name: "Quality gates", level: 1 })).toBeVisible();
+  const critical = page.getByRole("group", { name: "Mode of Critical vulnerability with a fix" });
+  // Nothing blocks until an admin says so (ADR 0008).
+  await expect(critical.getByRole("button", { name: "Report" })).toHaveAttribute("aria-pressed", "true");
+  await critical.getByRole("button", { name: "Block" }).click();
+  await expect(critical.getByRole("button", { name: "Block" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("status").filter({ hasText: "Counts from the next run on." })).toBeVisible();
+
+  const runs = page.locator("section").filter({ has: page.getByRole("heading", { name: "Recent runs" }) });
+  await expect(runs.getByRole("row", { name: /seeded-app/ })).toContainText("With notes");
+  await expect(runs.getByRole("row", { name: /seeded-app/ })).toContainText(
+    "2 × Critical vulnerability with a fix",
+  );
+
+  // A token for the seeded repository, shown once.
+  await page.getByRole("combobox", { name: "Repository" }).selectOption({ label: "seeded-app" });
+  await page.getByLabel("Name of the token").fill("e2e pipeline");
+  await page.getByRole("button", { name: "Create token" }).click();
+  const token = (await page.locator("code").filter({ hasText: /^gog_/ }).textContent())?.trim() ?? "";
+  expect(token).toMatch(/^gog_[A-Za-z0-9_-]{43}$/);
+  await expect(page.getByText("e2e pipeline")).toBeVisible();
+
+  // The CI side: no cookies, only the bearer token.
+  const ci = await playwright.request.newContext({
+    baseURL: E2E.publicUrl,
+    storageState: { cookies: [], origins: [] },
+  });
+  const headers = { authorization: `Bearer ${token}` };
+  const sha = "a".repeat(40);
+  const check = await ci.post("/api/v1/gate/checks", { headers, data: { ref: "refs/pull/7/head", sha } });
+  expect(check.status()).toBe(202);
+  const { id } = (await check.json()) as { id: string };
+  const again = await ci.post("/api/v1/gate/checks", { headers, data: { ref: "refs/pull/7/head", sha } });
+  expect(((await again.json()) as { id: string }).id).toBe(id);
+  const status = await ci.get(`/api/v1/gate/checks/${id}`, { headers });
+  expect(await status.json()).toMatchObject({ id, state: "queued", result: null, rules: [] });
+  expect((await ci.post("/api/v1/gate/checks", { headers, data: { ref: "--upload-pack=x" } })).status()).toBe(
+    422,
+  );
+  expect((await ci.get("/api/v1/gate/checks/scan_e2eseeded000000001", { headers })).ok()).toBe(true);
+  expect((await ci.get("/api/v1/findings", { headers })).status()).toBe(401);
+  const wrong = { authorization: `Bearer gog_${"x".repeat(43)}` };
+  expect((await ci.post("/api/v1/gate/checks", { headers: wrong, data: {} })).status()).toBe(401);
+
+  // Revoked: the pipeline is refused at once.
+  await page.getByRole("button", { name: "Revoke: e2e pipeline" }).click();
+  await page
+    .getByRole("dialog", { name: /Revoke the token e2e pipeline/ })
+    .getByRole("button", { name: "Revoke" })
+    .click();
+  await expect(page.getByText("No token yet.")).toBeVisible();
+  expect((await ci.get(`/api/v1/gate/checks/${id}`, { headers })).status()).toBe(401);
+  await ci.dispose();
+
+  // Back to the default, so later tests see the shipped behaviour.
+  await critical.getByRole("button", { name: "Report" }).click();
+  await expect(critical.getByRole("button", { name: "Report" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.goto("/repositories");
+  await expect(page.getByRole("row", { name: /seeded-app/ })).toContainText("With notes");
+  expect(problems).toEqual([]);
+});
