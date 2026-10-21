@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GarnetOps – Mockup</title>
+<!--
+  Throwaway visual prototype. Same conventions as Restow (shadcn/ui new-york,
+  OKLCH tokens, Inter Tight + IBM Plex Mono) with its own burgundy palette
+  (proposal v1). Every asset is self-hosted in
+  ./vendor; nothing is loaded from a CDN or font service.
+
+  Layout widths follow Restow's page widths:
+    wide     data views use the full content width (no max-width cap)
+    readable forms and prose keep a reading width
+    full     multi-pane views (findings)
+  Breakpoints are container queries on the content area, not the viewport:
+    base     < 1450px content  (1080p at 125 % / 150 % scaling)
+    wide     >= 1450px         (1080p at 100 %)
+    xwide    >= 1900px         (1440p and up): extra columns and panes appear
+-->
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<script src="vendor/js/lucide.min.js"></script>
+<script src="vendor/js/d3.min.js"></script>
+<script src="vendor/js/topojson-client.min.js"></script>
+<script src="vendor/js/countries-110m.js"></script>
+<script>
+  // Follow the system colour scheme before first paint, like Restow's theme module.
+  document.documentElement.className = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+</script>
+<style>
+/* ---------- Tokens: own identity (burgundy), proposal v1 ----------
+ * Burgundy is the brand and primary colour. Because red also means "critical"
+ * in a security product, the two are kept apart on purpose:
+ *   brand/primary  deep burgundy, hue ~12, low lightness (light) / rose (dark)
+ *   critical       bright vermilion, hue ~30, higher chroma, always with an icon or label
+ *   info           steel blue (running work, plain information), never red
+ * Neutrals carry a faint warm tint (hue ~15-20) so they sit with the burgundy.
+ * Contrast still has to be verified with a token test before production.
+ */
+:root {
+  color-scheme: light;
+  --radius: 0.625rem;
+  --background: oklch(0.975 0.004 20);
+  --foreground: oklch(0.21 0.02 15);
+  --card: oklch(1 0 0);
+  --primary: oklch(0.4 0.13 12);
+  --primary-foreground: oklch(1 0 0);
+  --primary-text: oklch(0.4 0.13 12);
+  --muted: oklch(0.952 0.007 20);
+  --muted-foreground: oklch(0.52 0.02 20);
+  --accent: oklch(0.952 0.007 20);
+  --border: oklch(0.915 0.008 20);
+  --input: oklch(0.86 0.012 20);
+  --ring: oklch(0.4 0.13 12);
+  --destructive: oklch(0.57 0.2 30);
+  --destructive-text: oklch(0.5 0.18 30);
+  --success: oklch(0.64 0.12 165);
+  --success-text: oklch(0.486 0.101 166);
+  --warning: oklch(0.76 0.14 82);
+  --warning-text: oklch(0.49 0.105 76);
+  --info: oklch(0.48 0.09 245);
+  --info-text: oklch(0.46 0.09 245);
+  --high: oklch(0.68 0.17 55);
+  --high-text: oklch(0.53 0.13 55);
+  --chart-critical: oklch(0.55 0.21 30);
+  --chart-high: oklch(0.7 0.17 58);
+  --chart-medium: oklch(0.78 0.14 85);
+  --chart-low: oklch(0.55 0.01 20);
+  --sidebar: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.025 12);
+  --sidebar-accent-foreground: oklch(0.4 0.13 12);
+  --sidebar-hover: oklch(0.952 0.007 20);
+  --mark-hold: oklch(0.21 0.02 15);
+  --mark-beam: oklch(0.4 0.13 12);
+  --sidebar-width: 16rem;
+  --topbar-height: 3.5rem;
+  --shadow-xs: 0 1px 2px 0 oklch(0.21 0.02 15 / 5%);
+}
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.185 0.012 15);
+  --foreground: oklch(0.965 0.004 20);
+  --card: oklch(0.225 0.015 15);
+  --primary: oklch(0.5 0.15 12);
+  --primary-foreground: oklch(1 0 0);
+  /* Text-safe burgundy on dark surfaces (links, active labels). */
+  --primary-text: oklch(0.78 0.1 10);
+  --muted: oklch(0.27 0.016 15);
+  --muted-foreground: oklch(0.75 0.015 20);
+  --accent: oklch(0.27 0.016 15);
+  --border: oklch(0.97 0.005 20 / 9%);
+  --input: oklch(0.97 0.005 20 / 16%);
+  --ring: oklch(0.7 0.12 10);
+  --destructive: oklch(0.7 0.18 32);
+  --destructive-text: oklch(0.76 0.16 32);
+  --success: oklch(0.66 0.12 165);
+  --success-text: oklch(0.76 0.117 166);
+  --warning: oklch(0.76 0.14 82);
+  --warning-text: oklch(0.81 0.122 81);
+  --info: oklch(0.75 0.08 245);
+  --info-text: oklch(0.77 0.08 245);
+  --high: oklch(0.76 0.15 58);
+  --high-text: oklch(0.8 0.13 60);
+  --chart-critical: oklch(0.66 0.2 30);
+  --chart-high: oklch(0.76 0.16 58);
+  --chart-medium: oklch(0.84 0.13 85);
+  --chart-low: oklch(0.6 0.01 20);
+  --sidebar: oklch(0.205 0.014 15);
+  --sidebar-accent: oklch(0.3 0.05 12);
+  --sidebar-accent-foreground: oklch(0.8 0.09 10);
+  --sidebar-hover: oklch(0.27 0.016 15);
+  --mark-hold: oklch(0.965 0.004 20);
+  --mark-beam: oklch(0.64 0.15 12);
+  --shadow-xs: none;
+}
+
+/* ---------- Base ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: "Inter Tight", system-ui, sans-serif; font-size: 15px; line-height: 1.5;
+  background: var(--background); color: var(--foreground);
+  -webkit-font-smoothing: antialiased; font-feature-settings: "tnum" 1;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.9em; }
+.muted { color: var(--muted-foreground); }
+svg.lucide { width: 16px; height: 16px; stroke-width: 2; flex: none; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---------- Shell ---------- */
+.shell { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); height: 100vh; }
+.sidebar {
+  background: var(--sidebar); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow-y: auto; padding: 0 8px;
+}
+.wordmark { display: flex; align-items: center; gap: 10px; height: var(--topbar-height); padding: 0 8px; flex: none; }
+.wordmark svg { width: 22px; height: 22px; }
+.wordmark .name { font-weight: 700; letter-spacing: -0.03em; font-size: 17px; }
+.wordmark .tag { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted-foreground); margin-left: 6px; }
+.nav-group { padding: 12px 0 4px; }
+.nav-label { font-size: 13px; color: var(--muted-foreground); padding: 0 8px 6px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 8px;
+  border: 0; border-radius: 6px; background: none; text-align: left; font-size: 15px;
+}
+.nav-item:hover { background: var(--sidebar-hover); }
+.nav-item.active { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); font-weight: 500; }
+.nav-item .badge { margin-left: auto; }
+.sidebar-foot {
+  margin-top: auto; padding: 12px 8px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--muted-foreground);
+}
+
+.main-col { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.topbar {
+  height: var(--topbar-height); flex: none; display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--background);
+}
+.crumbs { display: flex; align-items: center; gap: 6px; font-size: 15px; color: var(--muted-foreground); }
+.crumbs b { color: var(--foreground); font-weight: 500; }
+.topbar .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.search {
+  display: flex; align-items: center; gap: 8px; height: 36px; width: clamp(200px, 16vw, 320px); padding: 0 10px;
+  border: 1px solid var(--input); border-radius: 8px; background: var(--card); color: var(--muted-foreground);
+  font-size: 14px; white-space: nowrap; overflow: hidden;
+}
+.search span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+kbd {
+  margin-left: auto; flex: none; font-family: "IBM Plex Mono", monospace; font-size: 11px;
+  border: 1px solid var(--border); background: var(--muted); border-radius: 4px; padding: 0 5px;
+}
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--muted); font-size: 12px; font-weight: 600;
+}
+
+/* The content area is the container all layout decisions are made against. */
+.page { flex: 1; overflow-y: auto; padding: 24px 32px 48px; container: page / inline-size; }
+.view { display: none; }
+.view.active { display: block; }
+.readable { max-width: 72rem; margin: 0 auto; }
+
+/* ---------- Primitives (shadcn/ui new-york look) ---------- */
+.page-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+.page-header > div:nth-child(2) { flex: 1 1 380px; min-width: 0; }
+.page-icon {
+  width: 40px; height: 40px; flex: none; display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-xs);
+}
+.page-icon svg { width: 18px; height: 18px; }
+.page-header h1 { font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+.page-header p { margin: 2px 0 0; color: var(--muted-foreground); font-size: 15px; }
+.page-header .actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 14px;
+  border-radius: 8px; border: 1px solid var(--input); background: var(--card); font-size: 14px; font-weight: 500;
+  box-shadow: var(--shadow-xs); white-space: nowrap;
+}
+.btn:hover { background: var(--accent); }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.ghost { background: none; border-color: transparent; box-shadow: none; }
+.btn.icon { width: 36px; padding: 0; }
+.btn.sm { height: 32px; padding: 0 10px; font-size: 13.5px; }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-xs); min-width: 0; }
+.card-header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px 12px; }
+.card-header h2 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.card-header p { margin: 2px 0 0; font-size: 14px; color: var(--muted-foreground); }
+.card-header .end { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.card-body { padding: 0 20px 18px; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 6px;
+  font-size: 12.5px; font-weight: 500; white-space: nowrap; border: 1px solid transparent;
+}
+.badge svg { width: 12px; height: 12px; }
+.b-critical { background: color-mix(in oklch, var(--destructive) 15%, transparent); color: var(--destructive-text); }
+.b-high     { background: color-mix(in oklch, var(--high) 16%, transparent); color: var(--high-text); }
+.b-medium   { background: color-mix(in oklch, var(--warning) 18%, transparent); color: var(--warning-text); }
+.b-low, .b-neutral { background: var(--muted); color: var(--muted-foreground); }
+.b-success  { background: color-mix(in oklch, var(--success) 16%, transparent); color: var(--success-text); }
+.b-info     { background: color-mix(in oklch, var(--info) 14%, transparent); color: var(--info-text); }
+.b-outline  { border-color: var(--border); color: var(--foreground); }
+
+.alert {
+  display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 12px; margin-bottom: 20px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  background: color-mix(in srgb, var(--warning) 9%, var(--card));
+}
+.alert > svg { color: var(--warning-text); width: 18px; height: 18px; }
+.alert b { display: block; font-weight: 600; }
+.alert span { color: var(--muted-foreground); font-size: 14.5px; }
+.alert .btn { margin-left: auto; }
+
+.segmented { display: inline-flex; padding: 3px; background: var(--muted); border-radius: 9px; gap: 2px; }
+.segmented button { border: 0; background: none; height: 30px; padding: 0 12px; border-radius: 7px; font-size: 14px; color: var(--muted-foreground); white-space: nowrap; }
+.segmented button.on { background: var(--card); color: var(--foreground); box-shadow: var(--shadow-xs); font-weight: 500; }
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.toolbar .search { width: 280px; }
+.toolbar .end { margin-left: auto; display: flex; gap: 8px; }
+
+/* KPI tiles */
+.kpis { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 16px; }
+.kpi { padding: 16px 18px; }
+.kpi .top { display: flex; align-items: center; justify-content: space-between; color: var(--muted-foreground); font-size: 14.5px; }
+.kpi .val { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 6px 0 0; line-height: 1.2; }
+.kpi .delta { font-size: 13px; color: var(--muted-foreground); }
+.kpi .hint { font-size: 13px; color: var(--muted-foreground); margin-top: 2px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+th { text-align: left; font-weight: 500; color: var(--muted-foreground); font-size: 13.5px; padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+th:first-child, td:first-child { padding-left: 20px; }
+th:last-child, td:last-child { padding-right: 20px; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: color-mix(in oklch, var(--muted) 60%, transparent); }
+tr.sel { background: var(--sidebar-accent) !important; }
+td .sub { display: block; font-size: 13px; color: var(--muted-foreground); }
+td.num { font-variant-numeric: tabular-nums; text-align: right; }
+th.num { text-align: right; }
+.count { display: inline-block; min-width: 26px; text-align: center; border-radius: 6px; padding: 1px 6px; font-weight: 600; font-size: 13px; }
+.count.zero { color: var(--muted-foreground); font-weight: 400; }
+.sev-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.cell-flex { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cell-flex > div { min-width: 0; }
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-time { text-decoration: underline dotted; text-underline-offset: 3px; text-decoration-color: var(--input); }
+
+/* Columns that only appear when there is room. */
+.col-wide, .col-xwide { display: none; }
+
+/* Activity list */
+.feed { list-style: none; margin: 0; padding: 0 20px 12px; }
+.feed li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); font-size: 14.5px; }
+.feed li:first-child { border-top: 0; }
+.feed .when { margin-left: auto; color: var(--muted-foreground); font-size: 13px; white-space: nowrap; }
+.feed .ic { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; background: var(--muted); flex: none; }
+.feed .ic svg { width: 14px; height: 14px; }
+
+/* ---------- Page layouts (base = 1080p at 125/150 %) ---------- */
+.grid { display: grid; gap: 16px; }
+.ov-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); grid-template-areas: "attn act" "gates trend" "ai data"; }
+.fi-grid { grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.5fr); grid-template-areas: "list detail" "list ai"; align-items: start; }
+.gt-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-areas: "rules snippet" "runs runs"; align-items: start; }
+.fx-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "table" "preview"; align-items: start; }
+.ho-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "table" "insight"; align-items: start; }
+.at-grid { grid-template-columns: minmax(0, 1.4fr) minmax(360px, 1fr); grid-template-areas: "globe events" "top types"; }
+.st-grid { grid-template-columns: 200px minmax(0, 1fr); grid-template-areas: "nav form" "nav help"; align-items: start; }
+
+@container page (min-width: 1450px) {
+  .col-wide { display: table-cell; }
+  .st-grid { grid-template-columns: 200px minmax(0, 46rem) minmax(260px, 1fr); grid-template-areas: "nav form help"; }
+  .readable.settings { max-width: 96rem; }
+}
+@container page (min-width: 1900px) {
+  .col-xwide { display: table-cell; }
+  .kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .ov-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "attn attn gates act" "trend trend ai data"; }
+  .fi-grid { grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1.25fr) minmax(380px, 1fr); grid-template-areas: "list detail ai"; }
+  .gt-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 0.9fr); grid-template-areas: "rules runs snippet"; }
+  .fx-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-areas: "table preview"; }
+  .ho-grid { grid-template-columns: minmax(0, 2.2fr) minmax(340px, 1fr); grid-template-areas: "table insight"; }
+  .at-grid { grid-template-columns: minmax(0, 1.4fr) minmax(380px, 1fr) minmax(300px, 0.75fr); grid-template-areas: "globe events top" "globe events types"; }
+}
+
+/* ---------- Findings ---------- */
+.f-list { overflow: hidden; }
+.f-item { display: flex; gap: 12px; padding: 13px 18px; border-top: 1px solid var(--border); cursor: pointer; }
+.f-item:first-child { border-top: 0; }
+.f-item:hover { background: color-mix(in oklch, var(--muted) 60%, transparent); }
+.f-item.sel { background: var(--sidebar-accent); }
+.f-item .sev-dot { margin-top: 7px; }
+.f-item .t { font-weight: 500; }
+.f-item .m { font-size: 13px; color: var(--muted-foreground); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--border); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.fact { background: var(--card); padding: 12px 20px; }
+.fact .l { font-size: 13px; color: var(--muted-foreground); }
+.fact .v { font-weight: 500; }
+.section { padding: 16px 20px; }
+.section + .section { border-top: 1px solid var(--border); }
+.section h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+.diff { font-family: "IBM Plex Mono", monospace; font-size: 13px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.diff div { padding: 2px 12px; white-space: pre; overflow-x: auto; }
+.diff .fn { background: var(--muted); color: var(--muted-foreground); padding: 7px 12px; }
+.diff .del { background: color-mix(in oklch, var(--destructive) 10%, transparent); color: var(--destructive-text); }
+.diff .add { background: color-mix(in oklch, var(--success) 10%, transparent); color: var(--success-text); }
+.diff .ctx { color: var(--muted-foreground); }
+.paths { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+.paths li { padding: 3px 0; }
+.chat { display: flex; flex-direction: column; }
+.msg { padding: 14px 20px; border-top: 1px solid var(--border); line-height: 1.6; }
+.msg .who { font-size: 13px; color: var(--muted-foreground); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.msg code { font-family: "IBM Plex Mono", monospace; font-size: 0.86em; background: var(--muted); padding: 1px 5px; border-radius: 4px; }
+.cursor { display: inline-block; width: 7px; height: 1em; background: var(--foreground); vertical-align: text-bottom; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.suggest { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 20px 12px; }
+.suggest button { border: 1px solid var(--border); background: var(--card); border-radius: 99px; padding: 4px 12px; font-size: 13px; color: var(--muted-foreground); }
+.composer { display: flex; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--border); }
+.composer input { flex: 1; height: 38px; border: 1px solid var(--input); border-radius: 8px; background: var(--card); padding: 0 12px; font-size: 14.5px; }
+.ai-note { font-size: 12.5px; color: var(--muted-foreground); padding: 0 20px 14px; display: flex; gap: 6px; align-items: center; }
+
+/* ---------- Misc ---------- */
+.rule { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--border); }
+.rule .txt { flex: 1; min-width: 0; }
+.rule .txt b { font-weight: 500; display: block; }
+.rule .txt span { font-size: 13.5px; color: var(--muted-foreground); }
+.switch { width: 36px; height: 20px; border-radius: 99px; background: var(--input); border: 0; position: relative; flex: none; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--card); box-shadow: var(--shadow-xs); transition: transform .15s; }
+.switch.on { background: var(--primary); }
+.switch.on::after { transform: translateX(16px); background: var(--primary-foreground); }
+.code { font-family: "IBM Plex Mono", monospace; font-size: 13px; background: var(--muted); border-radius: 8px; padding: 12px 14px; white-space: pre; overflow-x: auto; line-height: 1.65; }
+.code .c { color: var(--muted-foreground); }
+.chart-legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted-foreground); padding: 0 20px 16px; flex-wrap: wrap; }
+.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 14px; padding: 0 20px 18px; margin: 0; }
+.kv dt { color: var(--muted-foreground); }
+.kv dd { margin: 0; min-width: 0; }
+.globe-card { position: relative; height: clamp(440px, calc(100vh - 260px), 860px); display: grid; place-items: center; overflow: hidden; }
+#globe { cursor: grab; }
+.g-sphere { fill: var(--muted); stroke: var(--border); }
+.g-grat { fill: none; stroke: var(--border); stroke-width: .5; }
+.g-land { fill: color-mix(in oklch, var(--muted-foreground) 32%, var(--card)); stroke: var(--card); stroke-width: .4; }
+.g-home { fill: var(--primary); }
+.globe-legend { position: absolute; left: 18px; bottom: 14px; display: flex; gap: 14px; font-size: 13px; color: var(--muted-foreground); }
+.globe-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.ev { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-top: 1px solid var(--border); }
+.ev .cc { font-family: "IBM Plex Mono", monospace; font-size: 12px; width: 30px; height: 22px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 5px; color: var(--muted-foreground); flex: none; }
+.ev .main { min-width: 0; flex: 1; }
+.ev .t, .ev .m { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .t { font-weight: 500; font-size: 14.5px; }
+.ev .m { font-size: 13px; color: var(--muted-foreground); }
+.ev .score { text-align: right; font-size: 12.5px; color: var(--muted-foreground); flex: none; }
+.ev .score b { display: block; font-size: 14px; color: var(--foreground); font-weight: 600; }
+.bar-row { display: grid; grid-template-columns: 110px 1fr 48px; gap: 10px; align-items: center; font-size: 14px; padding: 6px 20px; }
+.bar { height: 8px; border-radius: 4px; background: var(--muted); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--chart-low); border-radius: 4px; }
+.subnav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; }
+.subnav button { text-align: left; border: 0; background: none; height: 34px; padding: 0 10px; border-radius: 6px; font-size: 14.5px; }
+.subnav button.on { background: var(--muted); font-weight: 500; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.field label { font-size: 14px; font-weight: 500; }
+.field input, .field select { height: 38px; border: 1px solid var(--input); border-radius: 8px; background: var(--card); padding: 0 12px; font-size: 14.5px; }
+.field .hint { font-size: 13px; color: var(--muted-foreground); }
+.help h3 { font-size: 14px; margin: 0 0 6px; }
+.help p { margin: 0 0 12px; font-size: 14px; color: var(--muted-foreground); line-height: 1.55; }
+.mock-note { position: fixed; right: 14px; bottom: 12px; font-size: 12px; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+
+/* ---------- XDR ---------- */
+.xd-grid { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); grid-template-areas: "alerts summary" "mitre agents"; align-items: start; }
+@container page (min-width: 1900px) {
+  .xd-grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 0.8fr); grid-template-areas: "alerts summary mitre" "alerts summary agents"; }
+}
+
+/* ---------- Dialog ---------- */
+.backdrop { position: fixed; inset: 0; display: none; place-items: center; z-index: 50; background: oklch(0.12 0.02 15 / 60%); }
+.backdrop.open { display: grid; }
+.dialog { width: min(640px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow-y: auto; background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 20px 50px oklch(0 0 0 / 30%); }
+.dialog-head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 8px; }
+.dialog-head h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.dialog-head p { margin: 2px 0 0; font-size: 14px; }
+.dialog-head .btn { margin-left: auto; }
+.steps { display: flex; gap: 6px; padding: 8px 22px 0; }
+.steps i { flex: 1; height: 3px; border-radius: 3px; background: var(--border); }
+.steps i.on { background: var(--primary); }
+.dialog-body { padding: 18px 22px 6px; }
+.dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px 18px; border-top: 1px solid var(--border); margin-top: 12px; }
+.choice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.choice button { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+.choice button svg { width: 20px; height: 20px; }
+.choice button b { font-weight: 600; font-size: 14.5px; }
+.choice button span { font-size: 13px; color: var(--muted-foreground); line-height: 1.4; }
+.choice button.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.field-row { display: flex; gap: 12px; }
+.link { color: var(--primary-text); }
+code.mono { background: var(--muted); padding: 1px 5px; border-radius: 4px; font-size: 0.86em; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="wordmark">
+      <!-- Mark draft: a cut garnet (hexagonal outline, inner facet in the brand colour). -->
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M24 5 L40 14.5 V33.5 L24 43 L8 33.5 V14.5 Z" fill="none" stroke-width="4.5" stroke-linejoin="round" style="stroke: var(--mark-hold)"/>
+        <path d="M24 15 L32 24 L24 33 L16 24 Z" style="fill: var(--mark-beam)"/>
+      </svg>
+      <span><span class="name">garnet</span><span class="tag">ops</span></span>
+    </div>
+    <nav>
+      <div class="nav-group">
+        <div class="nav-label">Daily</div>
+        <button class="nav-item active" data-view="overview"><i data-lucide="layout-grid"></i>Overview</button>
+        <button class="nav-item" data-view="findings"><i data-lucide="bug"></i>Findings<span class="badge b-critical">2</span></button>
+        <button class="nav-item" data-view="attacks"><i data-lucide="globe"></i>Attacks</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Code</div>
+        <button class="nav-item" data-view="repos"><i data-lucide="git-branch"></i>Repositories</button>
+        <button class="nav-item" data-view="gates"><i data-lucide="shield-check"></i>Quality gates</button>
+        <button class="nav-item" data-view="fixes"><i data-lucide="git-pull-request"></i>Fix proposals</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Infrastructure</div>
+        <button class="nav-item" data-view="hosts"><i data-lucide="server"></i>Servers</button>
+        <button class="nav-item" data-view="xdr"><i data-lucide="radar"></i>XDR<span class="badge b-neutral">Wazuh</span></button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Admin</div>
+        <button class="nav-item" data-view="settings"><i data-lucide="settings"></i>Settings</button>
+        <button class="nav-item" disabled style="opacity:.55;cursor:default"><i data-lucide="scroll-text"></i>Audit log</button>
+        <button class="nav-item" disabled style="opacity:.55;cursor:default"><i data-lucide="users"></i>Team</button>
+      </div>
+    </nav>
+    <div class="sidebar-foot"><span class="badge b-outline"><i data-lucide="lock"></i>Local only</span><span>Version 0.1.0</span></div>
+  </aside>
+
+  <div class="main-col">
+    <header class="topbar">
+      <button class="btn ghost icon" aria-label="Toggle sidebar"><i data-lucide="panel-left"></i></button>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="right">
+        <div class="search"><i data-lucide="search"></i><span>CVE, package, repository, server …</span><kbd>Ctrl K</kbd></div>
+        <button class="btn ghost icon" id="themeBtn" aria-label="Light / dark"><i data-lucide="sun-moon"></i></button>
+        <button class="btn ghost icon" aria-label="Notifications"><i data-lucide="bell"></i></button>
+        <div class="avatar">AD</div>
+      </div>
+    </header>
+
+    <main class="page" id="page">
+
+      <!-- ================= OVERVIEW ================= -->
+      <section class="view" id="view-overview">
+        <div class="page-header">
+          <div class="page-icon"><i data-lucide="layout-grid"></i></div>
+          <div><h1>Overview</h1><p>What needs attention today, across all repositories and servers.</p></div>
+          <div class="actions"><span class="muted" style="font-size:13.5px">Updated <span class="dash-time">just now</span></span><button class="btn icon" aria-label="Refresh"><i data-lucide="refresh-cw"></i></button><button class="btn primary"><i data-lucide="scan-search"></i>Scan all</button></div>
+        </div>
+
+        <div class="alert">
+          <i data-lucide="triangle-alert"></i>
+          <div><b>2 findings block a deployment</b><span>billing-portal: an access key in the repository and a critical vulnerability in lodash. A fix proposal is ready for both.</span></div>
+          <button class="btn" data-goto="findings">View findings</button>
+        </div>
+
+        <div class="kpis">
+          <div class="card kpi"><div class="top">Critical open<i data-lucide="flame"></i></div><div class="val">2</div><div class="delta">↓ 3 vs. last week</div><div class="hint">Fix available: 2</div></div>
+          <div class="card kpi"><div class="top">High open<i data-lucide="triangle-alert"></i></div><div class="val">4</div><div class="delta">— unchanged</div><div class="hint">Reachable per AI: 1</div></div>
+          <div class="card kpi"><div class="top">Quality gates<i data-lucide="shield-check"></i></div><div class="val">5 / 6</div><div class="delta">passed in the last 24 h</div><div class="hint">1 blocked: billing-portal</div></div>
+          <div class="card kpi"><div class="top">Open fix PRs<i data-lucide="git-pull-request"></i></div><div class="val">2</div><div class="delta">↑ 1 since yesterday</div><div class="hint">Waiting for your review</div></div>
+          <div class="card kpi"><div class="top">Servers<i data-lucide="server"></i></div><div class="val">14</div><div class="delta">all reporting</div><div class="hint">3 with pending OS updates</div></div>
+          <div class="card kpi"><div class="top">XDR alerts (24 h)<i data-lucide="radar"></i></div><div class="val">37</div><div class="delta">↑ 18 % vs. yesterday</div><div class="hint">2 at level 12 or higher</div></div>
+        </div>
+
+        <div class="grid ov-grid">
+          <div class="card" style="grid-area: attn">
+            <div class="card-header"><div><h2>Fix first</h2><p>Sorted by risk, worst first.</p></div><div class="end"><button class="btn sm ghost" data-goto="findings">All findings<i data-lucide="arrow-right"></i></button></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Finding</th><th>Repository</th><th class="col-wide">Source</th><th>Severity</th><th class="col-wide">Reachable</th></tr></thead><tbody id="ovFindings"></tbody></table></div>
+          </div>
+          <div class="card" style="grid-area: gates">
+            <div class="card-header"><div><h2>Recent gate runs</h2><p>Results from your pipelines.</p></div></div>
+            <ul class="feed" id="ovGates"></ul>
+          </div>
+          <div class="card" style="grid-area: act">
+            <div class="card-header"><div><h2>Activity</h2><p>Scans, updates, notifications.</p></div></div>
+            <ul class="feed">
+              <li><span class="ic"><i data-lucide="database"></i></span>Vulnerability data updated<span class="when">04:12</span></li>
+              <li><span class="ic"><i data-lucide="git-merge"></i></span>PR #212 merged in restow<span class="when">1 h ago</span></li>
+              <li><span class="ic"><i data-lucide="scan-search"></i></span>Nightly scan: 6 repos, 14 servers<span class="when">03:00</span></li>
+              <li><span class="ic"><i data-lucide="mail"></i></span>Weekly report sent to 2 recipients<span class="when">Mon</span></li>
+              <li><span class="ic"><i data-lucide="key-round"></i></span>GitHub token renewed<span class="when">Fri</span></li>
+            </ul>
+          </div>
+          <div class="card" style="grid-area: trend">
+            <div class="card-header"><div><h2>Open findings, 30 days</h2><p>By severity, one value per day.</p></div></div>
+            <div class="card-body" style="padding-bottom:8px"><svg id="trend" viewBox="0 0 600 160" preserveAspectRatio="none" style="width:100%;height:170px;display:block"></svg></div>
+            <div class="chart-legend"><span><i style="background:var(--chart-critical)"></i>Critical</span><span><i style="background:var(--chart-high)"></i>High</span><span><i style="background:var(--chart-medium)"></i>Medium</span><span><i style="background:var(--chart-low)"></i>Low</span></div>
+          </div>
+          <div class="card" style="grid-area: ai">
+            <div class="card-header"><div><h2>Local AI</h2><p>OpenAI-compatible endpoint</p></div><div class="end"><span class="badge b-outline"><span class="sev-dot" style="background:var(--foreground)"></span>Reachable</span></div></div>
+            <dl class="kv"><dt>Model</dt><dd class="mono">qwen3-coder-30b</dd><dt>Endpoint</dt><dd class="mono truncate">http://gpu-01.example.lan:8000/v1</dd><dt>Speed</dt><dd>avg. 42 tokens/s</dd><dt>Today</dt><dd>18 findings triaged</dd></dl>
+          </div>
+          <div class="card" style="grid-area: data">
+            <div class="card-header"><div><h2>Vulnerability data</h2><p>Built locally with vunnel, daily.</p></div></div>
+            <dl class="kv"><dt>As of</dt><dd>today, 04:12</dd><dt>Entries</dt><dd>312,480</dd><dt>Sources</dt><dd>NVD, GHSA, OSV, Debian, Alpine, KEV</dd><dt>Fix knowledge</dt><dd>CVEfixes</dd></dl>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= FINDINGS ================= -->
+      <section class="view" id="view-findings">
+        <div class="page-header">
+          <div class="page-icon"><i data-lucide="bug"></i></div>
+          <div><h1>Findings</h1><p>What the scanners found, triaged by your local AI.</p></div>
+          <div class="actions"><button class="btn"><i data-lucide="download"></i>Export</button><button class="btn primary"><i data-lucide="scan-search"></i>Scan now</button></div>
+        </div>
+        <div class="toolbar">
+          <div class="segmented"><button class="on">Open (7)</button><button>Needs attention (2)</button><button>Accepted (3)</button><button>Resolved (41)</button></div>
+          <div class="end"><div class="search"><i data-lucide="search"></i><span>Filter …</span></div></div>
+        </div>
+        <div class="grid fi-grid">
+          <div class="card f-list" style="grid-area: list" id="fList"></div>
+          <div class="card" style="grid-area: detail" id="fDetail"></div>
+          <div class="card chat" style="grid-area: ai" id="fAi"></div>
+        </div>
+      </section>
+
+      <!-- ================= REPOS ================= -->
+      <section class="view" id="view-repos">
+        <div class="page-header">
+          <div class="page-icon"><i data-lucide="git-branch"></i></div>
+          <div><h1>Repositories</h1><p>Connected projects. Scanned on every push and every night.</p></div>
+          <div class="actions"><button class="btn"><i data-lucide="list-plus"></i>Import from account</button><button class="btn primary"><i data-lucide="plus"></i>Add manually</button></div>
+        </div>
+        <div class="toolbar">
+          <div class="segmented"><button class="on">All (6)</button><button>Blocked (1)</button><button>With notes (1)</button></div>
+          <div class="end"><div class="search"><i data-lucide="search"></i><span>Search repositories …</span></div></div>
+        </div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Repository</th><th>Source</th><th class="col-wide">Branch</th><th class="num">Critical</th><th class="num">High</th><th class="num">Medium</th><th>Gate</th><th class="col-xwide">Scanners</th><th class="col-xwide">Open findings, 14 days</th><th>Last scan</th><th></th></tr></thead>
+          <tbody id="repoRows"></tbody>
+        </table></div></div>
+      </section>
+
+      <!-- ================= GATES ================= -->
+      <section class="view" id="view-gates">
+        <div class="page-header">
+          <div class="page-icon"><i data-lucide="shield-check"></i></div>
+          <div><h1>Quality gates</h1><p>Rules that decide whether a build passes. New rules start in report-only mode.</p></div>
+        </div>
+        <div class="grid gt-grid">
+          <div class="card" style="grid-area: rules">
+            <div class="card-header"><div><h2>Default rules</h2><p>Apply to all repositories, adjustable per repository.</p></div></div>
+            <div class="rule"><span class="badge b-critical">Block</span><div class="txt"><b>Critical vulnerability with fix available</b><span>CVSS ≥ 9 or listed in CISA KEV</span></div><button class="switch on" aria-label="enabled"></button></div>
+            <div class="rule"><span class="badge b-critical">Block</span><div class="txt"><b>Secret in code</b><span>API keys, passwords, tokens</span></div><button class="switch on" aria-label="enabled"></button></div>
+            <div class="rule"><span class="badge b-medium">Report</span><div class="txt"><b>High vulnerability, reachable per AI</b><span>Note on the pull request, no block</span></div><button class="switch on" aria-label="enabled"></button></div>
+            <div class="rule"><span class="badge b-medium">Report</span><div class="txt"><b>License not allowed</b><span>e.g. AGPL in a proprietary project</span></div><button class="switch" aria-label="disabled"></button></div>
+            <div class="rule"><span class="badge b-neutral">Ignore</span><div class="txt"><b>Development dependencies only</b><span>eslint, drizzle-kit, build tools</span></div><button class="switch on" aria-label="enabled"></button></div>
+          </div>
+          <div class="card" style="grid-area: runs">
+            <div class="card-header"><div><h2>Recent runs</h2><p>Every pipeline call, newest first.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Repository</th><th>Trigger</th><th>Result</th><th>Reason</th><th class="num">Duration</th><th>Time</th></tr></thead><tbody id="gateRuns"></tbody></table></div>
+          </div>
+          <div class="card" style="grid-area: snippet">
+            <div class="card-header"><div><h2>Add to your pipeline</h2><p>Forgejo Actions, GitHub Actions, Woodpecker.</p></div></div>
+            <div class="card-body">
+<div class="code"><span class="c"># .forgejo/workflows/security.yml</span>
+- name: Security gate
+  uses: garnetops/gate@v1
+  with:
+    server: https://garnetops.example.lan
+    token: ${{ secrets.GARNETOPS_TOKEN }}</div>
+              <p class="muted" style="font-size:14px;margin:12px 0 0">The result shows up as a status check on the pull request, with a short reason.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= FIXES ================= -->
+      <section class="view" id="view-fixes">
+        <div class="page-header">
+          <div class="page-icon"><i data-lucide="git-pull-request"></i></div>
+          <div><h1>Fix proposals</h1><p>Pull requests from the local AI or version-bump checks. Nothing is merged without your review.</p></div>
+        </div>
+        <div class="grid fx-grid">
+          <div class="card" style="grid-area: table"><div class="table-wrap"><table>
+            <thead><tr><th>Change</th><th>Repository</th><th class="col-wide">By</th><th>Tests</th><th>Status</th><th class="col-wide">Created</th></tr></thead>
+            <tbody id="fixRows"></tbody>
+          </table></div></div>
+          <div class="card" style="grid-area: preview" id="fixPreview"></div>
+        </div>
+      </section>
+
+      <!-- ================= SERVERS ================= -->
+      <section class="view" id="view-hosts">
+        <div class="page-header">
+          <div class="page-icon"><i data-lucide="server"></i></div>
+          <div><h1>Servers</h1><p>Installed packages, known vulnerabilities and pending updates. Agentless over SSH, or from Wazuh.</p></div>
+          <div class="actions"><button class="btn"><i data-lucide="upload"></i>Import CSV</button><button class="btn primary" id="addServerBtn"><i data-lucide="plus"></i>Add server</button></div>
+        </div>
+        <div class="grid ho-grid">
+          <div class="card" style="grid-area: table"><div class="table-wrap"><table>
+            <thead><tr><th>Server</th><th>Connected via</th><th class="col-wide">System</th><th class="num">OS vulnerabilities</th><th class="num">Pending updates</th><th class="col-xwide num">Packages</th><th class="col-xwide">Host key</th><th>State</th><th>Last seen</th></tr></thead>
+            <tbody id="hostRows"></tbody>
+          </table></div></div>
+          <div class="card" style="grid-area: insight">
+            <div class="card-header"><div><h2>Worth a look today</h2><p>Summarised by the local AI.</p></div></div>
+            <div class="section" style="padding-top:0">
+              <p style="margin:0 0 10px;line-height:1.6"><b>hv-01</b> has 3 OS vulnerabilities, one of them in <code class="mono">openssl</code> with a fix in the Debian security repository since yesterday. A plain <code class="mono">apt upgrade</code> resolves all three.</p>
+              <p style="margin:0 0 14px;line-height:1.6" class="muted"><b style="color:var(--foreground)">mail-01</b> runs Debian 12 (oldstable). Plan the upgrade to Debian 13 before its security support ends.</p>
+              <p class="muted" style="font-size:13px;margin:0">Nothing is executed automatically.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= XDR ================= -->
+      <section class="view" id="view-xdr">
+        <div class="page-header">
+          <div class="page-icon"><i data-lucide="radar"></i></div>
+          <div><h1>XDR</h1><p>Security events from your Wazuh installation, read-only. Deep dives stay in the Wazuh dashboard.</p></div>
+          <div class="actions"><span class="badge b-outline"><span class="sev-dot" style="background:var(--foreground)"></span>Connected · Wazuh 5.0.0-rc1</span><span class="badge b-info">Preview adapter</span><div class="segmented"><button>1 h</button><button class="on">24 h</button><button>7 days</button></div><button class="btn"><i data-lucide="external-link"></i>Open Wazuh</button></div>
+        </div>
+        <div class="kpis">
+          <div class="card kpi"><div class="top">Alerts level 12+<i data-lucide="siren"></i></div><div class="val">2</div><div class="delta">↑ 2 vs. yesterday</div><div class="hint">Both on web-01</div></div>
+          <div class="card kpi"><div class="top">Alerts level 7–11<i data-lucide="triangle-alert"></i></div><div class="val">35</div><div class="delta">↑ 12 % vs. yesterday</div><div class="hint">Mostly authentication failures</div></div>
+          <div class="card kpi"><div class="top">Agents<i data-lucide="server"></i></div><div class="val">11 / 12</div><div class="delta">active</div><div class="hint">1 disconnected: build-02</div></div>
+          <div class="card kpi"><div class="top">File integrity events<i data-lucide="file-diff"></i></div><div class="val">6</div><div class="delta">— unchanged</div><div class="hint">4 expected (package updates)</div></div>
+          <div class="card kpi"><div class="top">Vulnerabilities (Wazuh)<i data-lucide="bug"></i></div><div class="val">19</div><div class="delta">↓ 4 vs. last week</div><div class="hint">Merged with own scan results</div></div>
+          <div class="card kpi"><div class="top">MITRE tactics seen<i data-lucide="crosshair"></i></div><div class="val">5</div><div class="delta">in 24 h</div><div class="hint">Credential Access most frequent</div></div>
+        </div>
+        <div class="grid xd-grid">
+          <div class="card" style="grid-area: alerts">
+            <div class="card-header"><div><h2>Alerts</h2><p>Level 7 and above, newest first.</p></div><div class="end"><button class="btn sm ghost">All levels</button></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Time</th><th>Agent</th><th>Rule</th><th class="num">Level</th><th class="col-wide">MITRE</th><th class="col-xwide">Rule ID</th></tr></thead><tbody id="xdrRows"></tbody></table></div>
+          </div>
+          <div class="card" style="grid-area: summary">
+            <div class="card-header"><div><h2>Summary</h2><p>Local AI, from 37 alerts.</p></div></div>
+            <div class="section" style="padding-top:0">
+              <p style="margin:0 0 10px;line-height:1.6">Two level-12 alerts on <b>web-01</b>: a new user <code class="mono">deploy2</code> was added to the <code class="mono">sudo</code> group at 02:51, eight minutes after a burst of SSH failures from 37 addresses. No successful login from those addresses is recorded.</p>
+              <p style="margin:0 0 14px;line-height:1.6" class="muted">Check whether the user change was planned. If not, treat web-01 as compromised: isolate it, rotate credentials, review <code class="mono">/var/log/auth.log</code>.</p>
+              <div style="display:flex;gap:8px"><button class="btn">Mark as expected</button><button class="btn">Open in Wazuh</button></div>
+            </div>
+          </div>
+          <div class="card" style="grid-area: mitre">
+            <div class="card-header"><div><h2>MITRE ATT&amp;CK tactics</h2><p>Share of alerts, 24 h.</p></div></div>
+            <div id="mitre" style="padding-bottom:12px"></div>
+          </div>
+          <div class="card" style="grid-area: agents">
+            <div class="card-header"><div><h2>Top agents</h2><p>By alert count, 24 h.</p></div></div>
+            <div id="topAgents" style="padding-bottom:12px"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= ATTACKS ================= -->
+      <section class="view" id="view-attacks">
+        <div class="page-header">
+          <div class="page-icon"><i data-lucide="globe"></i></div>
+          <div><h1>Attacks</h1><p>Where access attempts on your servers come from. Location from a local GeoIP database, reputation optional via OSINT.</p></div>
+          <div class="actions"><span class="badge b-outline"><span class="sev-dot" style="background:var(--destructive)"></span>Live</span><div class="segmented"><button>1 h</button><button class="on">24 h</button><button>7 days</button></div></div>
+        </div>
+        <div class="grid at-grid">
+          <div class="card globe-card" style="grid-area: globe" id="globeWrap">
+            <svg id="globe" aria-label="Globe showing attack origins"></svg>
+            <div class="globe-legend"><span><span class="sev-dot" style="background:var(--destructive)"></span>Blocked</span><span><span class="sev-dot" style="background:var(--warning)"></span>Observed</span><span><span class="sev-dot" style="background:var(--primary)"></span>Your servers</span></div>
+          </div>
+          <div class="card" style="grid-area: events; overflow:hidden">
+            <div class="card-header"><div><h2>Recent events</h2><p>Newest first.</p></div></div>
+            <div id="events"></div>
+          </div>
+          <div class="card" style="grid-area: top">
+            <div class="card-header"><div><h2>Origin</h2><p>Share of attempts, 24 h.</p></div></div>
+            <div id="topCountries" style="padding-bottom:12px"></div>
+          </div>
+          <div class="card" style="grid-area: types">
+            <div class="card-header"><div><h2>Type</h2><p>What was attempted.</p></div></div>
+            <div id="topTypes" style="padding-bottom:12px"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= SETTINGS ================= -->
+      <section class="view" id="view-settings">
+        <div class="readable settings">
+          <div class="page-header">
+            <div class="page-icon"><i data-lucide="settings"></i></div>
+            <div><h1>Settings</h1><p>Local AI, vulnerability data, sign-in, integrations and email.</p></div>
+          </div>
+          <div class="grid st-grid">
+            <div class="subnav" style="grid-area: nav"><button class="on">Local AI</button><button>Vulnerability data</button><button>Sign-in &amp; SSO</button><button>Wazuh</button><button>Email</button><button>License</button></div>
+            <div class="card" style="grid-area: form">
+              <div class="card-header"><div><h2>Local AI</h2><p>Any endpoint that speaks the OpenAI API.</p></div></div>
+              <div class="card-body">
+                <div class="field"><label>Endpoint</label><input value="http://gpu-01.example.lan:8000/v1"><span class="hint">vLLM, Ollama, LiteLLM, LM Studio. Must be inside your network, otherwise you get a warning.</span></div>
+                <div class="field"><label>Model</label><select><option>qwen3-coder-30b</option><option>glm-5.3-flash</option><option>llama-4-scout</option></select></div>
+                <div class="field"><label>API key (optional)</label><input type="password" value="placeholder"><span class="hint">Stored encrypted and never shown again.</span></div>
+                <div class="field"><label>What the AI may see</label><select><option>Finding, affected file, ±40 lines of context</option><option>Finding and package name only</option></select><span class="hint">Secrets are always removed before sending.</span></div>
+                <div style="display:flex;gap:8px"><button class="btn primary">Save</button><button class="btn"><i data-lucide="plug"></i>Test connection</button></div>
+              </div>
+            </div>
+            <div class="card help" style="grid-area: help">
+              <div class="card-header"><div><h2>Good to know</h2></div></div>
+              <div class="card-body">
+                <h3>Why local only?</h3><p>Findings contain excerpts of your code. A cloud endpoint would send them outside your network.</p>
+                <h3>Which model?</h3><p>Code models from about 14 B parameters triage findings reliably. Smaller models explain well but propose weaker fixes.</p>
+                <h3>No GPU?</h3><p>Scans and gates work without AI. Only the triage is missing.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ================= ADD SERVER DIALOG ================= -->
+<div class="backdrop" id="serverDialog" role="dialog" aria-modal="true" aria-labelledby="sdTitle">
+  <div class="dialog">
+    <div class="dialog-head">
+      <div><h2 id="sdTitle">Add server</h2><p class="muted" id="sdStep">Step 1 of 3 · How should we connect?</p></div>
+      <button class="btn ghost icon" data-close aria-label="Close"><i data-lucide="x"></i></button>
+    </div>
+    <div class="steps"><i class="on"></i><i id="st2"></i><i id="st3"></i></div>
+
+    <div class="dialog-body" id="sdBody1">
+      <div class="choice">
+        <button class="on" data-method="ssh"><i data-lucide="terminal"></i><b>Agentless (SSH)</b><span>Read-only package inventory. Nothing to install.</span></button>
+        <button data-method="wazuh"><i data-lucide="radar"></i><b>From Wazuh</b><span>Agents already enrolled in your Wazuh appear automatically.</span></button>
+        <button data-method="csv"><i data-lucide="file-spreadsheet"></i><b>CSV import</b><span>Many servers at once: address, port, user, group.</span></button>
+      </div>
+    </div>
+
+    <div class="dialog-body" id="sdBody2" hidden>
+      <div class="field-row">
+        <div class="field" style="flex:2"><label>Address</label><input value="192.0.2.21"></div>
+        <div class="field" style="flex:1"><label>Port</label><input value="22"></div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:1"><label>User on the server</label><input value="garnetops-scan"><span class="hint">Unprivileged. No sudo, no root.</span></div>
+        <div class="field" style="flex:1"><label>Jump host (optional)</label><input placeholder="bastion.example.lan"></div>
+      </div>
+      <div class="field"><label>Add this line to <span class="mono">~garnetops-scan/.ssh/authorized_keys</span></label>
+        <div class="code" style="white-space:pre-wrap;word-break:break-all">from="192.0.2.50",no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="/usr/local/bin/garnetops-inventory" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK4q…Zr9 garnetops@garnetops.example.lan</div>
+        <span class="hint">The key only allows the inventory command, only from this platform's address. <a href="#" class="link">Show the inventory script</a> (read-only: dpkg-query, rpm -qa, apk info, os-release).</span>
+      </div>
+    </div>
+
+    <div class="dialog-body" id="sdBody3" hidden>
+      <div class="alert" style="margin:0 0 14px">
+        <i data-lucide="fingerprint"></i>
+        <div><b>Confirm the host key</b><span>Compare it with the output of <span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span> on the server. If it ever changes, scanning stops until an admin confirms again.</span></div>
+      </div>
+      <div class="code">ED25519 SHA256:7m2Yp0k1cQwZ1y9pV3hJxS4tq0Q8eF2nLr5uB6dC1aE</div>
+      <div class="field" style="margin-top:16px"><label>Server group</label><select><option>Production</option><option>Staging</option><option>Internal tools</option></select></div>
+    </div>
+
+    <div class="dialog-foot"><button class="btn ghost" data-close>Cancel</button><button class="btn" id="sdBack" hidden>Back</button><button class="btn primary" id="sdNext">Continue</button></div>
+  </div>
+</div>
+
+<div class="mock-note">Mockup · sample data</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const SEV = { critical: ["Critical", "b-critical", "var(--destructive)"], high: ["High", "b-high", "var(--high)"], medium: ["Medium", "b-medium", "var(--warning)"], low: ["Low", "b-low", "var(--chart-low)"] };
+const sevBadge = (s) => `<span class="badge ${SEV[s][1]}">${SEV[s][0]}</span>`;
+const dot = (s) => `<span class="sev-dot" style="background:${SEV[s][2]}"></span>`;
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+/* ---------- Navigation ---------- */
+const CRUMBS = { overview: ["Daily", "Overview"], findings: ["Daily", "Findings"], attacks: ["Daily", "Attacks"], repos: ["Code", "Repositories"], gates: ["Code", "Quality gates"], fixes: ["Code", "Fix proposals"], hosts: ["Infrastructure", "Servers"], xdr: ["Infrastructure", "XDR"], settings: ["Admin", "Settings"] };
+function go(view) {
+  document.querySelectorAll(".nav-item[data-view]").forEach((n) => n.classList.toggle("active", n.dataset.view === view));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + view));
+  const [a, b] = CRUMBS[view];
+  $("#crumbs").innerHTML = `${a}<i data-lucide="chevron-right"></i><b>${b}</b>`;
+  lucide.createIcons();
+  history.replaceState(null, "", "#" + view);
+  if (view === "attacks") startGlobe();
+}
+document.querySelectorAll(".nav-item[data-view]").forEach((n) => (n.onclick = () => go(n.dataset.view)));
+document.addEventListener("click", (e) => { const g = e.target.closest("[data-goto]"); if (g) go(g.dataset.goto); });
+$("#themeBtn").onclick = () => { const r = document.documentElement; r.className = r.className === "dark" ? "light" : "dark"; };
+
+/* ---------- Data ---------- */
+const findings = [
+  { id: 1, sev: "critical", title: "Prototype pollution in lodash.merge", pkg: "lodash 4.17.20", repo: "billing-portal", cve: "CVE-2026-31337", src: "grype", cvss: "9.1", reach: "Yes", fix: "4.17.23", when: "12 min ago",
+    paths: ["lib/import/client.ts:88", "lib/import/contacts.ts:41"],
+    ai: "This is real and reachable. `merge` receives fields from the CSV import in `lib/import/client.ts:88`. A field such as `__proto__.isAdmin` would change objects across the whole process.\n\nUpdating to 4.17.23 is a patch release without breaking changes. Comparable cases in CVEfixes were fixed the same way. I also recommend dropping keys like `__proto__` during import.",
+    diff: ["lib/import/client.ts", "ctx|  const row = parseCsv(line);", "del|  return merge({}, defaults, row);", "add|  return merge({}, defaults, withoutProtoKeys(row));"] },
+  { id: 2, sev: "critical", title: "AWS access key in repository", pkg: "deploy/.env.backup", repo: "billing-portal", cve: "Secret", src: "trivy", cvss: "–", reach: "In git history", fix: "Rotate the key", when: "12 min ago",
+    paths: ["deploy/.env.backup:3", "Commit a41f9c2"],
+    ai: "`deploy/.env.backup` contains an AWS access key, since commit `a41f9c2`.\n\nDeleting the file is not enough, the key stays in the history. Order: first deactivate and replace the key in AWS, then remove the file and add `.env*` to `.gitignore`. I prepared the second step as a pull request.",
+    diff: [".gitignore", "ctx|node_modules/", "add|.env*", "add|!.env.example"] },
+  { id: 3, sev: "high", title: "SSRF in next/image optimisation", pkg: "next 15.5.2", repo: "booking-app", cve: "CVE-2026-29011", src: "grype", cvss: "7.5", reach: "Likely", fix: "15.5.6", when: "yesterday",
+    paths: ["next.config.ts:12 (remotePatterns: **)"],
+    ai: "`remotePatterns` in `next.config.ts` allows every domain, so the vulnerability is reachable: the server fetches images from arbitrary addresses, including internal ones.\n\nUpdate to 15.5.6 and restrict `remotePatterns` to your own domains.",
+    diff: ["next.config.ts", "del|    remotePatterns: [{ hostname: \"**\" }],", "add|    remotePatterns: [{ hostname: \"cdn.example.com\" }],"] },
+  { id: 4, sev: "medium", title: "ReDoS in sprintf-js via tedious", pkg: "sprintf-js 1.0.3", repo: "billing-portal", cve: "CVE-2026-28112", src: "grype", cvss: "5.3", reach: "Unlikely", fix: "tedious 18.6", when: "yesterday",
+    paths: ["node_modules/tedious → sprintf-js"],
+    ai: "`sprintf-js` only comes in indirectly through the MSSQL driver `tedious`, which uses it for internal error messages, not user input. Low risk.\n\nThe clean fix is `tedious` 18.6, which no longer needs `sprintf-js`. The import tests pass with it.",
+    diff: ["package.json", "del|    \"tedious\": \"^16.7.1\",", "add|    \"tedious\": \"^18.6.0\","] },
+  { id: 5, sev: "medium", title: "No Content-Security-Policy", pkg: "Caddyfile", repo: "restow", cve: "CWE-1021", src: "opengrep", cvss: "–", reach: "Whole app", fix: "Add header", when: "yesterday",
+    paths: ["Caddyfile:22"],
+    ai: "HSTS, nosniff and X-Frame-Options are set; a CSP is missing. Suggestion: measure for a week with `Content-Security-Policy-Report-Only`, then enforce. Nothing breaks in production that way.",
+    diff: ["Caddyfile", "ctx|  header X-Content-Type-Options nosniff", "add|  header Content-Security-Policy-Report-Only \"default-src 'self'\""] },
+  { id: 6, sev: "low", title: "Outdated esbuild (development only)", pkg: "esbuild 0.18.20", repo: "booking-app", cve: "GHSA-67mh-4wv8-2f99", src: "grype", cvss: "5.3", reach: "Local only", fix: "0.25.0", when: "Mon",
+    paths: ["drizzle-kit → esbuild"], ai: "Only affects the local development server through `drizzle-kit`. esbuild is not part of the shipped build. Can go with the next version-bump run.", diff: null },
+];
+
+/* ---------- Overview ---------- */
+$("#ovFindings").innerHTML = findings.slice(0, 5).map((f) => `
+  <tr data-goto="findings" onclick="selectFinding(${f.id})">
+    <td><div class="cell-flex">${dot(f.sev)}<div><div class="truncate" style="font-weight:500">${f.title}</div><span class="sub mono">${f.pkg}</span></div></div></td>
+    <td>${f.repo}</td><td class="col-wide muted">${f.src}</td><td>${sevBadge(f.sev)}</td><td class="col-wide">${f.reach}</td>
+  </tr>`).join("");
+
+const gateRuns = [
+  { repo: "billing-portal", trig: "PR #88", res: "fail", why: "2 critical findings", dur: "41 s", when: "12 min ago" },
+  { repo: "restow", trig: "main · 37f5d96", res: "warn", why: "1 note (CSP)", dur: "1 min 12 s", when: "1 h ago" },
+  { repo: "booking-app", trig: "PR #31", res: "pass", why: "no blocking findings", dur: "38 s", when: "3 h ago" },
+  { repo: "website", trig: "main · 9c2e1aa", res: "pass", why: "no blocking findings", dur: "22 s", when: "yesterday" },
+  { repo: "ml-experiments", trig: "PR #7", res: "pass", why: "no blocking findings", dur: "29 s", when: "yesterday" },
+  { repo: "pstimex", trig: "main · 51ab0d3", res: "pass", why: "no blocking findings", dur: "17 s", when: "2 days ago" },
+];
+// Green means proof: only a gate that actually passed is green.
+const GATE = { pass: ["Passed", "b-success", "circle-check"], fail: ["Blocked", "b-critical", "circle-x"], warn: ["With notes", "b-medium", "circle-alert"] };
+const gateBadge = (r) => `<span class="badge ${GATE[r][1]}"><i data-lucide="${GATE[r][2]}"></i>${GATE[r][0]}</span>`;
+$("#ovGates").innerHTML = gateRuns.slice(0, 5).map((g) => `<li>${gateBadge(g.res)}<span class="truncate">${g.repo} <span class="muted">· ${g.trig}</span></span><span class="when">${g.when}</span></li>`).join("");
+$("#gateRuns").innerHTML = gateRuns.map((g) => `<tr><td style="font-weight:500">${g.repo}</td><td class="mono muted">${g.trig}</td><td>${gateBadge(g.res)}</td><td class="muted">${g.why}</td><td class="num">${g.dur}</td><td><span class="dash-time">${g.when}</span></td></tr>`).join("");
+
+(function trend() {
+  const days = 30, W = 600, H = 160, gap = 4, bw = (W - gap * (days - 1)) / days;
+  let out = "";
+  for (let i = 0; i < days; i++) {
+    const t = i / (days - 1);
+    const v = { critical: Math.max(0, Math.round(5 - 3 * t + Math.sin(i) * 0.6)), high: Math.round(6 - 2 * t + Math.cos(i * 0.7)), medium: Math.round(9 - 3 * t + Math.sin(i * 0.4) * 1.5), low: Math.round(6 + Math.cos(i * 0.3)) };
+    let y = H;
+    for (const k of ["low", "medium", "high", "critical"]) {
+      const h = v[k] * 5.2; y -= h;
+      out += `<rect x="${(i * (bw + gap)).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0, h - 1).toFixed(1)}" rx="1.5" style="fill:var(--chart-${k})"/>`;
+    }
+  }
+  $("#trend").innerHTML = out;
+})();
+
+/* ---------- Findings ---------- */
+$("#fList").innerHTML = findings.map((f) => `
+  <div class="f-item" data-id="${f.id}" onclick="selectFinding(${f.id})">${dot(f.sev)}
+    <div style="min-width:0"><div class="t">${f.title}</div><div class="m">${f.repo} · ${f.src} · ${f.when}</div></div>
+  </div>`).join("");
+
+let streamTimer;
+function selectFinding(id) {
+  const f = findings.find((x) => x.id === id);
+  document.querySelectorAll(".f-item").forEach((e) => e.classList.toggle("sel", +e.dataset.id === id));
+  const diff = f.diff ? `<div class="section"><h3>Proposed fix</h3><div class="diff"><div class="fn">${f.diff[0]}</div>${f.diff.slice(1).map((l) => { const [k, t] = l.split("|"); return `<div class="${k}">${k === "add" ? "+ " : k === "del" ? "- " : "  "}${esc(t)}</div>`; }).join("")}</div>
+      <div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary"><i data-lucide="git-pull-request"></i>Create fix PR</button><button class="btn">Assign</button><button class="btn ghost" style="margin-left:auto">Accept risk …</button></div></div>` : `<div class="section"><div style="display:flex;gap:8px"><button class="btn">Include in next version bump</button><button class="btn ghost" style="margin-left:auto">Accept risk …</button></div></div>`;
+  $("#fDetail").innerHTML = `
+    <div class="card-header" style="padding-bottom:14px"><div style="min-width:0">
+      <div style="display:flex;gap:6px;margin-bottom:8px">${sevBadge(f.sev)}<span class="badge b-outline mono">${f.cve}</span></div>
+      <h2 style="font-size:19px">${f.title}</h2>
+      <p>${f.repo} · <span class="mono">${f.pkg}</span> · found by ${f.src} · ${f.when}</p>
+    </div></div>
+    <div class="facts"><div class="fact"><div class="l">CVSS</div><div class="v">${f.cvss}</div></div><div class="fact"><div class="l">Reachable (AI)</div><div class="v">${f.reach}</div></div><div class="fact"><div class="l">Fixed in</div><div class="v">${f.fix}</div></div></div>
+    <div class="section"><h3>Affected</h3><ul class="paths mono">${f.paths.map((p) => `<li>${p}</li>`).join("")}</ul></div>
+    ${diff}`;
+  $("#fAi").innerHTML = `
+    <div class="card-header"><div><h2>Triage</h2><p>Local AI · <span class="mono">qwen3-coder-30b</span></p></div></div>
+    <div class="msg"><div class="who"><i data-lucide="sparkles"></i>Assistant</div><div id="aiText"></div></div>
+    <div class="suggest" id="aiSuggest" hidden><button>Does the update break anything?</button><button>How do I test the fix?</button><button>Is there a workaround?</button></div>
+    <div class="composer"><input placeholder="Ask a follow-up …"><button class="btn icon" aria-label="Send"><i data-lucide="arrow-up"></i></button></div>
+    <div class="ai-note"><i data-lucide="lock"></i>Generated inside your network. Review suggestions before applying them.</div>`;
+  lucide.createIcons();
+  clearInterval(streamTimer);
+  const el = $("#aiText"); let i = 0;
+  const fmt = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\n/g, "<br>");
+  streamTimer = setInterval(() => {
+    i += 4;
+    el.innerHTML = fmt(f.ai.slice(0, i)) + (i < f.ai.length ? '<span class="cursor"></span>' : "");
+    if (i >= f.ai.length) { clearInterval(streamTimer); $("#aiSuggest").hidden = false; }
+  }, 16);
+}
+selectFinding(1);
+
+/* ---------- Repos ---------- */
+const repos = [
+  { n: "billing-portal", url: "git.example.lan/team/billing-portal", p: "Forgejo", via: "Token", br: "main", c: 2, h: 0, m: 2, gate: "fail", sc: ["grype", "trivy", "opengrep"], hist: [3, 3, 4, 4, 5, 5, 4, 4, 4, 5, 4, 4, 4, 4], scan: "12 min ago" },
+  { n: "restow", url: "github.com/restow-backup/restow", p: "GitHub", via: "GitHub App", br: "main", c: 0, h: 0, m: 1, gate: "warn", sc: ["grype", "opengrep"], hist: [6, 5, 5, 4, 4, 3, 3, 2, 2, 2, 1, 1, 1, 1], scan: "1 h ago" },
+  { n: "booking-app", url: "git.example.lan/team/booking-app", p: "Forgejo", via: "SSH", br: "main", c: 0, h: 1, m: 0, gate: "pass", sc: ["grype"], hist: [2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2], scan: "3 h ago" },
+  { n: "website", url: "github.com/example-org/website", p: "GitHub", via: "GitHub App", br: "main", c: 0, h: 0, m: 0, gate: "pass", sc: ["grype", "trivy"], hist: [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], scan: "yesterday" },
+  { n: "ml-experiments", url: "git.example.lan/team/ml-experiments", p: "Forgejo", via: "SSH", br: "dev", c: 0, h: 0, m: 0, gate: "pass", sc: ["grype"], hist: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], scan: "yesterday" },
+  { n: "pstimex", url: "ssh://nas-01/srv/git/pstimex.git", p: "Git over SSH", via: "Deploy key", br: "main", c: 0, h: 0, m: 0, gate: "pass", sc: ["grype"], hist: [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0], scan: "2 days ago" },
+];
+const count = (n, tone) => n ? `<span class="count ${tone}">${n}</span>` : `<span class="count zero">0</span>`;
+function spark(d) {
+  const max = Math.max(5, ...d), w = 120, h = 26;
+  const pts = d.map((v, i) => `${(i * w / (d.length - 1)).toFixed(1)},${(h - 3 - v / max * (h - 6)).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><polyline points="${pts}" fill="none" style="stroke:var(--muted-foreground)" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+}
+const provIcon = { Forgejo: "git-fork", GitHub: "github", "Git over SSH": "terminal" };
+$("#repoRows").innerHTML = repos.map((r) => `
+  <tr>
+    <td><div class="cell-flex"><i data-lucide="folder-git-2"></i><div><div style="font-weight:500">${r.n}</div><span class="sub mono truncate">${r.url}</span></div></div></td>
+    <td><div class="cell-flex"><i data-lucide="${provIcon[r.p]}"></i><div>${r.p}<span class="sub">${r.via}, read-only</span></div></div></td>
+    <td class="col-wide mono">${r.br}</td>
+    <td class="num">${count(r.c, "b-critical")}</td><td class="num">${count(r.h, "b-high")}</td><td class="num">${count(r.m, "b-medium")}</td>
+    <td>${gateBadge(r.gate)}</td>
+    <td class="col-xwide"><div style="display:flex;gap:4px">${r.sc.map((s) => `<span class="badge b-neutral">${s}</span>`).join("")}</div></td>
+    <td class="col-xwide">${spark(r.hist)}</td>
+    <td><span class="dash-time">${r.scan}</span></td>
+    <td style="width:40px"><button class="btn ghost icon" aria-label="More"><i data-lucide="ellipsis"></i></button></td>
+  </tr>`).join("");
+
+/* ---------- Fixes ---------- */
+const fixes = [
+  { id: 1, t: "tedious 16 → 18.6, drops sprintf-js", repo: "billing-portal", by: "Local AI", tests: "pass", st: ["Waiting for review", "b-info"], when: "12 min ago", pr: "#89",
+    body: "Replaces the MSSQL driver `tedious` 16.7 with 18.6. Version 18 no longer needs `sprintf-js`, which resolves CVE-2026-28112. The connection options `trustServerCertificate` and `encrypt` have different defaults in 18; they are now set explicitly so behaviour does not change.",
+    diff: ["package.json", "del|    \"tedious\": \"^16.7.1\",", "add|    \"tedious\": \"^18.6.0\",", "fn|lib/karthago/connection.ts", "ctx|  options: {", "add|    encrypt: true,", "add|    trustServerCertificate: false,"] },
+  { id: 2, t: "useEffectEvent instead of eslint-disable (6 places)", repo: "restow", by: "Local AI", tests: "fail", st: ["Needs a look", "b-medium"], when: "2 h ago", pr: "#214",
+    body: "Replaces six `eslint-disable react-hooks/exhaustive-deps` with `useEffectEvent` (React 19.2). One test in `fetch-dialog.test.tsx` fails because it waits for the old timing.",
+    diff: ["fetch-dialog.tsx", "del|  // eslint-disable-next-line react-hooks/exhaustive-deps", "del|  useEffect(() => { load(filter); }, []);", "add|  const onOpen = useEffectEvent(() => load(filter));", "add|  useEffect(() => { onOpen(); }, []);"] },
+  { id: 3, t: "next 15.5.2 → 15.5.6", repo: "booking-app", by: "Version bump", tests: "pass", st: ["Merged", "b-neutral"], when: "yesterday", pr: "#32",
+    body: "Patch update. Resolves CVE-2026-29011.", diff: ["package.json", "del|    \"next\": \"15.5.2\",", "add|    \"next\": \"15.5.6\","] },
+];
+const testsBadge = (t) => t === "pass" ? `<span class="badge b-success"><i data-lucide="circle-check"></i>Passed</span>` : `<span class="badge b-critical"><i data-lucide="circle-x"></i>1 failed</span>`;
+$("#fixRows").innerHTML = fixes.map((x) => `
+  <tr data-fix="${x.id}" onclick="selectFix(${x.id})"><td><div style="font-weight:500">${x.t}</div><span class="sub mono">${x.pr}</span></td><td>${x.repo}</td><td class="col-wide">${x.by}</td><td>${testsBadge(x.tests)}</td><td><span class="badge ${x.st[1]}">${x.st[0]}</span></td><td class="col-wide"><span class="dash-time">${x.when}</span></td></tr>`).join("");
+function selectFix(id) {
+  const x = fixes.find((f) => f.id === id);
+  document.querySelectorAll("tr[data-fix]").forEach((r) => r.classList.toggle("sel", +r.dataset.fix === id));
+  let rows = "", first = true;
+  for (const l of x.diff) {
+    if (first) { rows += `<div class="fn">${l}</div>`; first = false; continue; }
+    const [k, t] = l.split("|");
+    rows += k === "fn" ? `<div class="fn">${t}</div>` : `<div class="${k}">${k === "add" ? "+ " : k === "del" ? "- " : "  "}${esc(t)}</div>`;
+  }
+  $("#fixPreview").innerHTML = `
+    <div class="card-header"><div><h2>${x.t}</h2><p>${x.repo} · ${x.pr} · ${x.by}</p></div></div>
+    <div class="section" style="padding-top:0"><p style="margin:0;line-height:1.6">${esc(x.body).replace(/`([^`]+)`/g, '<code class="mono">$1</code>')}</p></div>
+    <div class="section"><div class="diff">${rows}</div></div>
+    <div class="section" style="display:flex;gap:8px"><button class="btn primary"><i data-lucide="external-link"></i>Open in forge</button><button class="btn">Close</button></div>`;
+  lucide.createIcons();
+}
+selectFix(1);
+
+/* ---------- Servers ---------- */
+const hosts = [
+  { n: "web-01", ip: "192.0.2.21", via: ["SSH", "Wazuh"], os: "Debian 13", cve: 1, upd: 4, pkgs: 612, key: "pinned", st: ["XDR alert", "b-critical"], seen: "1 min ago" },
+  { n: "hv-01", ip: "192.0.2.2", via: ["SSH"], os: "Proxmox VE 9.1", cve: 3, upd: 11, pkgs: 1043, key: "pinned", st: ["Updates pending", "b-medium"], seen: "6 min ago" },
+  { n: "app-01", ip: "192.0.2.119", via: ["SSH"], os: "Debian 13", cve: 0, upd: 0, pkgs: 388, key: "pinned", st: ["OK", "b-outline"], seen: "6 min ago" },
+  { n: "nas-01", ip: "192.0.2.5", via: ["Wazuh"], os: "TrueNAS 25.10", cve: 0, upd: 0, pkgs: 0, key: "–", st: ["OK", "b-outline"], seen: "1 min ago" },
+  { n: "gpu-01", ip: "192.0.2.40", via: ["SSH", "Wazuh"], os: "Ubuntu 24.04", cve: 1, upd: 2, pkgs: 905, key: "pinned", st: ["OK", "b-outline"], seen: "6 min ago" },
+  { n: "mail-01", ip: "192.0.2.25", via: ["SSH"], os: "Debian 12", cve: 2, upd: 7, pkgs: 541, key: "changed", st: ["Host key changed", "b-critical"], seen: "2 days ago" },
+];
+$("#hostRows").innerHTML = hosts.map((h) => `
+  <tr><td><div style="font-weight:500">${h.n}</div><span class="sub mono">${h.ip}</span></td>
+  <td><div style="display:flex;gap:4px">${h.via.map((v) => `<span class="badge b-neutral">${v}</span>`).join("")}</div></td>
+  <td class="col-wide">${h.os}</td>
+  <td class="num">${count(h.cve, "b-medium")}</td><td class="num">${h.upd || '<span class="muted">0</span>'}</td>
+  <td class="col-xwide num">${h.pkgs || '<span class="muted">–</span>'}</td>
+  <td class="col-xwide">${h.key === "changed" ? '<span class="badge b-critical">Changed</span>' : h.key === "pinned" ? '<span class="muted">Pinned</span>' : '<span class="muted">–</span>'}</td>
+  <td><span class="badge ${h.st[1]}">${h.st[0]}</span></td><td><span class="dash-time">${h.seen}</span></td></tr>`).join("");
+
+/* ---------- XDR ---------- */
+const alerts = [
+  { t: "02:51", a: "web-01", r: "User added to sudo group", l: 12, m: "Privilege Escalation", id: "5904" },
+  { t: "02:51", a: "web-01", r: "New user account created", l: 12, m: "Persistence", id: "5902" },
+  { t: "02:43", a: "web-01", r: "sshd: multiple authentication failures", l: 10, m: "Credential Access", id: "5720" },
+  { t: "02:40", a: "web-01", r: "sshd: brute force attempt", l: 10, m: "Credential Access", id: "5712" },
+  { t: "01:17", a: "mail-01", r: "Postfix: SASL authentication failures", l: 8, m: "Credential Access", id: "3357" },
+  { t: "00:05", a: "hv-01", r: "Integrity checksum changed: /etc/ssh/sshd_config", l: 7, m: "Defense Evasion", id: "550" },
+  { t: "Yesterday", a: "gpu-01", r: "Listened ports status changed", l: 7, m: "Discovery", id: "533" },
+];
+const lvl = (l) => l >= 12 ? "b-critical" : l >= 10 ? "b-high" : "b-medium";
+$("#xdrRows").innerHTML = alerts.map((x) => `<tr><td class="mono">${x.t}</td><td style="font-weight:500">${x.a}</td><td>${x.r}</td><td class="num"><span class="badge ${lvl(x.l)}">${x.l}</span></td><td class="col-wide muted">${x.m}</td><td class="col-xwide mono muted">${x.id}</td></tr>`).join("");
+const bars = (rows) => rows.map(([l, v]) => `<div class="bar-row"><span class="truncate">${l}</span><div class="bar"><i style="width:${v}%"></i></div><span class="muted" style="text-align:right">${v} %</span></div>`).join("");
+$("#mitre").innerHTML = bars([["Credential Access", 62], ["Defense Evasion", 14], ["Persistence", 11], ["Privilege Esc.", 8], ["Discovery", 5]]);
+$("#topAgents").innerHTML = bars([["web-01", 71], ["mail-01", 16], ["hv-01", 8], ["gpu-01", 5]]);
+
+/* ---------- Add server dialog ---------- */
+let sdStep = 1;
+const sdTitles = ["How should we connect?", "Connection details", "Confirm and save"];
+function sdShow() {
+  [1, 2, 3].forEach((n) => ($("#sdBody" + n).hidden = n !== sdStep));
+  $("#sdStep").textContent = `Step ${sdStep} of 3 · ${sdTitles[sdStep - 1]}`;
+  $("#st2").classList.toggle("on", sdStep >= 2); $("#st3").classList.toggle("on", sdStep >= 3);
+  $("#sdBack").hidden = sdStep === 1;
+  $("#sdNext").textContent = sdStep === 3 ? "Add server" : "Continue";
+}
+$("#addServerBtn").onclick = () => { sdStep = 1; sdShow(); $("#serverDialog").classList.add("open"); lucide.createIcons(); };
+$("#sdNext").onclick = () => { if (sdStep < 3) { sdStep++; sdShow(); } else $("#serverDialog").classList.remove("open"); };
+$("#sdBack").onclick = () => { sdStep--; sdShow(); };
+document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => $("#serverDialog").classList.remove("open")));
+document.querySelectorAll(".choice button").forEach((b) => (b.onclick = () => { document.querySelectorAll(".choice button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); }));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#serverDialog").classList.remove("open"); });
+
+/* ---------- Attacks ---------- */
+const sources = [
+  { cc: "CN", c: "China", lng: 116.4, lat: 39.9, t: "SSH brute force", s: 98 },
+  { cc: "RU", c: "Russia", lng: 37.6, lat: 55.75, t: "Port scan", s: 91 },
+  { cc: "US", c: "United States", lng: -77.0, lat: 38.9, t: "WordPress login", s: 64 },
+  { cc: "BR", c: "Brazil", lng: -46.6, lat: -23.5, t: "SQL injection pattern", s: 87 },
+  { cc: "VN", c: "Vietnam", lng: 105.8, lat: 21.0, t: "SSH brute force", s: 95 },
+  { cc: "NL", c: "Netherlands", lng: 4.9, lat: 52.37, t: "Known scanner", s: 40 },
+  { cc: "IN", c: "India", lng: 77.2, lat: 28.6, t: "RDP attempt", s: 82 },
+];
+const targets = ["web-01", "mail-01", "shop.example.com", "www.example.com"];
+$("#topCountries").innerHTML = bars([["China", 38], ["Russia", 21], ["Vietnam", 11], ["United States", 9], ["Brazil", 7], ["Other", 14]]);
+$("#topTypes").innerHTML = bars([["SSH brute force", 61], ["Port scan", 18], ["Web login", 11], ["SQL injection", 6], ["RDP", 4]]);
+
+let globeStarted = false, land, svg, proj, path, rotation = [-45, -30], arcs = [], dragged = false;
+const home = { lng: 7.13, lat: 50.99 };
+function startGlobe() {
+  if (globeStarted) return; globeStarted = true;
+  land = topojson.feature(window.WORLD_ATLAS, window.WORLD_ATLAS.objects.countries);
+  drawGlobe(); requestAnimationFrame(tick);
+  for (let i = 0; i < 8; i++) addEvent(true);
+  setInterval(() => addEvent(false), 2600);
+}
+function drawGlobe() {
+  const wrap = $("#globeWrap");
+  const size = Math.min(wrap.clientWidth, wrap.clientHeight) - 40;
+  svg = d3.select("#globe").attr("width", size).attr("height", size);
+  svg.selectAll("*").remove();
+  proj = d3.geoOrthographic().scale(size / 2 - 2).translate([size / 2, size / 2]).clipAngle(90);
+  path = d3.geoPath(proj);
+  svg.append("path").datum({ type: "Sphere" }).attr("class", "g-sphere");
+  svg.append("path").datum(d3.geoGraticule10()).attr("class", "g-grat");
+  svg.append("path").datum(land).attr("class", "g-land");
+  svg.append("g").attr("class", "arcs");
+  svg.append("circle").attr("class", "g-home").attr("r", 4.5);
+  svg.call(d3.drag().on("drag", (e) => { dragged = true; rotation[0] += e.dx * 0.3; rotation[1] -= e.dy * 0.3; render(); }));
+  render();
+}
+function render() {
+  proj.rotate(rotation);
+  svg.selectAll(".g-sphere,.g-grat,.g-land").attr("d", path);
+  const hp = proj([home.lng, home.lat]); svg.select(".g-home").attr("cx", hp[0]).attr("cy", hp[1]);
+  const g = svg.select(".arcs"); g.selectAll("*").remove();
+  const now = performance.now();
+  arcs = arcs.filter((a) => now - a.t0 < 4200);
+  for (const a of arcs) {
+    const p = Math.min(1, (now - a.t0) / 1400), fade = 1 - Math.max(0, (now - a.t0 - 1400) / 2800);
+    const interp = d3.geoInterpolate([a.lng, a.lat], [home.lng, home.lat]);
+    const color = a.s > 80 ? "var(--destructive)" : "var(--warning)";
+    g.append("path").datum({ type: "LineString", coordinates: d3.range(0, p + 0.001, 0.02).map(interp) }).attr("d", path)
+      .attr("style", `fill:none;stroke:${color};stroke-width:1.6;stroke-linecap:round;opacity:${fade}`);
+    if (d3.geoDistance([a.lng, a.lat], [-rotation[0], -rotation[1]]) < Math.PI / 2) {
+      const sp = proj([a.lng, a.lat]);
+      g.append("circle").attr("cx", sp[0]).attr("cy", sp[1]).attr("r", 3).attr("style", `fill:${color};opacity:${fade}`);
+    }
+  }
+}
+function tick() {
+  if (!dragged && !matchMedia("(prefers-reduced-motion: reduce)").matches) rotation[0] = -45 + 25 * Math.sin(performance.now() / 12000);
+  render(); requestAnimationFrame(tick);
+}
+function addEvent(initial) {
+  const s = sources[Math.floor(Math.random() * sources.length)];
+  const tgt = targets[Math.floor(Math.random() * targets.length)];
+  const ip = [45, 91, 103, 185, 194, 201][Math.floor(Math.random() * 6)] + "." + [0, 0, 0].map(() => Math.floor(Math.random() * 255)).join(".");
+  if (!initial) arcs.push({ ...s, t0: performance.now() });
+  const box = $("#events");
+  box.insertAdjacentHTML("afterbegin", `<div class="ev"><span class="cc">${s.cc}</span><div class="main"><div class="t">${s.t} → ${tgt}</div><div class="m"><span class="mono">${ip}</span> · ${s.c} · ${s.s > 80 ? "blocked" : "observed"}</div></div><div class="score"><b>${s.s} %</b>Abuse score</div></div>`);
+  while (box.children.length > 12) box.lastElementChild.remove();
+}
+window.addEventListener("resize", () => globeStarted && drawGlobe());
+
+if (location.hash === "#add-server") { go("hosts"); $("#addServerBtn").click(); sdStep = 2; sdShow(); }
+else go(CRUMBS[location.hash.slice(1)] ? location.hash.slice(1) : "overview");
+</script>
+</body>
+</html>

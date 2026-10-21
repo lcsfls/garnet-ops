@@ -1,0 +1,11 @@
+# Used only by the release smoke test on the CI runner (.github/workflows/release.yml).
+# It publishes the API's health endpoint on the runner's loopback. Never use it in production.
+services:
+  api:
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [internal, smoke]
+
+networks:
+  # The internal network has no route out, so the published port needs one more network.
+  smoke:

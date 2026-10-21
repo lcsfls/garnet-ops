@@ -1,0 +1,10 @@
+{
+  "name": "garnetops-fixture-npm-vulnerable",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Test fixture: pins old releases with published advisories. Never installed or executed.",
+  "dependencies": {
+    "lodash": "4.17.15",
+    "minimist": "1.2.0"
+  }
+}

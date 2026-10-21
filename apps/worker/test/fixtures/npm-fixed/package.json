@@ -1,0 +1,10 @@
+{
+  "name": "garnetops-fixture-npm-fixed",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Test fixture: the same dependencies at releases that fix those advisories. Never installed or executed.",
+  "dependencies": {
+    "lodash": "4.18.0",
+    "minimist": "1.2.8"
+  }
+}

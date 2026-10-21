@@ -1,0 +1,76 @@
+# The GarnetOps edge (ADR 0007). It serves the web app, forwards /api to the API, and
+# while the API is down for an update it shows the update sidecar's maintenance page
+# instead of a bare 502; that page reloads when the new version answers.
+#
+#   GARNETOPS_HOST  host name users open, e.g. garnetops.example.lan (default: localhost)
+#   GARNETOPS_TLS   "internal" (default: Caddy's own CA; trust its root or replace it),
+#                   an email address (ACME, needs a public name), or
+#                   "/certs/cert.pem /certs/key.pem" (your own certificate, mounted)
+#
+# TLS 1.3 key exchange prefers the hybrid post-quantum X25519MLKEM768 (Go's default).
+{
+	admin off
+	http_port 8080
+	https_port 8443
+	# The published ports differ from the container's; the redirect below keeps them out of URLs.
+	auto_https disable_redirects
+	# The internal CA's root stays in the data volume; it is not installed into the image.
+	skip_install_trust
+}
+
+(app_headers) {
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+	}
+}
+
+http://:8080 {
+	# Health check of the container and the release smoke test; nothing else over plain HTTP.
+	handle /healthz {
+		respond "ok" 200
+	}
+	handle {
+		redir https://{host}{uri} 308
+	}
+}
+
+{$GARNETOPS_HOST:localhost}:8443 {
+	tls {$GARNETOPS_TLS:internal}
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		-Server
+	}
+
+	# The update sidecar's public status and maintenance page: read-only, no token, no versions.
+	# Nothing else of the sidecar is reachable from outside.
+	handle /public/v1/* {
+		reverse_proxy updater:8090
+	}
+
+	handle /api/* {
+		reverse_proxy api:3000 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	handle {
+		import app_headers
+		root * /srv
+		# Hashed build assets never change; everything else (the app shell) is revalidated.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@shell not path /assets/*
+		header @shell Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle_errors 502 503 504 {
+		rewrite * /public/v1/maintenance/
+		reverse_proxy updater:8090
+	}
+}

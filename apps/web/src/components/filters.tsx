@@ -1,0 +1,85 @@
+import { useEffect, useRef, useState } from "react";
+import { cn } from "../lib/cn.ts";
+import { formatNumber } from "../lib/format.ts";
+
+/**
+ * A row of toggle buttons for one filter value (e.g. finding state). An
+ * option may carry a count: a number, or null while it loads (a dash keeps
+ * the room for it, so the row does not jump when the numbers arrive).
+ */
+export function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string; count?: number | null }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <fieldset className="inline-flex gap-0.5 rounded-lg bg-muted p-[3px]">
+      <legend className="sr-only">{label}</legend>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={o.value === value}
+          onClick={() => onChange(o.value)}
+          className={cn(
+            "h-8 rounded-md px-3 text-sm whitespace-nowrap",
+            o.value === value
+              ? "bg-card font-medium text-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {o.label}
+          {o.count !== undefined ? (
+            <span className="ml-1.5 inline-block min-w-[2ch] text-left tabular-nums">
+              {o.count === null ? "–" : formatNumber(o.count)}
+            </span>
+          ) : null}
+        </button>
+      ))}
+    </fieldset>
+  );
+}
+
+/** Text filter that writes to the URL after a short pause, not on every keystroke. */
+export function SearchInput({
+  label,
+  value,
+  onChange,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => setDraft(value), [value]);
+  useEffect(() => {
+    if (draft.trim() === value) return;
+    const timer = setTimeout(() => onChangeRef.current(draft.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [draft, value]);
+
+  return (
+    <input
+      type="search"
+      aria-label={label}
+      placeholder={label}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      className={cn(
+        "h-10 w-full max-w-xs rounded-md border border-input bg-card px-3 text-base shadow-xs placeholder:text-muted-foreground",
+        className,
+      )}
+    />
+  );
+}

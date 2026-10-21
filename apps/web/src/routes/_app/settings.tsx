@@ -1,0 +1,307 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Settings } from "lucide-react";
+import { type FormEvent, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { systemQuery } from "../../components/app-shell.tsx";
+import { isAdmin } from "../../components/nav.ts";
+import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
+import { QueryStatus } from "../../components/query-state.tsx";
+import { Alert } from "../../components/ui/alert.tsx";
+import { Button } from "../../components/ui/button.tsx";
+import { Checkbox } from "../../components/ui/checkbox.tsx";
+import { Select } from "../../components/ui/select.tsx";
+import { UpdatesPanel } from "../../components/updates-panel.tsx";
+import { ApiError, api } from "../../lib/api.ts";
+import { cn } from "../../lib/cn.ts";
+import { formatCalendarDate, formatDateTime } from "../../lib/format.ts";
+import type { MessageKey } from "../../lib/i18n.ts";
+import { SETTINGS_SECTIONS, type SettingsSection, settingsSearch } from "../../lib/search.ts";
+
+/** Public source repository; AGPL-3.0 section 13 asks us to offer the source to every user. */
+const SOURCE_REPOSITORY = "https://github.com/lcsfls/garnet-ops";
+
+export const Route = createFileRoute("/_app/settings")({
+  validateSearch: settingsSearch,
+  component: SettingsPage,
+});
+
+interface Organization {
+  id: string;
+  name: string;
+  scanSchedule: { enabled: boolean; localTime: string; timeZone: string };
+  lastRuns: { localDate: string; queuedScans: number; createdAt: string }[];
+}
+
+const SECTION_LABELS = {
+  scanning: "settings.sectionScanning",
+  updates: "settings.sectionUpdates",
+  about: "settings.sectionAbout",
+} as const satisfies Record<SettingsSection, MessageKey>;
+
+/**
+ * Settings with a section list on the left (mockup), the form in a reading
+ * width, and short help beside it on wide screens or below it otherwise.
+ */
+function SettingsPage() {
+  const { t } = useTranslation();
+  const { me } = Route.useRouteContext();
+  const search = Route.useSearch();
+  const admin = isAdmin(me);
+  // Updates are an installation matter: only owners and admins see them.
+  const sections = SETTINGS_SECTIONS.filter((s) => s !== "updates" || admin);
+  const section = search.section && sections.includes(search.section) ? search.section : "scanning";
+
+  return (
+    <div className="mx-auto max-w-[72rem] @wide:max-w-[96rem]">
+      <PageHeader icon={Settings} title={t("settings.title")} description={t("settings.description")} />
+      <div className="grid grid-cols-[12.5rem_minmax(0,1fr)] items-start gap-4 @wide:grid-cols-[12.5rem_minmax(0,46rem)_minmax(16rem,1fr)]">
+        <nav aria-label={t("settings.sections")} className="sticky top-0 row-span-2 @wide:row-span-1">
+          <ul className="grid gap-0.5">
+            {sections.map((s) => (
+              <li key={s}>
+                <Link
+                  to="/settings"
+                  search={s === "scanning" ? {} : { section: s }}
+                  aria-current={s === section ? "page" : undefined}
+                  className={cn(
+                    "flex h-9 items-center rounded-md px-2.5",
+                    s === section ? "bg-muted font-medium" : "hover:bg-accent",
+                  )}
+                >
+                  {t(SECTION_LABELS[s])}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="grid min-w-0 gap-4">
+          {section === "scanning" ? <ScanningSection canEdit={admin} /> : null}
+          {section === "updates" ? <UpdatesPanel me={me} /> : null}
+          {section === "about" ? <AboutSection /> : null}
+        </div>
+        <Help section={section} />
+      </div>
+    </div>
+  );
+}
+
+const HELP: Record<SettingsSection, { title: MessageKey; text: MessageKey }[]> = {
+  scanning: [
+    { title: "settings.helpNightlyTitle", text: "settings.helpNightlyText" },
+    { title: "settings.helpSandboxTitle", text: "settings.helpSandboxText" },
+  ],
+  updates: [
+    { title: "settings.helpUpdatesSignedTitle", text: "settings.helpUpdatesSignedText" },
+    { title: "settings.helpUpdatesBackupTitle", text: "settings.helpUpdatesBackupText" },
+    { title: "settings.helpUpdatesManualTitle", text: "settings.helpUpdatesManualText" },
+  ],
+  about: [{ title: "settings.helpSourceTitle", text: "settings.helpSourceText" }],
+};
+
+function Help({ section }: { section: SettingsSection }) {
+  const { t } = useTranslation();
+  return (
+    <Card className="col-start-2 @wide:col-start-3 @wide:row-start-1">
+      <CardHeader title={t("settings.goodToKnow")} />
+      <div className="grid gap-3 px-5 py-4">
+        {HELP[section].map((item) => (
+          <div key={item.title}>
+            <h3 className="text-sm font-medium">{t(item.title)}</h3>
+            <p className="text-sm text-muted-foreground">{t(item.text)}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ScanningSection({ canEdit }: { canEdit: boolean }) {
+  const query = useQuery({
+    queryKey: ["organization"],
+    queryFn: () => api<Organization>("/organization"),
+  });
+  const { data } = query;
+  if (!data) {
+    return (
+      <Card>
+        <QueryStatus query={query} />
+      </Card>
+    );
+  }
+  return (
+    <>
+      <NightlyScan org={data} canEdit={canEdit} />
+      <LastRuns runs={data.lastRuns} />
+    </>
+  );
+}
+
+/** Version, licence and where the source code of this version is (AGPL-3.0, section 13). */
+function AboutSection() {
+  const { t } = useTranslation();
+  const system = useQuery(systemQuery);
+  const version = system.data?.version;
+  const sourceUrl =
+    version && version !== "0.0.0-dev" ? `${SOURCE_REPOSITORY}/tree/v${version}` : SOURCE_REPOSITORY;
+  return (
+    <Card>
+      <CardHeader title={t("settings.aboutTitle")} description={t("settings.aboutDescription")} />
+      {system.data ? (
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-2 px-5 py-5">
+          <dt className="text-muted-foreground">{t("settings.aboutVersion")}</dt>
+          <dd className="font-mono">{version === "0.0.0-dev" ? t("shell.devBuild") : version}</dd>
+          <dt className="text-muted-foreground">{t("settings.aboutLicense")}</dt>
+          <dd>{t("settings.aboutLicenseValue")}</dd>
+          <dt className="text-muted-foreground">{t("settings.aboutSource")}</dt>
+          <dd className="break-all">
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-text underline-offset-4 hover:underline"
+            >
+              {sourceUrl}
+            </a>
+          </dd>
+        </dl>
+      ) : (
+        <QueryStatus query={system} />
+      )}
+    </Card>
+  );
+}
+
+/** IANA zones known to the browser, with UTC first and the stored zone always present. */
+function useTimeZones(current: string): string[] {
+  return useMemo(() => {
+    const zones = new Set<string>(["UTC", current]);
+    for (const zone of Intl.supportedValuesOf("timeZone")) zones.add(zone);
+    return ["UTC", ...[...zones].filter((z) => z !== "UTC").sort()];
+  }, [current]);
+}
+
+function NightlyScan({ org, canEdit }: { org: Organization; canEdit: boolean }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const schedule = org.scanSchedule;
+  const [enabled, setEnabled] = useState(schedule.enabled);
+  const [timeZone, setTimeZone] = useState(schedule.timeZone);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<MessageKey | null>(null);
+  const zones = useTimeZones(schedule.timeZone);
+
+  const save = useMutation({
+    mutationFn: (body: { enabled: boolean; localTime: string; timeZone: string }) =>
+      api("/organization/scan-schedule", { method: "PUT", body }),
+    onSuccess: async () => {
+      setSaved(true);
+      // The repositories page shows the schedule from the session status.
+      await queryClient.invalidateQueries({ queryKey: ["organization"] });
+      await queryClient.invalidateQueries({ queryKey: ["status"] });
+    },
+    onError: (e) =>
+      setError(
+        e instanceof ApiError && e.code === "unsupported-time-zone" ? "settings.errorZone" : "errors.generic",
+      ),
+  });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setSaved(false);
+    setError(null);
+    save.mutate({ enabled, localTime: String(form.get("localTime")), timeZone });
+  }
+
+  return (
+    <Card>
+      <CardHeader title={t("settings.nightlyTitle")} description={t("settings.nightlyDescription")} />
+      <form className="grid gap-5 px-5 py-5" onSubmit={submit} onChange={() => setSaved(false)}>
+        {!canEdit ? <Alert tone="info">{t("settings.readOnly")}</Alert> : null}
+        {error ? <Alert tone="error">{t(error)}</Alert> : null}
+        <label className="flex items-center gap-2.5">
+          <Checkbox checked={enabled} disabled={!canEdit} onChange={(e) => setEnabled(e.target.checked)} />
+          {t("settings.enabled")}
+        </label>
+        <div className="grid gap-4 @xl:grid-cols-[10rem_minmax(0,1fr)]">
+          <div className="grid gap-1.5">
+            <label htmlFor="nightly-time" className="text-sm font-medium">
+              {t("settings.time")}
+            </label>
+            <input
+              id="nightly-time"
+              name="localTime"
+              type="time"
+              required
+              step={60}
+              disabled={!canEdit || !enabled}
+              defaultValue={schedule.localTime.slice(0, 5)}
+              className="h-10 rounded-md border border-input bg-card px-3 text-base shadow-xs disabled:opacity-50"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <label htmlFor="nightly-zone" className="text-sm font-medium">
+              {t("settings.timeZone")}
+            </label>
+            <Select
+              id="nightly-zone"
+              value={timeZone}
+              disabled={!canEdit || !enabled}
+              onChange={(e) => setTimeZone(e.target.value)}
+              aria-describedby="nightly-zone-hint"
+            >
+              {zones.map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone}
+                </option>
+              ))}
+            </Select>
+            <p id="nightly-zone-hint" className="text-sm text-muted-foreground">
+              {t("settings.timeZoneHint")}
+            </p>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground">{t("settings.timeHint")}</p>
+        {canEdit ? (
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? t("common.loading") : t("settings.save")}
+            </Button>
+            {saved ? (
+              <span role="status" className="text-sm text-muted-foreground">
+                {t("settings.saved")}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </form>
+    </Card>
+  );
+}
+
+function LastRuns({ runs }: { runs: Organization["lastRuns"] }) {
+  const { t } = useTranslation();
+  return (
+    <Card>
+      <CardHeader title={t("settings.lastRuns")} />
+      {runs.length === 0 ? (
+        <p className="px-5 py-5 text-muted-foreground">{t("settings.lastRunsEmpty")}</p>
+      ) : (
+        <ul>
+          {runs.map((run) => (
+            <li key={run.localDate} className="flex items-center gap-4 border-b px-5 py-3 last:border-0">
+              <span className="font-medium">{formatCalendarDate(run.localDate)}</span>
+              <span className="text-muted-foreground">
+                {t("settings.queued", { count: run.queuedScans })}
+              </span>
+              <time dateTime={run.createdAt} className="ml-auto text-sm text-muted-foreground">
+                {formatDateTime(run.createdAt)}
+              </time>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}

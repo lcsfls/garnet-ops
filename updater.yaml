@@ -1,0 +1,65 @@
+# Configuration of the optional update sidecar (cicd-updater, ADR 0007, docs/updating.md).
+# Reference: https://github.com/restow-backup/cicd-updater/blob/main/docs/configuration.md
+# compose.projectDir comes from CICD_UPDATER_COMPOSE__PROJECT_DIR (docker-compose.yml).
+# Keep this file owned by root and not writable by the app. Validate it with:
+#   docker compose run --rm --no-deps updater config check
+version: 1
+
+compose:
+  profiles: [updater]
+
+auth:
+  # API and worker run as the node user (gid 1000); the token file is root:1000, mode 0640.
+  tokenGroupId: 1000
+
+release:
+  feed:
+    type: github
+    url: https://github.com/lcsfls/garnet-ops
+  channel: stable
+
+trust:
+  # Only releases signed by the GarnetOps release workflow at the release tag are installed.
+  mode: keyless
+  keyless:
+    github:
+      repository: lcsfls/garnet-ops
+      workflow: .github/workflows/release.yml
+
+services:
+  # The API runs the database migrations when it starts.
+  - { name: api, image: app, imageVar: APP_IMAGE, startOrder: 1 }
+  - { name: worker, image: app, imageVar: APP_IMAGE, startOrder: 2 }
+  # The edge keeps serving the maintenance page, also when an update needs attention.
+  - { name: web, image: web, imageVar: WEB_IMAGE, startOrder: 3, stopBeforeUpdate: false, stopOnAttention: false }
+
+hooks:
+  backup:
+    type: postgres
+    service: db
+    retention: { keep: 3, maxAgeDays: 30 }
+    # Recommended: encrypt backups with age and keep the private key off this host.
+    # encryption: { ageRecipients: [age1...] }
+  migrationProbe:
+    type: postgres
+    service: db
+    preset: drizzle
+  health:
+    type: http
+    http:
+      url: http://api:3000/api/healthz
+      sendToken: true # GarnetOps tells its version only to the sidecar
+      versionJsonPath: $.version
+  smoke:
+    checks:
+      - { type: http, url: http://web:8080/healthz, expectStatus: [200] }
+
+rollback:
+  # The old version starts again only if the database schema provably did not change.
+  policy: probe
+
+publicStatus:
+  enabled: true
+
+maintenancePage:
+  enabled: true

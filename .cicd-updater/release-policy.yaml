@@ -1,0 +1,9 @@
+# Upgrade constraints of the NEXT release; reviewed with the code it belongs to and signed
+# into release.json (cicd-updater docs/release-side.md). Update it in every release PR.
+minimumFromVersion: null # e.g. 0.2.0: older installations must install 0.2.x first
+requiresUpdater: ">=1.0.0" # the lowest sidecar version this release needs
+requiresEnv: [] # .env keys that must be set before the update
+manualSteps:
+  required: false # true: the sidecar refuses the release; the operator updates by hand
+  summary: null
+  url: null

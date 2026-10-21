@@ -1,0 +1,17 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Dependencies may only run install scripts when listed here (supply-chain hardening).
+allowBuilds:
+  '@embedded-postgres/linux-x64': true
+  '@embedded-postgres/windows-x64': true
+  esbuild: true
+  # Optional native speed-ups of the ssh2 test server (dev only); the pure JS fallback is enough.
+  cpu-features: false
+  ssh2: false
+
+# Do not install package versions younger than one day (minutes). Compromised
+# releases are usually caught within hours. No silent exclusions: an exception
+# needs a comment with the reason.
+minimumReleaseAge: 1440

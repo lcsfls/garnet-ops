@@ -1,0 +1,31 @@
+{
+  "name": "@garnetops/api",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --include \"../../packages/*/src/**/*.ts\" --env-file-if-exists=../../.data/dev.env src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@garnetops/core": "workspace:*",
+    "@garnetops/db": "workspace:*",
+    "@garnetops/i18n": "workspace:*",
+    "@hono/node-server": "^2.1.5",
+    "@restow-backup/cicd-updater": "file:../../vendor/cicd-updater/restow-backup-cicd-updater-1.0.0.tgz",
+    "better-auth": "1.7.10",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "pg-boss": "^12.38.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
