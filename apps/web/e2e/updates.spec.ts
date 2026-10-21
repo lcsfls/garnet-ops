@@ -41,6 +41,9 @@ async function signedInAt(when: "an hour ago" | "now") {
         ? "update session set created_at = now()"
         : "update session set created_at = now() - interval '1 hour'",
     );
+    // Sign-ins of earlier tests (another member's, too) count against the per-minute limit;
+    // this test's step-up is a sign-in of its own and must not inherit them.
+    await client.query("delete from rate_limit where key like '%/sign-in/%' or key like '%/two-factor/%'");
   } finally {
     await client.end();
   }

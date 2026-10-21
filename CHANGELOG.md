@@ -10,6 +10,16 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- An "Alpha" badge next to the wordmark in the sidebar, with a short explanation on hover.
+- Team (Admin → Team, ADR 0009): owners and admins invite people by email and role. The
+  invitation is a link that works once and for 7 days (shown once, stored as a hash,
+  revocable); e-mail delivery follows with the mail module. The invited person sets a
+  name and password and must set up a second factor at the first sign-in. Owners manage
+  every role, admins only members and viewers; the last owner is protected. Removing
+  someone ends their access and every session at once and keeps the account for the
+  audit trail. Inviting, changing roles and removing need a sign-in from the last ten
+  minutes. Everything is in the audit log (filter Team).
+- Migration 0008 (additive): table `invitation`.
 - Quality gates (ADR 0008, `docs/quality-gates.md`): rules for critical and high
   vulnerabilities with a fix, known exploited vulnerabilities and denied licences, each
   Off, Report or Block. **Every rule starts as Report or Off; nothing blocks until an admin

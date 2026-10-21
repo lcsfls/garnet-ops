@@ -12,6 +12,7 @@ import { Mark, Wordmark } from "./brand.tsx";
 import { CommandSearch } from "./command-search.tsx";
 import { MaintenanceBanner } from "./maintenance-banner.tsx";
 import { navFor, navTrail } from "./nav.ts";
+import { Badge } from "./ui/badge.tsx";
 import { UserMenu } from "./user-menu.tsx";
 
 const SIDEBAR_KEY = "garnetops.sidebar";
@@ -76,7 +77,12 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
               <span className="sr-only">GarnetOps</span>
             </>
           ) : (
-            <Wordmark />
+            <>
+              <Wordmark />
+              <span title={t("shell.alphaHint")} className="ml-2">
+                <Badge tone="info">{t("shell.alpha")}</Badge>
+              </span>
+            </>
           )}
         </div>
         <nav aria-label={t("shell.mainNavigation")}>

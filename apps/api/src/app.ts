@@ -12,6 +12,7 @@ import { auditRoutes } from "./routes/audit.ts";
 import { findingRoutes } from "./routes/findings.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
 import { gateRoutes } from "./routes/gates.ts";
+import { invitationRoutes } from "./routes/invitations.ts";
 import { meRoutes } from "./routes/me.ts";
 import { organizationRoutes } from "./routes/organization.ts";
 import { overviewRoutes } from "./routes/overview.ts";
@@ -21,6 +22,7 @@ import { scanRoutes } from "./routes/scans.ts";
 import { searchRoutes } from "./routes/search.ts";
 import { setupRoutes } from "./routes/setup.ts";
 import { systemRoutes } from "./routes/system.ts";
+import { teamRoutes } from "./routes/team.ts";
 import { maintenanceRoutes, updateRoutes } from "./routes/updates.ts";
 import { APP_VERSION } from "./version.ts";
 
@@ -80,7 +82,9 @@ export const app = new Hono()
    */
   .route("/api/v1/gate", gateCiRoutes)
   .use("/api/v1/*", sameOrigin)
-  .route("/api/v1/setup", setupRoutes);
+  .route("/api/v1/setup", setupRoutes)
+  // Accepting an invitation happens before the person has an account (ADR 0009).
+  .route("/api/v1/invitations", invitationRoutes);
 
 const v1 = new Hono<AppEnv>()
   .use("*", requireActor)
@@ -95,6 +99,7 @@ const v1 = new Hono<AppEnv>()
   .route("/organization", organizationRoutes)
   .route("/audit-log", auditRoutes)
   .route("/system", systemRoutes)
+  .route("/team", teamRoutes)
   .route("/maintenance", maintenanceRoutes)
   .route("/updates", updateRoutes);
 

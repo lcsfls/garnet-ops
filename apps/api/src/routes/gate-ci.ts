@@ -1,7 +1,6 @@
-import { newId } from "@garnetops/core";
 import { isCommitSha, isSafeGitRef } from "@garnetops/core/gates";
 import { schema } from "@garnetops/db";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
@@ -11,6 +10,7 @@ import { audit } from "../lib/audit.ts";
 import { bearerGateToken, hashGateToken } from "../lib/gate-token.ts";
 import { clientIp } from "../lib/ip.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
+import { rateLimit } from "../lib/rate-limit.ts";
 import { queueScan } from "./repositories.ts";
 
 /** Requests per token and minute; enough for a busy pipeline polling every few seconds. */
@@ -50,20 +50,7 @@ const requireGateToken = createMiddleware<GateEnv>(async (c, next) => {
     : [];
   if (!row) throw new ProblemError(401, "invalid-gate-token", "The gate token is not valid");
 
-  const now = Date.now();
-  const [limit] = (
-    await db.execute<{ count: number }>(sql`
-      insert into rate_limit (id, key, count, last_request)
-      values (${newId("rl")}, ${`gate:${row.id}`}, 1, ${now})
-      on conflict (key) do update set
-        count = case when rate_limit.last_request < ${now - WINDOW_MS} then 1 else rate_limit.count + 1 end,
-        last_request = case when rate_limit.last_request < ${now - WINDOW_MS} then ${now} else rate_limit.last_request end
-      returning count`)
-  ).rows;
-  if ((limit?.count ?? 0) > RATE_LIMIT) {
-    c.header("retry-after", "60");
-    throw new ProblemError(429, "rate-limited", "Too many requests for this gate token");
-  }
+  await rateLimit(`gate:${row.id}`, RATE_LIMIT, WINDOW_MS);
   await db.update(schema.gateToken).set({ lastUsedAt: new Date() }).where(eq(schema.gateToken.id, row.id));
   c.set("gateToken", row);
   await next();

@@ -48,6 +48,7 @@ test.describe("signed in", () => {
     { path: "/settings?section=about", heading: "Settings", name: "settings-about" },
     { path: "/repositories/repo_e2eseeded000000001", heading: "seeded-app", name: "repository" },
     { path: "/audit-log", heading: "Audit log", name: "audit-log" },
+    { path: "/team", heading: "Team", name: "team" },
   ]) {
     test(`${name} fits without horizontal scrolling`, async ({ page }, info) => {
       const problems = watchForProblems(page);

@@ -10,7 +10,8 @@
     "./pagination": "./src/pagination.ts",
     "./password": "./src/password.ts",
     "./ssh": "./src/ssh.ts",
-    "./gates": "./src/gates.ts"
+    "./gates": "./src/gates.ts",
+    "./team": "./src/team.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

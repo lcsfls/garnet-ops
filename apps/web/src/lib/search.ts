@@ -97,7 +97,15 @@ export const packageSearch = z.object({
 });
 export type PackageSearch = z.infer<typeof packageSearch>;
 
-export const AUDIT_FILTERS = ["auth", "repository", "finding", "gate", "organization", "update"] as const;
+export const AUDIT_FILTERS = [
+  "auth",
+  "repository",
+  "finding",
+  "gate",
+  "team",
+  "organization",
+  "update",
+] as const;
 export const auditSearch = z.object({
   /** Action group; the API filters by the prefix "<group>.". */
   group: z.enum(AUDIT_FILTERS).optional().catch(undefined),

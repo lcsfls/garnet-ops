@@ -7,11 +7,20 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import type { MessageKey } from "../lib/i18n.ts";
 import type { Me } from "../lib/session.ts";
 
-export type NavTo = "/" | "/findings" | "/repositories" | "/gates" | "/packages" | "/settings" | "/audit-log";
+export type NavTo =
+  | "/"
+  | "/findings"
+  | "/repositories"
+  | "/gates"
+  | "/packages"
+  | "/settings"
+  | "/team"
+  | "/audit-log";
 
 export interface NavItem {
   to: NavTo;
@@ -41,6 +50,7 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     label: "shell.groupAdmin",
     items: [
       { to: "/settings", label: "nav.settings", icon: Settings },
+      { to: "/team", label: "nav.team", icon: Users, adminOnly: true },
       { to: "/audit-log", label: "nav.auditLog", icon: ScrollText, adminOnly: true },
     ],
   },

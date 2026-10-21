@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E } from "./env.ts";
-import { OWNER, STATE_FILE, watchForProblems } from "./helpers.ts";
+import { OWNER, STATE_FILE, totp, watchForProblems } from "./helpers.ts";
 import { SEEDED, seed } from "./seed.ts";
 
 test.describe.configure({ mode: "serial" });
@@ -526,5 +526,83 @@ test("quality gates: report by default, an admin blocks a rule, a pipeline check
 
   await page.goto("/repositories");
   await expect(page.getByRole("row", { name: /seeded-app/ })).toContainText("With notes");
+  expect(problems).toEqual([]);
+});
+
+test("team: invite someone, they join with a second factor, change their role, remove them", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const problems = watchForProblems(page);
+  await page.goto("/team");
+  await expect(page.getByRole("heading", { name: "Team", level: 1 })).toBeVisible();
+  await expect(page.getByRole("row", { name: new RegExp(OWNER.email) })).toContainText("Owner");
+
+  await page.getByRole("button", { name: "Invite" }).click();
+  const dialog = page.getByRole("dialog", { name: "Invite someone" });
+  await dialog.getByLabel("Email address").fill("New.Person@e2e.test");
+  await dialog.getByLabel("Member", { exact: true }).check();
+  await dialog.getByRole("button", { name: "Create invitation link" }).click();
+  const link = await dialog.getByLabel("Invitation link").inputValue();
+  expect(link).toMatch(/\/invite#[A-Za-z0-9_-]{43}$/);
+  await dialog.getByRole("button", { name: "Close" }).last().click();
+  await expect(page.getByText("new.person@e2e.test")).toBeVisible();
+
+  // The invited person, in a browser without the owner's session.
+  const guest = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const other = await guest.newPage();
+  const path = new URL(link).pathname + new URL(link).hash;
+  await other.goto(path);
+  await expect(other.getByRole("heading", { name: "Join E2E Org" })).toBeVisible();
+  await expect(other.getByText(`${OWNER.name} invited new.person@e2e.test as Member.`)).toBeVisible();
+  await other.getByLabel("Your name").fill("Nina New");
+  await other.getByLabel("Choose a password").fill("new-person-password-1");
+  await other.getByRole("button", { name: "Join" }).click();
+  await other.getByRole("link", { name: "Sign in" }).click();
+  await other.getByLabel("Email").fill("new.person@e2e.test");
+  await other.getByLabel("Password").fill("new-person-password-1");
+  await other.getByRole("button", { name: "Sign in" }).click();
+  // A second factor before anything else, like every account.
+  await expect(other).toHaveURL(/\/enroll$/);
+  await other.getByLabel("Password").fill("new-person-password-1");
+  await other.getByRole("button", { name: "Start setup" }).click();
+  const secret = (await other.locator("code").innerText()).replace(/\s+/g, "");
+  await other.getByLabel("Code", { exact: true }).fill(totp(secret));
+  await other.getByRole("button", { name: "Confirm code" }).click();
+  await other.getByLabel("I have saved my backup codes").check();
+  await other.getByRole("button", { name: "Continue to GarnetOps" }).click();
+  await expect(other.getByRole("heading", { name: "Overview" })).toBeVisible();
+  // A member sees no admin pages.
+  await expect(other.getByRole("link", { name: "Team" })).toHaveCount(0);
+
+  // The link works once.
+  const again = await guest.newPage();
+  await again.goto(path);
+  await expect(again.getByRole("alert")).toContainText("This invitation link is not valid");
+
+  // Role change, then removal: access ends at once.
+  await page.reload();
+  const row = page.getByRole("row", { name: /Nina New/ });
+  await expect(row).toContainText("Set up");
+  await row.getByRole("combobox", { name: "Role of Nina New" }).selectOption({ label: "Viewer" });
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Role of Nina New" })).toHaveValue("viewer");
+  // Nobody changes their own role; the owner row has no role control.
+  await expect(page.getByRole("combobox", { name: `Role of ${OWNER.name}` })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Remove Nina New" }).click();
+  await page
+    .getByRole("dialog", { name: "Remove Nina New from the team?" })
+    .getByRole("button", { name: "Remove" })
+    .click();
+  await expect(page.getByRole("row", { name: /Nina New/ })).toHaveCount(0);
+  expect((await other.request.get("/api/v1/me")).status()).toBe(401);
+  await guest.close();
+
+  await page.goto("/audit-log?group=team");
+  for (const action of ["Invitation created", "Invitation accepted", "Role changed", "Member removed"]) {
+    await expect(page.getByText(action).first()).toBeVisible();
+  }
   expect(problems).toEqual([]);
 });

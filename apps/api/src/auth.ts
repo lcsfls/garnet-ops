@@ -11,7 +11,7 @@ import { auditAuthEvent } from "./lib/auth-audit.ts";
 /**
  * Authentication (AGENTS.md rule 1):
  * - open email sign-up is disabled; the first admin is created by the setup endpoint,
- *   further users by invitation (later) or an identity provider (later);
+ *   further users by invitation (ADR 0009) or an identity provider (later);
  * - passwords are hashed with Argon2id (@garnetops/core/password), not better-auth's scrypt default;
  * - TOTP is mandatory: a session without an enrolled second factor may only
  *   enrol one or sign out (enforced in lib/context.ts). Users cannot switch it

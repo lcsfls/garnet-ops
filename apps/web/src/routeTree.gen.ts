@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as EnrollRouteImport } from './routes/enroll'
+import { Route as InviteRouteImport } from './routes/invite'
 import { Route as NoAccessRouteImport } from './routes/no-access'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SignInRouteImport } from './routes/sign-in'
@@ -22,6 +23,7 @@ import { Route as AppGatesRouteImport } from './routes/_app/gates'
 import { Route as AppPackagesRouteImport } from './routes/_app/packages'
 import { Route as AppRepositoriesRouteImport } from './routes/_app/repositories'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppTeamRouteImport } from './routes/_app/team'
 import { Route as AppRepositoriesIdRouteImport } from './routes/_app/repositories_.$id'
 
 const AppRoute = AppRouteImport.update({
@@ -31,6 +33,11 @@ const AppRoute = AppRouteImport.update({
 const EnrollRoute = EnrollRouteImport.update({
   id: '/enroll',
   path: '/enroll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteRoute = InviteRouteImport.update({
+  id: '/invite',
+  path: '/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NoAccessRoute = NoAccessRouteImport.update({
@@ -88,6 +95,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeamRoute = AppTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppRepositoriesIdRoute = AppRepositoriesIdRouteImport.update({
   id: '/repositories_/$id',
   path: '/repositories/$id',
@@ -97,6 +109,7 @@ const AppRepositoriesIdRoute = AppRepositoriesIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/enroll': typeof EnrollRoute
+  '/invite': typeof InviteRoute
   '/no-access': typeof NoAccessRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
@@ -107,10 +120,12 @@ export interface FileRoutesByFullPath {
   '/packages': typeof AppPackagesRoute
   '/repositories': typeof AppRepositoriesRoute
   '/settings': typeof AppSettingsRoute
+  '/team': typeof AppTeamRoute
   '/repositories/$id': typeof AppRepositoriesIdRoute
 }
 export interface FileRoutesByTo {
   '/enroll': typeof EnrollRoute
+  '/invite': typeof InviteRoute
   '/no-access': typeof NoAccessRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
@@ -121,6 +136,7 @@ export interface FileRoutesByTo {
   '/packages': typeof AppPackagesRoute
   '/repositories': typeof AppRepositoriesRoute
   '/settings': typeof AppSettingsRoute
+  '/team': typeof AppTeamRoute
   '/': typeof AppIndexRoute
   '/repositories/$id': typeof AppRepositoriesIdRoute
 }
@@ -128,6 +144,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/enroll': typeof EnrollRoute
+  '/invite': typeof InviteRoute
   '/no-access': typeof NoAccessRoute
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
@@ -138,6 +155,7 @@ export interface FileRoutesById {
   '/_app/packages': typeof AppPackagesRoute
   '/_app/repositories': typeof AppRepositoriesRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/team': typeof AppTeamRoute
   '/_app/': typeof AppIndexRoute
   '/_app/repositories_/$id': typeof AppRepositoriesIdRoute
 }
@@ -146,6 +164,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/enroll'
+    | '/invite'
     | '/no-access'
     | '/setup'
     | '/sign-in'
@@ -156,10 +175,12 @@ export interface FileRouteTypes {
     | '/packages'
     | '/repositories'
     | '/settings'
+    | '/team'
     | '/repositories/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/enroll'
+    | '/invite'
     | '/no-access'
     | '/setup'
     | '/sign-in'
@@ -170,12 +191,14 @@ export interface FileRouteTypes {
     | '/packages'
     | '/repositories'
     | '/settings'
+    | '/team'
     | '/'
     | '/repositories/$id'
   id:
     | '__root__'
     | '/_app'
     | '/enroll'
+    | '/invite'
     | '/no-access'
     | '/setup'
     | '/sign-in'
@@ -186,6 +209,7 @@ export interface FileRouteTypes {
     | '/_app/packages'
     | '/_app/repositories'
     | '/_app/settings'
+    | '/_app/team'
     | '/_app/'
     | '/_app/repositories_/$id'
   fileRoutesById: FileRoutesById
@@ -193,6 +217,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   EnrollRoute: typeof EnrollRoute
+  InviteRoute: typeof InviteRoute
   NoAccessRoute: typeof NoAccessRoute
   SetupRoute: typeof SetupRoute
   SignInRoute: typeof SignInRoute
@@ -213,6 +238,13 @@ declare module '@tanstack/react-router' {
       path: '/enroll'
       fullPath: '/enroll'
       preLoaderRoute: typeof EnrollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite': {
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/no-access': {
@@ -292,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/team': {
+      id: '/_app/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof AppTeamRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/repositories_/$id': {
       id: '/_app/repositories_/$id'
       path: '/repositories/$id'
@@ -309,6 +348,7 @@ interface AppRouteChildren {
   AppPackagesRoute: typeof AppPackagesRoute
   AppRepositoriesRoute: typeof AppRepositoriesRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppTeamRoute: typeof AppTeamRoute
   AppIndexRoute: typeof AppIndexRoute
   AppRepositoriesIdRoute: typeof AppRepositoriesIdRoute
 }
@@ -320,6 +360,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPackagesRoute: AppPackagesRoute,
   AppRepositoriesRoute: AppRepositoriesRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppTeamRoute: AppTeamRoute,
   AppIndexRoute: AppIndexRoute,
   AppRepositoriesIdRoute: AppRepositoriesIdRoute,
 }
@@ -329,6 +370,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   EnrollRoute: EnrollRoute,
+  InviteRoute: InviteRoute,
   NoAccessRoute: NoAccessRoute,
   SetupRoute: SetupRoute,
   SignInRoute: SignInRoute,

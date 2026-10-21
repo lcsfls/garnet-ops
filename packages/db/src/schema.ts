@@ -157,6 +157,31 @@ export const membership = pgTable(
   (t) => [primaryKey({ columns: [t.organizationId, t.userId] }), index("membership_user_idx").on(t.userId)],
 );
 
+/** A one-time invitation into an organisation (ADR 0009). Only the token's hash is stored. */
+export const invitation = pgTable(
+  "invitation",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** Lower-case address the invitation is for; the account gets exactly this address. */
+    email: text("email").notNull(),
+    role: text("role", { enum: ["owner", "admin", "member", "viewer"] }).notNull(),
+    tokenHash: text("token_hash").notNull(),
+    invitedBy: text("invited_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedUserId: text("accepted_user_id").references(() => user.id, { onDelete: "set null" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("invitation_token_hash_uq").on(t.tokenHash),
+    index("invitation_org_created_idx").on(t.organizationId, t.createdAt),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Secrets vault (ADR 0004). Plaintext never touches the database.             */
 /* -------------------------------------------------------------------------- */

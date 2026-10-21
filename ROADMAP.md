@@ -68,8 +68,9 @@ paginated findings, and every number on the overview leads to its details.
       finding and settings changes; read-only view for owners and admins,
       ordered by sequence number. Still open: tamper-evident hash chain
       (ADR 0005), export
-- [ ] Roles in practice: invitations, member management, role changes (all
-      audit-logged); roles are enforced in the API already
+- [x] Roles in practice: invitations, member management, role changes (all
+      audit-logged), step-up for team changes (ADR 0009). Still open: invitation mail
+      (with the mail module), SSO and LDAP sign-in
 - [~] Secrets vault: envelope encryption with hybrid post-quantum key
       wrapping (X25519 + ML-KEM-1024, ADR 0004), used for forge tokens;
       key rotation open

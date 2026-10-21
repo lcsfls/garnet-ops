@@ -13,7 +13,7 @@ mandatory TOTP, repositories over HTTPS or SSH (generated deploy keys), several
 HTTPS repositories at once with one token, dependency scanning with syft and grype
 on a local vulnerability database, findings with CVSS/EPSS and export (CSV, XLSX,
 PDF, text), repository pages with scan and patch history, package inventory,
-nightly scans, quality gates with a CI check per pull request
+nightly scans, a team with invitations and roles, quality gates with a CI check per pull request
 ([docs/quality-gates.md](docs/quality-gates.md)), audit log, a Docker Compose stack and
 optional signed in-app updates.
 
