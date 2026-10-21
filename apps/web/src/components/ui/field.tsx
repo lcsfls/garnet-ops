@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, useId } from "react";
+import { type InputHTMLAttributes, type TextareaHTMLAttributes, useId } from "react";
 import { cn } from "../../lib/cn.ts";
 
 export interface FieldProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -24,6 +24,48 @@ export function Field({ label, hint, error, className, id, ...props }: FieldProp
         aria-describedby={[hintId, errorId].filter(Boolean).join(" ") || undefined}
         className={cn(
           "h-10 w-full rounded-md border border-input bg-card px-3 text-base shadow-xs",
+          "placeholder:text-muted-foreground aria-invalid:border-destructive",
+          className,
+        )}
+        {...props}
+      />
+      {hint ? (
+        <p id={hintId} className="text-sm text-muted-foreground">
+          {hint}
+        </p>
+      ) : null}
+      {error ? (
+        <p id={errorId} className="text-sm text-destructive-text">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label: string;
+  hint?: string;
+  error?: string | null;
+}
+
+/** Field for several lines, wired like {@link Field}. */
+export function TextAreaField({ label, hint, error, className, id, ...props }: TextAreaFieldProps) {
+  const generated = useId();
+  const inputId = id ?? generated;
+  const hintId = hint ? `${inputId}-hint` : undefined;
+  const errorId = error ? `${inputId}-error` : undefined;
+  return (
+    <div className="grid gap-1.5">
+      <label htmlFor={inputId} className="text-sm font-medium">
+        {label}
+      </label>
+      <textarea
+        id={inputId}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={[hintId, errorId].filter(Boolean).join(" ") || undefined}
+        className={cn(
+          "min-h-24 w-full rounded-md border border-input bg-card px-3 py-2 text-base shadow-xs",
           "placeholder:text-muted-foreground aria-invalid:border-destructive",
           className,
         )}

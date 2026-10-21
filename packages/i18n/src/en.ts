@@ -294,6 +294,22 @@ export const en = {
       "Use public access or a token with an https:// address, and a deploy key with an SSH address.",
     errorInvalid: "Check the highlighted fields.",
     viewFindings: "View findings",
+    addSeveral: "Add several at once",
+    addOne: "Add a single repository",
+    urls: "Repository URLs",
+    urlsHint:
+      "One https:// address per line, up to {max}. All of them use the same branch and access. SSH repositories are added one at a time, because each gets its own deploy key.",
+    tokenHintMany:
+      "Use a token that can only read these repositories. Each repository keeps its own encrypted copy. It is never shown again.",
+    submitMany: "{count, plural, =0 {Add and scan} one {Add # and scan} other {Add # and scan}}",
+    errorUrlsEmpty: "Enter at least one address.",
+    errorUrlsTooMany: "Up to {max} addresses at once.",
+    errorUrlInvalid: "Not a valid repository address: {url}",
+    errorSshMany: "SSH addresses need a deploy key each. Add them one at a time: {urls}",
+    bulkResultTitle: "Repositories added",
+    bulkAdded:
+      "{count, plural, =0 {No new repository was added.} one {# repository added. Its first scan is queued.} other {# repositories added. Their first scans are queued.}}",
+    bulkSkipped: "Already connected, skipped:",
   },
   repository: {
     back: "All repositories",

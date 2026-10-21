@@ -15,12 +15,13 @@ import { Radio } from "../../components/ui/checkbox.tsx";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog.tsx";
 import { CopyButton } from "../../components/ui/copy-button.tsx";
 import { Dialog } from "../../components/ui/dialog.tsx";
-import { Field } from "../../components/ui/field.tsx";
+import { Field, TextAreaField } from "../../components/ui/field.tsx";
 import { ApiError, api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
 import { forgeOf } from "../../lib/forge.ts";
 import { formatDateTime, formatNumber, formatRelative, formatWallClock } from "../../lib/format.ts";
 import type { MessageKey } from "../../lib/i18n.ts";
+import { BULK_LIMIT, parseUrlList } from "../../lib/repo-urls.ts";
 import { useScanErrorText } from "../../lib/scan-error.ts";
 import { type RepositorySearch, repositorySearch, toQuery } from "../../lib/search.ts";
 import type { Page, RepositoryRow, Severity } from "../../lib/types.ts";
@@ -419,14 +420,50 @@ function DeployKeyInstructions({ publicKey }: { publicKey: string }) {
   );
 }
 
+type BulkResult = {
+  created: { id: string; name: string; url: string; scanId: string }[];
+  skipped: { url: string; reason: "duplicate" }[];
+};
+
 function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  /** Several https:// repositories at once, all with the same access. */
+  const [many, setMany] = useState(false);
+  const [urlList, setUrlList] = useState("");
   const [access, setAccess] = useState<RepositoryRow["authKind"]>("none");
   /** Set after an SSH repository was added: the key the user now adds to the forge. */
   const [created, setCreated] = useState<{ id: string; deployPublicKey: string } | null>(null);
-  const [error, setError] = useState<MessageKey | null>(null);
+  /** Set after several repositories were added and some were already connected. */
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const urls = parseUrlList(urlList);
+
+  function fail(e: unknown, sent: string[] = []) {
+    if (!(e instanceof ApiError)) return setError(t("errors.network"));
+    if (e.code === "duplicate") return setError(t("repositories.errorDuplicate"));
+    if (e.code === "auth-mismatch") {
+      const ssh = (e.problem as { urls?: string[] } | undefined)?.urls;
+      return setError(
+        ssh?.length
+          ? t("repositories.errorSshMany", { urls: ssh.join(", ") })
+          : t("repositories.errorAuthMismatch"),
+      );
+    }
+    if (e.status === 422) {
+      const errors: Record<string, string> = {};
+      for (const x of e.problem?.errors ?? []) {
+        const [field, index] = x.path.split(".");
+        if (!field || errors[field]) continue;
+        const url = field === "urls" && index !== undefined ? sent[Number(index)] : undefined;
+        errors[field] = url ? t("repositories.errorUrlInvalid", { url }) : x.message;
+      }
+      setFieldErrors(errors);
+      return setError(t("repositories.errorInvalid"));
+    }
+    setError(t("errors.generic"));
+  }
 
   const create = useMutation({
     mutationFn: (body: unknown) =>
@@ -439,18 +476,18 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
       if (result.deployPublicKey) setCreated({ id: result.id, deployPublicKey: result.deployPublicKey });
       else onClose();
     },
-    onError: (e) => {
-      if (!(e instanceof ApiError)) return setError("errors.network");
-      if (e.code === "duplicate") return setError("repositories.errorDuplicate");
-      if (e.code === "auth-mismatch") return setError("repositories.errorAuthMismatch");
-      if (e.status === 422) {
-        setFieldErrors(
-          Object.fromEntries((e.problem?.errors ?? []).map((x) => [x.path.split(".")[0], x.message])),
-        );
-        return setError("repositories.errorInvalid");
-      }
-      setError("errors.generic");
+    onError: (e) => fail(e),
+  });
+
+  const createMany = useMutation({
+    mutationFn: (body: { urls: string[] } & Record<string, unknown>) =>
+      api<BulkResult>("/repositories/bulk", { method: "POST", body }),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries();
+      if (result.skipped.length > 0) setBulkResult(result);
+      else onClose();
     },
+    onError: (e, body) => fail(e, body.urls),
   });
 
   useEffect(() => {
@@ -458,7 +495,10 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
       setError(null);
       setFieldErrors({});
       setAccess("none");
+      setMany(false);
+      setUrlList("");
       setCreated(null);
+      setBulkResult(null);
     }
   }, [open]);
 
@@ -468,24 +508,39 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
       await queryClient.invalidateQueries({ queryKey: ["repositories"] });
       onClose();
     },
-    onError: () => setError("errors.generic"),
+    onError: () => setError(t("errors.generic")),
   });
+
+  function switchMode(next: boolean) {
+    setMany(next);
+    setError(null);
+    setFieldErrors({});
+    // Deploy keys are created per repository, so the list offers public access and tokens only.
+    if (next && access === "ssh-deploy-key") setAccess("none");
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const optional = (key: string) => String(form.get(key) ?? "").trim() || undefined;
+    const auth =
+      access === "https-token" ? { kind: "https-token", token: String(form.get("token")) } : { kind: access };
     setError(null);
     setFieldErrors({});
-    create.mutate({
-      url: String(form.get("url")).trim(),
-      name: optional("name"),
-      branch: optional("branch"),
-      auth:
-        access === "https-token"
-          ? { kind: "https-token", token: String(form.get("token")) }
-          : { kind: access },
-    });
+    if (!many) {
+      create.mutate({
+        url: String(form.get("url")).trim(),
+        name: optional("name"),
+        branch: optional("branch"),
+        auth,
+      });
+      return;
+    }
+    if (urls.length === 0) return setFieldErrors({ urls: t("repositories.errorUrlsEmpty") });
+    if (urls.length > BULK_LIMIT) {
+      return setFieldErrors({ urls: t("repositories.errorUrlsTooMany", { max: BULK_LIMIT }) });
+    }
+    createMany.mutate({ urls, branch: optional("branch"), auth });
   }
 
   if (created) {
@@ -497,7 +552,7 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
         description={t("repositories.deployKeyAddedDescription")}
       >
         <div className="grid gap-4">
-          {error ? <Alert tone="error">{t(error)}</Alert> : null}
+          {error ? <Alert tone="error">{error}</Alert> : null}
           <DeployKeyInstructions publicKey={created.deployPublicKey} />
           <div className="mt-1 flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>
@@ -512,6 +567,31 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
     );
   }
 
+  if (bulkResult) {
+    return (
+      <Dialog open={open} onClose={onClose} title={t("repositories.bulkResultTitle")}>
+        <div className="grid gap-4">
+          <p>{t("repositories.bulkAdded", { count: bulkResult.created.length })}</p>
+          <div className="grid gap-1.5">
+            <p className="text-sm font-medium">{t("repositories.bulkSkipped")}</p>
+            <ul className="grid gap-1 font-mono text-sm break-all text-muted-foreground">
+              {bulkResult.skipped.map((s) => (
+                <li key={s.url}>{s.url}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="mt-1 flex justify-end">
+            <Button onClick={onClose}>{t("common.close")}</Button>
+          </div>
+        </div>
+      </Dialog>
+    );
+  }
+
+  const pending = create.isPending || createMany.isPending;
+  const kinds = many
+    ? (["none", "https-token"] as const)
+    : (["none", "https-token", "ssh-deploy-key"] as const);
   return (
     <Dialog
       open={open}
@@ -519,25 +599,51 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
       title={t("repositories.addTitle")}
       description={t("repositories.addDescription")}
     >
-      <form className="grid gap-4" onSubmit={submit}>
-        {error ? <Alert tone="error">{t(error)}</Alert> : null}
-        <Field
-          label={t("repositories.url")}
-          hint={t("repositories.urlHint")}
-          error={fieldErrors.url}
-          name="url"
-          required
-          autoComplete="off"
-          spellCheck={false}
-          className="font-mono"
-        />
-        <Field
-          label={t("repositories.name")}
-          hint={t("repositories.nameHint")}
-          error={fieldErrors.name}
-          name="name"
-          maxLength={120}
-        />
+      <form className="grid gap-4" onSubmit={submit} noValidate={many}>
+        {error ? <Alert tone="error">{error}</Alert> : null}
+        {many ? (
+          <TextAreaField
+            label={t("repositories.urls")}
+            hint={t("repositories.urlsHint", { max: BULK_LIMIT })}
+            error={fieldErrors.urls}
+            name="urls"
+            rows={6}
+            value={urlList}
+            onChange={(e) => setUrlList(e.currentTarget.value)}
+            autoComplete="off"
+            spellCheck={false}
+            className="font-mono text-sm"
+          />
+        ) : (
+          <Field
+            label={t("repositories.url")}
+            hint={t("repositories.urlHint")}
+            error={fieldErrors.url}
+            name="url"
+            required
+            autoComplete="off"
+            spellCheck={false}
+            className="font-mono"
+          />
+        )}
+        <div>
+          <button
+            type="button"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            onClick={() => switchMode(!many)}
+          >
+            {many ? t("repositories.addOne") : t("repositories.addSeveral")}
+          </button>
+        </div>
+        {many ? null : (
+          <Field
+            label={t("repositories.name")}
+            hint={t("repositories.nameHint")}
+            error={fieldErrors.name}
+            name="name"
+            maxLength={120}
+          />
+        )}
         <Field
           label={t("repositories.branch")}
           hint={t("repositories.branchHint")}
@@ -549,7 +655,7 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
         />
         <fieldset className="grid gap-2">
           <legend className="mb-1.5 text-sm font-medium">{t("repositories.access")}</legend>
-          {(["none", "https-token", "ssh-deploy-key"] as const).map((kind) => (
+          {kinds.map((kind) => (
             <label key={kind} className="flex items-center gap-2.5">
               <Radio name="access" value={kind} checked={access === kind} onChange={() => setAccess(kind)} />
               {t(ACCESS_LABELS[kind])}
@@ -559,7 +665,7 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
         {access === "https-token" ? (
           <Field
             label={t("repositories.token")}
-            hint={t("repositories.tokenHint")}
+            hint={many ? t("repositories.tokenHintMany") : t("repositories.tokenHint")}
             error={fieldErrors.auth}
             name="token"
             type="password"
@@ -573,12 +679,14 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
           <Button variant="outline" onClick={onClose}>
             {t("repositories.cancel")}
           </Button>
-          <Button type="submit" disabled={create.isPending}>
-            {create.isPending
+          <Button type="submit" disabled={pending}>
+            {pending
               ? t("common.loading")
-              : access === "ssh-deploy-key"
-                ? t("repositories.submitKey")
-                : t("repositories.submit")}
+              : many
+                ? t("repositories.submitMany", { count: urls.length })
+                : access === "ssh-deploy-key"
+                  ? t("repositories.submitKey")
+                  : t("repositories.submit")}
           </Button>
         </div>
       </form>

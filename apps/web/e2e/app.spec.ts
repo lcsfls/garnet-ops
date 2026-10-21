@@ -156,6 +156,66 @@ test("repositories: add one, see it queued, remove it", async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
+test("repositories: add several at once with one token", async ({ page }) => {
+  const problems = watchForProblems(page);
+  await page.goto("/repositories");
+  await page.getByRole("button", { name: "Add repository" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add a repository" });
+  await dialog.getByRole("button", { name: "Add several at once" }).click();
+  // Deploy keys are per repository, so the list offers no SSH access.
+  await expect(dialog.getByLabel("Deploy key (SSH), created by GarnetOps")).toHaveCount(0);
+
+  const urls = dialog.getByLabel("Repository URLs");
+  await urls.fill(
+    [
+      "https://git.example.test/team/bulk-one.git",
+      "git@git.example.test:team/bulk-ssh.git",
+      "https://git.example.test/team/bulk-two.git",
+    ].join("\n"),
+  );
+  await dialog.getByLabel("Access token").check();
+  await dialog.getByLabel("Read-only access token").fill("e2e-bulk-token-never-shown");
+  await dialog.getByRole("button", { name: "Add 3 and scan" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("git@git.example.test:team/bulk-ssh.git");
+
+  // The already connected repository is skipped, the others are added and queued.
+  await urls.fill(
+    [
+      "https://git.example.test/team/bulk-one.git",
+      "",
+      "https://git.example.test/team/seeded-app.git",
+      "https://git.example.test/team/bulk-two.git",
+      "https://git.example.test/team/bulk-one.git",
+    ].join("\n"),
+  );
+  await dialog.getByRole("button", { name: "Add 3 and scan" }).click();
+  const result = page.getByRole("dialog", { name: "Repositories added" });
+  await expect(result).toContainText("2 repositories added.");
+  await expect(result.getByRole("listitem")).toHaveText(["https://git.example.test/team/seeded-app.git"]);
+  await result.getByRole("button", { name: "Close" }).last().click();
+
+  for (const name of ["bulk-one", "bulk-two"]) {
+    const row = page.getByRole("row", { name: new RegExp(name) });
+    await expect(row).toContainText("Queued");
+    await expect(row).toContainText("Token, read-only");
+  }
+  await expect(page.getByText("e2e-bulk-token-never-shown")).toHaveCount(0);
+
+  // Remove them again; each one has its own copy of the token.
+  for (const name of ["bulk-one", "bulk-two"]) {
+    await page
+      .getByRole("row", { name: new RegExp(name) })
+      .getByRole("button", { name: /Remove/ })
+      .click();
+    await page
+      .getByRole("dialog", { name: `Remove ${name}?` })
+      .getByRole("button", { name: "Remove", exact: true })
+      .click();
+    await expect(page.getByRole("row", { name: new RegExp(name) })).toHaveCount(0);
+  }
+  expect(problems).toEqual([]);
+});
+
 test("repositories: an SSH repository gets a generated deploy key", async ({ page }) => {
   const problems = watchForProblems(page);
   await page.goto("/repositories");

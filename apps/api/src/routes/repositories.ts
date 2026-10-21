@@ -73,6 +73,21 @@ const createBody = z.object({
   ]),
 });
 
+/**
+ * Several HTTPS repositories at once, all with the same access: public, or one token that
+ * can read all of them. SSH repositories are added one at a time, because every one gets
+ * its own deploy key.
+ */
+export const BULK_LIMIT = 50;
+const bulkBody = z.object({
+  urls: z.array(repoUrlSchema).min(1).max(BULK_LIMIT),
+  branch: createBody.shape.branch,
+  auth: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("none") }),
+    z.object({ kind: z.literal("https-token"), token: z.string().min(8).max(500) }),
+  ]),
+});
+
 /** Pinned SSH host keys as shown to the user, so they can compare them with the forge's published fingerprints. */
 function hostKeys(row: RepoRow) {
   if (!row.sshKnownHosts) return null;
@@ -84,6 +99,26 @@ function hostKeys(row: RepoRow) {
       fingerprint: fingerprint(h.key),
     })),
   };
+}
+
+/** Seals a credential to the vault and stores it; returns the secret's id. */
+async function storeSecret(
+  organizationId: string,
+  createdBy: string,
+  purpose: "ssh-private-key" | "forge-token",
+  plaintext: string,
+): Promise<string> {
+  const secretId = newId("sec");
+  const sealed = seal(plaintext, { organizationId, recordId: secretId, purpose }, vaultPublicKey);
+  await db.insert(schema.secret).values({
+    id: secretId,
+    organizationId,
+    purpose,
+    sealed,
+    vaultKeyId: vaultPublicKey.id,
+    createdBy,
+  });
+  return secretId;
 }
 
 function nameFromUrl(url: string): string {
@@ -217,37 +252,11 @@ export const repositoryRoutes = new Hono<AppEnv>()
     let secretId: string | null = null;
     let deployPublicKey: string | null = null;
     if (input.auth.kind === "ssh-deploy-key") {
-      secretId = newId("sec");
       const key = generateDeployKey(`garnetops-${repositoryId}`);
-      const sealed = seal(
-        key.privateKey,
-        { organizationId: actor.organizationId, recordId: secretId, purpose: "ssh-private-key" },
-        vaultPublicKey,
-      );
+      secretId = await storeSecret(actor.organizationId, actor.userId, "ssh-private-key", key.privateKey);
       deployPublicKey = key.publicKey;
-      await db.insert(schema.secret).values({
-        id: secretId,
-        organizationId: actor.organizationId,
-        purpose: "ssh-private-key",
-        sealed,
-        vaultKeyId: vaultPublicKey.id,
-        createdBy: actor.userId,
-      });
     } else if (input.auth.kind === "https-token") {
-      secretId = newId("sec");
-      const sealed = seal(
-        input.auth.token,
-        { organizationId: actor.organizationId, recordId: secretId, purpose: "forge-token" },
-        vaultPublicKey,
-      );
-      await db.insert(schema.secret).values({
-        id: secretId,
-        organizationId: actor.organizationId,
-        purpose: "forge-token",
-        sealed,
-        vaultKeyId: vaultPublicKey.id,
-        createdBy: actor.userId,
-      });
+      secretId = await storeSecret(actor.organizationId, actor.userId, "forge-token", input.auth.token);
     }
     await db.insert(r).values({
       id: repositoryId,
@@ -270,6 +279,59 @@ export const repositoryRoutes = new Hono<AppEnv>()
     if (deployPublicKey) return c.json({ id: repositoryId, scanId: null, deployPublicKey }, 201);
     const scanId = await queueScan(actor.organizationId, repositoryId, actor.userId, "manual");
     return c.json({ id: repositoryId, scanId, deployPublicKey: null }, 201);
+  })
+  .post("/bulk", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "member");
+    const input = bulkBody.parse(await c.req.json());
+    const urls = [...new Set(input.urls)];
+    const ssh = urls.filter(isSshRepoUrl);
+    if (ssh.length > 0) {
+      throw new ProblemError(422, "auth-mismatch", "Add SSH repositories one at a time", undefined, {
+        urls: ssh,
+      });
+    }
+    const existing = await db
+      .select({ url: r.url })
+      .from(r)
+      .where(and(eq(r.organizationId, actor.organizationId), inArray(r.url, urls)));
+    const known = new Set(existing.map((x) => x.url));
+    const fresh = urls.filter((url) => !known.has(url));
+
+    // Every repository gets its own sealed copy of the token, so removing one never
+    // affects another, exactly as if they had been added one by one.
+    const created: { id: string; name: string; url: string; scanId: string }[] = [];
+    for (const url of fresh) {
+      const id = newId("repo");
+      const secretId =
+        input.auth.kind === "https-token"
+          ? await storeSecret(actor.organizationId, actor.userId, "forge-token", input.auth.token)
+          : null;
+      const name = nameFromUrl(url);
+      await db.insert(r).values({
+        id,
+        organizationId: actor.organizationId,
+        name,
+        url,
+        branch: input.branch ?? null,
+        authKind: input.auth.kind,
+        secretId,
+        deployPublicKey: null,
+        ownerUserId: actor.userId,
+      });
+      await audit(
+        actor,
+        "repository.created",
+        { type: "repository", id },
+        { url, auth: input.auth.kind, bulk: true },
+      );
+      const scanId = await queueScan(actor.organizationId, id, actor.userId, "manual");
+      created.push({ id, name, url, scanId });
+    }
+    const skipped = urls
+      .filter((url) => known.has(url))
+      .map((url) => ({ url, reason: "duplicate" as const }));
+    return c.json({ created, skipped }, 201);
   })
   .get("/counts", async (c) => {
     const actor = c.get("actor");

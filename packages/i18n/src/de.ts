@@ -302,6 +302,24 @@ export const de: Messages = {
     errorAuthMismatch: "Öffentlich oder mit Token für https://-Adressen, mit Deploy-Key für SSH-Adressen.",
     errorInvalid: "Bitte prüfen Sie die markierten Felder.",
     viewFindings: "Findings anzeigen",
+    addSeveral: "Mehrere auf einmal hinzufügen",
+    addOne: "Ein einzelnes Repository hinzufügen",
+    urls: "Repository-URLs",
+    urlsHint:
+      "Eine https://-Adresse pro Zeile, höchstens {max}. Alle verwenden denselben Branch und Zugang. SSH-Repositories werden einzeln hinzugefügt, weil jedes einen eigenen Deploy-Key bekommt.",
+    tokenHintMany:
+      "Verwenden Sie ein Token, das nur diese Repositories lesen darf. Jedes Repository speichert eine eigene verschlüsselte Kopie. Es wird nie wieder angezeigt.",
+    submitMany:
+      "{count, plural, =0 {Hinzufügen und scannen} one {# hinzufügen und scannen} other {# hinzufügen und scannen}}",
+    errorUrlsEmpty: "Geben Sie mindestens eine Adresse ein.",
+    errorUrlsTooMany: "Höchstens {max} Adressen auf einmal.",
+    errorUrlInvalid: "Keine gültige Repository-Adresse: {url}",
+    errorSshMany:
+      "SSH-Adressen brauchen jeweils einen eigenen Deploy-Key. Fügen Sie sie einzeln hinzu: {urls}",
+    bulkResultTitle: "Repositories hinzugefügt",
+    bulkAdded:
+      "{count, plural, =0 {Kein neues Repository hinzugefügt.} one {# Repository hinzugefügt. Sein erster Scan ist eingereiht.} other {# Repositories hinzugefügt. Ihre ersten Scans sind eingereiht.}}",
+    bulkSkipped: "Bereits verbunden, übersprungen:",
   },
   repository: {
     back: "Alle Repositories",
