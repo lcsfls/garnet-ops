@@ -10,6 +10,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- Add several repositories at once: up to 50 `https://` addresses, one per line, with one
+  branch and one token (`POST /api/v1/repositories/bulk`). Already connected ones are
+  skipped and listed; each repository keeps its own encrypted copy of the token, so
+  removing one never affects another.
+- README: getting started from source, first sign-in with the setup token and the
+  mandatory second factor, HTTPS-only operation behind a reverse proxy, and updating
+  until signed images exist.
 - Docker Compose stack (ADR 0007): `web` (Caddy with HTTPS, the web app and the
   maintenance page during updates), `api`, `worker`, `db` (PostgreSQL 17) and `init`
   (creates the vault key pair once). Images pinned by digest, app containers non-root
