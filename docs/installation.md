@@ -14,6 +14,13 @@ updates (the worker) and release checks (the optional update service).
 
 ## Install
 
+**There is no release yet.** Until the first release, build the images from this
+repository as described in the [README](../README.md#getting-started); the rest of this
+page (HTTPS, air-gapped operation, what runs) applies to both. The steps below are for
+release images and work from the first release on.
+
+### With release images (from the first release on)
+
 ```sh
 sudo mkdir -p /opt/garnetops && cd /opt/garnetops
 # The files of the release you install (same tag for all of them):
@@ -34,7 +41,7 @@ no use without it, and the vault key (the `vault` volume) belongs to the same ba
 Open `https://garnetops.example.lan`, enter the setup token, create the first account and
 set up its second factor.
 
-The images are signed; check them before the first start:
+Release images are signed; check them before the first start:
 
 ```sh
 cosign verify ghcr.io/lcsfls/garnetops:0.1.0@sha256:<digest> \

@@ -15,6 +15,27 @@ on a local vulnerability database, findings with CVSS/EPSS and export (CSV, XLSX
 PDF, text), repository pages with scan and patch history, package inventory,
 nightly scans, audit log, a Docker Compose stack and optional signed in-app updates.
 
+## What GarnetOps is built on
+
+All of it runs inside your network. Scanners and Git run as separate programs, never
+linked into GarnetOps; the full list with versions and licences is in
+[docs/COMPONENTS.md](docs/COMPONENTS.md).
+
+| Part | Tool | Licence | What it does in GarnetOps |
+| --- | --- | --- | --- |
+| Package inventory | [syft](https://github.com/anchore/syft) | Apache-2.0 | Lists every dependency of a repository (SBOM) on each scan |
+| Vulnerability matching | [grype](https://github.com/anchore/grype) | Apache-2.0 | Matches the inventory against a local vulnerability database (NVD, GitHub Advisories, distribution feeds, CISA KEV) |
+| Repository access | git, OpenSSH client | GPL-2.0, BSD | Shallow, read-only clones over HTTPS or SSH with a deploy key |
+| Web edge | [Caddy](https://caddyserver.com) | Apache-2.0 | HTTPS (TLS 1.3, post-quantum key exchange), security headers, serves the web app |
+| Database and jobs | [PostgreSQL 17](https://www.postgresql.org), [pg-boss](https://github.com/timgit/pg-boss) | PostgreSQL, MIT | Data, and the scan queue with nightly schedules |
+| API | [Node.js 24](https://nodejs.org), [Hono](https://hono.dev), [Drizzle ORM](https://orm.drizzle.team) | MIT, MIT, Apache-2.0 | REST API under `/api/v1`, migrations |
+| Sign-in | [better-auth](https://www.better-auth.com) | MIT | Accounts, sessions, mandatory TOTP; passwords hashed with Argon2id (`node:crypto`) |
+| Web app | [React 19](https://react.dev), [TanStack Router and Query](https://tanstack.com), [Tailwind CSS](https://tailwindcss.com), [Lucide](https://lucide.dev), [i18next](https://www.i18next.com) | MIT, MIT, MIT, ISC, MIT | The interface in English and German, fonts and icons served by GarnetOps itself |
+| Updates (optional) | [cicd-updater](https://github.com/restow-backup/cicd-updater) | Apache-2.0 | Installs signed releases with a backup first, once releases exist |
+
+Secrets you store (access tokens, deploy keys) are sealed with a post-quantum hybrid
+scheme (ML-KEM-1024 and X25519, ADR 0004); only the scan worker holds the key to open them.
+
 ## Getting started
 
 Until the first release there are no published images, so you build them from this

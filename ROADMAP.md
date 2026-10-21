@@ -159,6 +159,14 @@ See ADR 0002 and ADR 0004.
       versions do not follow the distribution's security data; tested with
       recorded fixtures
 - [ ] CSV import, jump hosts
+- [ ] Proxmox VE: connect a cluster with a read-only API token (role `PVEAuditor`,
+      privilege separation on, token secret sealed in the vault) and list every
+      node, VM and LXC container with status, resources, uptime, OS type, backups
+      and snapshots age, HA state and the node's own pending updates; the API is
+      read only, nothing is started, stopped or changed. Guests become servers
+      with one click (agentless SSH inventory as above; never `pct exec` or
+      other root access on the node); stale or untracked guests are flagged. Pinned TLS fingerprint of
+      the Proxmox API on first contact, like SSH host keys
 - [ ] Post-quantum SSH key exchange (`mlkem768x25519-sha256`): check support
       in the ssh2 library, otherwise document the gap
 

@@ -5,10 +5,34 @@ version (AGENTS.md rule 2): migrations only add, and a pipeline that passed yest
 not fail tomorrow because of an update. Security fixes are published for every supported
 version line, free of charge.
 
-There are two ways to update. Both install the signed images of a release, pinned by
-digest.
+**There is no release yet, so there are no signed images.** Until the first release,
+every installation runs images built from this repository, and you update the same way.
 
-## In the app (optional update service)
+## Today: images built from source
+
+`docker compose pull` does not apply here: it only fetches published images, and
+`garnetops:local` exists only on your host. Instead:
+
+```sh
+cd /opt/garnetops
+docker compose exec db pg_dump -U garnetops -Fc garnetops > garnetops-$(date +%F).dump
+git pull
+docker build --target app -t garnetops:local     --build-arg VERSION=0.1.0-dev .
+docker build --target web -t garnetops-web:local --build-arg VERSION=0.1.0-dev .
+docker compose up -d
+docker compose ps
+```
+
+The API migrates the database when it starts; migrations only add, so your data stays.
+Read the `Unreleased` section of [CHANGELOG.md](../CHANGELOG.md) for new `.env` keys first.
+Keep `UPDATER_URL=` empty in `.env`: the update service installs signed releases only.
+
+## From the first release on: signed images
+
+Everything below applies once releases are published. Then there are two ways to
+update, and both install the signed images of a release, pinned by digest.
+
+### In the app (optional update service)
 
 The update service is the [cicd-updater](https://github.com/restow-backup/cicd-updater)
 sidecar (ADR 0007). With it, owners and admins update from **Settings → Updates**:
@@ -27,7 +51,7 @@ sidecar (ADR 0007). With it, owners and admins update from **Settings → Update
 
 Every step is written to the audit log (filter **Updates**), with who asked for it.
 
-### Set it up
+#### Set it up
 
 ```sh
 cd /opt/garnetops
@@ -55,7 +79,7 @@ older version and never updates on its own. Encrypting its database backups with
 To switch in-app updates off on one installation without removing the service, set
 `UPDATER_URL=` (empty) in `.env`.
 
-## By hand
+### By hand, with release images
 
 ```sh
 cd /opt/garnetops
@@ -68,7 +92,7 @@ docker compose up -d
 Read the release notes first: a release can require a minimum version to update from, or
 a new `.env` key.
 
-## An update needs attention
+### An update needs attention
 
 If an update fails after the point of no return (services stopped) and going back is not
 provably safe, the service stops GarnetOps, keeps the backup and ends the run in
