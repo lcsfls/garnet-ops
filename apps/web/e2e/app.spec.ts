@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E } from "./env.ts";
 import { OWNER, STATE_FILE, watchForProblems } from "./helpers.ts";
 import { SEEDED, seed } from "./seed.ts";
@@ -10,6 +10,12 @@ test.use({ storageState: STATE_FILE });
 test.beforeAll(async () => {
   await seed();
 });
+
+/** Rows keep their less frequent actions in the "…" menu (mockup). */
+async function rowAction(row: Locator, action: string) {
+  await row.getByRole("button", { name: /^More actions for/ }).click();
+  await row.getByRole("menuitem", { name: action }).click();
+}
 
 test("overview tiles lead to the filtered list", async ({ page }) => {
   const problems = watchForProblems(page);
@@ -103,15 +109,18 @@ test("hostile scanner content is shown as text, never as markup or script links"
 test("a risk is accepted with a reason and reopened", async ({ page }) => {
   await page.goto("/findings?severity=high");
   await page.locator("tbody tr").first().getByRole("button").click();
-  await page.getByLabel("Reason").fill("Not reachable: only used in the test suite.");
-  await page.getByRole("button", { name: "Accept risk" }).click();
+  await page.getByRole("button", { name: "Accept risk …" }).click();
+  const accept = page.getByRole("dialog", { name: /^Accept the risk of/ });
+  await accept.getByLabel("Reason").fill("Not reachable: only used in the test suite.");
+  await accept.getByRole("button", { name: "Accept risk", exact: true }).click();
+  await expect(accept).toBeHidden();
   await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
     `${SEEDED.high - 1} entries`,
   );
 
   await page.getByRole("button", { name: "Reopen" }).click();
-  await expect(page.getByRole("button", { name: "Accept risk" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Accept risk …" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(`${SEEDED.high} entries`);
 });
 
@@ -144,13 +153,13 @@ test("repositories: add one, see it queued, remove it", async ({ page }) => {
   await expect(dialog.getByRole("alert")).toHaveText("This repository is already connected.");
   await dialog.getByRole("button", { name: "Cancel" }).first().click();
 
-  await added.getByRole("button", { name: /Remove/ }).click();
+  await rowAction(added, "Remove");
   const confirm = page.getByRole("dialog", { name: "Remove new-app?" });
   // Cancelling keeps the repository.
   await confirm.getByRole("button", { name: "Cancel" }).click();
   await expect(confirm).toBeHidden();
   await expect(added).toBeVisible();
-  await added.getByRole("button", { name: /Remove/ }).click();
+  await rowAction(added, "Remove");
   await confirm.getByRole("button", { name: "Remove", exact: true }).click();
   await expect(page.getByRole("row", { name: /new-app/ })).toHaveCount(0);
   expect(problems).toEqual([]);
@@ -203,10 +212,7 @@ test("repositories: add several at once with one token", async ({ page }) => {
 
   // Remove them again; each one has its own copy of the token.
   for (const name of ["bulk-one", "bulk-two"]) {
-    await page
-      .getByRole("row", { name: new RegExp(name) })
-      .getByRole("button", { name: /Remove/ })
-      .click();
+    await rowAction(page.getByRole("row", { name: new RegExp(name) }), "Remove");
     await page
       .getByRole("dialog", { name: `Remove ${name}?` })
       .getByRole("button", { name: "Remove", exact: true })
@@ -243,13 +249,13 @@ test("repositories: an SSH repository gets a generated deploy key", async ({ pag
 
   const added = page.getByRole("row", { name: /ssh-app/ });
   await expect(added).toContainText("Not scanned yet");
-  await added.getByRole("button", { name: "Deploy key: ssh-app" }).click();
+  await rowAction(added, "Deploy key");
   const details = page.getByRole("dialog", { name: "Deploy key for ssh-app" });
   await expect(details.getByLabel("Public key")).toHaveValue(shown);
   await expect(details.getByText("Pinned on the first connection.", { exact: false })).toBeVisible();
   await details.getByRole("button", { name: "Close" }).click();
 
-  await added.getByRole("button", { name: /Remove/ }).click();
+  await rowAction(added, "Remove");
   await page
     .getByRole("dialog", { name: "Remove ssh-app?" })
     .getByRole("button", { name: "Remove", exact: true })
@@ -352,6 +358,13 @@ test("findings download as CSV, Excel, PDF and text, with the filters that are s
 test("a repository opens its own page with scan and patch history", async ({ page }) => {
   const problems = watchForProblems(page);
   await page.goto("/repositories");
+  // The whole row opens the repository (mockup), not only its name.
+  await page
+    .getByRole("row", { name: new RegExp(SEEDED.repositoryName) })
+    .getByText("https://git.example.test/team/seeded-app.git")
+    .click();
+  await expect(page).toHaveURL(/\/repositories\/repo_e2eseeded000000001$/);
+  await page.goBack();
   await page.getByRole("link", { name: SEEDED.repositoryName, exact: true }).click();
   await expect(page).toHaveURL(/\/repositories\/repo_e2eseeded000000001$/);
   await expect(page.getByRole("heading", { name: SEEDED.repositoryName })).toBeVisible();
@@ -378,4 +391,71 @@ test("a repository opens its own page with scan and patch history", async ({ pag
   await page.getByRole("link", { name: "All repositories" }).click();
   await expect(page).toHaveURL(/\/repositories$/);
   expect(problems).toEqual([]);
+});
+
+test("search: Ctrl K finds repositories, vulnerabilities and packages", async ({ page }) => {
+  const problems = watchForProblems(page);
+  await page.goto("/");
+  // The shortcut listener exists once the app has rendered.
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await page.keyboard.press("Control+k");
+  const search = page.getByRole("dialog", { name: "Search" });
+  const box = search.getByRole("combobox", { name: "Search" });
+  await box.fill("CVE-2099-0001");
+  await expect(search.getByRole("option", { name: /CVE-2099-0001\s*Vulnerability/ })).toBeVisible();
+  await box.fill("seeded");
+  const hit = search.getByRole("option", { name: /seeded-app\s*Repository/ });
+  await expect(hit).toBeVisible();
+  await box.press("Enter");
+  await expect(page).toHaveURL(/\/repositories\/repo_e2eseeded000000001$/);
+  await expect(page.getByRole("heading", { name: "seeded-app" })).toBeVisible();
+  await page.keyboard.press("Control+k");
+  await search.getByRole("combobox", { name: "Search" }).fill("pkg-1");
+  await expect(search.getByRole("option", { name: /^pkg-1\s*Package/ }).first()).toBeVisible();
+  expect(problems).toEqual([]);
+});
+
+test("sorting: every column pages through all rows exactly once, both directions", async ({ page }) => {
+  const lists: { path: string; sorts: string[] }[] = [
+    {
+      path: "/findings?state=all",
+      sorts: ["vulnerability", "cvss", "epss", "published", "package", "repository", "firstSeen"],
+    },
+    { path: "/packages?", sorts: ["name", "type", "repository", "findings", "severity"] },
+    { path: "/repositories?", sorts: ["name", "critical", "high", "medium", "lastScan"] },
+  ];
+  for (const { path, sorts } of lists) {
+    const all = await page.request.get(`${E2E.publicUrl}/api/v1${path}&pageSize=100`);
+    const total = (await all.json()).total as number;
+    for (const sort of sorts) {
+      for (const dir of ["asc", "desc"]) {
+        const seen: string[] = [];
+        let cursor: string | null = null;
+        do {
+          const url: string = `${E2E.publicUrl}/api/v1${path}&sort=${sort}&dir=${dir}&pageSize=25${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+          const response = await page.request.get(url);
+          expect(response.ok(), `${url}: ${response.status()}`).toBe(true);
+          const body = (await response.json()) as { items: { id: string }[]; next: string | null };
+          seen.push(...body.items.map((x) => x.id));
+          cursor = body.next;
+        } while (cursor);
+        expect(new Set(seen).size, `${path} ${sort} ${dir}`).toBe(seen.length);
+        expect(seen.length, `${path} ${sort} ${dir}`).toBe(total);
+      }
+    }
+  }
+});
+
+test("sorting: a column header sorts the findings and says so", async ({ page }) => {
+  await page.goto("/findings");
+  const header = page.getByRole("columnheader", { name: /CVSS/ });
+  await header.getByRole("button").click();
+  await expect(page).toHaveURL(/sort=cvss/);
+  await expect(header).toHaveAttribute("aria-sort", "descending");
+  await expect(page.locator("tbody tr").first()).toContainText("9.8");
+  await header.getByRole("button").click();
+  await expect(header).toHaveAttribute("aria-sort", "ascending");
+  await expect(page).toHaveURL(/dir=asc/);
+  await header.getByRole("button").click();
+  await expect(header).toHaveAttribute("aria-sort", "none");
 });

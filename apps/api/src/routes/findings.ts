@@ -19,7 +19,17 @@ import { toText } from "../export/txt.ts";
 import { toXlsx } from "../export/xlsx.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
-import { type KeysetSpec, keysetQuery, parseDate, parseInt10, parseText, toPage } from "../lib/paginate.ts";
+import {
+  type KeysetSpec,
+  keysetQuery,
+  parseDate,
+  parseInt10,
+  parseNumber,
+  parseText,
+  type SortOption,
+  sortSpec,
+  toPage,
+} from "../lib/paginate.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
 
 const f = schema.finding;
@@ -52,7 +62,28 @@ export const findingFilters = z.object({
   q: z.string().trim().max(120).optional(),
 });
 
-const listQuery = findingFilters.extend({ cursor: z.string().optional(), pageSize: pageSizeSchema });
+/** Columns the list can be sorted by (table headers). Times are cut to milliseconds, which is what a cursor holds. */
+const SORTS = {
+  vulnerability: { keys: [f.vulnerabilityId], parse: [parseText], dir: "asc" },
+  cvss: { keys: [sql`coalesce(${v.cvssScore}::numeric, -1)`], parse: [parseNumber], dir: "desc" },
+  epss: { keys: [sql`coalesce(${v.epss}::numeric, -1)`], parse: [parseNumber], dir: "desc" },
+  published: {
+    keys: [sql`coalesce(date_trunc('milliseconds', ${v.publishedAt}), 'epoch'::timestamptz)`],
+    parse: [parseDate],
+    dir: "desc",
+  },
+  package: { keys: [f.packageName, f.packageVersion], parse: [parseText, parseText], dir: "asc" },
+  repository: { keys: [schema.repository.name], parse: [parseText], dir: "asc" },
+  firstSeen: { keys: [sql`date_trunc('milliseconds', ${f.firstSeenAt})`], parse: [parseDate], dir: "desc" },
+} satisfies Record<string, SortOption>;
+
+const listQuery = findingFilters.extend({
+  cursor: z.string().optional(),
+  pageSize: pageSizeSchema,
+  /** Without a sort the list is worst first, then most recently seen. */
+  sort: z.enum(Object.keys(SORTS) as [keyof typeof SORTS, ...(keyof typeof SORTS)[]]).optional(),
+  dir: z.enum(["asc", "desc"]).optional(),
+});
 /**
  * Export of the list as it is filtered. The browser sends its zone (dates in the file)
  * and UI language (column names). A PDF holds fewer rows than a spreadsheet; the file
@@ -129,9 +160,12 @@ export const findingRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const input = listQuery.parse(c.req.query());
     const where = findingWhere(actor.organizationId, input);
-    const q = keysetQuery(spec, input.cursor, input.pageSize);
+    const sorted = input.sort ? sortSpec(SORTS[input.sort], input.dir, f.id) : null;
+    const activeSpec = (sorted?.spec ?? spec) as KeysetSpec<Row & { sortKeys?: (string | number | Date)[] }>;
+    const q = keysetQuery(activeSpec, input.cursor, input.pageSize);
     const base = db
       .select({
+        sortKeys: sorted ? sorted.select : sql<null>`null`,
         id: f.id,
         severityRank: f.severityRank,
         lastSeenAt: f.lastSeenAt,
@@ -161,7 +195,15 @@ export const findingRoutes = new Hono<AppEnv>()
       db.select({ n: count() }).from(f).innerJoin(v, eq(v.id, f.vulnerabilityId)).where(where),
     ]);
     return c.json(
-      toPage(spec, q, rows, totalRow[0]?.n ?? 0, input.pageSize, Boolean(input.cursor), (row) => row),
+      toPage(
+        activeSpec,
+        q,
+        rows as (Row & { sortKeys?: (string | number | Date)[] })[],
+        totalRow[0]?.n ?? 0,
+        input.pageSize,
+        Boolean(input.cursor),
+        ({ sortKeys: _keys, ...row }) => row,
+      ),
     );
   })
   .get("/export", async (c) => {

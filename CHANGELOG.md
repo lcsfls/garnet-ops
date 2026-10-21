@@ -10,6 +10,25 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- Sortable columns in the findings, repositories and packages lists: the first click
+  sorts in the column's natural order, the second reverses it, the third returns to the
+  default; the order is in the URL and page-by-page loading keeps every row exactly once
+  (`sort` and `dir` on the list endpoints).
+- Quick search (Ctrl K) shows matching repositories, vulnerabilities and packages as you
+  type (`GET /api/v1/search`).
+- Overview as in the mockup: an Activity feed (repositories added or removed, risks
+  accepted or reopened, nightly scans, updates; visible to every member, without sign-ins
+  or IP addresses), "Fix available" per severity on the critical and high tiles, the
+  advisory sources behind your findings, and the two- and four-column layouts.
+- Repositories list as in the mockup: the whole row opens the repository, a "…" menu
+  holds Scan now, Deploy key and Remove, open findings as tinted counts, and from the
+  xwide step the scanners of the last scan and a 14-day trend line.
+- Findings as in the mockup: Scan now in the header (the filtered repository or all),
+  rows open the detail, the detail starts with a short title, the CVSS/EPSS/Fixed in
+  strip and the advisory text; accepting a risk opens a dialog. From the xwide step list
+  and detail sit side by side with the first finding shown.
+- README: the tools GarnetOps is built on. Roadmap: read-only Proxmox VE monitoring of
+  nodes, VMs and LXC containers.
 - Add several repositories at once: up to 50 `https://` addresses, one per line, with one
   branch and one token (`POST /api/v1/repositories/bulk`). Already connected ones are
   skipped and listed; each repository keeps its own encrypted copy of the token, so
@@ -193,6 +212,11 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Changed
 
+- Update guides and the Updates page put today's way first: until the first release,
+  images are built from the repository; `docker compose pull` and in-app updates apply
+  only to signed releases.
+- Visual details follow the mockup: badges, dialogs with a separated action row, cards,
+  hover on table rows, search fields with an icon, warning banner.
 - API and worker run their TypeScript sources directly with Node.js 24 (type stripping)
   in production; `erasableSyntaxOnly` keeps the code compatible.
 - Sign-out, language and theme moved into the account menu behind the avatar.

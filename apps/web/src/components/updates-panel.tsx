@@ -205,6 +205,14 @@ export function UpdatesPanel({ me }: { me: Me }) {
   );
 }
 
+/** Until the first release there are no signed images; installations build them from the repository. */
+const SOURCE_UPDATE = [
+  "git pull",
+  "docker build --target app -t garnetops:local --build-arg VERSION=0.1.0-dev .",
+  "docker build --target web -t garnetops-web:local --build-arg VERSION=0.1.0-dev .",
+  "docker compose up -d",
+].join("\n");
+
 function NoSidecar({ texts }: { texts: AdminMessages }) {
   const { t } = useTranslation();
   return (
@@ -212,7 +220,7 @@ function NoSidecar({ texts }: { texts: AdminMessages }) {
       <Alert tone="info">{texts.noSidecar}</Alert>
       <p className="text-muted-foreground">{t("settings.updatesManual")}</p>
       <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-sm">
-        <code>{"docker compose pull\ndocker compose up -d"}</code>
+        <code>{SOURCE_UPDATE}</code>
       </pre>
       <a
         href={UPDATING_DOCS}

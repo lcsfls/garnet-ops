@@ -16,6 +16,7 @@ import { overviewRoutes } from "./routes/overview.ts";
 import { packageRoutes } from "./routes/packages.ts";
 import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
+import { searchRoutes } from "./routes/search.ts";
 import { setupRoutes } from "./routes/setup.ts";
 import { systemRoutes } from "./routes/system.ts";
 import { maintenanceRoutes, updateRoutes } from "./routes/updates.ts";
@@ -79,6 +80,7 @@ const v1 = new Hono<AppEnv>()
   .route("/overview", overviewRoutes)
   .route("/repositories", repositoryRoutes)
   .route("/scans", scanRoutes)
+  .route("/search", searchRoutes)
   .route("/findings", findingRoutes)
   .route("/packages", packageRoutes)
   .route("/organization", organizationRoutes)

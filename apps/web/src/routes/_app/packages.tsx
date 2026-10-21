@@ -8,6 +8,7 @@ import { Card, PageHeader } from "../../components/page-header.tsx";
 import { Pagination } from "../../components/pagination.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import { RepositoryLink } from "../../components/repository-link.tsx";
+import { type SortDir, SortHeader } from "../../components/sort-header.tsx";
 import { SeverityBadge } from "../../components/ui/badge.tsx";
 import { Checkbox } from "../../components/ui/checkbox.tsx";
 import { Select } from "../../components/ui/select.tsx";
@@ -51,6 +52,12 @@ function Packages() {
   });
   const setSearch = (patch: Partial<PackageSearch>, replace = false) =>
     navigate({ search: (prev) => ({ ...prev, cursor: undefined, ...patch }), replace });
+  const sortProps = {
+    current: search.sort,
+    dir: search.dir,
+    onSort: (sort: string | undefined, dir: SortDir | undefined) =>
+      setSearch({ sort: sort as PackageSearch["sort"], dir }),
+  };
 
   return (
     <>
@@ -87,14 +94,38 @@ function Packages() {
         <table className="w-full text-left">
           <thead className="text-sm text-muted-foreground">
             <tr className="border-b">
-              <th className="px-5 py-2.5 font-medium">{t("packages.columnName")}</th>
+              <SortHeader
+                column="name"
+                label={t("packages.columnName")}
+                natural="asc"
+                className="px-5"
+                {...sortProps}
+              />
               <th className="px-3 py-2.5 font-medium">{t("packages.columnVersion")}</th>
-              <th className="hidden px-3 py-2.5 font-medium @3xl:table-cell">{t("packages.columnType")}</th>
-              <th className="px-3 py-2.5 font-medium">{t("findings.columnRepository")}</th>
+              <SortHeader
+                column="type"
+                label={t("packages.columnType")}
+                natural="asc"
+                className="hidden px-3 @3xl:table-cell"
+                {...sortProps}
+              />
+              <SortHeader
+                column="repository"
+                label={t("findings.columnRepository")}
+                natural="asc"
+                className="px-3"
+                {...sortProps}
+              />
               <th className="hidden px-3 py-2.5 font-medium @5xl:table-cell">
                 {t("packages.columnLicenses")}
               </th>
-              <th className="px-5 py-2.5 font-medium">{t("packages.columnOpen")}</th>
+              <SortHeader
+                column="findings"
+                label={t("packages.columnOpen")}
+                natural="desc"
+                className="px-5"
+                {...sortProps}
+              />
             </tr>
           </thead>
           <tbody>

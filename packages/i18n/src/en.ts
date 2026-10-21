@@ -18,6 +18,7 @@ export const en = {
     language: "Language",
     retry: "Try again",
     cancel: "Cancel",
+    sortBy: "Sort by this column",
   },
   errors: {
     generic: "Something went wrong. Try again.",
@@ -133,6 +134,9 @@ export const en = {
     searchFindings: "Findings matching “{text}”",
     searchPackages: "Packages matching “{text}”",
     searchRepositories: "Repositories matching “{text}”",
+    searchKindRepository: "Repository",
+    searchKindVulnerability: "Vulnerability",
+    searchKindPackage: "Package ({type})",
   },
   nav: {
     overview: "Overview",
@@ -219,6 +223,24 @@ export const en = {
     emptyTitle: "Add your first repository",
     emptyDescription:
       "GarnetOps clones it read-only into a temporary sandbox, lists its dependencies and checks them against the local vulnerability database.",
+    fixAvailable: "Fix available: {count}",
+    activityTitle: "Activity",
+    activityDescription: "What happened in your organisation recently.",
+    activityEmpty: "Nothing has happened yet.",
+    activityBy: "by {name}",
+    activity: {
+      repository_created: "Repository added: {subject}",
+      repository_deleted: "Repository removed: {subject}",
+      finding_accepted: "Risk accepted: {subject}",
+      finding_reopened: "Finding reopened: {subject}",
+      organization_scan_schedule_changed: "Nightly scan changed",
+      update_succeeded: "Updated to {subject}",
+      update_failed: "Update to {subject} failed",
+      schedule_run:
+        "{count, plural, =0 {Nightly scan: nothing to scan} one {Nightly scan of # repository} other {Nightly scan of # repositories}}",
+    },
+    dataSources: "Sources",
+    dataSourcesNone: "None yet",
   },
   repositories: {
     title: "Repositories",
@@ -241,6 +263,10 @@ export const en = {
     sourceToken: "Token, read-only",
     sourceDeployKey: "Deploy key, read-only",
     openOfSeverity: "{count, plural, one {# open {severity} finding} other {# open {severity} findings}}",
+    columnScanners: "Scanners",
+    columnTrend: "Open findings, 14 days",
+    trendLabel: "Open findings over the last 14 days, from {first} to {last}",
+    moreActions: "More actions for {name}",
     columnActions: "Actions",
     defaultBranch: "default",
     scanNow: "Scan now",
@@ -389,6 +415,13 @@ export const en = {
     accept: "Accept risk",
     reopen: "Reopen",
     externalLink: "{host} (opens in a new tab)",
+    acceptOpen: "Accept risk …",
+    acceptTitle: "Accept the risk of {id}",
+    acceptDescription:
+      "The finding no longer counts as open until the day you choose. Your team sees the reason.",
+    detected: "Detected {when}",
+    scanFiltered: "Scan this repository",
+    cvssVector: "CVSS vector",
   },
   settings: {
     title: "Settings",
@@ -412,7 +445,7 @@ export const en = {
       "Before anything is stopped, the database is backed up and checked. If the new version does not start, the old one comes back only when that is provably safe.",
     helpUpdatesManualTitle: "Without the updater",
     helpUpdatesManualText:
-      "The updater is optional. Without it, update on the host: pull the new images with docker compose pull, then docker compose up -d. Back up the database first.",
+      "The updater is optional and installs signed releases only. There is no release yet: update on the host by pulling the repository, rebuilding the images and running docker compose up -d. Back up the database first.",
     helpSourceTitle: "Your copy of the source",
     helpSourceText:
       "GarnetOps is free software under the AGPL-3.0. You may read, change and share the source code of the version you run; the link points to it.",
@@ -424,7 +457,8 @@ export const en = {
     aboutSource: "Source code",
     updatesDescription:
       "New releases of GarnetOps, installed by the optional update service on this host after a backup.",
-    updatesManual: "Update on the host instead, in the GarnetOps directory. Back up the database first.",
+    updatesManual:
+      "There is no signed release yet. Update on the host, in the GarnetOps directory: back up the database, then rebuild the images from the repository.",
     updatesTrust: "Signature check",
     updatesTrustMode: {
       keyless: "Keyless (release workflow identity)",

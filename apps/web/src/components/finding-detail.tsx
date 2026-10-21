@@ -1,15 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, ShieldAlert, X } from "lucide-react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, api } from "../lib/api.ts";
 import { addLocalDays, endOfLocalDay, localDateInput } from "../lib/dates.ts";
-import { formatDate, formatDateTime, formatPercent } from "../lib/format.ts";
+import { formatDate, formatDateTime, formatPercent, formatRelative } from "../lib/format.ts";
 import type { FindingDetail as Detail } from "../lib/types.ts";
 import { Card } from "./page-header.tsx";
 import { Alert } from "./ui/alert.tsx";
 import { Badge, SeverityBadge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
+import { Dialog, DialogFooter } from "./ui/dialog.tsx";
 import { Field } from "./ui/field.tsx";
 
 /**
@@ -24,7 +25,8 @@ export function FindingDetail({
 }: {
   id: string;
   canEdit: boolean;
-  onClose: () => void;
+  /** Absent when the pane shows the first finding by itself (xwide); then there is nothing to close. */
+  onClose?: () => void;
 }) {
   const { t } = useTranslation();
   const { data, isError } = useQuery({
@@ -45,37 +47,50 @@ export function FindingDetail({
       className="order-first scroll-mt-6 self-start @wide:sticky @wide:top-0 @wide:order-none @wide:max-h-[calc(100dvh-8.5rem)] @wide:overflow-y-auto @wide:rounded-lg"
     >
       <Card>
-        <div className="flex items-start gap-3 border-b px-5 py-4">
+        <div className="flex items-start gap-3 px-5 pt-[18px] pb-3">
           <div className="min-w-0 flex-1">
             {data ? (
               <>
-                <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   <SeverityBadge severity={data.severity} />
+                  <Badge tone="outline" className="font-mono">
+                    {data.vulnerability.id}
+                  </Badge>
                   {data.vulnerability.knownExploited ? (
-                    <Badge className="bg-destructive/15 text-destructive-text">
-                      <ShieldAlert aria-hidden="true" className="size-3.5" />
+                    <Badge tone="critical">
+                      <ShieldAlert aria-hidden="true" />
                       {t("findings.kev")}
                     </Badge>
                   ) : null}
-                  <Badge className="bg-muted text-muted-foreground">{t(`findingState.${data.state}`)}</Badge>
+                  {data.state !== "open" ? (
+                    <Badge tone="neutral">{t(`findingState.${data.state}`)}</Badge>
+                  ) : null}
                 </div>
-                <h2 className="text-lg font-semibold break-all">{data.vulnerability.id}</h2>
-                <p className="font-mono text-sm break-all text-muted-foreground">
-                  {data.packageName} {data.packageVersion} · {data.repository.name}
+                <h2 className="text-[19px] leading-snug font-semibold tracking-[-0.01em] break-words">
+                  {titleOf(data)}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {data.repository.name} ·{" "}
+                  <span className="font-mono break-all">
+                    {data.packageName} {data.packageVersion}
+                  </span>{" "}
+                  · {t("findings.detected", { when: formatRelative(data.firstSeenAt) })}
                 </p>
               </>
             ) : (
               <p className="text-muted-foreground">{isError ? t("errors.generic") : t("common.loading")}</p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t("findings.close")}
-            className="grid size-8 flex-none place-items-center rounded-md hover:bg-accent"
-          >
-            <X aria-hidden="true" className="size-4" />
-          </button>
+          {onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={t("findings.close")}
+              className="grid size-8 flex-none place-items-center rounded-md hover:bg-accent"
+            >
+              <X aria-hidden="true" className="size-4" />
+            </button>
+          ) : null}
         </div>
         {data ? <DetailBody data={data} canEdit={canEdit} /> : null}
       </Card>
@@ -83,99 +98,122 @@ export function FindingDetail({
   );
 }
 
+/**
+ * A short title from the advisory text: its first sentence, as plain text. The full text
+ * follows in the body. Without a description the vulnerability id is the title.
+ */
+function titleOf(data: Detail): string {
+  const text = data.vulnerability.description?.trim();
+  if (!text) return data.vulnerability.id;
+  const first = /^(.{20,160}?[.!?])(\s|$)/s.exec(text)?.[1] ?? text;
+  return first.length > 160 ? `${first.slice(0, 157).trimEnd()}…` : first;
+}
+
 function DetailBody({ data, canEdit }: { data: Detail; canEdit: boolean }) {
   const { t } = useTranslation();
   const v = data.vulnerability;
   return (
-    <div className="grid gap-5 px-5 py-4">
-      {v.description ? <p className="whitespace-pre-line">{v.description}</p> : null}
-
-      <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-muted-foreground">{t("findings.columnFixedIn")}</dt>
-        <dd className="font-mono break-all">
+    <>
+      {/* Mockup .facts: the three numbers that decide what to do, side by side. */}
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-px border-y bg-border">
+        <Fact label={t("findings.cvss")}>
+          {v.cvssScore !== null ? v.cvssScore.toFixed(1) : <span className="text-muted-foreground">–</span>}
+        </Fact>
+        <Fact label={t("findings.epss")}>
+          {v.epss !== null ? formatPercent(v.epss) : <span className="text-muted-foreground">–</span>}
+        </Fact>
+        <Fact label={t("findings.columnFixedIn")}>
           {data.fixedIn?.length ? (
-            data.fixedIn.join(", ")
+            <span className="font-mono break-all">{data.fixedIn.join(", ")}</span>
           ) : (
-            <span className="font-sans">{t("findings.noFix")}</span>
+            <span className="text-muted-foreground">{t("findings.noFix")}</span>
           )}
-        </dd>
-        {v.cvssScore !== null ? (
-          <>
-            <dt className="text-muted-foreground">{t("findings.cvss")}</dt>
-            <dd>
-              {v.cvssScore.toFixed(1)}
-              {v.cvssVector ? (
-                <span className="ml-2 font-mono break-all text-muted-foreground">{v.cvssVector}</span>
-              ) : null}
-            </dd>
-          </>
-        ) : null}
-        {v.epss !== null ? (
-          <>
-            <dt className="text-muted-foreground">{t("findings.epss")}</dt>
-            <dd>
-              {formatPercent(v.epss)} <span className="text-muted-foreground">{t("findings.epssHint")}</span>
-            </dd>
-          </>
-        ) : null}
-        {v.publishedAt ? (
-          <>
-            <dt className="text-muted-foreground">{t("findings.columnPublished")}</dt>
-            <dd>{formatDateTime(v.publishedAt)}</dd>
-          </>
-        ) : null}
-        {v.modifiedAt ? (
-          <>
-            <dt className="text-muted-foreground">{t("findings.modified")}</dt>
-            <dd>{formatDateTime(v.modifiedAt)}</dd>
-          </>
-        ) : null}
-        {v.aliases?.length ? (
-          <>
-            <dt className="text-muted-foreground">{t("findings.aliases")}</dt>
-            <dd className="font-mono break-all">{v.aliases.join(", ")}</dd>
-          </>
-        ) : null}
-        <dt className="text-muted-foreground">{t("findings.columnFirstSeen")}</dt>
-        <dd>{formatDateTime(data.firstSeenAt)}</dd>
+        </Fact>
       </dl>
+      <div className="grid gap-5 px-5 py-4">
+        {v.description ? <p className="whitespace-pre-line">{v.description}</p> : null}
 
-      {v.knownExploited ? <Alert tone="error">{t("findings.kevHint")}</Alert> : null}
+        {v.knownExploited ? <Alert tone="error">{t("findings.kevHint")}</Alert> : null}
 
-      {data.locations?.length ? (
-        <div>
-          <h3 className="mb-1 text-sm font-medium">{t("findings.locations")}</h3>
-          <ul className="grid gap-0.5 font-mono text-sm break-all text-muted-foreground">
-            {data.locations.map((path) => (
-              <li key={path}>{path}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+        {data.locations?.length ? (
+          <div>
+            <h3 className="mb-1 text-sm font-medium">{t("findings.locations")}</h3>
+            <ul className="grid gap-0.5 font-mono text-sm break-all text-muted-foreground">
+              {data.locations.map((path) => (
+                <li key={path}>{path}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
-      {v.urls?.length ? (
-        <div>
-          <h3 className="mb-1 text-sm font-medium">{t("findings.references")}</h3>
-          <ul className="grid gap-1 text-sm">
-            {v.urls.filter(isHttpUrl).map((url) => (
-              <li key={url}>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 break-all text-primary-text hover:underline"
-                  aria-label={t("findings.externalLink", { host: new URL(url).host })}
-                >
-                  {url}
-                  <ExternalLink aria-hidden="true" className="size-3.5 flex-none" />
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+          {v.cvssVector ? (
+            <>
+              <dt className="text-muted-foreground">{t("findings.cvssVector")}</dt>
+              <dd className="font-mono break-all">{v.cvssVector}</dd>
+            </>
+          ) : null}
+          {v.epss !== null ? (
+            <>
+              <dt className="text-muted-foreground">{t("findings.epss")}</dt>
+              <dd className="text-muted-foreground">{t("findings.epssHint")}</dd>
+            </>
+          ) : null}
+          {v.publishedAt ? (
+            <>
+              <dt className="text-muted-foreground">{t("findings.columnPublished")}</dt>
+              <dd>{formatDateTime(v.publishedAt)}</dd>
+            </>
+          ) : null}
+          {v.modifiedAt ? (
+            <>
+              <dt className="text-muted-foreground">{t("findings.modified")}</dt>
+              <dd>{formatDateTime(v.modifiedAt)}</dd>
+            </>
+          ) : null}
+          {v.aliases?.length ? (
+            <>
+              <dt className="text-muted-foreground">{t("findings.aliases")}</dt>
+              <dd className="font-mono break-all">{v.aliases.join(", ")}</dd>
+            </>
+          ) : null}
+          <dt className="text-muted-foreground">{t("findings.columnFirstSeen")}</dt>
+          <dd>{formatDateTime(data.firstSeenAt)}</dd>
+        </dl>
 
-      {canEdit ? <StateActions data={data} /> : null}
+        {v.urls?.length ? (
+          <div>
+            <h3 className="mb-1 text-sm font-medium">{t("findings.references")}</h3>
+            <ul className="grid gap-1 text-sm">
+              {v.urls.filter(isHttpUrl).map((url) => (
+                <li key={url}>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 break-all text-primary-text hover:underline"
+                    aria-label={t("findings.externalLink", { host: new URL(url).host })}
+                  >
+                    {url}
+                    <ExternalLink aria-hidden="true" className="size-3.5 flex-none" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {canEdit ? <StateActions data={data} /> : null}
+      </div>
+    </>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="bg-card px-5 py-3">
+      <dt className="text-[13px] text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-lg font-semibold">{children}</dd>
     </div>
   );
 }
@@ -193,6 +231,7 @@ function StateActions({ data }: { data: Detail }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [accepting, setAccepting] = useState(false);
   const refresh = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ["findings"] }),
@@ -204,7 +243,10 @@ function StateActions({ data }: { data: Detail }) {
   const accept = useMutation({
     mutationFn: (body: { reason: string; until: string }) =>
       api(`/findings/${data.id}/accept`, { method: "POST", body }),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      setAccepting(false);
+      await refresh();
+    },
     onError: (e) => {
       if (e instanceof ApiError && e.status === 422) {
         setErrors(Object.fromEntries((e.problem?.errors ?? []).map((x) => [x.path, x.message])));
@@ -263,39 +305,56 @@ function StateActions({ data }: { data: Detail }) {
   }
 
   return (
-    <form className="grid gap-3 border-t pt-4" onSubmit={submit}>
-      <div className="grid gap-1.5">
-        <label htmlFor="accept-reason" className="text-sm font-medium">
-          {t("findings.acceptReason")}
-        </label>
-        <textarea
-          id="accept-reason"
-          name="reason"
-          required
-          minLength={10}
-          maxLength={1000}
-          rows={3}
-          aria-describedby="accept-reason-hint"
-          className="rounded-md border border-input bg-card px-3 py-2 text-base shadow-xs"
-        />
-        <p id="accept-reason-hint" className="text-sm text-muted-foreground">
-          {errors.reason ?? t("findings.acceptReasonHint")}
-        </p>
-      </div>
-      <Field
-        label={t("findings.acceptUntil")}
-        hint={t("findings.acceptUntilHint")}
-        error={errors.until}
-        name="until"
-        type="date"
-        required
-        defaultValue={defaultUntil}
-        min={minUntil}
-        max={maxUntil}
-      />
-      <Button type="submit" variant="outline" className="justify-self-start" disabled={accept.isPending}>
-        {t("findings.accept")}
+    <div className="border-t pt-4">
+      <Button variant="ghost" onClick={() => setAccepting(true)}>
+        {t("findings.acceptOpen")}
       </Button>
-    </form>
+      <Dialog
+        open={accepting}
+        onClose={() => setAccepting(false)}
+        title={t("findings.acceptTitle", { id: data.vulnerability.id })}
+        description={t("findings.acceptDescription")}
+      >
+        <form className="grid gap-4" onSubmit={submit}>
+          <div className="grid gap-1.5">
+            <label htmlFor="accept-reason" className="text-sm font-medium">
+              {t("findings.acceptReason")}
+            </label>
+            <textarea
+              id="accept-reason"
+              name="reason"
+              required
+              minLength={10}
+              maxLength={1000}
+              rows={3}
+              aria-describedby="accept-reason-hint"
+              className="rounded-md border border-input bg-card px-3 py-2 text-base shadow-xs"
+            />
+            <p id="accept-reason-hint" className="text-sm text-muted-foreground">
+              {errors.reason ?? t("findings.acceptReasonHint")}
+            </p>
+          </div>
+          <Field
+            label={t("findings.acceptUntil")}
+            hint={t("findings.acceptUntilHint")}
+            error={errors.until}
+            name="until"
+            type="date"
+            required
+            defaultValue={defaultUntil}
+            min={minUntil}
+            max={maxUntil}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAccepting(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={accept.isPending}>
+              {t("findings.accept")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
+    </div>
   );
 }

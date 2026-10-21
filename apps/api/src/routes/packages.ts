@@ -5,7 +5,15 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
 import type { AppEnv } from "../lib/context.ts";
-import { type KeysetSpec, keysetQuery, parseText, toPage } from "../lib/paginate.ts";
+import {
+  type KeysetSpec,
+  keysetQuery,
+  parseNumber,
+  parseText,
+  type SortOption,
+  sortSpec,
+  toPage,
+} from "../lib/paginate.ts";
 
 const p = schema.repositoryPackage;
 const f = schema.finding;
@@ -18,6 +26,9 @@ const listQuery = z.object({
   repositoryId: z.string().max(40).optional(),
   /** "1" = only packages with open findings. */
   vulnerable: z.enum(["1"]).optional(),
+  /** Without a sort the list is by name and version. */
+  sort: z.enum(["name", "type", "repository", "findings", "severity"]).optional(),
+  dir: z.enum(["asc", "desc"]).optional(),
 });
 
 type Row = {
@@ -46,6 +57,23 @@ const escapeLike = (s: string) => s.replace(/[%_\\]/g, "\\$&");
 const openFor = sql`${f.repositoryId} = ${p.repositoryId} and ${f.packageName} = ${p.name}
   and ${f.packageVersion} = ${p.version} and ${f.packageType} = ${p.type} and ${f.state} = 'open'`;
 
+/** Columns the list can be sorted by (table headers). */
+const SORTS: Record<NonNullable<z.infer<typeof listQuery>["sort"]>, SortOption> = {
+  name: { keys: [p.name, p.version], parse: [parseText, parseText], dir: "asc" },
+  type: { keys: [p.type, p.name], parse: [parseText, parseText], dir: "asc" },
+  repository: { keys: [schema.repository.name, p.name], parse: [parseText, parseText], dir: "asc" },
+  findings: {
+    keys: [sql`(select count(*)::int from ${f} where ${openFor})`],
+    parse: [parseNumber],
+    dir: "desc",
+  },
+  severity: {
+    keys: [sql`coalesce((select max(${f.severityRank}) from ${f} where ${openFor}), -1)`],
+    parse: [parseNumber],
+    dir: "desc",
+  },
+};
+
 /** Package inventory across the organisation's repositories, from each one's latest scan. */
 export const packageRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const actor = c.get("actor");
@@ -61,10 +89,13 @@ export const packageRoutes = new Hono<AppEnv>().get("/", async (c) => {
     input.repositoryId ? eq(p.repositoryId, input.repositoryId) : undefined,
     input.vulnerable ? sql`exists (select 1 from ${f} where ${openFor})` : undefined,
   );
-  const q = keysetQuery(spec, input.cursor, input.pageSize);
+  const sorted = input.sort ? sortSpec(SORTS[input.sort], input.dir, p.id) : null;
+  const activeSpec = (sorted?.spec ?? spec) as KeysetSpec<Row & { sortKeys?: (string | number | Date)[] }>;
+  const q = keysetQuery(activeSpec, input.cursor, input.pageSize);
   const [rows, totalRow] = await Promise.all([
     db
       .select({
+        sortKeys: sorted ? sorted.select : sql<null>`null`,
         id: p.id,
         name: p.name,
         version: p.version,
@@ -83,5 +114,15 @@ export const packageRoutes = new Hono<AppEnv>().get("/", async (c) => {
       .limit(q.limit),
     db.select({ n: count() }).from(p).where(where),
   ]);
-  return c.json(toPage(spec, q, rows, totalRow[0]?.n ?? 0, input.pageSize, Boolean(input.cursor), (r) => r));
+  return c.json(
+    toPage(
+      activeSpec,
+      q,
+      rows as (Row & { sortKeys?: (string | number | Date)[] })[],
+      totalRow[0]?.n ?? 0,
+      input.pageSize,
+      Boolean(input.cursor),
+      ({ sortKeys: _keys, ...r }) => r,
+    ),
+  );
 });

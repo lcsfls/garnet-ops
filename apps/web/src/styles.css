@@ -212,6 +212,26 @@
   }
 }
 
+@layer components {
+  /* Table rows tint on hover (mockup); rows that open something also show the pointer. */
+  tbody tr:hover {
+    background: color-mix(in oklch, var(--muted) 60%, transparent);
+  }
+  tbody tr.row-link {
+    cursor: pointer;
+  }
+  tbody tr[aria-selected="true"],
+  tbody tr[aria-selected="true"]:hover {
+    background: var(--sidebar-accent);
+  }
+  /* A relative time whose exact value is in its tooltip. */
+  .dash-time {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--input);
+  }
+}
+
 /* Unlayered, so it beats every Tailwind utility (those live in a cascade layer) without !important. */
 @media (prefers-reduced-motion: reduce) {
   *,

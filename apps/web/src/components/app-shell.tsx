@@ -204,7 +204,7 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
           </div>
         </header>
         {/* The content area is the container every layout decision is made against (AGENTS.md rule 5). */}
-        <main className="@container flex-1 overflow-y-auto px-8 pt-6 pb-12">
+        <main data-content className="@container flex-1 overflow-y-auto px-8 pt-6 pb-12">
           <MaintenanceBanner />
           {children}
         </main>

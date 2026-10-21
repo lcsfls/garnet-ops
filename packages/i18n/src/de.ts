@@ -16,6 +16,7 @@ export const de: Messages = {
     language: "Sprache",
     retry: "Erneut versuchen",
     cancel: "Abbrechen",
+    sortBy: "Nach dieser Spalte sortieren",
   },
   errors: {
     generic: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
@@ -138,6 +139,9 @@ export const de: Messages = {
     searchFindings: "Findings mit „{text}“",
     searchPackages: "Pakete mit „{text}“",
     searchRepositories: "Repositories mit „{text}“",
+    searchKindRepository: "Repository",
+    searchKindVulnerability: "Schwachstelle",
+    searchKindPackage: "Paket ({type})",
   },
   nav: {
     overview: "Übersicht",
@@ -227,6 +231,24 @@ export const de: Messages = {
     emptyTitle: "Erstes Repository hinzufügen",
     emptyDescription:
       "GarnetOps klont es nur lesend in eine temporäre Sandbox, listet seine Abhängigkeiten auf und prüft sie gegen die lokale Schwachstellendatenbank.",
+    fixAvailable: "Fix verfügbar: {count}",
+    activityTitle: "Aktivität",
+    activityDescription: "Was zuletzt in Ihrer Organisation passiert ist.",
+    activityEmpty: "Bisher ist nichts passiert.",
+    activityBy: "von {name}",
+    activity: {
+      repository_created: "Repository hinzugefügt: {subject}",
+      repository_deleted: "Repository entfernt: {subject}",
+      finding_accepted: "Risiko akzeptiert: {subject}",
+      finding_reopened: "Finding wieder geöffnet: {subject}",
+      organization_scan_schedule_changed: "Nächtlicher Scan geändert",
+      update_succeeded: "Aktualisiert auf {subject}",
+      update_failed: "Update auf {subject} fehlgeschlagen",
+      schedule_run:
+        "{count, plural, =0 {Nächtlicher Scan: nichts zu scannen} one {Nächtlicher Scan von # Repository} other {Nächtlicher Scan von # Repositories}}",
+    },
+    dataSources: "Quellen",
+    dataSourcesNone: "Noch keine",
   },
   repositories: {
     title: "Repositories",
@@ -250,6 +272,10 @@ export const de: Messages = {
     sourceDeployKey: "Deploy-Key, nur lesend",
     openOfSeverity:
       "{count, plural, one {# offenes Finding: {severity}} other {# offene Findings: {severity}}}",
+    columnScanners: "Scanner",
+    columnTrend: "Offene Findings, 14 Tage",
+    trendLabel: "Offene Findings der letzten 14 Tage, von {first} auf {last}",
+    moreActions: "Weitere Aktionen für {name}",
     columnActions: "Aktionen",
     defaultBranch: "Standard",
     scanNow: "Jetzt scannen",
@@ -400,6 +426,13 @@ export const de: Messages = {
     accept: "Risiko akzeptieren",
     reopen: "Wieder öffnen",
     externalLink: "{host} (öffnet in neuem Tab)",
+    acceptOpen: "Risiko akzeptieren …",
+    acceptTitle: "Risiko von {id} akzeptieren",
+    acceptDescription:
+      "Das Finding zählt bis zum gewählten Tag nicht mehr als offen. Ihr Team sieht die Begründung.",
+    detected: "Erkannt {when}",
+    scanFiltered: "Dieses Repository scannen",
+    cvssVector: "CVSS-Vektor",
   },
   settings: {
     title: "Einstellungen",
@@ -423,7 +456,7 @@ export const de: Messages = {
       "Bevor etwas gestoppt wird, wird die Datenbank gesichert und geprüft. Startet die neue Version nicht, kehrt die alte nur zurück, wenn das nachweislich sicher ist.",
     helpUpdatesManualTitle: "Ohne Updater",
     helpUpdatesManualText:
-      "Der Updater ist optional. Ohne ihn aktualisieren Sie auf dem Host: neue Images mit docker compose pull holen, dann docker compose up -d. Sichern Sie vorher die Datenbank.",
+      "Der Updater ist optional und installiert nur signierte Releases. Noch gibt es kein Release: Aktualisieren Sie auf dem Host, indem Sie das Repository aktualisieren, die Images neu bauen und docker compose up -d ausführen. Sichern Sie vorher die Datenbank.",
     helpSourceTitle: "Ihr Exemplar des Quellcodes",
     helpSourceText:
       "GarnetOps ist freie Software unter der AGPL-3.0. Sie dürfen den Quellcode der Version, die Sie betreiben, lesen, ändern und weitergeben; der Link führt dorthin.",
@@ -436,7 +469,7 @@ export const de: Messages = {
     updatesDescription:
       "Neue Releases von GarnetOps, installiert vom optionalen Update-Dienst auf diesem Host, nach einer Sicherung.",
     updatesManual:
-      "Aktualisieren Sie stattdessen auf dem Host, im Verzeichnis von GarnetOps. Sichern Sie vorher die Datenbank.",
+      "Noch gibt es kein signiertes Release. Aktualisieren Sie auf dem Host, im Verzeichnis von GarnetOps: Datenbank sichern, dann die Images aus dem Repository neu bauen.",
     updatesTrust: "Signaturprüfung",
     updatesTrustMode: {
       keyless: "Schlüssellos (Identität des Release-Workflows)",

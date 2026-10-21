@@ -29,7 +29,7 @@ export function PageHeader({
 /** A bordered surface for tables and panels. */
 export function Card({ className = "", children }: { className?: string; children: ReactNode }) {
   return (
-    <section className={`min-w-0 rounded-lg border bg-card text-card-foreground shadow-xs ${className}`}>
+    <section className={`min-w-0 rounded-xl border bg-card text-card-foreground shadow-xs ${className}`}>
       {children}
     </section>
   );
@@ -45,10 +45,10 @@ export function CardHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3 border-b px-5 py-4">
+    <div className="flex items-start gap-3 px-5 pt-[18px] pb-3">
       <div className="min-w-0 flex-1">
-        <h2 className="font-semibold">{title}</h2>
-        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+        <h2 className="font-semibold tracking-[-0.01em]">{title}</h2>
+        {description ? <p className="mt-0.5 text-sm text-muted-foreground">{description}</p> : null}
       </div>
       {actions}
     </div>

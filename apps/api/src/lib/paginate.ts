@@ -16,7 +16,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
  * cannot appear in IDs, numbers or ISO timestamps.
  */
 export interface KeysetSpec<Row> {
-  keys: AnyPgColumn[];
+  keys: (AnyPgColumn | SQL)[];
   direction: "asc" | "desc";
   /** Reads the key values from a result row, in the same order as `keys`. */
   keyOf: (row: Row) => (string | number | Date)[];
@@ -114,3 +114,47 @@ export const parseDate = (v: string) => {
   return d;
 };
 export const parseText = (v: string) => v;
+
+type KeyValue = string | number | Date;
+
+/**
+ * One way a list can be sorted: its key expressions (without the unique id, which is
+ * always the last key) and how to read cursor values back. Nullable values must be
+ * wrapped in coalesce() so every row has a comparable key.
+ */
+export interface SortOption {
+  keys: (AnyPgColumn | SQL)[];
+  parse: ((value: string) => KeyValue)[];
+  /** Direction when the user has not chosen one, e.g. "desc" for scores. */
+  dir: "asc" | "desc";
+}
+
+export type SortedRow = { id: string; sortKeys: KeyValue[] };
+
+/**
+ * A keyset spec for a user-chosen column and direction. The sort keys are selected as
+ * one array column (`sortKeys`), so the page boundary can be encoded without knowing
+ * the row type.
+ */
+export function sortSpec(
+  option: SortOption,
+  dir: "asc" | "desc" | undefined,
+  id: AnyPgColumn,
+): { spec: KeysetSpec<SortedRow>; select: SQL<KeyValue[]> } {
+  return {
+    spec: {
+      keys: [...option.keys, id],
+      direction: dir ?? option.dir,
+      keyOf: (row) => [...row.sortKeys, row.id],
+      parse: [...option.parse, parseText],
+    },
+    // A row constructor read back as JSON keeps each key's type (numbers, ISO times, text).
+    select: sql<KeyValue[]>`json_build_array(${sql.join(option.keys, sql`, `)})`,
+  };
+}
+
+export const parseNumber = (v: string) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw new InvalidCursorError();
+  return n;
+};

@@ -19,6 +19,21 @@ const asString = (v: unknown) => (typeof v === "number" ? String(v) : v);
 const text = (max: number) =>
   z.preprocess(asString, z.string().trim().min(1).max(max).optional()).catch(undefined);
 const flag = z.preprocess(asString, z.literal("1").optional()).catch(undefined);
+const sortOf = <T extends string>(columns: readonly [T, ...T[]]) =>
+  z.enum(columns).optional().catch(undefined);
+const dir = z.enum(["asc", "desc"]).optional().catch(undefined);
+
+export const FINDING_SORTS = [
+  "vulnerability",
+  "cvss",
+  "epss",
+  "published",
+  "package",
+  "repository",
+  "firstSeen",
+] as const;
+export const REPOSITORY_SORTS = ["name", "critical", "high", "medium", "lastScan"] as const;
+export const PACKAGE_SORTS = ["name", "type", "repository", "findings", "severity"] as const;
 
 /** Comma-separated severities, e.g. "critical,high". Unknown values are dropped. */
 const severities = z
@@ -45,6 +60,8 @@ export const findingSearch = z.object({
   pageSize,
   /** The finding shown in the detail pane. */
   id: text(40),
+  sort: sortOf(FINDING_SORTS),
+  dir,
 });
 export type FindingSearch = z.infer<typeof findingSearch>;
 
@@ -55,6 +72,8 @@ export const repositorySearch = z.object({
   pageSize,
   /** Opens the "Add repository" dialog. */
   add: flag,
+  sort: sortOf(REPOSITORY_SORTS),
+  dir,
 });
 export type RepositorySearch = z.infer<typeof repositorySearch>;
 
@@ -73,6 +92,8 @@ export const packageSearch = z.object({
   vulnerable: flag,
   cursor: text(512),
   pageSize,
+  sort: sortOf(PACKAGE_SORTS),
+  dir,
 });
 export type PackageSearch = z.infer<typeof packageSearch>;
 

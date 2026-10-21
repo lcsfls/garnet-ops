@@ -17,6 +17,8 @@ export interface Overview {
   states: Partial<Record<FindingState, number>>;
   knownExploitedOpen: number;
   fixableOpen: number;
+  /** Open findings with a fixed version, per severity. */
+  fixableBySeverity: SeverityCounts;
   repositories: { total: number; blocked: number; attention: number; never_scanned: number };
   fixFirst: {
     id: string;
@@ -49,7 +51,20 @@ export interface Overview {
     scannerVersions: Record<string, string> | null;
     scannedAt: string | null;
   } | null;
+  /** Advisory sources behind the findings so far, e.g. ["debian", "github", "nvd"]. */
+  vulnerabilitySources: string[];
+  /** Recent organisation events every member may see, newest first. */
+  activity: ActivityItem[];
   generatedAt: string;
+}
+
+export interface ActivityItem {
+  /** An audit action such as "repository.created", or "schedule.run" for a nightly scan. */
+  kind: string;
+  at: string;
+  actorName: string | null;
+  subject: string | null;
+  count: number | null;
 }
 
 export interface RepositoryRow {
@@ -65,6 +80,10 @@ export interface RepositoryRow {
   lastScanAt: string | null;
   lastScan: { id: string; state: ScanState; finishedAt: string | null; error: string | null } | null;
   open: SeverityCounts;
+  /** Scanners of the last successful scan, e.g. ["grype", "syft"]. */
+  scanners: string[];
+  /** Open findings at the end of each of the last 14 days in the viewer's zone, oldest first. */
+  trend: number[];
 }
 
 export interface FindingRow {
@@ -120,7 +139,7 @@ export interface FindingDetail {
 }
 
 /** `GET /repositories/:id`: one repository with its latest scan and finding counts. */
-export interface RepositoryDetail extends Omit<RepositoryRow, "lastScan"> {
+export interface RepositoryDetail extends Omit<RepositoryRow, "lastScan" | "scanners" | "trend"> {
   createdAt: string;
   lastScan: { id: string; state: ScanState; finishedAt: string | null; error: string | null } | null;
   states: Partial<Record<FindingState, number>>;

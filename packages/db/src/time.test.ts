@@ -9,7 +9,14 @@
  */
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDb, type Database, openFindingsTrend, runMigrations, schema } from "./index.ts";
+import {
+  createDb,
+  type Database,
+  openFindingsTrend,
+  openTotalsByRepository,
+  runMigrations,
+  schema,
+} from "./index.ts";
 
 function devDatabaseUrl(): string | null {
   try {
@@ -160,6 +167,29 @@ describe.skipIf(!adminUrl)("time handling in the database", () => {
     expect(mine).toEqual(all);
     expect(mine.length).toBeGreaterThan(0);
     expect(other).toEqual([]);
+  });
+
+  it("gives every repository one total per day, zero on quiet days", async () => {
+    await finding("f_spark_old", "2026-06-01T10:00:00Z", "2026-06-02T10:00:00Z");
+    await finding("f_spark_new", "2026-06-03T10:00:00Z");
+    const totals = await openTotalsByRepository(db, {
+      organizationId: org,
+      timeZone: "UTC",
+      repositoryIds: [repo, "repo_none"],
+      days: 4,
+      asOf: new Date("2026-06-03T12:00:00Z"),
+    });
+    // 05-31: nothing; 06-01: f_spark_old; 06-02: resolved that day; 06-03: f_spark_new.
+    // Findings of the other tests in this file are outside these four days or resolved before them.
+    expect(totals.get("repo_none")).toEqual([0, 0, 0, 0]);
+    expect(totals.get(repo)?.length).toBe(4);
+    const [d1 = 0, d2 = 0, d3 = 0, d4 = 0] = totals.get(repo) ?? [];
+    expect(d2 - d1).toBe(1);
+    expect(d3 - d2).toBe(-1);
+    expect(d4 - d3).toBe(1);
+    expect(
+      await openTotalsByRepository(db, { organizationId: org, timeZone: "UTC", repositoryIds: [] }),
+    ).toEqual(new Map());
   });
 
   it("refuses unknown time zones before they reach SQL", async () => {

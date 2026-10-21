@@ -6,7 +6,7 @@ import { authClient, authErrorKey } from "../lib/auth-client.ts";
 import type { MessageKey } from "../lib/i18n.ts";
 import { Alert } from "./ui/alert.tsx";
 import { Button } from "./ui/button.tsx";
-import { Dialog } from "./ui/dialog.tsx";
+import { Dialog, DialogFooter } from "./ui/dialog.tsx";
 import { Field } from "./ui/field.tsx";
 
 /**
@@ -98,14 +98,14 @@ export function StepUpDialog({
           autoComplete="one-time-code"
           pattern="[0-9 ]{6,7}"
         />
-        <div className="flex justify-end gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={() => void close()}>
             {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={busy}>
             {busy ? t("common.loading") : t("stepUp.confirm")}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );

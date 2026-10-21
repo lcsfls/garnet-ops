@@ -2,15 +2,24 @@ import { isSshRepoUrl, newId, repoUrlSchema } from "@garnetops/core";
 import { pageSizeSchema } from "@garnetops/core/pagination";
 import { fingerprint, generateDeployKey, parseKnownHosts } from "@garnetops/core/ssh";
 import { seal } from "@garnetops/core/vault";
-import { isTimeZone, openFindingsTrend, schema } from "@garnetops/db";
-import { and, count, desc, eq, ilike, inArray, sql } from "drizzle-orm";
+import { isTimeZone, openFindingsTrend, openTotalsByRepository, schema } from "@garnetops/db";
+import { and, count, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
 import { vaultPublicKey } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
-import { type KeysetSpec, keysetQuery, parseDate, parseText, toPage } from "../lib/paginate.ts";
+import {
+  type KeysetSpec,
+  keysetQuery,
+  parseDate,
+  parseNumber,
+  parseText,
+  type SortOption,
+  sortSpec,
+  toPage,
+} from "../lib/paginate.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
 
 const r = schema.repository;
@@ -54,7 +63,28 @@ const listQuery = z.object({
   q: z.string().trim().max(100).optional(),
   /** "blocked" = has open critical findings, "attention" = open high findings. */
   status: z.enum(["all", "blocked", "attention", "clean"]).default("all"),
+  /** The viewer's zone, for the calendar days of the small trend line. */
+  tz: z.string().refine(isTimeZone, "Unknown time zone").default("UTC"),
+  /** Without a sort the list is by name. */
+  sort: z.enum(["name", "critical", "high", "medium", "lastScan"]).optional(),
+  dir: z.enum(["asc", "desc"]).optional(),
 });
+
+const openOf = (severity: string) =>
+  sql`(select count(*)::int from ${schema.finding} f where f.repository_id = ${r.id} and f.state = 'open' and f.severity = ${severity})`;
+
+/** Columns the list can be sorted by (table headers). */
+const SORTS: Record<NonNullable<z.infer<typeof listQuery>["sort"]>, SortOption> = {
+  name: { keys: [r.name], parse: [parseText], dir: "asc" },
+  critical: { keys: [openOf("critical")], parse: [parseNumber], dir: "desc" },
+  high: { keys: [openOf("high")], parse: [parseNumber], dir: "desc" },
+  medium: { keys: [openOf("medium")], parse: [parseNumber], dir: "desc" },
+  lastScan: {
+    keys: [sql`coalesce(date_trunc('milliseconds', ${r.lastScanAt}), 'epoch'::timestamptz)`],
+    parse: [parseDate],
+    dir: "desc",
+  },
+};
 
 const createBody = z.object({
   url: repoUrlSchema,
@@ -172,10 +202,14 @@ export const repositoryRoutes = new Hono<AppEnv>()
       input.q ? ilike(r.name, `%${input.q.replace(/[%_\\]/g, "\\$&")}%`) : undefined,
       statusFilter(input.status),
     );
-    const q = keysetQuery(spec, input.cursor, input.pageSize);
+    const sorted = input.sort ? sortSpec(SORTS[input.sort], input.dir, r.id) : null;
+    const activeSpec = (sorted?.spec ?? spec) as KeysetSpec<
+      RepoRow & { sortKeys?: (string | number | Date)[] }
+    >;
+    const q = keysetQuery(activeSpec, input.cursor, input.pageSize);
     const [rows, totalRow] = await Promise.all([
       db
-        .select()
+        .select({ ...getTableColumns(r), sortKeys: sorted ? sorted.select : sql<null>`null` })
         .from(r)
         .where(and(filters, q.where))
         .orderBy(...q.orderBy)
@@ -183,9 +217,9 @@ export const repositoryRoutes = new Hono<AppEnv>()
       db.select({ n: count() }).from(r).where(filters),
     ]);
     const page = toPage(
-      spec,
+      activeSpec,
       q,
-      rows,
+      rows as (RepoRow & { sortKeys?: (string | number | Date)[] })[],
       totalRow[0]?.n ?? 0,
       input.pageSize,
       Boolean(input.cursor),
@@ -212,6 +246,23 @@ export const repositoryRoutes = new Hono<AppEnv>()
           .orderBy(schema.scan.repositoryId, desc(schema.scan.createdAt))
       : [];
     const latestScan = new Map(scans.map(({ repositoryId, ...s }) => [repositoryId, s]));
+    // Scanners of the last successful scan, and open findings over the last 14 days.
+    const lastScanIds = page.items.flatMap((x) => (x.lastScanId ? [x.lastScanId] : []));
+    const [scanners, trends] = await Promise.all([
+      lastScanIds.length
+        ? db
+            .select({ id: schema.scan.id, versions: schema.scan.scannerVersions })
+            .from(schema.scan)
+            .where(inArray(schema.scan.id, lastScanIds))
+        : [],
+      openTotalsByRepository(db, {
+        organizationId: actor.organizationId,
+        timeZone: input.tz,
+        repositoryIds: repoIds,
+        days: 14,
+      }),
+    ]);
+    const scannersOf = new Map(scanners.map((s) => [s.id, Object.keys(s.versions ?? {}).sort()]));
     return c.json({
       ...page,
       items: page.items.map((row) => ({
@@ -225,6 +276,8 @@ export const repositoryRoutes = new Hono<AppEnv>()
         lastScanAt: row.lastScanAt,
         lastScan: latestScan.get(row.id) ?? null,
         open: counts.get(row.id) ?? {},
+        scanners: (row.lastScanId && scannersOf.get(row.lastScanId)) || [],
+        trend: trends.get(row.id) ?? [],
       })),
     });
   })

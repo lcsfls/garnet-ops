@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../lib/cn.ts";
 import { formatNumber } from "../lib/format.ts";
@@ -70,16 +71,19 @@ export function SearchInput({
   }, [draft, value]);
 
   return (
-    <input
-      type="search"
-      aria-label={label}
-      placeholder={label}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      className={cn(
-        "h-10 w-full max-w-xs rounded-md border border-input bg-card px-3 text-base shadow-xs placeholder:text-muted-foreground",
-        className,
-      )}
-    />
+    <div className={cn("relative w-full max-w-[280px]", className)}>
+      <Search
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+      />
+      <input
+        type="search"
+        aria-label={label}
+        placeholder={label}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        className="h-10 w-full rounded-lg border border-input bg-card pr-3 pl-8 text-base shadow-xs placeholder:text-muted-foreground"
+      />
+    </div>
   );
 }

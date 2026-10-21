@@ -1,7 +1,9 @@
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Bug, GitBranch, type LucideIcon, Package, Search } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { api } from "../lib/api.ts";
 import { cn } from "../lib/cn.ts";
 import type { Me } from "../lib/session.ts";
 import { navFor } from "./nav.ts";
@@ -10,15 +12,23 @@ import { Dialog } from "./ui/dialog.tsx";
 interface Option {
   id: string;
   label: string;
+  /** What kind of hit it is, shown muted after the label. */
+  hint?: string;
   icon: LucideIcon;
   go: () => void;
 }
 
+interface Hits {
+  repositories: { id: string; name: string }[];
+  vulnerabilities: { id: string }[];
+  packages: { name: string; type: string }[];
+}
+
 /**
- * Search box in the top bar (Ctrl K or ⌘ K). It does not search by itself:
- * it opens the findings, packages or repositories list with the text as
- * filter, or jumps to a page whose name matches. Results stay in the URL,
- * so they can be shared like any other filter.
+ * Search box in the top bar (Ctrl K or ⌘ K). From two characters on it shows a few
+ * matching repositories, vulnerabilities and packages; below them it offers the
+ * findings, packages or repositories list with the text as filter, and pages whose
+ * name matches. Results stay in the URL, so they can be shared like any other filter.
  */
 export function CommandSearch({ me }: { me: Me }) {
   const { t } = useTranslation();
@@ -46,8 +56,47 @@ export function CommandSearch({ me }: { me: Me }) {
     setActive(0);
   };
 
+  // Ask the API only after typing pauses.
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(text.trim()), 200);
+    return () => clearTimeout(timer);
+  }, [text]);
+  const hits = useQuery({
+    queryKey: ["search", debounced],
+    queryFn: () => api<Hits>(`/search?q=${encodeURIComponent(debounced)}`),
+    enabled: open && debounced.length >= 2,
+    placeholderData: keepPreviousData,
+  });
+
   const options = useMemo<Option[]>(() => {
     const q = text.trim();
+    const found: Option[] =
+      q.length >= 2 && hits.data
+        ? [
+            ...hits.data.repositories.map((r) => ({
+              id: `repo:${r.id}`,
+              label: r.name,
+              hint: t("shell.searchKindRepository"),
+              icon: GitBranch,
+              go: () => navigate({ to: "/repositories/$id", params: { id: r.id } }),
+            })),
+            ...hits.data.vulnerabilities.map((v) => ({
+              id: `vuln:${v.id}`,
+              label: v.id,
+              hint: t("shell.searchKindVulnerability"),
+              icon: Bug,
+              go: () => navigate({ to: "/findings", search: { q: v.id, state: "all" } }),
+            })),
+            ...hits.data.packages.map((p) => ({
+              id: `pkg:${p.name}`,
+              label: p.name,
+              hint: t("shell.searchKindPackage", { type: p.type }),
+              icon: Package,
+              go: () => navigate({ to: "/packages", search: { q: p.name } }),
+            })),
+          ]
+        : [];
     const pages: Option[] = navFor(me)
       .flatMap((group) => group.items)
       .filter((item) => !q || t(item.label).toLowerCase().includes(q.toLowerCase()))
@@ -59,6 +108,7 @@ export function CommandSearch({ me }: { me: Me }) {
       }));
     if (!q) return pages;
     return [
+      ...found,
       {
         id: "findings",
         label: t("shell.searchFindings", { text: q }),
@@ -79,7 +129,7 @@ export function CommandSearch({ me }: { me: Me }) {
       },
       ...pages,
     ];
-  }, [text, me, t, navigate]);
+  }, [text, hits.data, me, t, navigate]);
 
   const choose = (option: Option | undefined) => {
     if (!option) return;
@@ -149,6 +199,9 @@ export function CommandSearch({ me }: { me: Me }) {
               >
                 <option.icon aria-hidden="true" className="size-4 flex-none text-muted-foreground" />
                 <span className="truncate">{option.label}</span>
+                {option.hint ? (
+                  <span className="ml-auto flex-none text-sm text-muted-foreground">{option.hint}</span>
+                ) : null}
               </div>
             ))}
           </div>

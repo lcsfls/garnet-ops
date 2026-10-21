@@ -54,3 +54,46 @@ export async function openFindingsTrend(
     order by d.day, x.severity`);
   return result.rows;
 }
+
+/**
+ * Open findings per repository and calendar day, all severities from low up, for the
+ * small trend line in the repository list. Same day rules as {@link openFindingsTrend}.
+ * Every repository gets exactly `days` values, oldest first, with 0 for quiet days.
+ */
+export async function openTotalsByRepository(
+  db: Database,
+  input: { organizationId: string; timeZone: string; repositoryIds: string[]; days?: number; asOf?: Date },
+): Promise<Map<string, number[]>> {
+  if (!isTimeZone(input.timeZone)) throw new RangeError(`Unknown time zone: ${input.timeZone}`);
+  const totals = new Map<string, number[]>();
+  if (input.repositoryIds.length === 0) return totals;
+  const days = Math.min(Math.max(input.days ?? 14, 1), 90);
+  const asOf = input.asOf ?? new Date();
+  const result = await db.execute<{ repository_id: string; day: string; n: number }>(sql`
+    with bounds as (
+      select (${asOf.toISOString()}::timestamptz at time zone ${input.timeZone})::date as today
+    ),
+    days as (
+      select (b.today - g.offset_days) as day
+      from bounds b, generate_series(0, ${days - 1}) as g(offset_days)
+    ),
+    repos as (
+      select unnest(${sql.param(input.repositoryIds)}::text[]) as id
+    )
+    select r.id as repository_id, d.day::text as day, count(x.id)::int as n
+    from repos r
+    cross join days d
+    left join finding x on x.repository_id = r.id
+      and x.organization_id = ${input.organizationId}
+      and (x.first_seen_at at time zone ${input.timeZone})::date <= d.day
+      and (x.resolved_at is null or (x.resolved_at at time zone ${input.timeZone})::date > d.day)
+      and x.severity in ('critical', 'high', 'medium', 'low')
+    group by r.id, d.day
+    order by r.id, d.day`);
+  for (const row of result.rows) {
+    const list = totals.get(row.repository_id) ?? [];
+    list.push(row.n);
+    totals.set(row.repository_id, list);
+  }
+  return totals;
+}

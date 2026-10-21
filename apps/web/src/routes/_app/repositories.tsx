@@ -1,6 +1,16 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Clock, GitBranch, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Clock,
+  FolderGit2,
+  GitBranch,
+  GitFork,
+  KeyRound,
+  Plus,
+  RefreshCw,
+  Terminal,
+  Trash2,
+} from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SearchInput, Segmented } from "../../components/filters.tsx";
@@ -8,13 +18,16 @@ import { Card, PageHeader } from "../../components/page-header.tsx";
 import { Pagination } from "../../components/pagination.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import { RepositoryLink } from "../../components/repository-link.tsx";
+import { type SortDir, SortHeader } from "../../components/sort-header.tsx";
+import { Sparkline } from "../../components/sparkline.tsx";
+import { ActionMenu, type MenuAction } from "../../components/ui/action-menu.tsx";
 import { Alert } from "../../components/ui/alert.tsx";
-import { ScanStateBadge } from "../../components/ui/badge.tsx";
+import { BADGE_TONE, Badge, ScanStateBadge } from "../../components/ui/badge.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { Radio } from "../../components/ui/checkbox.tsx";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog.tsx";
 import { CopyButton } from "../../components/ui/copy-button.tsx";
-import { Dialog } from "../../components/ui/dialog.tsx";
+import { Dialog, DialogFooter } from "../../components/ui/dialog.tsx";
 import { Field, TextAreaField } from "../../components/ui/field.tsx";
 import { ApiError, api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
@@ -22,6 +35,7 @@ import { forgeOf } from "../../lib/forge.ts";
 import { formatDateTime, formatNumber, formatRelative, formatWallClock } from "../../lib/format.ts";
 import type { MessageKey } from "../../lib/i18n.ts";
 import { BULK_LIMIT, parseUrlList } from "../../lib/repo-urls.ts";
+import { rowClick } from "../../lib/row-link.ts";
 import { useScanErrorText } from "../../lib/scan-error.ts";
 import { type RepositorySearch, repositorySearch, toQuery } from "../../lib/search.ts";
 import type { Page, RepositoryRow, Severity } from "../../lib/types.ts";
@@ -44,11 +58,9 @@ const SOURCE_ACCESS = {
   "https-token": "repositories.sourceToken",
   "ssh-deploy-key": "repositories.sourceDeployKey",
 } as const satisfies Record<RepositoryRow["authKind"], MessageKey>;
-const SEVERITY_TEXT: Record<(typeof SEVERITY_COLUMNS)[number], string> = {
-  critical: "text-destructive-text",
-  high: "text-high-text",
-  medium: "text-warning-text",
-};
+/** Open findings per severity as small tinted counts (mockup .count). */
+const COUNT_PILL = "inline-block min-w-[26px] rounded-md px-1.5 py-px text-center text-[13px] font-semibold";
+const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 function Repositories() {
   const { t } = useTranslation();
@@ -60,7 +72,7 @@ function Repositories() {
 
   const query = useQuery({
     queryKey: ["repositories", search],
-    queryFn: () => api<Page<RepositoryRow>>(`/repositories${toQuery(search, ["add"])}`),
+    queryFn: () => api<Page<RepositoryRow>>(`/repositories${toQuery({ ...search, tz: timeZone }, ["add"])}`),
     placeholderData: keepPreviousData,
     // Follow running scans until they finish.
     refetchInterval: (q) =>
@@ -78,6 +90,12 @@ function Repositories() {
 
   const setSearch = (patch: Partial<RepositorySearch>, replace = false) =>
     navigate({ search: (prev) => ({ ...prev, cursor: undefined, ...patch }), replace });
+  const sortProps = {
+    current: search.sort,
+    dir: search.dir,
+    onSort: (sort: string | undefined, dir: SortDir | undefined) =>
+      setSearch({ sort: sort as RepositorySearch["sort"], dir }),
+  };
 
   return (
     <>
@@ -128,7 +146,13 @@ function Repositories() {
         <table className="w-full text-left">
           <thead className="text-sm text-muted-foreground">
             <tr className="border-b">
-              <th className="px-5 py-2.5 font-medium">{t("repositories.columnName")}</th>
+              <SortHeader
+                column="name"
+                label={t("repositories.columnName")}
+                natural="asc"
+                className="px-5"
+                {...sortProps}
+              />
               <th className="hidden px-3 py-2.5 font-medium @3xl:table-cell">
                 {t("repositories.columnSource")}
               </th>
@@ -136,12 +160,30 @@ function Repositories() {
                 {t("repositories.columnBranch")}
               </th>
               {SEVERITY_COLUMNS.map((severity) => (
-                <th key={severity} className="px-3 py-2.5 text-right font-medium">
-                  {t(`severity.${severity}`)}
-                </th>
+                <SortHeader
+                  key={severity}
+                  column={severity}
+                  label={t(`severity.${severity}`)}
+                  natural="desc"
+                  align="right"
+                  className="px-3"
+                  {...sortProps}
+                />
               ))}
-              <th className="px-3 py-2.5 font-medium">{t("repositories.columnLastScan")}</th>
-              <th className="px-5 py-2.5 text-right font-medium">
+              <th className="hidden px-3 py-2.5 font-medium @xwide:table-cell">
+                {t("repositories.columnScanners")}
+              </th>
+              <th className="hidden px-3 py-2.5 font-medium @xwide:table-cell">
+                {t("repositories.columnTrend")}
+              </th>
+              <SortHeader
+                column="lastScan"
+                label={t("repositories.columnLastScan")}
+                natural="desc"
+                className="px-3"
+                {...sortProps}
+              />
+              <th className="w-14 px-5 py-2.5 text-right font-medium">
                 <span className="sr-only">{t("repositories.columnActions")}</span>
               </th>
             </tr>
@@ -182,6 +224,7 @@ function RepositoryRowView({
   const { t } = useTranslation();
   const scanErrorText = useScanErrorText();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["repositories"] });
 
   const scan = useMutation({
@@ -201,18 +244,61 @@ function RepositoryRowView({
   const state = repo.lastScan?.state ?? null;
   const busy = state === "queued" || state === "running";
   const when = repo.lastScan?.finishedAt ?? repo.lastScanAt;
+  const ssh = repo.authKind === "ssh-deploy-key";
+  const SourceIcon = ssh ? Terminal : GitFork;
+
+  const actions: MenuAction[] = [];
+  if (canEdit) {
+    actions.push({
+      label: busy ? t(`scanState.${state}`) : t("repositories.scanNow"),
+      icon: RefreshCw,
+      disabled: busy || scan.isPending,
+      onSelect: () => scan.mutate(),
+    });
+  }
+  if (repo.deployPublicKey) {
+    actions.push({ label: t("repositories.deployKey"), icon: KeyRound, onSelect: () => setShowKey(true) });
+  }
+  if (canDelete) {
+    actions.push({
+      label: t("repositories.delete"),
+      icon: Trash2,
+      destructive: true,
+      disabled: remove.isPending,
+      onSelect: () => {
+        remove.reset();
+        setConfirmRemove(true);
+      },
+    });
+  }
 
   return (
-    <tr className="border-b align-top last:border-0">
+    <tr
+      className="row-link border-b align-top last:border-0"
+      onClick={rowClick(() => void navigate({ to: "/repositories/$id", params: { id: repo.id } }))}
+    >
       <td className="px-5 py-3">
-        <RepositoryLink id={repo.id} name={repo.name} className="font-medium" />
-        <div className="max-w-[32ch] truncate font-mono text-sm text-muted-foreground" title={repo.url}>
-          {repo.url}
+        <div className="flex min-w-0 items-start gap-2.5">
+          <FolderGit2 aria-hidden="true" className="mt-1 size-4 flex-none text-muted-foreground" />
+          <div className="min-w-0">
+            <RepositoryLink id={repo.id} name={repo.name} className="font-medium" />
+            <div
+              className="max-w-[32ch] truncate font-mono text-sm text-muted-foreground @xwide:max-w-[52ch]"
+              title={repo.url}
+            >
+              {repo.url}
+            </div>
+          </div>
         </div>
       </td>
       <td className="hidden px-3 py-3 @3xl:table-cell">
-        <div>{forgeOf(repo.url)}</div>
-        <div className="text-sm text-muted-foreground">{t(SOURCE_ACCESS[repo.authKind])}</div>
+        <div className="flex items-start gap-2.5">
+          <SourceIcon aria-hidden="true" className="mt-1 size-4 flex-none text-muted-foreground" />
+          <div>
+            <div>{forgeOf(repo.url)}</div>
+            <div className="text-sm text-muted-foreground">{t(SOURCE_ACCESS[repo.authKind])}</div>
+          </div>
+        </div>
       </td>
       <td className="hidden px-3 py-3 font-mono text-sm @wide:table-cell">
         {repo.branch ?? (
@@ -231,23 +317,41 @@ function RepositoryRowView({
                   count: n,
                   severity: t(`severity.${severity}`),
                 })}
-                className={cn("font-semibold hover:underline", SEVERITY_TEXT[severity])}
+                className={cn(COUNT_PILL, BADGE_TONE[severity], "hover:underline")}
               >
                 {formatNumber(n)}
               </Link>
             ) : (
-              <span className="text-muted-foreground">0</span>
+              <span className={cn(COUNT_PILL, "font-normal text-muted-foreground")}>0</span>
             )}
           </td>
         );
       })}
+      <td className="hidden px-3 py-3 @xwide:table-cell">
+        <div className="flex flex-wrap gap-1">
+          {repo.scanners.map((scanner) => (
+            <Badge key={scanner} tone="neutral">
+              {scanner}
+            </Badge>
+          ))}
+        </div>
+      </td>
+      <td className="hidden px-3 py-3 @xwide:table-cell">
+        <Sparkline
+          values={repo.trend}
+          label={t("repositories.trendLabel", {
+            first: formatNumber(repo.trend[0] ?? 0),
+            last: formatNumber(repo.trend[repo.trend.length - 1] ?? 0),
+          })}
+        />
+      </td>
       <td className="px-3 py-3">
         <ScanStateBadge state={state} />
         {when && !busy ? (
           <time
             dateTime={when}
             title={formatDateTime(when)}
-            className="mt-1 block text-sm text-muted-foreground"
+            className="dash-time mt-1 block w-fit text-sm text-muted-foreground"
           >
             {formatRelative(when)}
           </time>
@@ -258,50 +362,8 @@ function RepositoryRowView({
           </div>
         ) : null}
       </td>
-      <td className="px-5 py-3">
-        <div className="flex justify-end gap-2">
-          {repo.deployPublicKey ? (
-            <Button
-              variant="ghost"
-              className="h-9 px-2.5"
-              aria-label={`${t("repositories.deployKey")}: ${repo.name}`}
-              title={t("repositories.deployKey")}
-              onClick={() => setShowKey(true)}
-            >
-              <KeyRound aria-hidden="true" className="size-4" />
-            </Button>
-          ) : null}
-          {canEdit ? (
-            <Button
-              variant="outline"
-              className="h-9 px-2.5 @wide:px-4"
-              disabled={busy || scan.isPending}
-              aria-label={`${busy ? t(`scanState.${state}`) : t("repositories.scanNow")}: ${repo.name}`}
-              title={busy ? t(`scanState.${state}`) : t("repositories.scanNow")}
-              onClick={() => scan.mutate()}
-            >
-              <RefreshCw aria-hidden="true" className={cn("size-4", busy && "motion-safe:animate-spin")} />
-              {/* Icon only below the wide step, so every column fits at 1080p with 150 % scaling. */}
-              <span className="hidden @wide:inline">
-                {busy ? t(`scanState.${state}`) : t("repositories.scanNow")}
-              </span>
-            </Button>
-          ) : null}
-          {canDelete ? (
-            <Button
-              variant="ghost"
-              className="h-9 px-2.5"
-              aria-label={`${t("repositories.delete")}: ${repo.name}`}
-              disabled={remove.isPending}
-              onClick={() => {
-                remove.reset();
-                setConfirmRemove(true);
-              }}
-            >
-              <Trash2 aria-hidden="true" className="size-4" />
-            </Button>
-          ) : null}
-        </div>
+      <td className="px-5 py-2 text-right">
+        <ActionMenu label={t("repositories.moreActions", { name: repo.name })} actions={actions} />
         {scan.isError ? (
           <p role="alert" className="mt-1.5 text-right text-sm text-destructive-text">
             {t("errors.actionFailed")}
@@ -554,14 +616,14 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
         <div className="grid gap-4">
           {error ? <Alert tone="error">{error}</Alert> : null}
           <DeployKeyInstructions publicKey={created.deployPublicKey} />
-          <div className="mt-1 flex justify-end gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={onClose}>
               {t("repositories.later")}
             </Button>
             <Button disabled={firstScan.isPending} onClick={() => firstScan.mutate(created.id)}>
               {firstScan.isPending ? t("common.loading") : t("repositories.startFirstScan")}
             </Button>
-          </div>
+          </DialogFooter>
         </div>
       </Dialog>
     );
@@ -580,9 +642,9 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
               ))}
             </ul>
           </div>
-          <div className="mt-1 flex justify-end">
+          <DialogFooter>
             <Button onClick={onClose}>{t("common.close")}</Button>
-          </div>
+          </DialogFooter>
         </div>
       </Dialog>
     );
@@ -675,7 +737,7 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
             autoComplete="off"
           />
         ) : null}
-        <div className="mt-1 flex justify-end gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {t("repositories.cancel")}
           </Button>
@@ -688,7 +750,7 @@ function AddRepositoryDialog({ open, onClose }: { open: boolean; onClose: () => 
                   ? t("repositories.submitKey")
                   : t("repositories.submit")}
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </Dialog>
   );

@@ -1,33 +1,45 @@
+import type { Messages } from "@garnetops/i18n";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, type LinkProps } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
+  ArrowUpCircle,
+  CircleAlert,
+  Clock,
   Database,
   Flame,
+  FolderMinus,
+  FolderPlus,
   GitBranch,
   LayoutGrid,
+  type LucideIcon,
+  Moon,
   Plus,
   RefreshCw,
+  RotateCcw,
   ScanSearch,
   ShieldAlert,
   ShieldCheck,
   TriangleAlert,
   Wrench,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import { RepositoryLink } from "../../components/repository-link.tsx";
+import { Tile } from "../../components/tile.tsx";
 import { TrendChart } from "../../components/trend-chart.tsx";
-import { ScanStateBadge, SeverityBadge } from "../../components/ui/badge.tsx";
+import { Banner } from "../../components/ui/alert.tsx";
+import { ScanStateBadge, SeverityBadge, SeverityDot } from "../../components/ui/badge.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
-import { formatDateTime, formatNumber, formatRelative } from "../../lib/format.ts";
+import { formatDateTime, formatRelative } from "../../lib/format.ts";
+import { rowClick } from "../../lib/row-link.ts";
 import { useScanErrorText } from "../../lib/scan-error.ts";
 import { type TrendDay, trendDays } from "../../lib/trend.ts";
-import type { Overview } from "../../lib/types.ts";
+import type { ActivityItem, Overview } from "../../lib/types.ts";
 
 export const Route = createFileRoute("/_app/")({ component: OverviewPage });
 
@@ -122,28 +134,28 @@ function Dashboard({ data }: { data: Overview }) {
   const { t } = useTranslation();
   const days = trendDays(data.trend);
   const critical = data.open.critical ?? 0;
+  const fixHint = (severity: "critical" | "high") =>
+    t("overview.fixAvailable", { count: data.fixableBySeverity[severity] ?? 0 });
   return (
     <div className="grid gap-4">
       {critical > 0 ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-3 shadow-xs">
-          <TriangleAlert aria-hidden="true" className="size-5 flex-none text-warning-text" />
-          <div className="min-w-0 flex-[1_1_20rem]">
-            <div className="font-semibold">{t("overview.criticalBanner", { count: critical })}</div>
-            <div className="text-sm text-muted-foreground">
-              {t("overview.criticalBannerHint", {
-                repos: data.repositories.blocked,
-                exploited: data.knownExploitedOpen,
-              })}
-            </div>
-          </div>
-          <Link
-            to="/findings"
-            search={{ severity: "critical" }}
-            className="ml-auto inline-flex h-10 items-center gap-2 rounded-md border border-input bg-card px-4 font-medium shadow-xs hover:bg-accent"
-          >
-            {t("overview.viewFindings")}
-          </Link>
-        </div>
+        <Banner
+          title={t("overview.criticalBanner", { count: critical })}
+          action={
+            <Link
+              to="/findings"
+              search={{ severity: "critical" }}
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-card px-4 font-medium shadow-xs hover:bg-accent"
+            >
+              {t("overview.viewFindings")}
+            </Link>
+          }
+        >
+          {t("overview.criticalBannerHint", {
+            repos: data.repositories.blocked,
+            exploited: data.knownExploitedOpen,
+          })}
+        </Banner>
       ) : null}
 
       <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-3 @xwide:grid-cols-6">
@@ -152,6 +164,7 @@ function Dashboard({ data }: { data: Overview }) {
           icon={<Flame aria-hidden="true" className="size-4 text-destructive-text" />}
           value={critical}
           delta={<WeekDelta days={days} severity="critical" />}
+          hint={fixHint("critical")}
           to="/findings"
           search={{ severity: "critical" }}
         />
@@ -160,6 +173,7 @@ function Dashboard({ data }: { data: Overview }) {
           icon={<TriangleAlert aria-hidden="true" className="size-4" />}
           value={data.open.high ?? 0}
           delta={<WeekDelta days={days} severity="high" />}
+          hint={fixHint("high")}
           to="/findings"
           search={{ severity: "high" }}
         />
@@ -197,11 +211,29 @@ function Dashboard({ data }: { data: Overview }) {
         />
       </div>
 
-      <div className="grid gap-4 @wide:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <FixFirst items={data.fixFirst} />
-        <RecentScans items={data.recentScans} />
-        <TrendCard days={days} />
-        <VulnerabilityData data={data.vulnerabilityData} />
+      {/* Mockup .ov-grid: two columns at the base step, four at xwide. */}
+      <div
+        className={cn(
+          "grid gap-4 @wide:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]",
+          "@wide:[grid-template-areas:'attn_act'_'scans_data'_'trend_trend']",
+          "@xwide:grid-cols-4 @xwide:[grid-template-areas:'attn_attn_scans_act'_'trend_trend_data_act']",
+        )}
+      >
+        <div className="min-w-0 @wide:[grid-area:attn]">
+          <FixFirst items={data.fixFirst} />
+        </div>
+        <div className="min-w-0 @wide:[grid-area:act]">
+          <Activity items={data.activity} />
+        </div>
+        <div className="min-w-0 @wide:[grid-area:scans]">
+          <RecentScans items={data.recentScans} />
+        </div>
+        <div className="min-w-0 @wide:[grid-area:trend]">
+          <TrendCard days={days} />
+        </div>
+        <div className="min-w-0 @wide:[grid-area:data]">
+          <VulnerabilityData data={data.vulnerabilityData} sources={data.vulnerabilitySources} />
+        </div>
       </div>
     </div>
   );
@@ -222,44 +254,11 @@ function WeekDelta({ days, severity }: { days: TrendDay[]; severity: "critical" 
   );
 }
 
-function Tile({
-  label,
-  icon,
-  value,
-  delta,
-  hint,
-  to,
-  search,
-}: {
-  label: string;
-  icon: ReactNode;
-  value: number;
-  delta?: ReactNode;
-  hint?: string;
-  to: "/findings" | "/repositories";
-  search: LinkProps["search"];
-}) {
-  return (
-    <Link
-      to={to}
-      search={search}
-      className="block rounded-lg border bg-card px-4 py-4 shadow-xs transition-colors hover:border-primary/40"
-    >
-      <div className="flex items-center justify-between gap-2 text-muted-foreground">
-        <span>{label}</span>
-        {icon}
-      </div>
-      <div className="mt-1.5 text-3xl font-semibold tracking-tight">{formatNumber(value)}</div>
-      {delta ? <div className="mt-0.5 text-sm text-muted-foreground">{delta}</div> : null}
-      {hint ? <div className="mt-0.5 text-sm text-muted-foreground">{hint}</div> : null}
-    </Link>
-  );
-}
-
 function FixFirst({ items }: { items: Overview["fixFirst"] }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader
         title={t("overview.fixFirst")}
         description={t("overview.fixFirstDescription")}
@@ -274,7 +273,7 @@ function FixFirst({ items }: { items: Overview["fixFirst"] }) {
         }
       />
       {items.length === 0 ? (
-        <p className="px-5 py-6 text-muted-foreground">{t("overview.nothingToFix")}</p>
+        <p className="px-5 pb-6 text-muted-foreground">{t("overview.nothingToFix")}</p>
       ) : (
         <table className="w-full text-left">
           <thead className="text-sm text-muted-foreground">
@@ -290,17 +289,28 @@ function FixFirst({ items }: { items: Overview["fixFirst"] }) {
           </thead>
           <tbody>
             {items.map((f) => (
-              <tr key={f.id} className="border-b last:border-0">
+              <tr
+                key={f.id}
+                className="row-link border-b last:border-0"
+                onClick={rowClick(
+                  () => void navigate({ to: "/findings", search: { id: f.id, state: "all" } }),
+                )}
+              >
                 <td className="px-5 py-2.5">
-                  <Link
-                    to="/findings"
-                    search={{ id: f.id, state: "all" }}
-                    className="font-medium hover:underline"
-                  >
-                    {f.vulnerabilityId}
-                  </Link>
-                  <div className="font-mono text-sm text-muted-foreground">
-                    {f.packageName} {f.packageVersion}
+                  <div className="flex items-start gap-2.5">
+                    <SeverityDot severity={f.severity} className="mt-2" />
+                    <div className="min-w-0">
+                      <Link
+                        to="/findings"
+                        search={{ id: f.id, state: "all" }}
+                        className="font-medium hover:underline"
+                      >
+                        {f.vulnerabilityId}
+                      </Link>
+                      <div className="font-mono text-sm text-muted-foreground">
+                        {f.packageName} {f.packageVersion}
+                      </div>
+                    </div>
                   </div>
                 </td>
                 <td className="px-3 py-2.5">
@@ -333,14 +343,75 @@ function FixFirst({ items }: { items: Overview["fixFirst"] }) {
   );
 }
 
+const ACTIVITY_ICON: Record<string, LucideIcon> = {
+  "repository.created": FolderPlus,
+  "repository.deleted": FolderMinus,
+  "finding.accepted": ShieldCheck,
+  "finding.reopened": RotateCcw,
+  "organization.scan_schedule_changed": Clock,
+  "update.succeeded": ArrowUpCircle,
+  "update.failed": CircleAlert,
+  "schedule.run": Moon,
+};
+
+/** Recent organisation events (mockup "Activity"): icon chip, one line, when. */
+function Activity({ items }: { items: ActivityItem[] }) {
+  const { t } = useTranslation();
+  return (
+    <Card className="h-full">
+      <CardHeader title={t("overview.activityTitle")} description={t("overview.activityDescription")} />
+      {items.length === 0 ? (
+        <p className="px-5 pb-6 text-muted-foreground">{t("overview.activityEmpty")}</p>
+      ) : (
+        <ul className="px-5 pb-3">
+          {items.map((item) => {
+            const Icon = ACTIVITY_ICON[item.kind] ?? Clock;
+            const key = item.kind.replaceAll(".", "_") as keyof Messages["overview"]["activity"];
+            return (
+              <li
+                key={`${item.kind}-${item.at}`}
+                className="flex items-center gap-2.5 border-t py-2.5 first:border-t-0"
+              >
+                <span className="grid size-7 flex-none place-items-center rounded-[7px] bg-muted">
+                  <Icon aria-hidden="true" className="size-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate">
+                    {t(`overview.activity.${key}`, {
+                      subject: item.subject ?? "",
+                      count: item.count ?? 0,
+                    })}
+                  </div>
+                  {item.actorName ? (
+                    <div className="truncate text-[13px] text-muted-foreground">
+                      {t("overview.activityBy", { name: item.actorName })}
+                    </div>
+                  ) : null}
+                </div>
+                <time
+                  dateTime={item.at}
+                  title={formatDateTime(item.at)}
+                  className="dash-time flex-none text-[13px] whitespace-nowrap text-muted-foreground"
+                >
+                  {formatRelative(item.at)}
+                </time>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 function RecentScans({ items }: { items: Overview["recentScans"] }) {
   const { t } = useTranslation();
   const scanErrorText = useScanErrorText();
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader title={t("overview.recentScans")} description={t("overview.recentScansDescription")} />
       {items.length === 0 ? (
-        <p className="px-5 py-6 text-muted-foreground">{t("overview.noScans")}</p>
+        <p className="px-5 pb-6 text-muted-foreground">{t("overview.noScans")}</p>
       ) : (
         <ul>
           {items.map((s) => {
@@ -370,7 +441,11 @@ function RecentScans({ items }: { items: Overview["recentScans"] }) {
                 </div>
                 <div className="flex flex-none flex-col items-end gap-1">
                   <ScanStateBadge state={s.state} />
-                  <time dateTime={at} title={formatDateTime(at)} className="text-sm text-muted-foreground">
+                  <time
+                    dateTime={at}
+                    title={formatDateTime(at)}
+                    className="dash-time text-sm text-muted-foreground"
+                  >
                     {formatRelative(at)}
                   </time>
                 </div>
@@ -386,23 +461,40 @@ function RecentScans({ items }: { items: Overview["recentScans"] }) {
 function TrendCard({ days }: { days: TrendDay[] }) {
   const { t } = useTranslation();
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader title={t("overview.trendTitle")} description={t("overview.trendDescription")} />
-      <div className="px-5 pt-4 pb-4">
+      <div className="px-5 pb-4">
         <TrendChart days={days} />
       </div>
     </Card>
   );
 }
 
-function VulnerabilityData({ data }: { data: Overview["vulnerabilityData"] }) {
+/** Display names of grype's advisory namespaces. */
+const SOURCE_NAMES: Record<string, string> = {
+  nvd: "NVD",
+  github: "GitHub Advisories",
+  debian: "Debian",
+  ubuntu: "Ubuntu",
+  alpine: "Alpine",
+  redhat: "Red Hat",
+  rhel: "Red Hat",
+  amazon: "Amazon Linux",
+  oracle: "Oracle Linux",
+  sles: "SUSE",
+  wolfi: "Wolfi",
+  chainguard: "Chainguard",
+  mariner: "Azure Linux",
+};
+
+function VulnerabilityData({ data, sources }: { data: Overview["vulnerabilityData"]; sources: string[] }) {
   const { t } = useTranslation();
   const versions = Object.entries(data?.scannerVersions ?? {});
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader title={t("overview.dataTitle")} description={t("overview.dataDescription")} />
       {data ? (
-        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1.5 px-5 py-4 text-sm">
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1.5 px-5 pb-4 text-sm">
           <dt className="text-muted-foreground">{t("overview.dataAsOf")}</dt>
           <dd>
             {data.builtAt ? (
@@ -419,6 +511,12 @@ function VulnerabilityData({ data }: { data: Overview["vulnerabilityData"] }) {
               ? versions.map(([name, v]) => `${name} ${v}`).join(", ")
               : t("overview.dataUnknown")}
           </dd>
+          <dt className="text-muted-foreground">{t("overview.dataSources")}</dt>
+          <dd>
+            {sources.length
+              ? sources.map((s) => SOURCE_NAMES[s] ?? s).join(", ")
+              : t("overview.dataSourcesNone")}
+          </dd>
           <dt className="text-muted-foreground">{t("overview.dataLastScan")}</dt>
           <dd>
             {data.scannedAt ? (
@@ -431,7 +529,7 @@ function VulnerabilityData({ data }: { data: Overview["vulnerabilityData"] }) {
           </dd>
         </dl>
       ) : (
-        <p className="flex items-center gap-2 px-5 py-6 text-muted-foreground">
+        <p className="flex items-center gap-2 px-5 pb-6 text-muted-foreground">
           <Database aria-hidden="true" className="size-4" />
           {t("overview.dataNone")}
         </p>

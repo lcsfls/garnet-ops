@@ -38,17 +38,17 @@ export function Dialog({
       onClose={onClose}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
-      className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-lg border bg-card p-6 text-card-foreground shadow-xs backdrop:bg-black/40"
+      className="m-auto max-h-[calc(100vh-3rem)] w-[min(40rem,calc(100vw-3rem))] overflow-y-auto rounded-[14px] border bg-card px-[22px] pt-5 pb-[18px] text-card-foreground shadow-[0_20px_50px_oklch(0_0_0/30%)] backdrop:bg-[oklch(0.12_0.02_15/60%)]"
     >
       {open ? (
         <>
-          <div className="mb-5 flex items-start gap-4">
+          <div className="mb-[18px] flex items-start gap-3">
             <div className="flex-1">
               <h2 id={titleId} className="text-lg font-semibold">
                 {title}
               </h2>
               {description ? (
-                <p id={descriptionId} className="mt-1 text-muted-foreground">
+                <p id={descriptionId} className="mt-0.5 text-sm text-muted-foreground">
                   {description}
                 </p>
               ) : null}
@@ -66,5 +66,14 @@ export function Dialog({
         </>
       ) : null}
     </dialog>
+  );
+}
+
+/** The action row of a dialog, separated by a rule (mockup .dialog-foot). */
+export function DialogFooter({ children }: { children: ReactNode }) {
+  return (
+    <div className="-mx-[22px] mt-3 flex flex-wrap justify-end gap-2 border-t px-[22px] pt-3.5">
+      {children}
+    </div>
   );
 }

@@ -1,7 +1,8 @@
 import { SEVERITIES } from "@garnetops/core";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Bug } from "lucide-react";
+import { Bug, ScanSearch } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { findingCountsQuery } from "../../components/app-shell.tsx";
 import { ExportMenu } from "../../components/export-menu.tsx";
@@ -11,12 +12,16 @@ import { Card, PageHeader } from "../../components/page-header.tsx";
 import { Pagination } from "../../components/pagination.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import { RepositoryLink } from "../../components/repository-link.tsx";
+import { type SortDir, SortHeader } from "../../components/sort-header.tsx";
 import { SeverityBadge } from "../../components/ui/badge.tsx";
+import { Button } from "../../components/ui/button.tsx";
 import { Checkbox } from "../../components/ui/checkbox.tsx";
 import { Select } from "../../components/ui/select.tsx";
 import { api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
 import { formatDate, formatDateTime, formatPercent, formatRelative } from "../../lib/format.ts";
+import { useLayoutStep } from "../../lib/layout-step.ts";
+import { rowClick } from "../../lib/row-link.ts";
 import { type FindingSearch, findingSearch, toQuery } from "../../lib/search.ts";
 import type { FindingRow, Page, RepositoryRow, Severity } from "../../lib/types.ts";
 
@@ -52,6 +57,34 @@ function Findings() {
   const setSearch = (patch: Partial<FindingSearch>, replace = false) =>
     navigate({ search: (prev) => ({ ...prev, cursor: undefined, ...patch }), replace });
 
+  // From the xwide step there is room for list and detail side by side (mockup), so the
+  // first finding is shown until the user picks one. Below it the list stays full width.
+  const step = useLayoutStep();
+  const shownId = search.id ?? (step === "xwide" ? list.data?.items[0]?.id : undefined);
+
+  const queryClient = useQueryClient();
+  const [queued, setQueued] = useState<number | null>(null);
+  const scan = useMutation({
+    mutationFn: async () => {
+      if (search.repositoryId) {
+        await api(`/repositories/${search.repositoryId}/scans`, { method: "POST" });
+        return 1;
+      }
+      return (await api<{ queued: number }>("/repositories/scan-all", { method: "POST" })).queued;
+    },
+    onSuccess: async (n) => {
+      setQueued(n);
+      await queryClient.invalidateQueries({ queryKey: ["repositories"] });
+    },
+  });
+
+  const sortProps = {
+    current: search.sort,
+    dir: search.dir,
+    onSort: (sort: string | undefined, dir: SortDir | undefined) =>
+      setSearch({ sort: sort as FindingSearch["sort"], dir }),
+  };
+
   const selected = new Set((search.severity ?? "").split(",").filter(Boolean));
   const toggleSeverity = (s: Severity) => {
     const next = new Set(selected);
@@ -76,7 +109,24 @@ function Findings() {
         title={t("findings.title")}
         description={t("findings.description")}
         actions={
-          <ExportMenu filters={{ ...search, id: undefined, cursor: undefined, pageSize: undefined }} />
+          <>
+            {scan.isError ? (
+              <span role="alert" className="text-sm text-destructive-text">
+                {t("errors.actionFailed")}
+              </span>
+            ) : queued !== null ? (
+              <span role="status" className="text-sm text-muted-foreground">
+                {t("overview.scansQueued", { count: queued })}
+              </span>
+            ) : null}
+            <ExportMenu filters={{ ...search, id: undefined, cursor: undefined, pageSize: undefined }} />
+            {me.role !== "viewer" ? (
+              <Button disabled={scan.isPending} onClick={() => scan.mutate()}>
+                <ScanSearch aria-hidden="true" className="size-4" />
+                {search.repositoryId ? t("findings.scanFiltered") : t("repositories.scanNow")}
+              </Button>
+            ) : null}
+          </>
         }
       />
 
@@ -157,38 +207,80 @@ function Findings() {
       <div
         className={cn(
           "grid gap-4",
-          search.id && "@wide:grid-cols-[minmax(0,1fr)_28rem] @xwide:grid-cols-[minmax(0,1fr)_36rem]",
+          shownId && "@wide:grid-cols-[minmax(0,1fr)_28rem] @xwide:grid-cols-[minmax(0,1fr)_36rem]",
         )}
       >
         <Card className="self-start">
           <table className="w-full text-left">
             <thead className="text-sm text-muted-foreground">
               <tr className="border-b">
-                <th className="px-5 py-2.5 font-medium">{t("findings.columnFinding")}</th>
-                <th className="px-3 py-2.5 text-right font-medium">{t("findings.columnCvss")}</th>
-                <th className="hidden px-3 py-2.5 text-right font-medium @6xl:table-cell">
-                  <abbr title={t("findings.epssHint")} className="no-underline">
-                    {t("findings.epss")}
-                  </abbr>
-                </th>
-                <th className="hidden px-3 py-2.5 font-medium @3xl:table-cell">
-                  {t("findings.columnPublished")}
-                </th>
-                <th className="px-3 py-2.5 font-medium">{t("findings.columnPackage")}</th>
+                <SortHeader
+                  column="vulnerability"
+                  label={t("findings.columnFinding")}
+                  natural="asc"
+                  className="px-5"
+                  {...sortProps}
+                />
+                <SortHeader
+                  column="cvss"
+                  label={t("findings.columnCvss")}
+                  natural="desc"
+                  align="right"
+                  className="px-3"
+                  {...sortProps}
+                />
+                <SortHeader
+                  column="epss"
+                  label={
+                    <abbr title={t("findings.epssHint")} className="no-underline">
+                      {t("findings.epss")}
+                    </abbr>
+                  }
+                  natural="desc"
+                  align="right"
+                  className="hidden px-3 @6xl:table-cell"
+                  {...sortProps}
+                />
+                <SortHeader
+                  column="published"
+                  label={t("findings.columnPublished")}
+                  natural="desc"
+                  className="hidden px-3 @3xl:table-cell"
+                  {...sortProps}
+                />
+                <SortHeader
+                  column="package"
+                  label={t("findings.columnPackage")}
+                  natural="asc"
+                  className="px-3"
+                  {...sortProps}
+                />
                 <th className="hidden px-3 py-2.5 font-medium @4xl:table-cell">
                   {t("findings.columnFixedIn")}
                 </th>
-                <th className="px-3 py-2.5 font-medium">{t("findings.columnRepository")}</th>
-                <th className="hidden px-5 py-2.5 font-medium @5xl:table-cell">
-                  {t("findings.columnFirstSeen")}
-                </th>
+                <SortHeader
+                  column="repository"
+                  label={t("findings.columnRepository")}
+                  natural="asc"
+                  className="px-3"
+                  {...sortProps}
+                />
+                <SortHeader
+                  column="firstSeen"
+                  label={t("findings.columnFirstSeen")}
+                  natural="desc"
+                  className="hidden px-5 @5xl:table-cell"
+                  {...sortProps}
+                />
               </tr>
             </thead>
             <tbody>
               {list.data?.items.map((f) => (
                 <tr
                   key={f.id}
-                  className={cn("border-b align-top last:border-0", f.id === search.id && "bg-primary/5")}
+                  aria-selected={f.id === shownId}
+                  className="row-link border-b align-top last:border-0"
+                  onClick={rowClick(() => setSearch({ id: f.id, cursor: search.cursor }))}
                 >
                   <td className="px-5 py-2.5">
                     <div className="mb-1">
@@ -197,7 +289,7 @@ function Findings() {
                     <button
                       type="button"
                       onClick={() => setSearch({ id: f.id, cursor: search.cursor })}
-                      aria-current={f.id === search.id ? "true" : undefined}
+                      aria-current={f.id === shownId ? "true" : undefined}
                       className="text-left font-medium break-all hover:underline"
                     >
                       {f.vulnerabilityId}
@@ -256,12 +348,12 @@ function Findings() {
           ) : null}
         </Card>
 
-        {search.id ? (
+        {shownId ? (
           <FindingDetail
-            key={search.id}
-            id={search.id}
+            key={shownId}
+            id={shownId}
             canEdit={me.role !== "viewer"}
-            onClose={() => setSearch({ id: undefined, cursor: search.cursor }, true)}
+            onClose={search.id ? () => setSearch({ id: undefined, cursor: search.cursor }, true) : undefined}
           />
         ) : null}
       </div>

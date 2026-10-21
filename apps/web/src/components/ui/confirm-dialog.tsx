@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Alert } from "./alert.tsx";
 import { Button } from "./button.tsx";
-import { Dialog } from "./dialog.tsx";
+import { Dialog, DialogFooter } from "./dialog.tsx";
 
 /**
  * Asks before an action that cannot be undone, in the app's own dialog rather
@@ -33,14 +33,14 @@ export function ConfirmDialog({
     <Dialog open={open} onClose={onClose} title={title} description={description}>
       <div className="grid gap-4">
         {error ? <Alert tone="error">{error}</Alert> : null}
-        <div className="flex justify-end gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             {t("common.cancel")}
           </Button>
           <Button variant="destructive" disabled={pending} onClick={onConfirm}>
             {pending ? t("common.loading") : confirmLabel}
           </Button>
-        </div>
+        </DialogFooter>
       </div>
     </Dialog>
   );

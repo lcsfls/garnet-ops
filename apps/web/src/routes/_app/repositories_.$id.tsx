@@ -6,6 +6,7 @@ import { ExportMenu } from "../../components/export-menu.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
 import { Pagination } from "../../components/pagination.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
+import { Tile } from "../../components/tile.tsx";
 import { TrendChart } from "../../components/trend-chart.tsx";
 import { ScanStateBadge, SeverityBadge } from "../../components/ui/badge.tsx";
 import { Button } from "../../components/ui/button.tsx";
@@ -100,22 +101,18 @@ function RepositoryPage() {
             <Facts repo={data} />
             <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
               {SEVERITIES.map((severity) => (
-                <Link
+                <Tile
                   key={severity}
+                  label={t("repository.openOf", { severity: t(`severity.${severity}`) })}
+                  icon={
+                    severity === "critical" ? (
+                      <Flame aria-hidden="true" className="size-4 text-destructive-text" />
+                    ) : null
+                  }
+                  value={data.open[severity] ?? 0}
                   to="/findings"
                   search={{ repositoryId: id, severity }}
-                  className="block rounded-lg border bg-card px-4 py-4 shadow-xs transition-colors hover:border-primary/40"
-                >
-                  <div className="flex items-center justify-between gap-2 text-muted-foreground">
-                    <span>{t("repository.openOf", { severity: t(`severity.${severity}`) })}</span>
-                    {severity === "critical" ? (
-                      <Flame aria-hidden="true" className="size-4 text-destructive-text" />
-                    ) : null}
-                  </div>
-                  <div className="mt-1.5 text-3xl font-semibold tracking-tight">
-                    {formatNumber(data.open[severity] ?? 0)}
-                  </div>
-                </Link>
+                />
               ))}
             </div>
           </div>
