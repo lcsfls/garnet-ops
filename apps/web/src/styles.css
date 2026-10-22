@@ -216,6 +216,9 @@
   html {
     /* 16 px base (AGENTS.md: calm UI, large readable text). */
     font-size: 100%;
+    /* The expanded sidebar is 15 % wider than the original 16 rem so its footer fits on one line. */
+    --sidebar-width: 18.4rem;
+    --sidebar-width-collapsed: 3.5rem;
   }
   body {
     margin: 0;

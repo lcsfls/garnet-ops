@@ -9,7 +9,8 @@ Dual-licensed: [AGPL-3.0-only](LICENSE) and a commercial license
 ([LICENSING.md](LICENSING.md)). Domain: garnetops.com.
 
 **Status:** early development, no release yet. Working today: sign-in with
-mandatory TOTP, repositories over HTTPS or SSH (generated deploy keys), several
+mandatory TOTP or a passkey, an account page for your password, authenticator app, passkeys
+and sessions ([docs/account.md](docs/account.md)), repositories over HTTPS or SSH (generated deploy keys), several
 HTTPS repositories at once with one token, dependency scanning with syft and grype
 on a local vulnerability database, findings with CVSS/EPSS and export (CSV, XLSX,
 PDF, text), repository pages with scan and patch history, package inventory,
@@ -145,6 +146,7 @@ skipped. Every repository keeps its own encrypted copy of the token.
 
 - Install with release images: [docs/installation.md](docs/installation.md)
 - Update: [docs/updating.md](docs/updating.md)
+- Account, passkeys and a lost second factor: [docs/account.md](docs/account.md)
 
 - Security reports: [SECURITY.md](SECURITY.md) (please not as a public issue)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)

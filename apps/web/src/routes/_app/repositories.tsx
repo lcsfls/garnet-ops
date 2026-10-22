@@ -294,7 +294,8 @@ function RepositoryRowView({
       className="row-link border-b align-top last:border-0"
       onClick={rowClick(() => void navigate({ to: "/repositories/$id", params: { id: repo.id } }))}
     >
-      <td className="px-5 py-3">
+      {/* The name column takes what the others leave and truncates, so a long address never pushes the table past its card. */}
+      <td className="w-full max-w-0 px-5 py-3 @wide:w-auto @wide:max-w-none">
         <div className="flex min-w-0 items-start gap-2.5">
           <FolderGit2 aria-hidden="true" className="mt-1 size-4 flex-none text-muted-foreground" />
           <div className="min-w-0">

@@ -20,7 +20,8 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <fieldset className="inline-flex gap-0.5 rounded-lg bg-muted p-[3px]">
+    // Wraps instead of running past the content area when there are many options (the audit log has 15).
+    <fieldset className="inline-flex max-w-full flex-wrap gap-0.5 rounded-lg bg-muted p-[3px]">
       <legend className="sr-only">{label}</legend>
       {options.map((o) => (
         <button

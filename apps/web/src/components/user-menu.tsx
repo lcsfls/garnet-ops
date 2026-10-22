@@ -1,8 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { LogOut } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { LogOut, UserRound } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { api } from "../lib/api.ts";
 import { authClient } from "../lib/auth-client.ts";
 import type { Me } from "../lib/session.ts";
 import { setTheme, THEMES, useTheme } from "../lib/theme.ts";
@@ -81,9 +82,25 @@ export function UserMenu({ me }: { me: Me }) {
               {me.organization.name} · {t(`shell.role.${me.role}`)}
             </div>
           </div>
+          <Link
+            to="/account"
+            onClick={() => setOpen(false)}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-input bg-card px-4 text-base font-medium shadow-xs hover:bg-accent"
+          >
+            <UserRound aria-hidden="true" className="size-4" />
+            {t("shell.accountLink")}
+          </Link>
           <div className="grid gap-1.5">
             <span className="text-sm font-medium">{t("common.language")}</span>
-            <LanguagePicker />
+            {/* The choice is kept on the account too, so it follows the user to other browsers (ADR 0017). */}
+            <LanguagePicker
+              onChanged={(locale) => {
+                void api("/account/preferences", {
+                  method: "PUT",
+                  body: { locale, timeZone: me.user.timeZone },
+                }).catch(() => {});
+              }}
+            />
           </div>
           <div className="grid gap-1.5">
             <span className="text-sm font-medium">{t("shell.theme")}</span>

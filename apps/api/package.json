@@ -11,6 +11,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@better-auth/passkey": "1.7.10",
+    "@better-auth/utils": "0.5.0",
     "@garnetops/core": "workspace:*",
     "@garnetops/db": "workspace:*",
     "@garnetops/i18n": "workspace:*",

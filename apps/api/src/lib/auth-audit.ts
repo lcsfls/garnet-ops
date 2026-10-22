@@ -36,9 +36,11 @@ export const AUTH_ACTIONS: Record<string, string> = {
   "/two-factor/enable": "auth.second_factor_enrolment",
   "/sign-out": "auth.sign_out",
   "/two-factor/disable": "auth.second_factor_disable_refused",
+  "/passkey/verify-authentication": "auth.passkey_sign_in",
+  "/passkey/verify-registration": "account.passkey_registered",
 };
 
-async function organizationOf(userId: string): Promise<string | null> {
+export async function organizationOf(userId: string): Promise<string | null> {
   const [row] = await db
     .select({ organizationId: schema.membership.organizationId })
     .from(schema.membership)
@@ -55,6 +57,18 @@ async function userIdByEmail(email: unknown): Promise<string | null> {
     .where(eq(schema.user.email, email.trim().toLowerCase()))
     .limit(1);
   return row?.id ?? null;
+}
+
+/** The account a passkey belongs to, so a refused passkey sign-in is attributed (and visible to the admins). */
+async function userIdByCredential(response: unknown): Promise<string | null> {
+  const id = (response as { id?: unknown } | null | undefined)?.id;
+  if (typeof id !== "string" || id.length > 1024) return null;
+  const [row] = await db
+    .select({ userId: schema.passkey.userId })
+    .from(schema.passkey)
+    .where(eq(schema.passkey.credentialID, id))
+    .limit(1);
+  return row?.userId ?? null;
 }
 
 /** The user of a sign-in that still waits for its second factor (read from the signed two-factor cookie). */
@@ -83,7 +97,8 @@ export async function auditAuthEvent(ctx: HookContext, refused = false): Promise
     ctx.context.newSession?.user.id ??
     ctx.context.session?.user.id ??
     (ctx.path.startsWith("/two-factor/verify") ? await pendingSecondFactorUser(ctx) : null) ??
-    (ctx.path === "/sign-in/email" ? await userIdByEmail(ctx.body?.email) : null);
+    (ctx.path === "/sign-in/email" ? await userIdByEmail(ctx.body?.email) : null) ??
+    (ctx.path === "/passkey/verify-authentication" ? await userIdByCredential(ctx.body?.response) : null);
   const headers = ctx.headers ?? ctx.request?.headers ?? new Headers();
   await audit(
     { userId, organizationId: userId ? await organizationOf(userId) : null, ip: clientIp(headers) },
@@ -91,6 +106,10 @@ export async function auditAuthEvent(ctx: HookContext, refused = false): Promise
     userId ? { type: "user", id: userId } : undefined,
     {
       outcome,
+      // The label the person gave a new passkey (already checked by the before hook).
+      ...(ctx.path === "/passkey/verify-registration" && typeof ctx.body?.name === "string"
+        ? { name: ctx.body.name.trim().slice(0, 60) }
+        : {}),
       // An unknown account is recorded by the address that was tried, never with the password.
       ...(userId === null && typeof ctx.body?.email === "string"
         ? { email: ctx.body.email.slice(0, 254) }

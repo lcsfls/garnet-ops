@@ -10,6 +10,31 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- Account page (avatar menu, then "Account settings"; ADR 0017, `docs/account.md`), readable width with sections on
+  the left like Settings: **Profile** (display name; the email address is shown and cannot be changed yet; language and
+  time zone saved on the account and applied to shown times), **Password** (current and new password, 12 or more
+  characters, Argon2id, other sessions signed out unless you opt out, rate-limited), **Authenticator app** (replace it
+  with a QR code, confirmed with the first code before the old secret goes; new backup codes shown once; it can never be
+  switched off), **Passkeys** (WebAuthn with user verification required: add, rename, remove, last used; a passkey signs
+  in without a password and code and also counts as a second factor, on the sign-in page, the second step and the
+  "Confirm it is you" dialog) and **Sessions** (browser and system, address, signed in, last active; sign out one or all
+  others). Passkeys use better-auth's `@better-auth/passkey` 1.7.10 with `@simplewebauthn` (MIT); relying party ID and
+  origin come from `PUBLIC_URL` only. The Content Security Policy is unchanged.
+- Lost second factor: `node apps/api/src/cli.ts reset-second-factor <email> [--yes]` in the API container removes the
+  authenticator app and all passkeys of one account and ends its sessions; the password stays and the next sign-in
+  leads to a new setup. Audited, not reachable over the network, never offered in the web UI.
+- Audit log: filter "Account" and new actions `account.profile_changed`, `account.password_changed`,
+  `account.totp_replace_started`, `account.totp_replaced`, `account.backup_codes_regenerated`,
+  `account.passkey_registered`, `account.passkey_renamed`, `account.passkey_removed`,
+  `account.passkey_removal_refused`, `account.session_revoked`, `account.sessions_revoked`,
+  `account.second_factor_reset`, `auth.passkey_sign_in` and `auth.endpoint_refused`, in English and German.
+- Migration 0016 (additive: table `passkey`, columns `user.locale` and `user.time_zone`). API: `/api/v1/account`
+  (overview, profile, preferences, password, authenticator replacement, backup codes, passkeys, sessions); `/api/v1/me`
+  also returns `user.locale` and `user.timeZone`. New dependencies: `@better-auth/passkey` 1.7.10,
+  `@simplewebauthn/server` 13.3.3 (through it), `@simplewebauthn/browser` 13.3.0, `@better-auth/utils` 0.5.0 (all MIT;
+  see `docs/COMPONENTS.md`).
+- Form rows with several fields (`FormRow`, `FormField`): labels, controls and hints line up across the row and the
+  fields stack below the width of their card, in Settings, the dialogs and the account page.
 - XDR page for your own Wazuh 4.x or 5.x (Infrastructure → XDR, ADR 0015, `docs/xdr.md`),
   shown only once a connection exists: alerts by severity for 24 hours, 7 and 30 days with the
   change against the period before, MITRE ATT&CK tactics, the ten busiest agents, the latest file
@@ -378,6 +403,14 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Fixed
 
+- Settings → Scanning: the time and the time zone of the nightly scan sit on one line (the time field no longer drops
+  below the zone's hint). The same shared form row fixes the side-by-side fields of notifications (SMTP), AI, updates,
+  XDR, attack overview, the Wazuh enrollment helper and the add-server dialog.
+- Settings at narrow widths: the help column no longer runs past the right edge. The sections, the form and the help
+  follow the width of the content area: a row of sections above the form and the help below it when narrow, sections on
+  the left from 48 rem, all three side by side from 1450 px.
+- The sidebar footer ("Local only" and the version) no longer wraps onto two lines: the expanded sidebar is 15 % wider
+  (a single `--sidebar-width` token) and the version shortens with an ellipsis if it must.
 - Pages no longer wait forever or show an empty table when the server cannot be
   reached: every list and page shows loading and error states with a retry, and an
   action that failed says so. The error page reconnects by itself, for example after an
@@ -406,6 +439,10 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Changed
 
+- The sign-in page offers "Sign in with a passkey", the second step "Use a passkey instead", and "Confirm it is you"
+  "Confirm with a passkey" once an account has one. The step-up text is no longer specific to updates.
+- A fresh sign-in (second factor, backup code, passkey) now ends the session it was started from, so the list of
+  sessions does not fill up with leftovers of "Confirm it is you".
 - Update guides and the Updates page put today's way first: until the first release,
   images are built from the repository; `docker compose pull` and in-app updates apply
   only to signed releases.
@@ -459,6 +496,17 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Security
 
+- Accounts (ADR 0017): changing the password, replacing the authenticator app, renewing backup codes, adding or
+  removing a passkey need a sign-in from the last ten minutes (and the password again for the authenticator app and
+  the password change); the last second factor can never be removed (checked in one database transaction, so two requests
+  cannot race it to zero); passkeys count only with **user verification**, which better-auth's plugin does not enforce
+  itself (it verifies with `requireUserVerification: false` and asks for "preferred"), so GarnetOps checks the signed
+  flag for registration and every sign-in; relying party and origin come from `PUBLIC_URL`, never from a request
+  header. better-auth's own endpoints for the same changes (`/change-password`, `/update-user`, session revocation,
+  `/two-factor/get-totp-uri`, `/two-factor/generate-backup-codes`, passkey rename, delete and list) are closed and
+  answer 403, so nothing goes around the step-up and the audit log; `/change-password` with "sign out everywhere" would
+  also have created a session without a second factor. Recovery of a lost second factor is an operator command with
+  shell access only, audited.
 - The attack overview (ADR 0016) keeps data local by default: location comes from tables on your server;
   the monthly download and the reputation lookup are off, need a recent sign-in to switch on, and are
   audited. GeoIP files are treated as hostile (compressed and inflated size caps counted while

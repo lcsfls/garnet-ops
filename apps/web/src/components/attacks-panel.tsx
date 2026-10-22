@@ -16,7 +16,7 @@ import { Badge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
 import { Checkbox } from "./ui/checkbox.tsx";
 import { ConfirmDialog } from "./ui/confirm-dialog.tsx";
-import { Field } from "./ui/field.tsx";
+import { Field, FormRow } from "./ui/field.tsx";
 import { Select } from "./ui/select.tsx";
 import { useStepUp } from "./use-step-up.tsx";
 
@@ -625,7 +625,7 @@ function OsintCard({ data, stepUp, onChanged }: CardProps) {
           onChange={(e) => setApiKey(e.currentTarget.value)}
         />
 
-        <div className="grid gap-4 @3xl:grid-cols-2">
+        <FormRow columns={2} from="md">
           <Field
             label={t("attacks.settings.osintTopN")}
             hint={t("attacks.settings.osintTopNHint", { min: o.limits.topN.min, max: o.limits.topN.max })}
@@ -650,7 +650,7 @@ function OsintCard({ data, stepUp, onChanged }: CardProps) {
             value={budget}
             onChange={(e) => setBudget(e.currentTarget.value)}
           />
-        </div>
+        </FormRow>
 
         {!o.enabled ? (
           <fieldset className="grid gap-2.5">

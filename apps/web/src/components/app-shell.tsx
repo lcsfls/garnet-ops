@@ -55,6 +55,9 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
   const features = { xdr: xdr.data?.connected === true };
   const criticalOpen = counts.data?.open.critical ?? 0;
   const trail = navTrail(pathname);
+  const versionText = system.data
+    ? t("shell.version", { version: displayVersion(system.data.version, t("shell.alpha")) })
+    : "";
 
   function toggleSidebar() {
     const next = !collapsed;
@@ -70,7 +73,9 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
     <div
       className={cn(
         "grid h-dvh",
-        collapsed ? "grid-cols-[3.5rem_minmax(0,1fr)]" : "grid-cols-[16rem_minmax(0,1fr)]",
+        collapsed
+          ? "grid-cols-[var(--sidebar-width-collapsed)_minmax(0,1fr)]"
+          : "grid-cols-[var(--sidebar-width)_minmax(0,1fr)]",
       )}
     >
       <aside className="flex flex-col overflow-x-hidden overflow-y-auto border-r bg-sidebar px-2">
@@ -145,16 +150,17 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
             </div>
           ))}
         </nav>
+        {/* One line: the badge keeps its size and the version gives way (and shows in full on hover). */}
         <div
           className={cn(
-            "mt-auto flex items-center gap-2 border-t py-3 text-sm text-muted-foreground",
+            "mt-auto flex min-w-0 items-center gap-2 border-t py-3 text-sm whitespace-nowrap text-muted-foreground",
             collapsed ? "justify-center" : "justify-between px-2",
           )}
         >
           <span
             title={t("shell.localOnlyHint")}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border px-2 leading-6",
+              "inline-flex flex-none items-center gap-1.5 rounded-md border px-2 leading-6",
               collapsed && "border-transparent px-0",
             )}
           >
@@ -162,8 +168,8 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
             <span className={collapsed ? "sr-only" : undefined}>{t("shell.localOnly")}</span>
           </span>
           {collapsed || !system.data ? null : (
-            <span>
-              {t("shell.version", { version: displayVersion(system.data.version, t("shell.alpha")) })}
+            <span className="min-w-0 truncate" title={versionText}>
+              {versionText}
             </span>
           )}
         </div>

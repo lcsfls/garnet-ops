@@ -14,7 +14,7 @@ import { Button } from "./ui/button.tsx";
 import { Checkbox, Radio } from "./ui/checkbox.tsx";
 import { ConfirmDialog } from "./ui/confirm-dialog.tsx";
 import { Dialog, DialogFooter } from "./ui/dialog.tsx";
-import { Field } from "./ui/field.tsx";
+import { Field, FormRow } from "./ui/field.tsx";
 import { Select } from "./ui/select.tsx";
 import { useStepUp } from "./use-step-up.tsx";
 
@@ -338,7 +338,7 @@ function AddChannelDialog({ me, open, onClose }: { me: Me; open: boolean; onClos
           ) : null}
           {kind === "smtp" ? (
             <>
-              <div className="grid gap-4 @lg:grid-cols-[minmax(0,1fr)_8rem]">
+              <FormRow columns={["1fr", "8rem"]} from="md">
                 <Field
                   label={t("settings.smtpHost")}
                   name="host"
@@ -355,7 +355,7 @@ function AddChannelDialog({ me, open, onClose }: { me: Me; open: boolean; onClos
                   min={1}
                   max={65535}
                 />
-              </div>
+              </FormRow>
               <label className="grid gap-1.5">
                 <span className="text-sm font-medium">{t("settings.smtpSecurity")}</span>
                 <Select name="security" defaultValue="starttls">

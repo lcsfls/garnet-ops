@@ -15,7 +15,7 @@ required by `AGENTS.md` (rule 3).
   file of that exact version. Until then the status says `to verify`.
 - Removed components are not deleted; they move to [Rejected or removed](#rejected-or-removed)
   with the reason, so the history stays traceable.
-- Last reviewed: 2026-10-21.
+- Last reviewed: 2026-10-22.
 
 **Status values**
 
@@ -58,6 +58,10 @@ npm packages, so its upstream repository still has to be checked.
 | @hono/node-server | 2.1.5 | MIT | verified | https://github.com/honojs/node-server | Node adapter for Hono | |
 | zod | 3.25.76 | MIT | verified | https://github.com/colinhacks/zod | Validation (API, worker, web search params) | |
 | better-auth | 1.7.10 | MIT | verified | https://github.com/better-auth/better-auth | Sessions, accounts, two-factor plugin (TOTP) | Telemetry disabled in `apps/api/src/auth.ts` |
+| @better-auth/passkey | 1.7.10 | MIT | verified | https://github.com/better-auth/better-auth | WebAuthn passkeys: second factor and sign-in method (ADR 0017) | Separate package of better-auth 1.7. It verifies with `requireUserVerification: false`, so `apps/api/src/lib/passkey-policy.ts` checks the signed user-verified flag itself |
+| @better-auth/utils | 0.5.0 | MIT | verified | https://github.com/better-auth/utils | TOTP (`createOTP`) for replacing the authenticator app (ADR 0017) | Already pulled in by better-auth; now a direct dependency of the API |
+| @simplewebauthn/server | 13.3.3 | MIT | verified | https://github.com/MasterKale/SimpleWebAuthn | WebAuthn registration and sign-in verification, used by @better-auth/passkey | Pulls in @peculiar/x509, @peculiar/asn1-* (MIT), @peculiar/utils (MIT), @hexagon/base64 (MIT), @levischuck/tiny-cbor (MIT), asn1js (BSD-3-Clause), pvtsutils (MIT), pvutils (MIT), tslib (0BSD), tsyringe (MIT), reflect-metadata (Apache-2.0) |
+| @simplewebauthn/browser | 13.3.0 | MIT | verified | https://github.com/MasterKale/SimpleWebAuthn | WebAuthn ceremonies in the browser (passkey registration and sign-in) | No dependencies; bundled into the web app, no CDN |
 | drizzle-orm | 0.45.4 | Apache-2.0 | to verify | https://github.com/drizzle-team/drizzle-orm | ORM and migrations | License from package metadata only |
 | drizzle-kit | 0.31.11 | MIT | to verify | https://github.com/drizzle-team/drizzle-orm | Migration generator (dev) | License from package metadata only |
 | pg (node-postgres) | 8.23.1 | MIT | verified | https://github.com/brianc/node-postgres | PostgreSQL driver | |
@@ -174,10 +178,8 @@ Decided in ADR 0003; components move to "In use today (application)" when they a
 
 | Component | Version | License | Check | Source | Status | Use | Notes |
 |---|---|---|---|---|---|---|---|
-| @better-auth/passkey | 1.x | MIT | to verify | https://www.better-auth.com/docs/plugins/passkey | planned | WebAuthn passkeys (user verification required) | |
 | better-auth SSO / generic OAuth plugins | with core | MIT | to verify | https://www.better-auth.com/docs/plugins/sso | planned | OIDC/OAuth sign-in (Entra ID, Keycloak, Authentik, Google Workspace, Forgejo, GitHub) | Allowed-domain enforcement on our side |
 | ldapts | latest | MIT | to verify | https://github.com/ldapts/ldapts | candidate | LDAP / Active Directory bind and group lookup | better-auth has no first-party LDAP provider; verify before building our own credential provider |
-| @simplewebauthn/server | latest | MIT | to verify | https://github.com/MasterKale/SimpleWebAuthn | planned | Pulled in by the passkey plugin | |
 
 ## Planned: forge integrations (repository linking)
 

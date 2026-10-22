@@ -11,14 +11,15 @@ import { NotificationsPanel } from "../../components/notifications-panel.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
 import { ProxmoxPanel } from "../../components/proxmox-panel.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
+import { SectionNav, sectionLinkClass } from "../../components/section-nav.tsx";
 import { Alert } from "../../components/ui/alert.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { Checkbox } from "../../components/ui/checkbox.tsx";
+import { Field, FormField, FormRow } from "../../components/ui/field.tsx";
 import { Select } from "../../components/ui/select.tsx";
 import { UpdatesPanel } from "../../components/updates-panel.tsx";
 import { XdrPanel } from "../../components/xdr-panel.tsx";
 import { ApiError, api } from "../../lib/api.ts";
-import { cn } from "../../lib/cn.ts";
 import { formatCalendarDate, formatDateTime } from "../../lib/format.ts";
 import type { MessageKey } from "../../lib/i18n.ts";
 import { SETTINGS_SECTIONS, type SettingsSection, settingsSearch } from "../../lib/search.ts";
@@ -52,7 +53,11 @@ const SECTION_LABELS = {
 
 /**
  * Settings with a section list on the left (mockup), the form in a reading
- * width, and short help beside it on wide screens or below it otherwise.
+ * width, and short help beside it on wide screens or below it otherwise. The steps follow
+ * the width of the content area (AGENTS.md rule 5), not the window:
+ * - narrow: the sections are a row of links above the form, the help is below it;
+ * - from 48 rem: sections on the left, form and help below it on the right;
+ * - wide (1450 px): sections, form and help side by side.
  */
 function SettingsPage() {
   const { t } = useTranslation();
@@ -75,27 +80,23 @@ function SettingsPage() {
   return (
     <div className="mx-auto max-w-[72rem] @wide:max-w-[96rem]">
       <PageHeader icon={Settings} title={t("settings.title")} description={t("settings.description")} />
-      <div className="grid grid-cols-[12.5rem_minmax(0,1fr)] items-start gap-4 @wide:grid-cols-[12.5rem_minmax(0,46rem)_minmax(16rem,1fr)]">
-        <nav aria-label={t("settings.sections")} className="sticky top-0 row-span-2 @wide:row-span-1">
-          <ul className="grid gap-0.5">
-            {sections.map((s) => (
-              <li key={s}>
-                <Link
-                  to="/settings"
-                  search={s === "scanning" ? {} : { section: s }}
-                  aria-current={s === section ? "page" : undefined}
-                  className={cn(
-                    "flex h-9 items-center rounded-md px-2.5",
-                    s === section ? "bg-muted font-medium" : "hover:bg-accent",
-                  )}
-                >
-                  {t(SECTION_LABELS[s])}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="grid min-w-0 gap-4">
+      <div className="grid items-start gap-4 @3xl:grid-cols-[12.5rem_minmax(0,1fr)] @wide:grid-cols-[12.5rem_minmax(0,46rem)_minmax(16rem,1fr)]">
+        <SectionNav label={t("settings.sections")} className="@3xl:row-span-2 @wide:row-span-1">
+          {sections.map((s) => (
+            <li key={s}>
+              <Link
+                to="/settings"
+                search={s === "scanning" ? {} : { section: s }}
+                aria-current={s === section ? "page" : undefined}
+                className={sectionLinkClass(s === section)}
+              >
+                {t(SECTION_LABELS[s])}
+              </Link>
+            </li>
+          ))}
+        </SectionNav>
+        {/* The column is its own container: the panels in it size their rows by its width. */}
+        <div data-testid="settings-form" className="@container grid min-w-0 gap-4">
           {section === "scanning" ? <ScanningSection canEdit={admin} /> : null}
           {section === "notifications" ? <NotificationsPanel me={me} /> : null}
           {section === "proxmox" ? <ProxmoxPanel me={me} /> : null}
@@ -150,7 +151,7 @@ const HELP: Record<SettingsSection, { title: MessageKey; text: MessageKey }[]> =
 function Help({ section }: { section: SettingsSection }) {
   const { t } = useTranslation();
   return (
-    <Card className="col-start-2 @wide:col-start-3 @wide:row-start-1">
+    <Card className="@3xl:col-start-2 @wide:col-start-3 @wide:row-start-1">
       <CardHeader title={t("settings.goodToKnow")} />
       <div className="grid gap-3 px-5 py-4">
         {HELP[section].map((item) => (
@@ -271,44 +272,34 @@ function NightlyScan({ org, canEdit }: { org: Organization; canEdit: boolean }) 
           <Checkbox checked={enabled} disabled={!canEdit} onChange={(e) => setEnabled(e.target.checked)} />
           {t("settings.enabled")}
         </label>
-        <div className="grid gap-4 @xl:grid-cols-[10rem_minmax(0,1fr)]">
-          <div className="grid gap-1.5">
-            <label htmlFor="nightly-time" className="text-sm font-medium">
-              {t("settings.time")}
-            </label>
-            <input
-              id="nightly-time"
-              name="localTime"
-              type="time"
-              required
-              step={60}
-              disabled={!canEdit || !enabled}
-              defaultValue={schedule.localTime.slice(0, 5)}
-              className="h-10 rounded-md border border-input bg-card px-3 text-base shadow-xs disabled:opacity-50"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <label htmlFor="nightly-zone" className="text-sm font-medium">
-              {t("settings.timeZone")}
-            </label>
-            <Select
-              id="nightly-zone"
-              value={timeZone}
-              disabled={!canEdit || !enabled}
-              onChange={(e) => setTimeZone(e.target.value)}
-              aria-describedby="nightly-zone-hint"
-            >
-              {zones.map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </Select>
-            <p id="nightly-zone-hint" className="text-sm text-muted-foreground">
-              {t("settings.timeZoneHint")}
-            </p>
-          </div>
-        </div>
+        <FormRow columns={["10rem", "1fr"]} from="md">
+          <Field
+            id="nightly-time"
+            label={t("settings.time")}
+            name="localTime"
+            type="time"
+            required
+            step={60}
+            disabled={!canEdit || !enabled}
+            defaultValue={schedule.localTime.slice(0, 5)}
+          />
+          <FormField id="nightly-zone" label={t("settings.timeZone")} hint={t("settings.timeZoneHint")}>
+            {(control) => (
+              <Select
+                {...control}
+                value={timeZone}
+                disabled={!canEdit || !enabled}
+                onChange={(e) => setTimeZone(e.target.value)}
+              >
+                {zones.map((zone) => (
+                  <option key={zone} value={zone}>
+                    {zone}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormField>
+        </FormRow>
         <p className="text-sm text-muted-foreground">{t("settings.timeHint")}</p>
         {canEdit ? (
           <div className="flex items-center gap-3">

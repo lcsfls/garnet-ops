@@ -11,6 +11,7 @@ import {
   Search,
   Server,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -173,6 +174,23 @@ export function CommandSearch({ me }: { me: Me }) {
         label: t("shell.searchGoTo", { page: attacksName }),
         icon: Globe,
         go: () => navigate({ to: "/settings", search: { section: "attacks" } }),
+      });
+    }
+    // The account page is opened from the avatar menu, so it is offered here too: the page and its sections.
+    for (const [section, name] of [
+      [undefined, t("account.title")],
+      ["password", t("account.nav.password")],
+      ["authenticator", t("account.nav.authenticator")],
+      ["passkeys", t("account.nav.passkeys")],
+      ["sessions", t("account.nav.sessions")],
+    ] as const) {
+      // Without a search text only the page itself is listed; its sections appear when typing.
+      if (q ? !name.toLowerCase().includes(q.toLowerCase()) : section !== undefined) continue;
+      pages.push({
+        id: `page:account-${section ?? "profile"}`,
+        label: t("shell.searchGoTo", { page: section ? `${t("account.title")}: ${name}` : name }),
+        icon: UserRound,
+        go: () => navigate({ to: "/account", search: section ? { section } : {} }),
       });
     }
     if (!q) return pages;

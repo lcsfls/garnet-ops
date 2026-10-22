@@ -35,6 +35,10 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  /** Preferred UI language ("en" or "de"); null follows this browser (ADR 0017). */
+  locale: text("locale"),
+  /** Preferred IANA time zone for shown times (ADR 0005); null follows this browser. */
+  timeZone: text("time_zone"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -102,6 +106,35 @@ export const twoFactor = pgTable(
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
   },
   (t) => [index("two_factor_user_idx").on(t.userId)],
+);
+
+/**
+ * WebAuthn passkeys (better-auth's passkey plugin, ADR 0017). The property names are the
+ * plugin's field names; `lastUsedAt` is ours and is set when a passkey signs in.
+ */
+export const passkey = pgTable(
+  "passkey",
+  {
+    id: text("id").primaryKey(),
+    name: text("name"),
+    publicKey: text("public_key").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    credentialID: text("credential_id").notNull(),
+    counter: integer("counter").notNull(),
+    deviceType: text("device_type").notNull(),
+    backedUp: boolean("backed_up").notNull(),
+    transports: text("transports"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    aaguid: text("aaguid"),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("passkey_user_idx").on(t.userId),
+    // A credential belongs to exactly one account.
+    uniqueIndex("passkey_credential_idx").on(t.credentialID),
+  ],
 );
 
 export const rateLimit = pgTable("rate_limit", {

@@ -1,16 +1,15 @@
 import { relativeTime } from "./dates.ts";
 import { i18n } from "./i18n.ts";
+import { displayTimeZone, formatInstant } from "./time-zone.ts";
 import { formatBytesIn } from "./units.ts";
 
-/** Absolute date and time in the UI language and the browser's time zone. */
+/** Absolute date and time in the UI language and the user's display time zone (account page, else the browser's). */
 export function formatDateTime(value: string | Date): string {
-  return new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(
-    new Date(value),
-  );
+  return formatInstant(value, i18n.language, displayTimeZone());
 }
 
 export function formatDate(value: string | Date): string {
-  return new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }).format(new Date(value));
+  return formatInstant(value, i18n.language, displayTimeZone(), "date");
 }
 
 /** "3 hours ago", "yesterday", "just now", counting calendar days in the browser's zone. */

@@ -14,6 +14,8 @@ export interface Actor {
   organizationId: string;
   role: Role;
   ip: string | null;
+  /** The session making this request, so the account page can tell "this device" from the others. */
+  sessionId: string;
   /**
    * When this session was created. Every session starts with password and TOTP (the
    * second factor is mandatory and "trust this device" is refused), so this is the time
@@ -50,6 +52,7 @@ export const requireActor = createMiddleware<AppEnv>(async (c, next) => {
     organizationId: member.organizationId,
     role: member.role,
     ip: clientIp(c.req.raw.headers),
+    sessionId: session.session.id,
     strongAuthAt: new Date(session.session.createdAt),
   });
   await next();

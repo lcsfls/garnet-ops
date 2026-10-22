@@ -16,7 +16,7 @@ import { Button } from "./ui/button.tsx";
 import { Checkbox } from "./ui/checkbox.tsx";
 import { ConfirmDialog } from "./ui/confirm-dialog.tsx";
 import { Dialog, DialogFooter } from "./ui/dialog.tsx";
-import { Field, TextAreaField } from "./ui/field.tsx";
+import { Field, FormRow, TextAreaField } from "./ui/field.tsx";
 import { useStepUp } from "./use-step-up.tsx";
 
 const refreshAll = (queryClient: ReturnType<typeof useQueryClient>) =>
@@ -445,7 +445,7 @@ function ConnectionDialog({
           spellCheck={false}
           className="font-mono text-sm"
         />
-        <div className="grid gap-4 @xl:grid-cols-2">
+        <FormRow columns={2} from="md">
           <Field
             label={t("xdr.settings.username")}
             name={`${kind}Username`}
@@ -469,7 +469,7 @@ function ConnectionDialog({
             spellCheck={false}
             className="font-mono text-sm"
           />
-        </div>
+        </FormRow>
         <TextAreaField
           label={t("xdr.settings.certificateAuthority")}
           hint={

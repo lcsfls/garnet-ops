@@ -17,6 +17,7 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppAccountRouteImport } from './routes/_app/account'
 import { Route as AppAttacksRouteImport } from './routes/_app/attacks'
 import { Route as AppAuditLogRouteImport } from './routes/_app/audit-log'
 import { Route as AppFindingsRouteImport } from './routes/_app/findings'
@@ -68,6 +69,11 @@ const TwoFactorRoute = TwoFactorRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountRoute = AppAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAttacksRoute = AppAttacksRouteImport.update({
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
+  '/account': typeof AppAccountRoute
   '/attacks': typeof AppAttacksRoute
   '/audit-log': typeof AppAuditLogRoute
   '/findings': typeof AppFindingsRoute
@@ -165,6 +172,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
+  '/account': typeof AppAccountRoute
   '/attacks': typeof AppAttacksRoute
   '/audit-log': typeof AppAuditLogRoute
   '/findings': typeof AppFindingsRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
+  '/_app/account': typeof AppAccountRoute
   '/_app/attacks': typeof AppAttacksRoute
   '/_app/audit-log': typeof AppAuditLogRoute
   '/_app/findings': typeof AppFindingsRoute
@@ -214,6 +223,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sign-in'
     | '/two-factor'
+    | '/account'
     | '/attacks'
     | '/audit-log'
     | '/findings'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sign-in'
     | '/two-factor'
+    | '/account'
     | '/attacks'
     | '/audit-log'
     | '/findings'
@@ -258,6 +269,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/sign-in'
     | '/two-factor'
+    | '/_app/account'
     | '/_app/attacks'
     | '/_app/audit-log'
     | '/_app/findings'
@@ -340,6 +352,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/account': {
+      id: '/_app/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AppAccountRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/attacks': {
@@ -437,6 +456,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAccountRoute: typeof AppAccountRoute
   AppAttacksRoute: typeof AppAttacksRoute
   AppAuditLogRoute: typeof AppAuditLogRoute
   AppFindingsRoute: typeof AppFindingsRoute
@@ -454,6 +474,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAccountRoute: AppAccountRoute,
   AppAttacksRoute: AppAttacksRoute,
   AppAuditLogRoute: AppAuditLogRoute,
   AppFindingsRoute: AppFindingsRoute,

@@ -6,7 +6,7 @@ import { setLanguage } from "../lib/i18n.ts";
 import { Select } from "./ui/select.tsx";
 
 /** Explicit language choice; English is the default for everyone. */
-export function LanguagePicker() {
+export function LanguagePicker({ onChanged }: { onChanged?: (language: Language) => void }) {
   const { t, i18n } = useTranslation();
   const id = useId();
   return (
@@ -18,7 +18,11 @@ export function LanguagePicker() {
       <Select
         id={id}
         value={i18n.language}
-        onChange={(e) => setLanguage(e.target.value as Language)}
+        onChange={(e) => {
+          const language = e.target.value as Language;
+          void setLanguage(language);
+          onChanged?.(language);
+        }}
         className="h-9 text-sm"
       >
         {LANGUAGES.map((l) => (

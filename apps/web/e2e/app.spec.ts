@@ -583,7 +583,7 @@ test("team: invite someone, they join with a second factor, change their role, r
   await other.getByRole("link", { name: "Sign in" }).click();
   await other.getByLabel("Email").fill("new.person@e2e.test");
   await other.getByLabel("Password").fill("new-person-password-1");
-  await other.getByRole("button", { name: "Sign in" }).click();
+  await other.getByRole("button", { name: "Sign in", exact: true }).click();
   // A second factor before anything else, like every account.
   await expect(other).toHaveURL(/\/enroll$/);
   await other.getByLabel("Password").fill("new-person-password-1");

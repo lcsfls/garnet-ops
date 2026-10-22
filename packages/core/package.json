@@ -28,7 +28,8 @@
     "./geoip": "./src/geoip.ts",
     "./osint": "./src/osint.ts",
     "./attacks": "./src/attacks.ts",
-    "./attack-summary": "./src/attack-summary.ts"
+    "./attack-summary": "./src/attack-summary.ts",
+    "./account": "./src/account.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

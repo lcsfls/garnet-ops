@@ -6,7 +6,7 @@ import type { Me } from "./session.ts";
 import { AGENT_STATUS_TONE, changeOf, PERIOD_KEY, XDR_SEVERITIES } from "./xdr.ts";
 
 const me = (role: Me["role"]): Me => ({
-  user: { id: "u", name: "Erika", email: "erika@example.test" },
+  user: { id: "u", name: "Erika", email: "erika@example.test", locale: null, timeZone: null },
   organization: {
     id: "o",
     name: "Example",

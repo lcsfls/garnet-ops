@@ -1,9 +1,11 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { accountQuery } from "../lib/account.ts";
 import { authClient, authErrorKey } from "../lib/auth-client.ts";
 import type { MessageKey } from "../lib/i18n.ts";
+import { PASSKEY_FAILURE_KEYS, passkeysSupported, signInWithPasskey } from "../lib/passkeys.ts";
 import { Alert } from "./ui/alert.tsx";
 import { Button } from "./ui/button.tsx";
 import { Dialog, DialogFooter } from "./ui/dialog.tsx";
@@ -32,6 +34,26 @@ export function StepUpDialog({
   const [stage, setStage] = useState<"password" | "code">("password");
   const [error, setError] = useState<MessageKey | null>(null);
   const [busy, setBusy] = useState(false);
+  // A passkey (with user verification) confirms it is you as well as a password and a code.
+  const account = useQuery({ ...accountQuery, enabled: open });
+  const hasPasskey = (account.data?.secondFactor.passkeys.length ?? 0) > 0 && passkeysSupported();
+
+  async function withPasskey() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await signInWithPasskey();
+      if (!result.ok) {
+        if (result.reason !== "cancelled") setError(PASSKEY_FAILURE_KEYS[result.reason]);
+        return;
+      }
+      setStage("password");
+      await queryClient.invalidateQueries();
+      onConfirmed();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function close() {
     const signedOut = stage === "code";
@@ -106,6 +128,11 @@ export function StepUpDialog({
             {busy ? t("common.loading") : t("stepUp.confirm")}
           </Button>
         </DialogFooter>
+        {hasPasskey && stage === "password" ? (
+          <Button variant="outline" disabled={busy} onClick={() => void withPasskey()}>
+            {t("stepUp.passkey")}
+          </Button>
+        ) : null}
       </form>
     </Dialog>
   );

@@ -9,6 +9,7 @@ import { Field } from "../components/ui/field.tsx";
 import { authClient, authErrorKey } from "../lib/auth-client.ts";
 import { guard } from "../lib/guard.ts";
 import type { MessageKey } from "../lib/i18n.ts";
+import { PASSKEY_FAILURE_KEYS, passkeysSupported, signInWithPasskey } from "../lib/passkeys.ts";
 
 /** Second step of sign-in. Only reachable while signed out; the pending sign-in lives in a short-lived cookie. */
 export const Route = createFileRoute("/two-factor")({
@@ -35,6 +36,20 @@ function TwoFactor() {
         : await authClient.twoFactor.verifyBackupCode({ code });
     setBusy(false);
     if (error) return setError(authErrorKey(error));
+    await queryClient.invalidateQueries();
+    await navigate({ to: "/" });
+  }
+
+  /** A passkey is a second factor on its own (user verification is required), so it completes the sign-in. */
+  async function withPasskey() {
+    setBusy(true);
+    setError(null);
+    const result = await signInWithPasskey();
+    setBusy(false);
+    if (!result.ok) {
+      if (result.reason !== "cancelled") setError(PASSKEY_FAILURE_KEYS[result.reason]);
+      return;
+    }
     await queryClient.invalidateQueries();
     await navigate({ to: "/" });
   }
@@ -87,6 +102,11 @@ function TwoFactor() {
         >
           {mode === "totp" ? t("twoFactor.useBackupCode") : t("twoFactor.useAuthenticator")}
         </Button>
+        {passkeysSupported() ? (
+          <Button variant="link" disabled={busy} onClick={() => void withPasskey()}>
+            {t("twoFactor.usePasskey")}
+          </Button>
+        ) : null}
       </form>
     </AuthLayout>
   );

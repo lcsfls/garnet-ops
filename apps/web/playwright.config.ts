@@ -52,17 +52,31 @@ export default defineConfig({
         timezoneId: "Europe/Berlin",
       },
     },
+    // The account page with its own member: password, second factor, passkeys (virtual authenticator), sessions, recovery.
+    {
+      name: "account",
+      testMatch: /account\.spec\.ts/,
+      dependencies: ["updates"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1920, height: 1080 },
+        locale: "en-US",
+        timezoneId: "Europe/Berlin",
+      },
+    },
     // Layout baseline (AGENTS.md rule 5): 1080p at 100 %, 125 % and 150 % Windows scaling,
-    // and 1440p, where the xwide step (more columns and panes) starts.
+    // a small 1100 px window, and 1440p, where the xwide step (more columns and panes) starts.
     ...[
       { width: 1920, height: 1080 },
       { width: 1536, height: 864 },
       { width: 1280, height: 720 },
+      // A small window next to the wider sidebar: the help moves below the form here.
+      { width: 1100, height: 800 },
       { width: 2560, height: 1440 },
     ].map((viewport) => ({
       name: `layout-${viewport.width}x${viewport.height}`,
       testMatch: /layout\.spec\.ts/,
-      dependencies: ["updates"],
+      dependencies: ["account"],
       use: { ...devices["Desktop Chrome"], viewport, locale: "en-US", timezoneId: "Europe/Berlin" },
     })),
   ],

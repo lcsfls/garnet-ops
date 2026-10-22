@@ -23,6 +23,7 @@ import { StepUpDialog } from "./step-up-dialog.tsx";
 import { Alert } from "./ui/alert.tsx";
 import { Badge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
+import { FormField, FormRow } from "./ui/field.tsx";
 import { Select } from "./ui/select.tsx";
 
 /** Manual update steps and the recovery runbook (docs/updating.md). */
@@ -492,40 +493,34 @@ function ReleasePanel({
           <p>{refused.length === 0 ? texts.newest : texts.nothingInstallable}</p>
         ) : (
           <form className="grid gap-4" onSubmit={submit}>
-            <div className="grid gap-4 @xl:grid-cols-2">
-              <div className="grid gap-1.5">
-                <label htmlFor="update-version" className="text-sm font-medium">
-                  {texts.version}
-                </label>
-                <Select
-                  id="update-version"
-                  value={chosen.version}
-                  onChange={(e) => setVersion(e.target.value)}
-                >
-                  {installable.map((r) => (
-                    <option key={r.version} value={r.version}>
-                      {r.version}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <label htmlFor="update-start" className="text-sm font-medium">
-                  {texts.start}
-                </label>
-                <Select
-                  id="update-start"
-                  value={leadSeconds}
-                  onChange={(e) => setLeadSeconds(Number(e.target.value))}
-                >
-                  {leadTimes.map((seconds) => (
-                    <option key={seconds} value={seconds}>
-                      {formatLeadTime(texts, seconds)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </div>
+            <FormRow columns={2} from="md">
+              <FormField id="update-version" label={texts.version}>
+                {(control) => (
+                  <Select {...control} value={chosen.version} onChange={(e) => setVersion(e.target.value)}>
+                    {installable.map((r) => (
+                      <option key={r.version} value={r.version}>
+                        {r.version}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </FormField>
+              <FormField id="update-start" label={texts.start}>
+                {(control) => (
+                  <Select
+                    {...control}
+                    value={leadSeconds}
+                    onChange={(e) => setLeadSeconds(Number(e.target.value))}
+                  >
+                    {leadTimes.map((seconds) => (
+                      <option key={seconds} value={seconds}>
+                        {formatLeadTime(texts, seconds)}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </FormField>
+            </FormRow>
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {chosen.notesUrl ? (
                 <a

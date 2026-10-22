@@ -15,7 +15,7 @@ import { Alert } from "./ui/alert.tsx";
 import { Button } from "./ui/button.tsx";
 import { CopyButton } from "./ui/copy-button.tsx";
 import { Dialog, DialogFooter } from "./ui/dialog.tsx";
-import { Field } from "./ui/field.tsx";
+import { Field, FormRow } from "./ui/field.tsx";
 import { useStepUp } from "./use-step-up.tsx";
 import { EnrollmentHelper, useWazuhConnected } from "./wazuh-enrollment.tsx";
 
@@ -288,7 +288,7 @@ export function AddServerWizard({
                     spellCheck={false}
                     className="font-mono"
                   />
-                  <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-4">
+                  <FormRow columns={["1fr", "8rem"]} from="sm">
                     <Field
                       label={t("servers.name")}
                       hint={t("servers.nameHint")}
@@ -306,7 +306,7 @@ export function AddServerWizard({
                       defaultValue="22"
                       autoComplete="off"
                     />
-                  </div>
+                  </FormRow>
                 </>
               )}
               <Field

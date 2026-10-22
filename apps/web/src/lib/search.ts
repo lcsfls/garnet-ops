@@ -300,6 +300,7 @@ export type ServerDetailSearch = z.infer<typeof serverDetailSearch>;
 
 export const AUDIT_FILTERS = [
   "auth",
+  "account",
   "repository",
   "host",
   "finding",
@@ -343,6 +344,12 @@ export const SETTINGS_SECTIONS = [
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 export const settingsSearch = z.object({
   section: z.enum(SETTINGS_SECTIONS).optional().catch(undefined),
+});
+
+export const ACCOUNT_SECTIONS = ["profile", "password", "authenticator", "passkeys", "sessions"] as const;
+export type AccountSection = (typeof ACCOUNT_SECTIONS)[number];
+export const accountSearch = z.object({
+  section: z.enum(ACCOUNT_SECTIONS).optional().catch(undefined),
 });
 
 /** Builds an API query string from search params, leaving out empty values and UI-only keys. */

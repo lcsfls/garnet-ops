@@ -1,5 +1,13 @@
 import { expect, type Locator, test } from "@playwright/test";
-import { hasNoHorizontalScroll, overflowingCards, STATE_FILE, watchForProblems } from "./helpers.ts";
+import {
+  contentWidth,
+  hasNoHorizontalScroll,
+  misalignedFormRows,
+  overflowingCards,
+  STATE_FILE,
+  sidebarFooterOnOneLine,
+  watchForProblems,
+} from "./helpers.ts";
 import { AI, ATTACKS, FIXES, PROXMOX, restoreWazuh, sql, WAZUH } from "./seed.ts";
 
 /** Layout baseline (AGENTS.md rule 5): every screen fits at 1080p with 100, 125 and 150 % scaling. */
@@ -9,7 +17,7 @@ test.describe("signed out", () => {
     await page.goto("/sign-in");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
     expect(await hasNoHorizontalScroll(page)).toBe(true);
-    await expect(page.getByRole("button", { name: "Sign in" })).toBeInViewport();
+    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeInViewport();
     await page.screenshot({ path: info.outputPath("sign-in.png") });
     expect(problems).toEqual([]);
   });
@@ -72,6 +80,11 @@ test.describe("signed in", () => {
     { path: `/fixes?id=${FIXES.key("pkg-2")}`, heading: "Fix proposals", name: "fixes-detail" },
     { path: "/fixes?view=prs", heading: "Fix proposals", name: "fixes-pull-requests" },
     { path: "/settings", heading: "Settings", name: "settings" },
+    { path: "/account", heading: "Account", name: "account" },
+    { path: "/account?section=password", heading: "Account", name: "account-password" },
+    { path: "/account?section=authenticator", heading: "Account", name: "account-authenticator" },
+    { path: "/account?section=passkeys", heading: "Account", name: "account-passkeys" },
+    { path: "/account?section=sessions", heading: "Account", name: "account-sessions" },
     { path: "/settings?section=updates", heading: "Settings", name: "settings-updates" },
     { path: "/settings?section=notifications", heading: "Settings", name: "settings-notifications" },
     { path: "/settings?section=proxmox", heading: "Settings", name: "settings-proxmox" },
@@ -90,11 +103,163 @@ test.describe("signed in", () => {
       await page.waitForLoadState("networkidle");
       expect(await hasNoHorizontalScroll(page)).toBe(true);
       expect(await overflowingCards(page)).toEqual([]);
+      expect(await misalignedFormRows(page)).toEqual([]);
+      expect(await sidebarFooterOnOneLine(page)).toBe(true);
       await expect(page.getByRole("button", { name: /^Account: / })).toBeInViewport();
       await page.screenshot({ path: info.outputPath(`${name}.png`), fullPage: true });
       expect(problems).toEqual([]);
     });
   }
+
+  test("settings: sections, form and help follow the content width and stay inside it", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    for (const section of [
+      "scanning",
+      "notifications",
+      "proxmox",
+      "xdr",
+      "attacks",
+      "ai",
+      "updates",
+      "about",
+    ]) {
+      await page.goto(`/settings?section=${section}`);
+      await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Good to know" })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      const content = await contentWidth(page);
+      const boxes = await page.evaluate(() => {
+        const rect = (el: Element | null | undefined) => {
+          const b = el?.getBoundingClientRect();
+          return b ? { left: b.left, right: b.right, top: b.top, bottom: b.bottom } : null;
+        };
+        const main = document.querySelector("main[data-content]");
+        const help = Array.from(document.querySelectorAll("main section")).find((s) =>
+          s.querySelector("h2")?.textContent?.startsWith("Good to know"),
+        );
+        const form = document.querySelector("[data-testid='settings-form']");
+        const nav = document.querySelector("main nav[aria-label='Settings sections']");
+        return { main: rect(main), help: rect(help), form: rect(form), nav: rect(nav) };
+      });
+      const { main, help, form, nav } = boxes;
+      expect(main && help && form && nav, section).toBeTruthy();
+      if (!(main && help && form && nav)) continue;
+      // Nothing sticks out of the content area, whatever the step.
+      expect(help.right, `${section}: help inside the content area`).toBeLessThanOrEqual(main.right + 1);
+      expect(form.right, `${section}: form inside the content area`).toBeLessThanOrEqual(main.right + 1);
+      if (content >= 1450) {
+        // Wide: sections, form and help side by side.
+        expect(help.left, `${section}: help beside the form`).toBeGreaterThanOrEqual(form.right - 1);
+        expect(form.left).toBeGreaterThanOrEqual(nav.right - 1);
+      } else {
+        // Below wide: the help is under the form, never beside it and never cut off.
+        expect(help.top, `${section}: help below the form`).toBeGreaterThanOrEqual(form.bottom - 1);
+      }
+      if (content >= 768)
+        expect(form.left, `${section}: form beside the sections`).toBeGreaterThanOrEqual(nav.right - 1);
+      else expect(form.top, `${section}: form below the sections`).toBeGreaterThanOrEqual(nav.bottom - 1);
+      expect(await hasNoHorizontalScroll(page), section).toBe(true);
+      expect(await overflowingCards(page), section).toEqual([]);
+      expect(await misalignedFormRows(page), section).toEqual([]);
+      await page.screenshot({ path: info.outputPath(`settings-${section}.png`), fullPage: true });
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("the nightly scan time and time zone share one line of labels and one line of controls", async ({
+    page,
+  }) => {
+    await page.goto("/settings");
+    await expect(page.getByLabel("Time", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Time zone")).toBeVisible();
+    const tops = await page.evaluate(() => {
+      const top = (selector: string) => document.querySelector(selector)?.getBoundingClientRect().top ?? -1;
+      return {
+        timeLabel: top("label[for='nightly-time']"),
+        zoneLabel: top("label[for='nightly-zone']"),
+        timeInput: top("#nightly-time"),
+        zoneInput: top("#nightly-zone"),
+      };
+    });
+    const content = await contentWidth(page);
+    // From 28 rem of card width the two sit side by side (the card is narrower than the content area).
+    if (content >= 768) {
+      expect(Math.abs(tops.timeLabel - tops.zoneLabel)).toBeLessThanOrEqual(1);
+      expect(Math.abs(tops.timeInput - tops.zoneInput)).toBeLessThanOrEqual(1);
+    }
+    expect(await misalignedFormRows(page)).toEqual([]);
+  });
+
+  test("settings and the account page stay inside the content area in small windows and in German", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    // German texts are longer; 760 px is a small window next to the wider sidebar.
+    await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
+    const paths = [
+      "/settings",
+      "/settings?section=notifications",
+      "/settings?section=proxmox",
+      "/settings?section=xdr",
+      "/settings?section=attacks",
+      "/settings?section=ai",
+      "/settings?section=updates",
+      "/settings?section=about",
+      "/account",
+      "/account?section=password",
+      "/account?section=authenticator",
+      "/account?section=passkeys",
+      "/account?section=sessions",
+    ];
+    const height = page.viewportSize()?.height ?? 800;
+    for (const width of [760, 900]) {
+      await page.setViewportSize({ width, height });
+      for (const path of paths) {
+        await page.goto(path);
+        await expect(page.locator("html")).toHaveAttribute("lang", "de");
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await page.waitForLoadState("networkidle");
+        expect(await hasNoHorizontalScroll(page), `${width} ${path}`).toBe(true);
+        expect(await overflowingCards(page), `${width} ${path}`).toEqual([]);
+        expect(await misalignedFormRows(page), `${width} ${path}`).toEqual([]);
+        expect(await sidebarFooterOnOneLine(page), `${width} ${path}`).toBe(true);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("the account dialogs fit the screen", async ({ page }, info) => {
+    const problems = watchForProblems(page);
+    const fits = (dialog: Locator) =>
+      dialog.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return el.scrollWidth <= el.clientWidth + 1 && box.left >= 0 && box.right <= window.innerWidth;
+      });
+    await page.goto("/account?section=passkeys");
+    await page.getByRole("button", { name: "Add a passkey" }).click();
+    const add = page.getByRole("dialog", { name: "Add a passkey" });
+    await expect(add).toBeVisible();
+    await page.screenshot({ path: info.outputPath("account-add-passkey.png") });
+    expect(await fits(add)).toBe(true);
+    await page.keyboard.press("Escape");
+
+    await page.goto("/account?section=authenticator");
+    await page.getByRole("button", { name: "Replace authenticator app" }).click();
+    const replace = page.getByRole("dialog", { name: "Replace the authenticator app" });
+    await expect(replace).toBeVisible();
+    await page.screenshot({ path: info.outputPath("account-replace-authenticator.png") });
+    expect(await fits(replace)).toBe(true);
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Create new backup codes" }).click();
+    const codes = page.getByRole("dialog", { name: "Create new backup codes?" });
+    await expect(codes).toBeVisible();
+    expect(await fits(codes)).toBe(true);
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+    expect(problems).toEqual([]);
+  });
 
   test("the add server dialogs fit the screen, with the script and the host key step", async ({
     page,
@@ -181,11 +346,11 @@ test.describe("signed in", () => {
     page,
   }, info) => {
     const problems = watchForProblems(page);
-    // The content area is the viewport minus the sidebar and the page padding (AGENTS.md rule 5).
-    const content = (page.viewportSize()?.width ?? 0) - 320;
     await page.goto("/xdr");
     await expect(page.getByRole("heading", { name: "XDR", level: 1 })).toBeVisible();
     await page.waitForLoadState("networkidle");
+    // The content area is the main area without sidebar and page padding (AGENTS.md rule 5).
+    const content = await contentWidth(page);
     const agents = page
       .locator("section")
       .filter({ has: page.getByRole("heading", { name: "Agents", exact: true }) });
@@ -249,12 +414,12 @@ test.describe("signed in", () => {
       [org?.id, ATTACKS.ips.de],
     );
     try {
-      // The content area is the viewport minus the sidebar and the page padding (AGENTS.md rule 5).
-      const content = (page.viewportSize()?.width ?? 0) - 320;
       await page.goto("/attacks");
       await expect(page.getByRole("heading", { name: "Attacks", level: 1 })).toBeVisible();
       await expect(page.getByTestId("attack-map").locator("svg")).toBeVisible();
       await page.waitForLoadState("networkidle");
+      // The content area is the main area without sidebar and page padding (AGENTS.md rule 5).
+      const content = await contentWidth(page);
       const table = page.getByTestId("attack-table");
       const header = (name: string) => table.getByRole("columnheader", { name, exact: true });
       // Always there.

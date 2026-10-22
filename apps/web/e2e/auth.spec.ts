@@ -41,10 +41,10 @@ test("first-run setup, mandatory TOTP, backup code and TOTP sign-in", async ({ p
   // Wrong password, then the right one.
   await page.getByLabel("Email").fill(OWNER.email);
   await page.getByLabel("Password").fill("not-the-password-123");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveText("Email or password is not correct.");
   await page.getByLabel("Password").fill(OWNER.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
   // Without a second factor the only way forward is enrolment, and the API stays closed.
   await expect(page).toHaveURL(/\/enroll$/);
@@ -96,7 +96,7 @@ test("first-run setup, mandatory TOTP, backup code and TOTP sign-in", async ({ p
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.getByLabel("Email").fill(OWNER.email);
   await page.getByLabel("Password").fill(OWNER.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/two-factor$/);
   expect((await page.request.get("/api/v1/me")).status()).toBe(401);
 
@@ -116,7 +116,7 @@ test("first-run setup, mandatory TOTP, backup code and TOTP sign-in", async ({ p
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.getByLabel("Email").fill(OWNER.email);
   await page.getByLabel("Password").fill(OWNER.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/two-factor$/);
   await nextTotpPeriod(page);
   await page.getByLabel("Code", { exact: true }).fill(totp(secret));

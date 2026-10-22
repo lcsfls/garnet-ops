@@ -13,7 +13,7 @@ import { Badge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
 import { Checkbox } from "./ui/checkbox.tsx";
 import { ConfirmDialog } from "./ui/confirm-dialog.tsx";
-import { Field } from "./ui/field.tsx";
+import { Field, FormRow } from "./ui/field.tsx";
 import { useStepUp } from "./use-step-up.tsx";
 
 const camel = (code: string) => code.replace(/-(\w)/g, (_, c: string) => c.toUpperCase());
@@ -348,7 +348,7 @@ function AiForm({ stored, me }: { stored: Configured | null; me: Me }) {
             ) : null}
           </div>
 
-          <div className="grid gap-4 @xl:grid-cols-2">
+          <FormRow columns={2} from="md">
             <Field
               label={t("ai.maxTokens")}
               hint={t("ai.maxTokensHint")}
@@ -393,7 +393,7 @@ function AiForm({ stored, me }: { stored: Configured | null; me: Me }) {
               value={maxConcurrent}
               onChange={(e) => setMaxConcurrent(e.target.value)}
             />
-          </div>
+          </FormRow>
 
           {probeNote ? <Alert tone={probeNote.tone}>{probeNote.text}</Alert> : null}
 

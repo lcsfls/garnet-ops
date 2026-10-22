@@ -9,7 +9,7 @@ import { Alert } from "./ui/alert.tsx";
 import { Checkbox } from "./ui/checkbox.tsx";
 import { CopyButton } from "./ui/copy-button.tsx";
 import { Dialog } from "./ui/dialog.tsx";
-import { Field } from "./ui/field.tsx";
+import { Field, FormField, FormRow } from "./ui/field.tsx";
 import { Select } from "./ui/select.tsx";
 
 const OS_OPTIONS = ["debian", "rhel", "suse", "windows", "macos"] as const;
@@ -87,37 +87,29 @@ export function EnrollmentHelper({ idPrefix = "enroll" }: { idPrefix?: string })
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-4 @xl:grid-cols-2">
-        <label className="grid gap-1.5">
-          <span className="text-sm font-medium">{t("xdr.enrollOs")}</span>
-          <Select
-            id={`${idPrefix}-os`}
-            className="w-full"
-            value={os}
-            onChange={(e) => setOs(e.currentTarget.value as typeof os)}
-          >
-            {OS_OPTIONS.map((o) => (
-              <option key={o} value={o}>
-                {t(`xdr.enrollOsOption.${o}`)}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="grid gap-1.5">
-          <span className="text-sm font-medium">{t("xdr.enrollArch")}</span>
-          <Select
-            id={`${idPrefix}-arch`}
-            className="w-full"
-            value={arch}
-            onChange={(e) => setArch(e.currentTarget.value as typeof arch)}
-          >
-            {ARCH_OPTIONS.map((o) => (
-              <option key={o} value={o}>
-                {t(`xdr.enrollArchOption.${o}`)}
-              </option>
-            ))}
-          </Select>
-        </label>
+      <FormRow columns={2} from="md">
+        <FormField id={`${idPrefix}-os`} label={t("xdr.enrollOs")}>
+          {(control) => (
+            <Select {...control} value={os} onChange={(e) => setOs(e.currentTarget.value as typeof os)}>
+              {OS_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {t(`xdr.enrollOsOption.${o}`)}
+                </option>
+              ))}
+            </Select>
+          )}
+        </FormField>
+        <FormField id={`${idPrefix}-arch`} label={t("xdr.enrollArch")}>
+          {(control) => (
+            <Select {...control} value={arch} onChange={(e) => setArch(e.currentTarget.value as typeof arch)}>
+              {ARCH_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {t(`xdr.enrollArchOption.${o}`)}
+                </option>
+              ))}
+            </Select>
+          )}
+        </FormField>
         <Field
           id={`${idPrefix}-group`}
           label={t("xdr.enrollGroup")}
@@ -143,7 +135,7 @@ export function EnrollmentHelper({ idPrefix = "enroll" }: { idPrefix?: string })
           spellCheck={false}
           className="font-mono text-sm"
         />
-      </div>
+      </FormRow>
       <label className="flex items-start gap-2.5">
         <Checkbox
           className="mt-1"

@@ -8,6 +8,7 @@ import { env } from "./env.ts";
 import { requestBodyLimit } from "./lib/body-limit.ts";
 import { type AppEnv, requireActor } from "./lib/context.ts";
 import { handleError, ProblemError } from "./lib/problem.ts";
+import { accountRoutes } from "./routes/account.ts";
 import { aiRoutes } from "./routes/ai.ts";
 import { attackRoutes } from "./routes/attacks.ts";
 import { auditRoutes } from "./routes/audit.ts";
@@ -99,6 +100,7 @@ export const app = new Hono()
 const v1 = new Hono<AppEnv>()
   .use("*", requireActor)
   .route("/me", meRoutes)
+  .route("/account", accountRoutes)
   .route("/overview", overviewRoutes)
   .route("/repositories", repositoryRoutes)
   .route("/scans", scanRoutes)

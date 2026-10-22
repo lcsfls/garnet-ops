@@ -62,8 +62,11 @@ paginated findings, and every number on the overview leads to its details.
 - [x] Auth: better-auth, local accounts, Argon2id, mandatory TOTP, first-run
       setup creates the first admin, open sign-up disabled; web screens with
       end-to-end tests
-- [ ] Passkeys (WebAuthn with user verification) as a second factor
-- [ ] Recovery for a lost second factor (admin reset via CLI, audit-logged)
+- [x] Passkeys (WebAuthn with user verification) as a second factor and sign-in method: add, rename, remove
+      (never the last factor), sign-in page, second step and step-up (ADR 0017, `docs/account.md`)
+- [x] Account page: profile, language and time zone, password, replacing the authenticator app, backup codes,
+      sessions (ADR 0017). Still open: changing the email address
+- [x] Recovery for a lost second factor (operator CLI in the API container, audit-logged; never in the web UI)
 - [~] Audit log: sign-in events (failed ones included), setup, repository,
       finding and settings changes; read-only view for owners and admins,
       ordered by sequence number. Still open: tamper-evident hash chain

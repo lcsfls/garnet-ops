@@ -3,7 +3,14 @@ import { queryOptions } from "@tanstack/react-query";
 import { ApiError, api } from "./api.ts";
 
 export interface Me {
-  user: { id: string; name: string; email: string };
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    /** Saved on the account; null follows this browser (ADR 0017). */
+    locale: "en" | "de" | null;
+    timeZone: string | null;
+  };
   organization: {
     id: string;
     name: string;
