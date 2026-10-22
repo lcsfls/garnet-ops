@@ -111,6 +111,30 @@ describe.skipIf(!adminUrl)("AI triage in the worker", () => {
     if (name === "broken-server") return void res.writeHead(500).end("stack trace with /srv/secret");
     if (name === "redirect")
       return void res.writeHead(302, { location: `http://127.0.0.1:${httpPort}/elsewhere` }).end();
+    if (name === "reasoning") {
+      // A reasoning model that spent the token limit on thinking: no text at all.
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          choices: [
+            { message: { content: null, reasoning_content: "Let me think" }, finish_reason: "length" },
+          ],
+        }),
+      );
+      return;
+    }
+    if (name === "parts") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ choices: [{ message: { content: [{ type: "text", text: "ok" }] } }] }));
+      return;
+    }
+    if (name === "sse-plain") {
+      // Streams whatever was asked for, under a plain-text content type.
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      const reply = body?.stream === false ? "ok" : JSON.stringify(TRIAGE);
+      res.end(`${pieces(reply, 17).map(delta).join("")}data: [DONE]\n\n`);
+      return;
+    }
     if (body?.stream === false) {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ choices: [{ message: { content: "ok" } }] }));
@@ -608,6 +632,13 @@ describe.skipIf(!adminUrl)("AI triage in the worker", () => {
     });
   });
 
+  it("reads a stream sent with a plain-text content type", async () => {
+    await configure("sse-plain");
+    const s = await seedMessage();
+    await mod.runGeneration(s.messageId);
+    expect(await message(s.messageId)).toMatchObject({ status: "complete", content: JSON.stringify(TRIAGE) });
+  });
+
   it("fails when the connection is cut in the middle of an answer, keeping what arrived", async () => {
     await configure("cut");
     const s = await seedMessage({ kind: "chat", prior: [{ role: "user", content: "Q" }] });
@@ -942,6 +973,18 @@ describe.skipIf(!adminUrl)("AI triage in the worker", () => {
         stream: false,
         max_tokens: 16,
         messages: [{ role: "user", content: "Reply with the single word: ok" }],
+      });
+    });
+
+    it("accepts the answers of reasoning models, content parts and streams under another content type", async () => {
+      expect((await probe("test", { model: "reasoning" }))?.result).toMatchObject({
+        ok: true,
+        replyChars: 0,
+      });
+      expect((await probe("test", { model: "parts" }))?.result).toMatchObject({ ok: true, replyChars: 2 });
+      expect((await probe("test", { model: "sse-plain" }))?.result).toMatchObject({
+        ok: true,
+        replyChars: 2,
       });
     });
 

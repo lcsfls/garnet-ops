@@ -19,17 +19,20 @@ import { type ClientRequest, request as httpRequest, type IncomingMessage } from
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { networkInterfaces } from "node:os";
-import { AI_LIMITS, type AiError, parseChatChunk, SseParser } from "@garnetops/core/ai";
+import { AI_LIMITS, type AiError, looksLikeSse, parseChatChunk, SseParser } from "@garnetops/core/ai";
 import { decideEndpoint, endpointHost } from "@garnetops/core/ai-endpoint";
 
 /** A failure with a short code that is safe to store and show. */
 export class ModelError extends Error {
   readonly code: AiError;
   readonly status: number | null;
-  constructor(code: AiError, status: number | null = null) {
+  /** The system or TLS error code behind it (e.g. ECONNREFUSED), for the log only; never a message. */
+  readonly systemCode: string | null;
+  constructor(code: AiError, status: number | null = null, systemCode: string | null = null) {
     super(code);
     this.code = code;
     this.status = status;
+    this.systemCode = systemCode;
   }
 }
 
@@ -102,12 +105,14 @@ const CONNECT_ATTEMPTS = 4;
 function mapNetworkError(error: unknown): ModelError {
   if (error instanceof ModelError) return error;
   const code = (error as NodeJS.ErrnoException | undefined)?.code ?? "";
-  if (code === "ETIMEDOUT" || code === "ESOCKETTIMEDOUT") return new ModelError("timeout");
-  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return new ModelError("unresolvable");
+  // Only the code, which is an identifier like ECONNRESET, is kept; error messages can carry addresses.
+  const cause = /^[A-Z0-9_]{1,64}$/.test(code) ? code : null;
+  if (code === "ETIMEDOUT" || code === "ESOCKETTIMEDOUT") return new ModelError("timeout", null, cause);
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return new ModelError("unresolvable", null, cause);
   if (/CERT|SELF_SIGNED|UNABLE_TO_VERIFY|DEPTH_ZERO|ERR_TLS|ERR_SSL|HOSTNAME_MISMATCH|ERR_OSSL/.test(code)) {
-    return new ModelError("tls");
+    return new ModelError("tls", null, cause);
   }
-  return new ModelError("connection-failed");
+  return new ModelError("connection-failed", null, cause);
 }
 
 /** Resolves the host of the base URL and decides whether this endpoint may be used. */
@@ -331,10 +336,29 @@ export async function streamChat(
   try {
     const contentType = String(res.headers["content-type"] ?? "").toLowerCase();
     if (!contentType.includes("event-stream")) {
-      // A server that ignores `stream: true` and answers with one JSON document.
       const body = await readLimited(res, 1024 * 1024, limits.idleMs);
+      if (looksLikeSse(body)) {
+        // A stream sent with another content type (text/plain, or none at all).
+        const parser = new SseParser();
+        for (const event of [...parser.push(body), ...parser.end()]) {
+          const chunk = parseChatChunk(event.data);
+          if (!chunk) continue;
+          good++;
+          if (chunk.error) throw new ModelError("http-error");
+          if (chunk.usage) result.usage = chunk.usage;
+          if (chunk.finish) result.finish = chunk.finish;
+          if (chunk.done) break;
+          if (!(await emit(chunk.delta))) break;
+        }
+        if (good === 0) throw new ModelError("invalid-response");
+        result.finish ??= "stop";
+        return result;
+      }
+      // A server that ignores `stream: true` and answers with one JSON document.
       const chunk = parseChatChunk(body);
-      if (!chunk || (!chunk.delta && !chunk.usage)) throw new ModelError("invalid-response");
+      if (chunk?.error) throw new ModelError("http-error");
+      if (!chunk || (!chunk.delta && !chunk.usage && !chunk.message && !chunk.finish))
+        throw new ModelError("invalid-response");
       await emit(chunk.delta);
       result.usage = chunk.usage ?? null;
       result.finish = chunk.finish ?? "stop";
@@ -456,13 +480,21 @@ export async function testCompletion(
     const failed = statusError(res.statusCode ?? 0, res);
     if (failed) throw failed;
     const body = await readLimited(res, 256 * 1024, totalMs);
+    // Any well-formed answer proves the model is there. A reasoning model may spend the few tokens
+    // of the test on thinking and return no text (content null), and some servers stream although
+    // `stream: false` was asked for, or send the content as a list of parts.
     let reply: string | undefined;
-    try {
-      const json = JSON.parse(body) as { choices?: { message?: { content?: unknown } }[] };
-      const content = json.choices?.[0]?.message?.content;
-      if (typeof content === "string") reply = content;
-    } catch {
-      // handled below
+    const chunks = looksLikeSse(body)
+      ? (() => {
+          const parser = new SseParser();
+          return [...parser.push(body), ...parser.end()].map((e) => parseChatChunk(e.data));
+        })()
+      : [parseChatChunk(body)];
+    for (const chunk of chunks) {
+      if (!chunk || chunk.done) continue;
+      if (chunk.error) throw new ModelError("http-error");
+      if (chunk.delta !== undefined || chunk.message || chunk.finish)
+        reply = (reply ?? "") + (chunk.delta ?? "");
     }
     if (reply === undefined) throw new ModelError("invalid-response");
     return {

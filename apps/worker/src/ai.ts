@@ -358,6 +358,7 @@ export async function runGeneration(messageId: string): Promise<void> {
     code = error instanceof ModelError ? error.code : "internal";
     // Never log messages: a parser error can quote the model's text.
     if (!(error instanceof ModelError)) console.error(`ai ${row.id}: ${(error as Error)?.name ?? "error"}`);
+    else console.warn(`ai ${row.id}: ${describeModelError(error)}`);
   } finally {
     clearInterval(poll);
   }
@@ -383,6 +384,11 @@ export async function runGeneration(messageId: string): Promise<void> {
 /* -------------------------------------------------------------------------- */
 /* Probes: load models, test connection                                        */
 /* -------------------------------------------------------------------------- */
+
+/** "connection-failed (ECONNRESET)", "http-error 502": codes only, safe to log. */
+function describeModelError(error: ModelError): string {
+  return `${error.code}${error.status ? ` ${error.status}` : ""}${error.systemCode ? ` (${error.systemCode})` : ""}`;
+}
 
 /** Runs one queued probe and writes its result; keys typed for the probe are deleted afterwards. */
 export async function runProbe(probeId: string): Promise<void> {
@@ -411,6 +417,7 @@ export async function runProbe(probeId: string): Promise<void> {
     const code: AiError = error instanceof ModelError ? error.code : "internal";
     if (!(error instanceof ModelError))
       console.error(`ai probe ${probe.id}: ${(error as Error)?.name ?? "error"}`);
+    else console.warn(`ai probe ${probe.id}: ${describeModelError(error)}`);
     result = { ok: false, error: code, status: error instanceof ModelError ? error.status : null };
   }
   await db.update(schema.aiProbe).set({ status: "done", result }).where(eq(schema.aiProbe.id, probe.id));

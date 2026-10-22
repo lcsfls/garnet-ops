@@ -583,6 +583,36 @@ export interface ChatChunk {
   done?: boolean;
   /** The server reported an error inside the stream. */
   error?: boolean;
+  /** The choice carries a message or delta object, even if its text is empty (a reasoning model's
+   * thinking, or a reply cut off by the token limit). */
+  message?: boolean;
+}
+
+/**
+ * The text of a message or delta `content`: a string, or the list of parts some servers send
+ * (`[{ "type": "text", "text": "…" }]`). Other part types (images, reasoning) are left out.
+ */
+export function contentText(content: unknown): string | undefined {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return undefined;
+  let text = "";
+  for (const part of content.slice(0, 1000)) {
+    if (typeof part === "string") text += part;
+    else if (part && typeof part === "object") {
+      const p = part as Record<string, unknown>;
+      if (
+        (p.type === undefined || p.type === "text" || p.type === "output_text") &&
+        typeof p.text === "string"
+      )
+        text += p.text;
+    }
+  }
+  return text;
+}
+
+/** True when a chat completion answer arrived as server-sent events (whatever its content type said). */
+export function looksLikeSse(body: string): boolean {
+  return /^\s*(data|event|id|retry)?:/.test(body);
 }
 
 const count = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
@@ -613,14 +643,12 @@ export function parseChatChunk(data: string): ChatChunk | null {
     const delta = choice.delta as Record<string, unknown> | undefined;
     const message = choice.message as Record<string, unknown> | undefined;
     const piece =
-      typeof delta?.content === "string"
-        ? delta.content
-        : typeof message?.content === "string"
-          ? message.content
-          : typeof choice.text === "string"
-            ? choice.text
-            : undefined;
+      contentText(delta?.content) ??
+      contentText(message?.content) ??
+      (typeof choice.text === "string" ? choice.text : undefined);
     if (piece) chunk.delta = piece;
+    if ((delta && typeof delta === "object") || (message && typeof message === "object"))
+      chunk.message = true;
     if (typeof choice.finish_reason === "string") chunk.finish = choice.finish_reason;
   }
   const usage = obj.usage as Record<string, unknown> | null | undefined;

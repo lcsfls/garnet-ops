@@ -4,6 +4,8 @@ import {
   buildContext,
   buildMessages,
   cleanUntrusted,
+  contentText,
+  looksLikeSse,
   parseChatChunk,
   parseTriageResult,
   partialJsonString,
@@ -417,23 +419,49 @@ describe("server-sent events", () => {
 
 describe("chat chunks", () => {
   it("reads deltas, usage and the end marker", () => {
-    expect(parseChatChunk('{"choices":[{"delta":{"content":"Hi"}}]}')).toEqual({ delta: "Hi" });
+    expect(parseChatChunk('{"choices":[{"delta":{"content":"Hi"}}]}')).toEqual({
+      delta: "Hi",
+      message: true,
+    });
     expect(
       parseChatChunk(
         '{"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}',
       ),
     ).toEqual({
       finish: "stop",
+      message: true,
       usage: { prompt: 10, completion: 5 },
     });
     expect(parseChatChunk("[DONE]")).toEqual({ done: true });
     expect(parseChatChunk('{"choices":[{"text":"old style"}]}')).toEqual({ delta: "old style" });
   });
   it("ignores reasoning fields and rejects anything that is not the expected shape", () => {
-    expect(parseChatChunk('{"choices":[{"delta":{"reasoning_content":"thinking"}}]}')).toEqual({});
+    // The thinking itself is never shown, but the chunk still counts as a well-formed answer.
+    expect(parseChatChunk('{"choices":[{"delta":{"reasoning_content":"thinking"}}]}')).toEqual({
+      message: true,
+    });
     for (const bad of ["", "oops", "{broken", "[1]", '"str"', "{}", '{"foo":1}', "null"])
       expect(parseChatChunk(bad), bad).toBeNull();
     expect(parseChatChunk('{"error":{"message":"boom"}}')).toEqual({ error: true });
+  });
+  it("reads content sent as a list of parts and a reply cut off while thinking", () => {
+    expect(
+      parseChatChunk(
+        '{"choices":[{"message":{"content":[{"type":"text","text":"o"},{"type":"image_url","image_url":{}},{"type":"text","text":"k"}]}}]}',
+      ),
+    ).toEqual({ delta: "ok", message: true });
+    expect(
+      parseChatChunk(
+        '{"choices":[{"message":{"content":null,"reasoning_content":"…"},"finish_reason":"length"}]}',
+      ),
+    ).toEqual({ message: true, finish: "length" });
+    expect(contentText(["a", { text: "b" }, { type: "reasoning", text: "no" }, 3])).toBe("ab");
+    expect(contentText(null)).toBeUndefined();
+  });
+  it("recognises a stream whatever its content type says", () => {
+    expect(looksLikeSse('data: {"choices":[]}\n\n')).toBe(true);
+    expect(looksLikeSse(": keep-alive\n\ndata: [DONE]\n")).toBe(true);
+    expect(looksLikeSse('{"choices":[]}')).toBe(false);
   });
   it("does not trust numbers", () => {
     expect(parseChatChunk('{"choices":[],"usage":{"prompt_tokens":"9","completion_tokens":-1}}')).toEqual({
