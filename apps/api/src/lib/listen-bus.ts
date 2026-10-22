@@ -28,6 +28,8 @@ class ListenBus {
     string,
     Set<{ notice: (payload: string) => void; resync: () => void }>
   >();
+  /** LISTEN per channel, so every subscriber waits for the same confirmation, not only the first. */
+  private readonly listening = new Map<string, Promise<void>>();
   private retry: NodeJS.Timeout | null = null;
 
   /** Starts watching a channel. Resolves once PostgreSQL confirmed LISTEN, so nothing after it is missed. */
@@ -39,15 +41,24 @@ class ListenBus {
     if (!CHANNEL.test(channel)) throw new Error("Invalid channel name");
     const subscriber = { notice, resync };
     let set = this.channels.get(channel);
-    const first = !set;
     if (!set) {
       set = new Set();
       this.channels.set(channel, set);
     }
     set.add(subscriber);
     try {
-      const client = await this.connect();
-      if (first) await client.query(`LISTEN "${channel}"`);
+      let ready = this.listening.get(channel);
+      if (!ready) {
+        const started = this.connect().then(async (client) => {
+          await client.query(`LISTEN "${channel}"`);
+        });
+        ready = started;
+        this.listening.set(channel, started);
+        started.catch(() => {
+          if (this.listening.get(channel) === started) this.listening.delete(channel);
+        });
+      }
+      await ready;
     } catch (error) {
       this.remove(channel, subscriber);
       throw error;
@@ -61,6 +72,7 @@ class ListenBus {
     set.delete(subscriber as never);
     if (set.size === 0) {
       this.channels.delete(channel);
+      this.listening.delete(channel);
       this.client?.query(`UNLISTEN "${channel}"`).catch(() => {});
     }
   }
@@ -119,6 +131,7 @@ class ListenBus {
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     this.channels.clear();
+    this.listening.clear();
     const client = this.client;
     this.client = null;
     if (client) {

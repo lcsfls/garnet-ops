@@ -243,9 +243,19 @@ describe.skipIf(!adminUrl)("AI routes", () => {
   beforeEach(async () => {
     queue.sent.length = 0;
     queue.failSend = false;
-    await t.pool.query(
-      "truncate rate_limit, audit_log, ai_probe, finding_note, chat_message, chat_thread, ai_settings restart identity",
-    );
+    // A stream of the previous test can still be reading these tables while it winds down; the
+    // truncate then loses a deadlock now and then. Try again instead of failing the test.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await t.pool.query(
+          "truncate rate_limit, audit_log, ai_probe, finding_note, chat_message, chat_thread, ai_settings restart identity",
+        );
+        break;
+      } catch (error) {
+        if ((error as { code?: string }).code !== "40P01" || attempt >= 5) throw error;
+        await new Promise((r) => setTimeout(r, 50 * attempt));
+      }
+    }
     await t.pool.query("delete from secret");
   });
 
@@ -1024,6 +1034,22 @@ describe.skipIf(!adminUrl)("AI routes", () => {
       expect(final?.data).toMatchObject({ id, status: "complete", content: "Hello wörld 😀" });
       expect((await stream.next())?.event).toBe("done");
       expect(await stream.next()).toBeNull(); // the server ended the stream
+    });
+
+    it("delivers to every stream that opened at the same moment, not only the first", async () => {
+      const finding = await seedFinding();
+      const thread = await seedThread(finding, [{ status: "streaming" }]);
+      const id = thread.ids[0] as string;
+      // Both subscribe to the same channel concurrently: the second must also wait for LISTEN.
+      const [a, b] = await Promise.all([open(thread.id), open(thread.id)]).then((rs) => rs.map(reader));
+      expect((await a?.next())?.event).toBe("snapshot");
+      expect((await b?.next())?.event).toBe("snapshot");
+      await workerWrites(thread.id, id, "both");
+      expect(await a?.next()).toEqual({ event: "delta", data: { id, from: 0, text: "both" } });
+      expect(await b?.next()).toEqual({ event: "delta", data: { id, from: 0, text: "both" } });
+      await workerFinishes(thread.id, id);
+      await a?.cancel();
+      await b?.cancel();
     });
 
     it("resumes from the stored text when a client reconnects in the middle of an answer", async () => {
