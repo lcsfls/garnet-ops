@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { AiSettingsPanel } from "../../components/ai-settings-panel.tsx";
 import { systemQuery } from "../../components/app-shell.tsx";
 import { AttacksPanel } from "../../components/attacks-panel.tsx";
+import { DirectoryPanel } from "../../components/directory-panel.tsx";
 import { isAdmin } from "../../components/nav.ts";
 import { NotificationsPanel } from "../../components/notifications-panel.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
@@ -43,6 +44,7 @@ interface Organization {
 
 const SECTION_LABELS = {
   scanning: "settings.sectionScanning",
+  signin: "settings.sectionSignin",
   notifications: "settings.sectionNotifications",
   proxmox: "settings.sectionProxmox",
   xdr: "settings.sectionXdr",
@@ -65,16 +67,18 @@ function SettingsPage() {
   const { me } = Route.useRouteContext();
   const search = Route.useSearch();
   const admin = isAdmin(me);
-  // Updates, notifications, Proxmox, XDR, attacks and AI are an installation matter: only owners and admins see them.
+  // Updates, notifications, Proxmox, XDR, attacks and AI are an installation matter: only owners and admins see
+  // them. Sign-in (the directory) is for owners alone (ADR 0020).
   const sections = SETTINGS_SECTIONS.filter(
     (s) =>
-      (s !== "updates" &&
+      (s === "signin" ? me.role === "owner" : true) &&
+      ((s !== "updates" &&
         s !== "notifications" &&
         s !== "proxmox" &&
         s !== "xdr" &&
         s !== "attacks" &&
         s !== "ai") ||
-      admin,
+        admin),
   );
   const section = search.section && sections.includes(search.section) ? search.section : "scanning";
 
@@ -99,6 +103,7 @@ function SettingsPage() {
         {/* The column is its own container: the panels in it size their rows by its width. */}
         <div data-testid="settings-form" className="@container grid min-w-0 gap-4">
           {section === "scanning" ? <ScanningSection canEdit={admin} /> : null}
+          {section === "signin" ? <DirectoryPanel me={me} /> : null}
           {section === "notifications" ? <NotificationsPanel me={me} /> : null}
           {section === "proxmox" ? <ProxmoxPanel me={me} /> : null}
           {section === "xdr" ? <XdrPanel me={me} /> : null}
@@ -117,6 +122,12 @@ const HELP: Record<SettingsSection, { title: MessageKey; text: MessageKey }[]> =
   scanning: [
     { title: "settings.helpNightlyTitle", text: "settings.helpNightlyText" },
     { title: "settings.helpSandboxTitle", text: "settings.helpSandboxText" },
+  ],
+  signin: [
+    { title: "directory.helpPasswordTitle", text: "directory.helpPasswordText" },
+    { title: "directory.helpOwnersTitle", text: "directory.helpOwnersText" },
+    { title: "directory.helpRolesTitle", text: "directory.helpRolesText" },
+    { title: "directory.helpLimitsTitle", text: "directory.helpLimitsText" },
   ],
   notifications: [
     { title: "settings.helpNotifyContentTitle", text: "settings.helpNotifyContentText" },

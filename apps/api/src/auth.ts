@@ -10,6 +10,8 @@ import { db } from "./db.ts";
 import { env, isProduction } from "./env.ts";
 import { audit } from "./lib/audit.ts";
 import { auditAuthEvent, organizationOf } from "./lib/auth-audit.ts";
+import { isDirectoryEmail } from "./lib/directory-accounts.ts";
+import { directoryAuth } from "./lib/directory-auth.ts";
 import { clientIp } from "./lib/ip.ts";
 import { cleanPasskeyName, PASSKEY_NAME_MAX, passkeyOptions } from "./lib/passkey-policy.ts";
 import { STEP_UP_MAX_AGE_SECONDS } from "./lib/step-up.ts";
@@ -30,6 +32,9 @@ import { STEP_UP_MAX_AGE_SECONDS } from "./lib/step-up.ts";
  *   endpoints are closed here so they cannot be used around it;
  * - every sign-in, second-factor check, enrolment and sign-out is audit-logged,
  *   failed attempts included (lib/auth-audit.ts);
+ * - signing in with a directory (LDAP, Active Directory) is a plugin of its own (lib/directory-auth.ts, ADR 0020):
+ *   same sessions, same mandatory second factor; directory accounts have no local password and cannot use the
+ *   local sign-in;
  * - rate limits are stored in Postgres so restarts do not reset them.
  */
 
@@ -85,6 +90,18 @@ const beforeAuth = createAuthMiddleware(async (ctx) => {
       message: "This is done on the account page",
       code: "USE_ACCOUNT_PAGE",
     });
+  }
+  if (ctx.path === "/sign-in/email" && typeof ctx.body?.email === "string" && ctx.body.email.length <= 254) {
+    // An account that comes from the directory has no local password, and none may be used for it.
+    if (await isDirectoryEmail(ctx.body.email)) {
+      // Same work as for a wrong password, so the answer does not give the account type away.
+      await hashPassword("x".repeat(16));
+      await auditAuthEvent(ctx, true);
+      throw new APIError("UNAUTHORIZED", {
+        message: "Invalid email or password",
+        code: "INVALID_EMAIL_OR_PASSWORD",
+      });
+    }
   }
   if (STEP_UP_ENDPOINTS.has(ctx.path)) {
     const session = await getSessionFromCtx(ctx);
@@ -181,7 +198,10 @@ export const auth = betterAuth({
   telemetry: { enabled: false },
   hooks: { before: beforeAuth, after: afterAuth },
   plugins: [
-    twoFactor({ issuer: "GarnetOps", skipVerificationOnEnable: false }),
+    // `allowPasswordless`: an account without a local password (a directory account) enrols its authenticator app
+    // without one; an account that has a password is still asked for it.
+    twoFactor({ issuer: "GarnetOps", skipVerificationOnEnable: false, allowPasswordless: true }),
+    directoryAuth(),
     passkey(
       passkeyOptions(env.PUBLIC_URL, async (credentialId) => {
         await db

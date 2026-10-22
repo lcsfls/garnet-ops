@@ -49,6 +49,8 @@ function NameCard({ profile }: { profile: AccountOverview["profile"] }) {
   const refresh = useRefreshMe();
   const [name, setName] = useState(profile.name);
   const [error, setError] = useState<string | null>(null);
+  // The name of a directory account comes from the directory (ADR 0020).
+  const directory = profile.source === "directory";
   const save = useMutation({
     mutationFn: (value: string) => api("/account/profile", { method: "PATCH", body: { name: value } }),
     onSuccess: async () => {
@@ -72,11 +74,14 @@ function NameCard({ profile }: { profile: AccountOverview["profile"] }) {
         {error ? <Alert tone="error">{error}</Alert> : null}
         <Field
           label={t("account.profile.name")}
+          hint={directory ? t("account.profile.nameManaged") : undefined}
           name="name"
           required
           maxLength={100}
           autoComplete="name"
           value={name}
+          readOnly={directory}
+          className={directory ? "bg-muted text-muted-foreground" : undefined}
           onChange={(e) => setName(e.target.value)}
         />
         <Field
@@ -88,14 +93,16 @@ function NameCard({ profile }: { profile: AccountOverview["profile"] }) {
           value={profile.email}
           className="bg-muted text-muted-foreground"
         />
-        <div className="flex items-center gap-3">
-          <Button
-            type="submit"
-            disabled={save.isPending || name.trim() === "" || name.trim() === profile.name}
-          >
-            {save.isPending ? t("common.loading") : t("account.profile.save")}
-          </Button>
-        </div>
+        {directory ? null : (
+          <div className="flex items-center gap-3">
+            <Button
+              type="submit"
+              disabled={save.isPending || name.trim() === "" || name.trim() === profile.name}
+            >
+              {save.isPending ? t("common.loading") : t("account.profile.save")}
+            </Button>
+          </div>
+        )}
       </form>
     </Card>
   );

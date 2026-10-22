@@ -28,6 +28,8 @@ export const QUEUES = {
   xdrSummary: "xdr.summary",
   /** Attack overview (ADR 0016): the optional AI summary of the aggregates. */
   attackSummary: "attacks.summary",
+  /** Directory sign-in (ADR 0020): a request only the worker can answer, because only it opens the service account's password. */
+  directory: "directory.request",
   /** AI triage (ADR 0013): one job per answer, and probes for "load models" and "test connection". */
   aiGenerate: "ai.generate",
   aiProbe: "ai.probe",

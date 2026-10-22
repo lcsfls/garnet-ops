@@ -72,8 +72,8 @@ paginated findings, and every number on the overview leads to its details.
       ordered by sequence number. Still open: tamper-evident hash chain
       (ADR 0005), export
 - [x] Roles in practice: invitations, member management, role changes (all
-      audit-logged), step-up for team changes (ADR 0009). Still open: invitation mail
-      (with the mail module), SSO and LDAP sign-in
+      audit-logged), step-up for team changes (ADR 0009). Directory accounts take their role from
+      their groups (ADR 0020). Still open: invitation mail (with the mail module), OIDC/OAuth sign-in
 - [~] Secrets vault: envelope encryption with hybrid post-quantum key
       wrapping (X25519 + ML-KEM-1024, ADR 0004), used for forge tokens;
       key rotation open
@@ -225,7 +225,14 @@ See ADR 0002 and ADR 0004.
 - [~] In-app notifications: bell, toasts and a per-person matrix with personal mail (ADR 0019,
       `docs/notifications.md`). Still open: quiet hours, a page with all notifications, "update available",
       notifications for new vulnerabilities on servers, cutting an open stream when a session is revoked
-- [ ] SSO (OIDC/OAuth) and LDAP with allowed-domain registration
+- [~] SSO (OIDC/OAuth) and LDAP with allowed-domain registration. LDAP and Active Directory sign-in done: owners'
+      settings with a connection test, LDAPS or StartTLS with certificate store, own CA or pinned certificate, a sealed
+      read-only service account (opened by the worker only), allowed groups with roles (nested groups for Active
+      Directory), accounts linked by the directory's unique ID, explicit linking of existing accounts, mandatory
+      second factor, roles re-read at sign-in and every 15 minutes, limits below directory lock-outs (ADR 0020,
+      `docs/ldap.md`). Still open: OIDC/OAuth providers with allowed domains, tests against real Active Directory,
+      OpenLDAP and FreeIPA (a fake LDAP server only), Kerberos/SASL, several directories, unlinking, an admin-triggered
+      check
 - [ ] Multi-tenant mode for MSPs, fine-grained permissions
 - [ ] Compliance reports (NIS2, ISO 27001 mapping)
 - [ ] Signed releases, published SBOM, hosted offering

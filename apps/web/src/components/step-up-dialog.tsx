@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { accountQuery } from "../lib/account.ts";
-import { authClient, authErrorKey } from "../lib/auth-client.ts";
+import { authClient, authErrorKey, directorySignIn } from "../lib/auth-client.ts";
 import type { MessageKey } from "../lib/i18n.ts";
 import { PASSKEY_FAILURE_KEYS, passkeysSupported, signInWithPasskey } from "../lib/passkeys.ts";
 import { Alert } from "./ui/alert.tsx";
@@ -37,6 +37,9 @@ export function StepUpDialog({
   // A passkey (with user verification) confirms it is you as well as a password and a code.
   const account = useQuery({ ...accountQuery, enabled: open });
   const hasPasskey = (account.data?.secondFactor.passkeys.length ?? 0) > 0 && passkeysSupported();
+  // A directory account confirms with its directory name and password (ADR 0020).
+  const directory = account.data?.profile.source === "directory";
+  const loginName = account.data?.profile.loginName ?? "";
 
   async function withPasskey() {
     setBusy(true);
@@ -74,10 +77,12 @@ export function StepUpDialog({
     setError(null);
     try {
       if (stage === "password") {
-        const { data, error } = await authClient.signIn.email({
-          email,
-          password: String(form.get("password")),
-        });
+        const { data, error } = directory
+          ? await directorySignIn(String(form.get("username") ?? loginName), String(form.get("password")))
+          : await authClient.signIn.email({
+              email,
+              password: String(form.get("password")),
+            });
         if (error) return setError(authErrorKey(error));
         if (!(data && "twoFactorRedirect" in data && data.twoFactorRedirect))
           return setError("errors.generic");
@@ -103,6 +108,18 @@ export function StepUpDialog({
       <form className="grid gap-4" onSubmit={submit}>
         {error ? <Alert tone="error">{t(error)}</Alert> : null}
         {stage === "code" ? <Alert tone="info">{t("stepUp.passwordAccepted")}</Alert> : null}
+        {stage === "password" && directory ? (
+          <Field
+            label={t("signIn.username")}
+            name="username"
+            required
+            defaultValue={loginName}
+            autoComplete="username"
+            autoCapitalize="off"
+            spellCheck={false}
+            maxLength={128}
+          />
+        ) : null}
         {stage === "password" ? (
           <Field
             label={t("common.password")}

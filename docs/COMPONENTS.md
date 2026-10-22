@@ -75,6 +75,8 @@ npm packages, so its upstream repository still has to be checked.
 | @types/nodemailer | 8.0.2 | MIT | verified | https://github.com/DefinitelyTyped/DefinitelyTyped | nodemailer type definitions (dev) | |
 | ssh2 | 1.17.0 | MIT | verified | https://github.com/mscdex/ssh2 | Local SSH test server for the SSH clone and server inventory tests (dev only) | Pulls in asn1 (MIT), bcrypt-pbkdf (BSD-3-Clause), tweetnacl (Unlicense), safer-buffer (MIT); optional native add-ons (cpu-features, nan, buildcheck; MIT) are not built (`allowBuilds: false`) |
 | @types/ssh2 | 1.15.6 | MIT | verified | https://github.com/DefinitelyTyped/DefinitelyTyped | ssh2 type definitions (dev) | |
+| ldapts | 9.2.0 | MIT | verified (LICENSE of 9.2.0) | https://github.com/ldapts/ldapts | LDAP client in the worker for the directory sign-in (ADR 0020): bind, search and the message and filter classes. The worker hands it a socket whose TLS trust it decided itself; its own TLS defaults are not relied on. The fake LDAP server of the tests (`apps/worker/test/fake-ldap.ts`) is built on its message classes (dev) | One dependency: strict-event-emitter-types. Needs Node 22 or newer. Pinned exactly; released 2026-09-15 |
+| strict-event-emitter-types | 2.0.0 | ISC | verified (package.json) | https://github.com/bterlson/typed-event-emitter | Type-only helper of ldapts: nothing of it is imported at run time (ldapts' `dist` has no reference to it) | `package.json` declares ISC, but the npm package ships no license file: read the upstream repository's license file before the first release |
 | OpenSSH client | system | BSD-style (OpenSSH licence) | n/a | https://www.openssh.com | SSH transport for git clones with deploy keys; `ssh` and `ssh-keyscan` for the server inventory and host key scan (ADR 0011) | Invoked as a separate binary by git, never linked |
 | grype | 0.120.1 | Apache-2.0 | verified | https://github.com/anchore/grype | Dependency scanning (SCA), separate binary run by the worker | Downloaded by `scripts/fetch-scanners.mjs` with pinned SHA-256 checksums |
 | syft | 1.55.0 | Apache-2.0 | verified | https://github.com/anchore/syft | SBOM / package inventory of every scan, separate binary run by the worker | Downloaded by `scripts/fetch-scanners.mjs` with pinned SHA-256 checksums from the release checksums file (its sigstore bundle not verified yet: no cosign on the dev machine); network lookups disabled |
@@ -179,7 +181,7 @@ Decided in ADR 0003; components move to "In use today (application)" when they a
 | Component | Version | License | Check | Source | Status | Use | Notes |
 |---|---|---|---|---|---|---|---|
 | better-auth SSO / generic OAuth plugins | with core | MIT | to verify | https://www.better-auth.com/docs/plugins/sso | planned | OIDC/OAuth sign-in (Entra ID, Keycloak, Authentik, Google Workspace, Forgejo, GitHub) | Allowed-domain enforcement on our side |
-| ldapts | latest | MIT | to verify | https://github.com/ldapts/ldapts | candidate | LDAP / Active Directory bind and group lookup | better-auth has no first-party LDAP provider; verify before building our own credential provider |
+| ldapts | 9.2.0 | MIT | verified | https://github.com/ldapts/ldapts | in use | LDAP / Active Directory bind and group lookup | See "In use" above; better-auth has no first-party LDAP provider, so the sign-in is our own plugin (ADR 0020) |
 
 ## Planned: forge integrations (repository linking)
 
@@ -216,3 +218,4 @@ Decided in ADR 0003; components move to "In use today (application)" when they a
 | Google Fonts (CDN) | OFL fonts, but remote delivery | Rule 3: all assets self-hosted; also leaks visitor IPs to a third party | 2026-10-19 |
 | Inter, JetBrains Mono (mockup v1) | SIL OFL 1.1 | Replaced by Inter Tight and IBM Plex Mono to match Restow | 2026-10-19 |
 | unpkg / jsDelivr at runtime | n/a | Rule 3: no runtime CDNs | 2026-10-19 |
+| ldapjs (also as a test server) | MIT | Archived and deprecated by its maintainers, and its server half is not needed: the LDAP test server is built on the message classes ldapts already exports (ADR 0020) | 2026-10-22 |

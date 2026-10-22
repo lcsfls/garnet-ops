@@ -55,7 +55,14 @@ export type SecretPurpose =
   | "wazuh-api-password"
   | "wazuh-indexer-password"
   /** The customer's own API key for an OSINT provider such as AbuseIPDB (ADR 0016); opened by the worker only. */
-  | "osint-api-key";
+  | "osint-api-key"
+  /**
+   * The read-only service account of the directory sign-in (ADR 0020). Sealed by the API, opened only by the
+   * worker, which makes every directory connection: the web-facing API never holds this password in the clear.
+   */
+  | "ldap-bind-password"
+  /** A directory password typed at sign-in, sealed for the worker for the length of one request and then deleted. */
+  | "ldap-user-password";
 
 export interface SecretBinding {
   organizationId: string;

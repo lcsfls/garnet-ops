@@ -15,6 +15,7 @@
     "@garnetops/db": "workspace:*",
     "@garnetops/i18n": "workspace:*",
     "drizzle-orm": "^0.45.4",
+    "ldapts": "9.2.0",
     "nodemailer": "^10.1.7",
     "pg-boss": "^12.38.0",
     "zod": "^3.25.0"

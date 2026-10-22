@@ -97,6 +97,7 @@ export function AuthenticatorSection({ email }: { email: string }) {
 
       <ReplaceDialog
         open={replacing}
+        managed={query.data.profile.source === "directory"}
         stepUp={stepUp}
         onClose={() => setReplacing(false)}
         onReplaced={async () => {
@@ -122,11 +123,14 @@ export function AuthenticatorSection({ email }: { email: string }) {
 
 function ReplaceDialog({
   open,
+  managed,
   stepUp,
   onClose,
   onReplaced,
 }: {
   open: boolean;
+  /** A directory account has no local password; the recent sign-in is the proof (ADR 0020). */
+  managed: boolean;
   stepUp: ReturnType<typeof useStepUp>;
   onClose: () => void;
   onReplaced: () => void;
@@ -146,7 +150,7 @@ function ReplaceDialog({
 
   const begin = useMutation({
     mutationFn: (password: string) =>
-      api<{ uri: string }>("/account/totp/begin", { method: "POST", body: { password } }),
+      api<{ uri: string }>("/account/totp/begin", { method: "POST", body: managed ? {} : { password } }),
     onSuccess: (result) => setUri(result.uri),
     onError: (e, password) => {
       if (stepUp.handled(e, () => begin.mutate(password))) return;
@@ -184,7 +188,7 @@ function ReplaceDialog({
   function submitPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    begin.mutate(String(new FormData(event.currentTarget).get("password")));
+    begin.mutate(managed ? "" : String(new FormData(event.currentTarget).get("password")));
   }
   function submitCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -239,13 +243,17 @@ function ReplaceDialog({
       ) : (
         <form className="grid gap-4" onSubmit={submitPassword}>
           {error ? <Alert tone="error">{error}</Alert> : null}
-          <Field
-            label={t("common.password")}
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-          />
+          {managed ? (
+            <p className="text-sm text-muted-foreground">{t("account.authenticator.managedStart")}</p>
+          ) : (
+            <Field
+              label={t("common.password")}
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+            />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={close}>
               {t("common.cancel")}

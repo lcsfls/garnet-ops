@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,7 +9,7 @@ import { Button } from "../components/ui/button.tsx";
 import { Checkbox } from "../components/ui/checkbox.tsx";
 import { CopyButton } from "../components/ui/copy-button.tsx";
 import { Field } from "../components/ui/field.tsx";
-import { authClient, authErrorKey } from "../lib/auth-client.ts";
+import { authClient, authErrorKey, directoryMe } from "../lib/auth-client.ts";
 import { guard } from "../lib/guard.ts";
 import type { MessageKey } from "../lib/i18n.ts";
 
@@ -32,6 +32,12 @@ function Enroll() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>({ kind: "password" });
+  // A directory account has no local password to ask for (ADR 0020).
+  const account = useQuery({
+    queryKey: ["directory-me"],
+    queryFn: async () => (await directoryMe()).data?.managed === true,
+  });
+  const managed = account.data === true;
   const [error, setError] = useState<MessageKey | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -48,7 +54,7 @@ function Enroll() {
 
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const password = String(new FormData(event.currentTarget).get("password"));
+    const password = managed ? "" : String(new FormData(event.currentTarget).get("password"));
     setBusy(true);
     setError(null);
     const { data, error } = await authClient.twoFactor.enable({ password });
@@ -75,17 +81,23 @@ function Enroll() {
 
   if (step.kind === "password") {
     return (
-      <AuthLayout title={t("enroll.title")} description={t("enroll.description")} footer={footer}>
+      <AuthLayout
+        title={t("enroll.title")}
+        description={managed ? t("enroll.descriptionDirectory") : t("enroll.description")}
+        footer={footer}
+      >
         <form className="grid gap-4" onSubmit={start}>
           {error ? <Alert tone="error">{t(error)}</Alert> : null}
-          <Field
-            label={t("common.password")}
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-          />
-          <Button type="submit" disabled={busy}>
+          {managed ? null : (
+            <Field
+              label={t("common.password")}
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+            />
+          )}
+          <Button type="submit" disabled={busy || account.isLoading}>
             {busy ? t("common.loading") : t("enroll.start")}
           </Button>
         </form>

@@ -76,6 +76,18 @@ export default defineConfig({
         timezoneId: "Europe/Berlin",
       },
     },
+    // Directory sign-in (ADR 0020): the settings, directory accounts, mandatory second factor, linking, pinning.
+    {
+      name: "directory",
+      testMatch: /directory\.spec\.ts/,
+      dependencies: ["notifications"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1920, height: 1080 },
+        locale: "en-US",
+        timezoneId: "Europe/Berlin",
+      },
+    },
     // Layout baseline (AGENTS.md rule 5): 1080p at 100 %, 125 % and 150 % Windows scaling,
     // a small 1100 px window, and 1440p, where the xwide step (more columns and panes) starts.
     ...[
@@ -88,7 +100,7 @@ export default defineConfig({
     ].map((viewport) => ({
       name: `layout-${viewport.width}x${viewport.height}`,
       testMatch: /layout\.spec\.ts/,
-      dependencies: ["notifications"],
+      dependencies: ["directory"],
       use: { ...devices["Desktop Chrome"], viewport, locale: "en-US", timezoneId: "Europe/Berlin" },
     })),
   ],
@@ -142,6 +154,20 @@ export default defineConfig({
         DATABASE_URL: E2E.databaseUrl,
         E2E_FORGE_PORT: String(E2E.forgePort),
         E2E_FORGE_CONTROL_PORT: String(E2E.forgeControlPort),
+      },
+    },
+    // The directory part of the worker with a fake Active Directory (ADR 0020).
+    {
+      command: "corepack pnpm --filter @garnetops/worker exec tsx test/e2e-directory-worker.ts",
+      url: `http://127.0.0.1:${E2E.directoryControlPort}/state`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        ...E2E.dev,
+        NODE_ENV: "test",
+        DATABASE_URL: E2E.databaseUrl,
+        E2E_DIRECTORY_PORT: String(E2E.directoryPort),
+        E2E_DIRECTORY_CONTROL_PORT: String(E2E.directoryControlPort),
       },
     },
     {

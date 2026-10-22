@@ -4,6 +4,12 @@ import { AI_PROBE_QUEUE, AI_QUEUE, runGeneration, runProbe, sweepAi } from "./ai
 import { ATTACK_SUMMARY_QUEUE, runAttackSummary, sweepAttackSummaries } from "./attack-summary.ts";
 import { startAttacksScheduler } from "./attacks.ts";
 import { pool } from "./db.ts";
+import {
+  DIRECTORY_QUEUE,
+  runDirectoryRequest,
+  startDirectoryReconcile,
+  sweepDirectory,
+} from "./directory.ts";
 import { env } from "./env.ts";
 import {
   checkWriteAccess,
@@ -44,6 +50,7 @@ import {
 import { runWazuhSummary, sweepWazuhSummaries, WAZUH_SUMMARY_QUEUE } from "./wazuh-summary.ts";
 
 const AI_CONCURRENCY = 4;
+const DIRECTORY_CONCURRENCY = 4;
 
 await mkdir(env.GARNETOPS_WORK_DIR, { recursive: true });
 const boss = new PgBoss({ connectionString: env.DATABASE_URL, application_name: "garnetops-worker-queue" });
@@ -65,6 +72,7 @@ await boss.createQueue(ATTACK_SUMMARY_QUEUE);
 await boss.createQueue(FIX_PR_QUEUE);
 await boss.createQueue(FIX_PR_CHECK_QUEUE);
 await boss.createQueue(FIX_PR_REFRESH_QUEUE);
+await boss.createQueue(DIRECTORY_QUEUE);
 
 for (let i = 0; i < env.GARNETOPS_SCAN_CONCURRENCY; i++) {
   await boss.work<{ scanId: string }>(QUEUE, { batchSize: 1 }, async ([job]) => {
@@ -163,6 +171,21 @@ const attackSweep = setInterval(
   () => sweepAttackSummaries().catch((error: Error) => console.error("attack sweep:", error.name)),
   60_000,
 );
+// Directory sign-in (ADR 0020): the worker is the only process that opens the service account's password, so it
+// makes every connection to the directory. A person waits for the answer, so this queue is polled twice a second.
+for (let i = 0; i < DIRECTORY_CONCURRENCY; i++) {
+  await boss.work<{ requestId: string }>(
+    DIRECTORY_QUEUE,
+    { batchSize: 1, pollingIntervalSeconds: 0.5 },
+    async ([job]) => {
+      if (job) await runDirectoryRequest(job.data.requestId);
+    },
+  );
+}
+const directorySweep = setInterval(
+  () => sweepDirectory().catch((error: Error) => console.error("directory sweep:", error.name)),
+  60_000,
+);
 // Fix pull requests (ADR 0014): the worker is the only process that opens the write token. No retries:
 // a second attempt could open a second pull request, so a failure is stored on the request instead.
 for (let i = 0; i < 2; i++) {
@@ -185,16 +208,19 @@ await startScheduler(boss);
 await startProxmoxScheduler(boss);
 await startWazuhScheduler(boss);
 await startAttacksScheduler(boss);
+const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();
 const stopUserNotifications = startUserNotificationUpkeep();
 console.log(`worker: ready (${env.GARNETOPS_SCAN_CONCURRENCY} scan slots, nightly schedule active)`);
 
 async function shutdown() {
+  stopDirectoryReconcile();
   stopVulnDbUpdates();
   stopUserNotifications();
   clearInterval(aiSweep);
   clearInterval(wazuhSweep);
   clearInterval(attackSweep);
+  clearInterval(directorySweep);
   await boss.stop({ graceful: true, timeout: 30_000 }).catch(() => {});
   await pool.end().catch(() => {});
   process.exit(0);

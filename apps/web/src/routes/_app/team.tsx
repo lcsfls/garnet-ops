@@ -2,9 +2,10 @@ import { ROLES, type Role } from "@garnetops/core";
 import { canAssignRole, canManageMember } from "@garnetops/core/team";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Trash2, UserPlus, Users } from "lucide-react";
+import { Link2, Trash2, UserPlus, Users } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LinkDirectoryDialog } from "../../components/link-directory-dialog.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import { Alert } from "../../components/ui/alert.tsx";
@@ -18,6 +19,7 @@ import { Field } from "../../components/ui/field.tsx";
 import { Select } from "../../components/ui/select.tsx";
 import { useStepUp } from "../../components/use-step-up.tsx";
 import { ApiError, api } from "../../lib/api.ts";
+import { directoryQuery } from "../../lib/directory.ts";
 import { formatDate, formatDateTime, formatRelative } from "../../lib/format.ts";
 import type { Me } from "../../lib/session.ts";
 import { toast } from "../../lib/toast.ts";
@@ -39,6 +41,8 @@ interface Member {
   twoFactorEnabled: boolean;
   lastSignInAt: string | null;
   joinedAt: string;
+  /** `directory`: signs in with the directory and the role comes from its groups (ADR 0020). */
+  source: "local" | "directory";
 }
 interface Invitation {
   id: string;
@@ -55,6 +59,8 @@ function useTeamError() {
     if (!(error instanceof ApiError)) return t("errors.network");
     if (error.code === "already-member") return t("team.errorAlreadyMember");
     if (error.code === "last-owner") return t("team.errorLastOwner");
+    if (error.code === "managed-by-directory") return t("team.errorManaged");
+    if (error.code === "directory-account") return t("team.errorDirectoryAccount");
     if (error.status === 403) return t("team.errorForbidden");
     return t("errors.actionFailed");
   };
@@ -94,7 +100,11 @@ function Members({ me }: { me: Me }) {
   const stepUp = useStepUp(me.user.email);
   const members = useQuery({ queryKey: ["team-members"], queryFn: () => api<Member[]>("/team/members") });
   const [removing, setRemoving] = useState<Member | null>(null);
+  const [linking, setLinking] = useState<Member | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Only owners see the directory settings, and only they may link an account (ADR 0020).
+  const directory = useQuery({ ...directoryQuery, enabled: me.role === "owner" });
+  const canLink = me.role === "owner" && directory.data?.settings?.enabled === true;
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["team-members"] });
 
   const changeRole = useMutation({
@@ -133,6 +143,7 @@ function Members({ me }: { me: Me }) {
             <tr className="border-b">
               <th className="px-5 py-2.5 font-medium">{t("team.columnPerson")}</th>
               <th className="px-3 py-2.5 font-medium">{t("team.columnRole")}</th>
+              <th className="hidden px-3 py-2.5 font-medium @3xl:table-cell">{t("team.columnSource")}</th>
               <th className="hidden px-3 py-2.5 font-medium @3xl:table-cell">
                 {t("team.columnSecondFactor")}
               </th>
@@ -146,7 +157,9 @@ function Members({ me }: { me: Me }) {
           <tbody>
             {members.data.map((member) => {
               const self = member.userId === me.user.id;
-              const manageable = !self && canManageMember(me.role, member.role);
+              const managed = member.source === "directory";
+              // A directory account's role and access come from its groups; changing them here would be undone at the next sign-in.
+              const manageable = !self && !managed && canManageMember(me.role, member.role);
               return (
                 <tr key={member.userId} className="border-b align-top last:border-0">
                   <td className="px-5 py-3">
@@ -157,12 +170,15 @@ function Members({ me }: { me: Me }) {
                       ) : null}
                     </div>
                     <div className="text-sm break-all text-muted-foreground">{member.email}</div>
-                    {/* Narrow screens: the second factor moves here instead of disappearing. */}
-                    {!member.twoFactorEnabled ? (
-                      <div className="mt-1 @3xl:hidden">
+                    {/* Narrow screens: the source and the second factor move here instead of disappearing. */}
+                    <div className="mt-1 flex flex-wrap gap-1.5 @3xl:hidden">
+                      <Badge tone={managed ? "info" : "neutral"}>
+                        {managed ? t("team.sourceDirectory") : t("team.sourceLocal")}
+                      </Badge>
+                      {!member.twoFactorEnabled ? (
                         <Badge tone="medium">{t("team.secondFactorPending")}</Badge>
-                      </div>
-                    ) : null}
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-3 py-3">
                     {manageable ? (
@@ -181,9 +197,34 @@ function Members({ me }: { me: Me }) {
                           </option>
                         ))}
                       </Select>
+                    ) : managed ? (
+                      <>
+                        {/* Read only: the groups in the directory decide, and the next sign-in would undo a change. */}
+                        <Select
+                          aria-label={t("team.roleOf", { name: member.name })}
+                          aria-describedby={`role-from-groups-${member.userId}`}
+                          value={member.role}
+                          disabled
+                          className="max-w-40"
+                        >
+                          <option value={member.role}>{t(`team.roles.${member.role}`)}</option>
+                        </Select>
+                        <div
+                          id={`role-from-groups-${member.userId}`}
+                          className="mt-1 max-w-48 text-[13px] text-muted-foreground"
+                          data-testid="role-from-groups"
+                        >
+                          {t("team.roleFromGroups")}
+                        </div>
+                      </>
                     ) : (
                       <Badge tone="neutral">{t(`team.roles.${member.role}`)}</Badge>
                     )}
+                  </td>
+                  <td className="hidden px-3 py-3 @3xl:table-cell">
+                    <Badge tone={managed ? "info" : "neutral"}>
+                      {managed ? t("team.sourceDirectory") : t("team.sourceLocal")}
+                    </Badge>
                   </td>
                   <td className="hidden px-3 py-3 @3xl:table-cell">
                     <Badge tone={member.twoFactorEnabled ? "neutral" : "medium"}>
@@ -204,7 +245,18 @@ function Members({ me }: { me: Me }) {
                     )}
                   </td>
                   <td className="hidden px-3 py-3 text-sm @wide:table-cell">{formatDate(member.joinedAt)}</td>
-                  <td className="px-5 py-2 text-right">
+                  <td className="px-5 py-2 text-right whitespace-nowrap">
+                    {canLink && !self && !managed && member.role !== "owner" ? (
+                      <Button
+                        variant="ghost"
+                        className="h-9 px-2.5"
+                        aria-label={t("team.linkAction", { name: member.name })}
+                        title={t("team.link")}
+                        onClick={() => setLinking(member)}
+                      >
+                        <Link2 aria-hidden="true" className="size-4" />
+                      </Button>
+                    ) : null}
                     {manageable ? (
                       <Button
                         variant="ghost"
@@ -239,6 +291,11 @@ function Members({ me }: { me: Me }) {
         }
         onConfirm={() => removing && remove.mutate(removing.userId)}
         onClose={() => setRemoving(null)}
+      />
+      <LinkDirectoryDialog
+        member={linking}
+        currentUserEmail={me.user.email}
+        onClose={() => setLinking(null)}
       />
       {stepUp.dialog}
     </Card>

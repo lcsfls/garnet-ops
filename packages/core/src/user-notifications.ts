@@ -122,6 +122,7 @@ export const TITLE_EVENTS = {
   hostKeyChanged: "infra.host_key_changed",
   certificateChangedProxmox: "infra.certificate_changed",
   certificateChangedXdr: "infra.certificate_changed",
+  certificateChangedDirectory: "infra.certificate_changed",
   syncBlockedProxmox: "infra.sync_blocked",
   syncBlockedXdr: "infra.sync_blocked",
   invitationAccepted: "team.invitation_accepted",

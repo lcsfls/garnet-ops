@@ -355,6 +355,8 @@ export const secret = pgTable(
         "wazuh-api-password",
         "wazuh-indexer-password",
         "osint-api-key",
+        "ldap-bind-password",
+        "ldap-user-password",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -1797,6 +1799,133 @@ export const findingNote = pgTable(
     index("finding_note_finding_idx").on(t.findingId, t.createdAt),
     uniqueIndex("finding_note_message_uq").on(t.messageId),
   ],
+);
+
+/* -------------------------------------------------------------------------- */
+/* Directory sign-in: LDAP and Active Directory (ADR 0020)                      */
+/* -------------------------------------------------------------------------- */
+
+/** What the first contact with a server's TLS certificate showed, or what an admin pinned (SHA-256 of the leaf). */
+export interface DirectoryCertificate {
+  fingerprint: string;
+  subject: string;
+  issuer: string;
+  validFrom: string;
+  validTo: string;
+}
+
+/** One configured directory server. `pin` is what an admin confirmed; `candidate` waits for that confirmation. */
+export interface DirectoryServerRow {
+  url: string;
+  pin: (DirectoryCertificate & { confirmedAt: string; confirmedBy: string | null }) | null;
+  candidate: (DirectoryCertificate & { trusted: boolean; seenAt: string }) | null;
+  /** `changed`: a certificate other than the pin was presented. Sign-in through this server is refused until an admin confirms it. */
+  certStatus: "pending" | "confirmed" | "changed";
+}
+
+/**
+ * The organisation's directory (LDAP or Active Directory) for sign-in. The service account's
+ * password is sealed in `secret` (purpose "ldap-bind-password"): the API seals it, only the worker
+ * opens it, so only the worker talks to the directory. One row per organisation.
+ */
+export const ldapConfig = pgTable("ldap_config", {
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  /** Off until an admin switches it on after a successful test; a stored configuration alone signs nobody in. */
+  enabled: boolean("enabled").notNull().default(false),
+  preset: text("preset", { enum: ["active-directory", "openldap", "custom"] }).notNull(),
+  servers: jsonb("servers").$type<DirectoryServerRow[]>().notNull().default([]),
+  tlsTrust: text("tls_trust", { enum: ["system", "ca", "pin"] })
+    .notNull()
+    .default("system"),
+  caCertificate: text("ca_certificate").notNull().default(""),
+  bindDn: text("bind_dn").notNull(),
+  bindSecretId: text("bind_secret_id").references(() => secret.id, { onDelete: "set null" }),
+  userBaseDn: text("user_base_dn").notNull(),
+  userFilter: text("user_filter").notNull(),
+  emailAttribute: text("email_attribute").notNull().default("mail"),
+  nameAttribute: text("name_attribute").notNull().default("cn"),
+  uniqueIdAttribute: text("unique_id_attribute").notNull(),
+  groupMode: text("group_mode", { enum: ["member-of", "nested", "search"] }).notNull(),
+  groupFilter: text("group_filter").notNull().default(""),
+  groupRoles: jsonb("group_roles")
+    .$type<{ dn: string; role: "admin" | "member" | "viewer" }[]>()
+    .notNull()
+    .default([]),
+  /** Whether the directory's mail addresses count as verified (`user.email_verified`). */
+  emailVerified: boolean("email_verified").notNull().default(false),
+  connectTimeoutSeconds: integer("connect_timeout_seconds").notNull().default(5),
+  operationTimeoutSeconds: integer("operation_timeout_seconds").notNull().default(10),
+  sizeLimit: integer("size_limit").notNull().default(50),
+  /** The last successful connection test with these settings; any change that matters clears it. Enabling needs it. */
+  testedAt: timestamp("tested_at", { withTimezone: true }),
+  /** Set when the directory refused the service account's password: no further attempts until then, so GarnetOps cannot lock the account. */
+  bindBlockedUntil: timestamp("bind_blocked_until", { withTimezone: true }),
+  updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * The link between an account and a person in the directory: the directory's immutable unique id
+ * (`objectGUID`, `entryUUID`), never the mail address. An account with a row here is a directory
+ * account: its role comes from groups and it has no local password.
+ */
+export const directoryIdentity = pgTable(
+  "directory_identity",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    uniqueId: text("unique_id").notNull(),
+    /** The DN at the last sign-in. Informational: it changes when the person is moved. */
+    dn: text("dn").notNull(),
+    /** The name typed at the last sign-in; offered again when the person confirms it is them (step-up). */
+    loginName: text("login_name").notNull(),
+    /** The admin who linked an existing local account; null when the account was created by the first sign-in. */
+    linkedBy: text("linked_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    lastSignInAt: timestamp("last_sign_in_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("directory_identity_unique_id_uq").on(t.organizationId, t.uniqueId),
+    uniqueIndex("directory_identity_user_uq").on(t.userId),
+  ],
+);
+
+/**
+ * A request the API cannot answer itself because only the worker opens the service account's
+ * password: a sign-in, a connection test, a look-up of a person for linking, or reading a
+ * server's certificate. The API queues it, the worker writes `result`, the API reads it and
+ * deletes the row; the worker sweeps what is left. A password typed at sign-in is sealed in
+ * `secret` (purpose "ldap-user-password") and deleted by the worker the moment it takes the
+ * request, whatever happens next.
+ */
+export const directoryRequest = pgTable(
+  "directory_request",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["sign-in", "test", "lookup", "certificate"] }).notNull(),
+    /** `{ username }` for a sign-in, test or look-up; `{ url }` for a certificate. Never a password. */
+    params: jsonb("params").$type<Record<string, string>>().notNull().default({}),
+    passwordSecretId: text("password_secret_id").references(() => secret.id, { onDelete: "set null" }),
+    status: text("status", { enum: ["pending", "running", "done"] })
+      .notNull()
+      .default("pending"),
+    /** A SignInResult or TestResult (packages/core/src/directory.ts); never a password. */
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("directory_request_created_idx").on(t.createdAt)],
 );
 
 /* -------------------------------------------------------------------------- */

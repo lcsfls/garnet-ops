@@ -640,6 +640,65 @@ describe.skipIf(!adminUrl)("account API", () => {
     });
   });
 
+  describe("accounts that come from the directory (ADR 0020)", () => {
+    /** A member without a local password who is linked to the directory. */
+    async function addDirectoryUser() {
+      const u = await addUser();
+      await t.db.delete(schema.account).where(eq(schema.account.userId, u.id));
+      await t.db.insert(schema.directoryIdentity).values({
+        id: `di_${u.id}`,
+        organizationId: ORG,
+        userId: u.id,
+        uniqueId: `uid-${u.id}`,
+        dn: "CN=Someone,OU=Users,DC=example,DC=lan",
+        loginName: "someone",
+      });
+      return u;
+    }
+
+    it("the overview says where the account comes from and offers the directory name", async () => {
+      const local = await addUser();
+      const remote = await addDirectoryUser();
+      expect((await call("GET", "", { user: local.id })).json?.profile).toMatchObject({
+        source: "local",
+        loginName: null,
+      });
+      expect((await call("GET", "", { user: remote.id })).json?.profile).toMatchObject({
+        source: "directory",
+        loginName: "someone",
+      });
+    });
+
+    it("the password is managed by the directory and cannot be set here", async () => {
+      const u = await addDirectoryUser();
+      const r = await call("POST", "/password", {
+        user: u.id,
+        body: { currentPassword: "anything-long-enough", newPassword: NEW_PASSWORD },
+      });
+      expect(r.status).toBe(409);
+      expect(code(r)).toBe("managed-by-directory");
+      // No local password appeared.
+      expect(await t.db.select().from(schema.account).where(eq(schema.account.userId, u.id))).toEqual([]);
+    });
+
+    it("replacing the authenticator app needs the recent sign-in, not a password the account does not have", async () => {
+      const u = await addDirectoryUser();
+      const stale = await call("POST", "/totp/begin", { user: u.id, age: STALE, body: {} });
+      expect(code(stale)).toBe("step-up-required");
+      const r = await call("POST", "/totp/begin", { user: u.id, body: {} });
+      expect(r.status).toBe(200);
+      expect(String(r.json?.uri)).toContain("otpauth://totp/");
+    });
+
+    it("a local account still has to give its password to replace the authenticator app", async () => {
+      const u = await addUser();
+      expect((await call("POST", "/totp/begin", { user: u.id, body: {} })).status).toBe(422);
+      expect(
+        (await call("POST", "/totp/begin", { user: u.id, body: { password: "wrong-password-long" } })).status,
+      ).toBe(400);
+    });
+  });
+
   describe("recovery of a lost second factor (operator CLI)", () => {
     it("removes the authenticator app, the passkeys and the sessions, keeps the password, and audits it", async () => {
       const { inspectSecondFactor, resetSecondFactor } = await import("../lib/second-factor-reset.ts");

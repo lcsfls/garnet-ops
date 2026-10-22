@@ -56,3 +56,9 @@ Outgoing mail does not exist yet (ROADMAP Phase 5).
 - New Admin page "Team" and a public page `/invite`.
 - Members whose access was removed appear in the audit log with their name, and can be
   invited again.
+
+## Later changes
+
+- ADR 0020 adds directory accounts (LDAP, Active Directory). Their role comes from directory groups, so changing it or
+  removing them on the Team page, and inviting their address, are refused (409 `managed-by-directory`,
+  `directory-account`); owners are always local accounts.

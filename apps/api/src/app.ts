@@ -12,6 +12,7 @@ import { accountRoutes } from "./routes/account.ts";
 import { aiRoutes } from "./routes/ai.ts";
 import { attackRoutes } from "./routes/attacks.ts";
 import { auditRoutes } from "./routes/audit.ts";
+import { directoryRoutes } from "./routes/directory.ts";
 import { findingRoutes } from "./routes/findings.ts";
 import { fixRoutes } from "./routes/fixes.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
@@ -29,6 +30,7 @@ import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
 import { searchRoutes } from "./routes/search.ts";
 import { setupRoutes } from "./routes/setup.ts";
+import { signInOptionsRoutes } from "./routes/sign-in-options.ts";
 import { systemRoutes } from "./routes/system.ts";
 import { teamRoutes } from "./routes/team.ts";
 import { maintenanceRoutes, updateRoutes } from "./routes/updates.ts";
@@ -93,6 +95,8 @@ export const app = new Hono()
   .route("/api/v1/gate", gateCiRoutes)
   .use("/api/v1/*", sameOrigin)
   .route("/api/v1/setup", setupRoutes)
+  // The sign-in page asks what it may offer (the directory) before anyone is signed in (ADR 0020).
+  .route("/api/v1/sign-in-options", signInOptionsRoutes)
   // The host setup script is downloaded by a server, which has no session (ADR 0011).
   .route("/api/v1/host-setup", hostSetupPublicRoutes)
   // Accepting an invitation happens before the person has an account (ADR 0009).
@@ -116,6 +120,7 @@ const v1 = new Hono<AppEnv>()
   .route("/audit-log", auditRoutes)
   .route("/system", systemRoutes)
   .route("/team", teamRoutes)
+  .route("/directory", directoryRoutes)
   .route("/notifications", notificationRoutes)
   .route("/hosts", hostRoutes)
   .route("/proxmox", proxmoxRoutes)

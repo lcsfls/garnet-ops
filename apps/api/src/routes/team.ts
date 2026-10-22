@@ -9,6 +9,7 @@ import { db } from "../db.ts";
 import { env } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type Actor, type AppEnv, requireRole } from "../lib/context.ts";
+import { isDirectoryEmail } from "../lib/directory-accounts.ts";
 import { notifyUsers } from "../lib/notify-users.ts";
 import { forbidden, notFound, ProblemError } from "../lib/problem.ts";
 import { requireRecentSignIn } from "../lib/step-up.ts";
@@ -53,6 +54,14 @@ async function guardChange(actor: Actor, userId: string, nextRole: Role | null) 
   requireRole(actor, "admin");
   if (userId === actor.userId) throw forbidden("You cannot change your own membership");
   const target = await memberOf(actor.organizationId, userId);
+  // Access of a directory account is the directory's decision: a role set or a removal here would be undone at the next sign-in.
+  if (await isDirectoryEmail(target.email)) {
+    throw new ProblemError(
+      409,
+      "managed-by-directory",
+      "This account's role comes from its directory groups",
+    );
+  }
   if (!canManageMember(actor.role, target.role)) throw forbidden(`Only owners can change a ${target.role}`);
   if (nextRole && !canAssignRole(actor.role, nextRole)) throw forbidden(`Only owners can grant ${nextRole}`);
   if (target.role === "owner" && nextRole !== "owner" && (await ownerCount(actor.organizationId)) <= 1) {
@@ -84,13 +93,22 @@ export const teamRoutes = new Hono<AppEnv>()
         email: schema.user.email,
         twoFactorEnabled: schema.user.twoFactorEnabled,
         lastSignInAt: lastSession.at,
+        directoryIdentityId: schema.directoryIdentity.id,
       })
       .from(m)
       .innerJoin(schema.user, eq(schema.user.id, m.userId))
       .leftJoin(lastSession, eq(lastSession.userId, m.userId))
+      .leftJoin(schema.directoryIdentity, eq(schema.directoryIdentity.userId, m.userId))
       .where(eq(m.organizationId, actor.organizationId))
       .orderBy(schema.user.name);
-    return c.json(rows.map((r) => ({ ...r, twoFactorEnabled: Boolean(r.twoFactorEnabled) })));
+    return c.json(
+      rows.map(({ directoryIdentityId, ...r }) => ({
+        ...r,
+        twoFactorEnabled: Boolean(r.twoFactorEnabled),
+        /** Where the account comes from: `directory` accounts sign in with the directory and their role follows their groups (ADR 0020). */
+        source: directoryIdentityId ? ("directory" as const) : ("local" as const),
+      })),
+    );
   })
   .patch("/members/:userId", async (c) => {
     const actor = c.get("actor");
@@ -176,6 +194,10 @@ export const teamRoutes = new Hono<AppEnv>()
       .where(and(eq(m.organizationId, actor.organizationId), eq(schema.user.email, input.email)))
       .limit(1);
     if (member) throw new ProblemError(409, "already-member", "This address already belongs to a member");
+    // A person who signs in with the directory gets their access from its groups, not from an invitation.
+    if (await isDirectoryEmail(input.email)) {
+      throw new ProblemError(409, "directory-account", "This person signs in with the directory");
+    }
 
     const token = randomBytes(32).toString("base64url");
     const id = newId("inv");

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auth } from "../auth.ts";
 import { db, pool } from "../db.ts";
 import { audit } from "../lib/audit.ts";
+import { isDirectoryAccount } from "../lib/directory-accounts.ts";
 import { clientIp } from "../lib/ip.ts";
 import { notifyUsers } from "../lib/notify-users.ts";
 import { ProblemError } from "../lib/problem.ts";
@@ -91,6 +92,8 @@ export const invitationRoutes = new Hono()
       const existing = await existingAccount(row.email);
       let userId: string;
       if (existing) {
+        // A directory account has no password to set and its access comes from its groups.
+        if (await isDirectoryAccount(existing.id)) throw gone();
         const [member] = await db
           .select({ organizationId: schema.membership.organizationId })
           .from(schema.membership)

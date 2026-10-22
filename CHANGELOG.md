@@ -431,6 +431,30 @@ Security-relevant changes are listed under **Security** in every release.
 - Visual mockup `mockup.html` covering overview, findings with streamed AI
   triage, repositories, quality gates, fix proposals, servers, live attack
   globe and settings.
+- Sign in with **LDAP and Active Directory** (ADR 0020, `docs/ldap.md`). Owners set it up under **Settings → Sign-in**:
+  servers (`ldaps://`, or `ldap://` upgraded with StartTLS before anything is sent; plain LDAP does not exist),
+  certificate trust (certificate store, own CA, or the pinned SHA-256 of the server certificate confirmed on first
+  contact like Proxmox), a read-only service account (its password sealed in the vault, readable only by the worker),
+  search base and user filter, mail/name/unique-ID attributes, presets for Active Directory and OpenLDAP, group modes
+  (`memberOf`, Active Directory nested groups through the matching rule `1.2.840.113556.1.4.1941`, or a search filter
+  for `groupOfNames`/`posixGroup`) and **allowed groups with a role each** (highest role wins; owners are never set by
+  the directory). A **connection test** shows every server, whether each group exists, and for a user name the entry,
+  mail, unique ID, matched groups and the role the person would get, never a password. Untested settings never go
+  live: switching on needs a successful test with a person, and a change to how the directory is reached switches it
+  off. The sign-in page offers **Directory account** (user name and password); a person in none of the allowed groups
+  gets no account and the same message as for a wrong password. Accounts are linked by the directory's immutable unique
+  ID, never by mail address; an existing local account with the same address is refused with an entry for the
+  administrators and linked only explicitly by an owner on the Team page. The mandatory second factor is unchanged
+  (enrolment at the first sign-in without a password prompt, then code or passkey). Roles are re-read at every sign-in
+  and by a check every 15 minutes, which also ends the sessions of someone who left every allowed group, is deleted
+  or no longer matches the user filter (nothing changes while the directory cannot be asked). Directory accounts have
+  no local password, their role is read-only on the Team page ("Set by the directory groups") and the Team page has a
+  Source column (Local, Directory). Migration 0018 (additive: `ldap_config`, `directory_identity`,
+  `directory_request`). API (additive): `GET/PUT /api/v1/directory`, `POST /api/v1/directory/{test,lookup,link}`,
+  `POST /api/v1/directory/certificates/{scan,confirm}`, public `GET /api/v1/sign-in-options`, `source` on
+  `GET /api/v1/team/members`, `profile.source` and `profile.loginName` on `GET /api/v1/account`, and the better-auth
+  endpoints `POST /api/auth/sign-in/username` and `GET /api/auth/directory/me`. New audit actions `auth.directory_sign_in`
+  and `directory.*` (filter "Directory"). New dependency in the worker: ldapts 9.2.0 (MIT). In English and German.
 
 ### Fixed
 
@@ -527,6 +551,18 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Security
 
+- Directory sign-in (ADR 0020): the web-facing API never holds the service account's password or a key for it, only
+  the worker opens it, and a typed password lives sealed in one row for about a second and is deleted by the worker
+  the moment it takes the request. LDAP injection: user names are limited to a safe character set and escaped per
+  RFC 4515 into the filter; exactly one result below the search base counts; the bind DN comes from the directory.
+  An empty password is refused in the API and again in the worker (no unauthenticated bind); anonymous binds never
+  happen. TLS 1.2+ or StartTLS always, trust decided before the first LDAP byte (store, own CA or pinned leaf), a
+  changed pinned certificate refused, audited and announced; the server address goes through the SSRF policy. Failed
+  attempts are limited below typical directory lock-outs (3 per name and 20 per address in 15 minutes, only failures
+  counted, no directory contact once limited; the service account is paused 10 minutes after a refusal); every refusal
+  looks the same and takes at least one second; typed names are never written to the audit log. A directory sign-in
+  cannot skip the second factor (the two-factor plugin handles its endpoint). Owners are local accounts and cannot be
+  made or linked by a group. A failed periodic check or a directory outage changes nobody.
 - Personal notifications (ADR 0019): every query names the signed-in person and organisation, so nobody reads another
   person's or organisation's notifications; the NOTIFY payload carries no content (a stream reads its own rows); role
   decides first who is told, and a stored choice can never widen it; notifications hold no free text and no scanned

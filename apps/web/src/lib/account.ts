@@ -17,6 +17,9 @@ export interface AccountOverview {
     locale: "en" | "de" | null;
     timeZone: string | null;
     createdAt: string;
+    /** `directory`: signs in with LDAP or Active Directory; no local password (ADR 0020). */
+    source: "local" | "directory";
+    loginName: string | null;
   };
   secondFactor: {
     totp: { enrolled: boolean; backupCodesRemaining: number };

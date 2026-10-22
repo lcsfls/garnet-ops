@@ -23,6 +23,22 @@ test.describe("signed out", () => {
   });
 });
 
+test.describe("signed out, with the directory sign-in on", () => {
+  test("the directory form fits without horizontal scrolling", async ({ page }, info) => {
+    const problems = watchForProblems(page);
+    await page.goto("/sign-in?via=directory");
+    await expect(page.getByRole("button", { name: "Directory account", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByLabel("User name")).toBeVisible();
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+    await expect(page.getByRole("button", { name: "Sign in with directory account" })).toBeInViewport();
+    await page.screenshot({ path: info.outputPath("sign-in-directory.png") });
+    expect(problems).toEqual([]);
+  });
+});
+
 test.describe("language", () => {
   // A German browser still gets English: English is the primary language (AGENTS.md).
   test.use({ locale: "de-DE" });
@@ -91,6 +107,7 @@ test.describe("signed in", () => {
     { path: "/settings?section=proxmox", heading: "Settings", name: "settings-proxmox" },
     { path: "/settings?section=xdr", heading: "Settings", name: "settings-xdr" },
     { path: "/settings?section=ai", heading: "Settings", name: "settings-ai" },
+    { path: "/settings?section=signin", heading: "Settings", name: "settings-signin" },
     { path: `/findings?id=${AI.talked.findingId}&ai=1`, heading: "Findings", name: "findings-ai" },
     { path: "/settings?section=about", heading: "Settings", name: "settings-about" },
     { path: "/repositories/repo_e2eseeded000000001", heading: "seeded-app", name: "repository" },
@@ -118,6 +135,7 @@ test.describe("signed in", () => {
     const problems = watchForProblems(page);
     for (const section of [
       "scanning",
+      "signin",
       "notifications",
       "proxmox",
       "xdr",
@@ -201,6 +219,7 @@ test.describe("signed in", () => {
     await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
     const paths = [
       "/settings",
+      "/settings?section=signin",
       "/settings?section=notifications",
       "/settings?section=proxmox",
       "/settings?section=xdr",
@@ -277,6 +296,42 @@ test.describe("signed in", () => {
         expect(await overflowingCards(page), `${width} ${path}`).toEqual([]);
       }
     }
+    expect(problems).toEqual([]);
+  });
+
+  test("the directory settings with a test result, and the link dialog, fit the screen", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    const fits = (dialog: Locator) =>
+      dialog.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return el.scrollWidth <= el.clientWidth + 1 && box.left >= 0 && box.right <= window.innerWidth;
+      });
+    await page.goto("/settings?section=signin");
+    await expect(page.getByRole("heading", { name: "Directory sign-in", level: 2 })).toBeVisible();
+    // A test result adds a long distinguished name, groups and the servers to the page.
+    await page.locator("#directory-test-user").fill("jdoe");
+    await page.getByTestId("directory-test").click();
+    await expect(page.getByTestId("directory-test-result").getByText("Works", { exact: true })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+    expect(await overflowingCards(page)).toEqual([]);
+    expect(await misalignedFormRows(page)).toEqual([]);
+    await page.screenshot({ path: info.outputPath("settings-signin-result.png"), fullPage: true });
+
+    // The link dialog with a person whose address differs shows the warnings.
+    await page.goto("/team");
+    await expect(page.getByRole("heading", { name: "Team", level: 1 })).toBeVisible();
+    const row = page.getByRole("table").getByRole("row").filter({ hasText: "account.tester@e2e.test" });
+    await row.getByRole("button", { name: /^Link .* to the directory$/ }).click();
+    const dialog = page.getByRole("dialog", { name: /^Link .* to the directory$/ });
+    await dialog.getByLabel("Directory user name").fill("bwilson");
+    await dialog.getByRole("button", { name: "Look up" }).click();
+    await expect(dialog.getByTestId("link-result")).toContainText("Different address");
+    await page.screenshot({ path: info.outputPath("team-link-dialog.png") });
+    expect(await fits(dialog)).toBe(true);
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
     expect(problems).toEqual([]);
   });
 

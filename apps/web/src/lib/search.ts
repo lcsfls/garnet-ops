@@ -311,6 +311,7 @@ export type ServerDetailSearch = z.infer<typeof serverDetailSearch>;
 
 export const AUDIT_FILTERS = [
   "auth",
+  "directory",
   "account",
   "repository",
   "host",
@@ -344,6 +345,7 @@ export type GateSearch = z.infer<typeof gateSearch>;
 
 export const SETTINGS_SECTIONS = [
   "scanning",
+  "signin",
   "notifications",
   "proxmox",
   "xdr",

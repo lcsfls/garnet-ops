@@ -1,6 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { accountQuery } from "../../lib/account.ts";
 import { ApiError, api } from "../../lib/api.ts";
 import { toast } from "../../lib/toast.ts";
 import { Card, CardHeader } from "../page-header.tsx";
@@ -14,6 +15,29 @@ const MIN_LENGTH = 12;
 
 /** Account → Password: current and new password, and whether the other sessions end. */
 export function PasswordSection({ email }: { email: string }) {
+  const account = useQuery(accountQuery);
+  // The password of a directory account is the directory's (ADR 0020): nothing to change here.
+  if (account.data?.profile.source === "directory") return <ManagedPassword />;
+  return <LocalPassword email={email} />;
+}
+
+function ManagedPassword() {
+  const { t } = useTranslation();
+  return (
+    <Card>
+      <CardHeader
+        title={t("account.password.title")}
+        description={t("account.password.managedDescription")}
+      />
+      <div className="grid gap-2 px-5 py-5" data-testid="password-managed">
+        <Alert tone="info">{t("account.password.managed")}</Alert>
+        <p className="text-sm text-muted-foreground">{t("account.password.managedHint")}</p>
+      </div>
+    </Card>
+  );
+}
+
+function LocalPassword({ email }: { email: string }) {
   const { t } = useTranslation();
   const stepUp = useStepUp(email);
   const formRef = useRef<HTMLFormElement>(null);

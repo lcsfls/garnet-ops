@@ -15,8 +15,13 @@ Notifications section is [ADR 0019](adr/0019-in-app-notifications-toasts-and-per
   one of the menu (English or German). The time zone decides how times are shown (audit log, scans, updates);
   "Automatic" follows the browser. Schedules such as the nightly scan keep the zone they were set with, and the
   day-based figures of the charts and exports still follow the browser's zone.
+- **Directory accounts** (you sign in with your LDAP or Active Directory account, [docs/ldap.md](ldap.md)): the
+  display name comes from the directory and is updated at every sign-in, so it is read-only here.
 
 ## Password
+
+If you sign in with your directory account, this page only says so: the password belongs to the directory and
+GarnetOps never stores it. Everything below is for local accounts.
 
 Changing it needs a sign-in from the last ten minutes ("Confirm it is you" asks if it is older) and the current
 password. Enter both and a new one (at least 12 characters; a passphrase of several words works well, and
@@ -31,7 +36,8 @@ account needs a second factor, so it can be **replaced but never switched off**.
 
 To replace it: **Replace authenticator app**, enter your password, scan the new QR code (or type the key) with
 the new app and confirm with its first six digits. Until you confirm, the old app keeps working, so a failed
-attempt locks you out of nothing. This asks for a sign-in from the last ten minutes ("Confirm it is you").
+attempt locks you out of nothing. This asks for a sign-in from the last ten minutes ("Confirm it is you"). A directory
+account has no GarnetOps password to enter: that recent sign-in (directory user name, password and code) is the proof.
 
 **Backup codes** each work once if you cannot use your authenticator app or passkey. **Create new backup codes**
 replaces all old ones and shows the new ones once; copy them or write them down before you close the dialog. The

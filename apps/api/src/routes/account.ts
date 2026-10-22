@@ -18,6 +18,7 @@ import { env } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { newBackupCodes, openBackupCodes, sealBackupCodes } from "../lib/backup-codes.ts";
 import type { Actor, AppEnv } from "../lib/context.ts";
+import { isDirectoryAccount } from "../lib/directory-accounts.ts";
 import { cleanPasskeyName, relyingParty } from "../lib/passkey-policy.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
@@ -115,6 +116,11 @@ export const accountRoutes = new Hono<AppEnv>()
         .where(eq(pk.userId, actor.userId))
         .orderBy(asc(pk.createdAt), asc(pk.id)),
     ]);
+    const [directory] = await db
+      .select({ loginName: schema.directoryIdentity.loginName })
+      .from(schema.directoryIdentity)
+      .where(eq(schema.directoryIdentity.userId, actor.userId))
+      .limit(1);
     const enrolled = Boolean(user.twoFactorEnabled && totp && totp.verified !== false);
     const codes = totp ? await openBackupCodes(totp.backupCodes, await secretConfig()) : null;
     const rp = relyingParty(env.PUBLIC_URL);
@@ -125,6 +131,10 @@ export const accountRoutes = new Hono<AppEnv>()
         locale: user.locale,
         timeZone: user.timeZone,
         createdAt: user.createdAt,
+        /** `directory`: signs in with the directory; no local password, and the role follows the groups (ADR 0020). */
+        source: directory ? "directory" : "local",
+        /** The name used at the last directory sign-in; the confirmation dialog offers it again. */
+        loginName: directory?.loginName ?? null,
       },
       secondFactor: {
         totp: { enrolled, backupCodesRemaining: Array.isArray(codes) ? codes.length : 0 },
@@ -138,6 +148,14 @@ export const accountRoutes = new Hono<AppEnv>()
   .patch("/profile", async (c) => {
     const actor = c.get("actor");
     const { name } = profileBody.parse(await c.req.json());
+    // The directory is the source of the name of its accounts and writes it at every sign-in.
+    if (await isDirectoryAccount(actor.userId)) {
+      throw new ProblemError(
+        409,
+        "managed-by-directory",
+        "The name of this account comes from your directory",
+      );
+    }
     if (name !== actor.name) {
       await db.update(u).set({ name, updatedAt: new Date() }).where(eq(u.id, actor.userId));
       await audit(
@@ -166,6 +184,13 @@ export const accountRoutes = new Hono<AppEnv>()
   .post("/password", async (c) => {
     const actor = c.get("actor");
     requireRecentSignIn(actor);
+    if (await isDirectoryAccount(actor.userId)) {
+      throw new ProblemError(
+        409,
+        "managed-by-directory",
+        "The password of this account is managed by your directory",
+      );
+    }
     const input = passwordBody.parse(await c.req.json());
     await rateLimit(`account:password:${actor.userId}`, 5);
     if (!(await checkPassword(actor, input.currentPassword))) {
@@ -211,9 +236,11 @@ export const accountRoutes = new Hono<AppEnv>()
   .post("/totp/begin", async (c) => {
     const actor = c.get("actor");
     requireRecentSignIn(actor);
-    const { password } = passwordOnlyBody.parse(await c.req.json());
+    // A directory account has no local password; the sign-in from the last ten minutes (directory password and code) is the proof.
+    const managed = await isDirectoryAccount(actor.userId);
+    const { password } = managed ? { password: undefined } : passwordOnlyBody.parse(await c.req.json());
     await rateLimit(`account:totp-begin:${actor.userId}`, 5);
-    if (!(await checkPassword(actor, password))) {
+    if (!managed && !(await checkPassword(actor, password ?? ""))) {
       await audit(
         actor,
         "account.totp_replace_started",

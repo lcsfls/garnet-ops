@@ -31,7 +31,9 @@
     "./attacks": "./src/attacks.ts",
     "./attack-summary": "./src/attack-summary.ts",
     "./account": "./src/account.ts",
-    "./user-notifications": "./src/user-notifications.ts"
+    "./user-notifications": "./src/user-notifications.ts",
+    "./directory": "./src/directory.ts",
+    "./directory-policy": "./src/directory-policy.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
