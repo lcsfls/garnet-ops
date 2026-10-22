@@ -22,6 +22,7 @@ import {
   countryCount,
   countryTotals,
   internalTotals,
+  mergeSources,
 } from "@garnetops/core/attacks";
 import {
   canonicalIp,
@@ -59,7 +60,10 @@ import {
   datasetStatus,
   GeoipBusyError,
   importDataset,
+  loadAllAttackSources,
   loadAttackSources,
+  loadUnifiSources,
+  loadUnifiTotals,
   lookupIps,
   schema,
 } from "@garnetops/db";
@@ -68,7 +72,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
 import { vaultPublicKey } from "../env.ts";
-import { liveInfo } from "../lib/attack-live.ts";
+import { liveInfo, unifiActive, unifiLiveInfo } from "../lib/attack-live.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
 import { pageInMemory } from "../lib/paginate-memory.ts";
@@ -356,12 +360,14 @@ export const attackRoutes = new Hono<AppEnv>()
     const { period } = z.object({ period: z.enum(WINDOWS).default("24h") }).parse(c.req.query());
     const now = new Date();
     const connection = await wazuhConnection(actor.organizationId);
+    const hasUnifi = await unifiActive(actor.organizationId);
     const settings = await loadSettings(actor.organizationId);
     const datasets = presentDatasets(await datasetStatus(db), now);
     const provider =
       settings?.osintEnabled && settings.osintProvider ? osintProvider(settings.osintProvider) : null;
+    const unifi = await unifiLiveInfo(actor.organizationId, now);
     const base = {
-      connected: connection !== null,
+      connected: connection !== null || hasUnifi,
       attribution,
       geoip: {
         datasets,
@@ -376,18 +382,33 @@ export const attackRoutes = new Hono<AppEnv>()
       period,
       home: homeOf(settings),
       live: await liveInfo(actor.organizationId, now),
+      unifi,
     };
-    if (!connection) return c.json({ ...base, syncedAt: null, window: null });
+    if (!connection && !hasUnifi) return c.json({ ...base, syncedAt: null, window: null });
 
     const w = schema.wazuhAttackWindow;
-    const [numbers] = await db
-      .select()
-      .from(w)
-      .where(and(eq(w.connectionId, connection.id), eq(w.window, period)))
-      .limit(1);
-    if (!numbers) return c.json({ ...base, syncedAt: iso(connection.lastSyncAt), window: null });
+    const [numbers] = connection
+      ? await db
+          .select()
+          .from(w)
+          .where(and(eq(w.connectionId, connection.id), eq(w.window, period)))
+          .limit(1)
+      : [];
+    // The time of the Wazuh sync; the UniFi preview has its own status line.
+    const syncedAt = iso(connection?.lastSyncAt ?? null);
+    if (!numbers && !hasUnifi) return c.json({ ...base, syncedAt, window: null });
 
-    const sources = await loadAttackSources(db, connection.id, period);
+    // The sources of both origins, joined: an address seen by Wazuh and by UniFi is one row (ADR 0022).
+    const wazuhSources = connection ? await loadAttackSources(db, connection.id, period) : [];
+    const unifiSources = hasUnifi ? await loadUnifiSources(db, actor.organizationId, period, now) : [];
+    const canonical = (ip: string) => canonicalIp(ip) ?? ip;
+    const sources =
+      unifiSources.length > 0 ? mergeSources(wazuhSources, unifiSources, canonical) : wazuhSources;
+    const totals = hasUnifi
+      ? await loadUnifiTotals(db, actor.organizationId, period, now)
+      : { alerts: 0, distinctSources: 0, previousAlerts: 0, previousDistinctSources: 0, lastEventAt: null };
+    const wazuhIps = new Set(wazuhSources.map((x) => canonical(x.ip)));
+    const overlap = unifiSources.filter((x) => wazuhIps.has(canonical(x.ip))).length;
     const located = countryTotals(sources);
     // The highest cached abuse score per country, for the colour of its arc on the globe (only while OSINT is on).
     const scores = await osintFor(
@@ -414,7 +435,7 @@ export const attackRoutes = new Hono<AppEnv>()
         sources: 0,
       });
     const previousCountries =
-      numbers.previousAttackAlerts === null
+      !numbers || numbers.previousAttackAlerts === null
         ? null
         : new Set(
             [
@@ -428,34 +449,48 @@ export const attackRoutes = new Hono<AppEnv>()
               .map((g) => g.country)
               .filter((x): x is string => x !== null && x !== "ZZ"),
           ).size;
+    const attackAlerts = (numbers?.attackAlerts ?? 0) + totals.alerts;
+    const previousAttackAlerts = numbers
+      ? numbers.previousAttackAlerts === null
+        ? null
+        : numbers.previousAttackAlerts + totals.previousAlerts
+      : totals.previousAlerts;
+    const distinctSources = (numbers?.distinctSources ?? 0) + Math.max(0, totals.distinctSources - overlap);
+    const previousDistinctSources = numbers
+      ? numbers.previousDistinctSources === null
+        ? null
+        : numbers.previousDistinctSources + totals.previousDistinctSources
+      : totals.previousDistinctSources;
+    const agentsTargeted = numbers?.agents ?? [];
 
     // The agents attacked most: with the confirmed server, if there is one, so the page can link to it.
     const a = schema.wazuhAgent;
-    const agentRows = numbers.agents.length
-      ? await db
-          .select({ agentId: a.agentId, hostId: a.hostId })
-          .from(a)
-          .where(
-            and(
-              eq(a.connectionId, connection.id),
-              inArray(
-                a.agentId,
-                numbers.agents.map((x) => x.agentId),
+    const agentRows =
+      connection && agentsTargeted.length
+        ? await db
+            .select({ agentId: a.agentId, hostId: a.hostId })
+            .from(a)
+            .where(
+              and(
+                eq(a.connectionId, connection.id),
+                inArray(
+                  a.agentId,
+                  agentsTargeted.map((x) => x.agentId),
+                ),
               ),
-            ),
-          )
-      : [];
+            )
+        : [];
     const hostOf = new Map(agentRows.map((r) => [r.agentId, r.hostId]));
 
     return c.json({
       ...base,
-      syncedAt: iso(connection.lastSyncAt),
+      syncedAt,
       window: {
-        readAt: numbers.readAt.toISOString(),
-        attackAlerts: numbers.attackAlerts,
-        previousAttackAlerts: numbers.previousAttackAlerts,
-        distinctSources: numbers.distinctSources,
-        previousDistinctSources: numbers.previousDistinctSources,
+        readAt: (numbers?.readAt ?? now).toISOString(),
+        attackAlerts,
+        previousAttackAlerts,
+        distinctSources,
+        previousDistinctSources,
         countryCount: countryCount(sources),
         previousCountryCount: previousCountries,
         listedAlerts: sources.reduce((n, x) => n + x.count, 0),
@@ -466,7 +501,9 @@ export const attackRoutes = new Hono<AppEnv>()
         asns: asnTotals(sources)
           .filter((t) => t.asn !== null)
           .slice(0, 25),
-        agents: numbers.agents.slice(0, 10).map((x) => ({ ...x, hostId: hostOf.get(x.agentId) ?? null })),
+        agents: agentsTargeted.slice(0, 10).map((x) => ({ ...x, hostId: hostOf.get(x.agentId) ?? null })),
+        /** Events a UniFi console blocked, of the listed ones (ADR 0022). Zero without the preview. */
+        blockedAlerts: sources.reduce((n, x) => n + (x.blocked ?? 0), 0),
       },
     });
   })
@@ -475,11 +512,16 @@ export const attackRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const input = sourceQuery.parse(c.req.query());
     const connection = await wazuhConnection(actor.organizationId);
-    if (!connection) {
+    if (!connection && !(await unifiActive(actor.organizationId))) {
       return c.json({ items: [], total: 0, pageSize: input.pageSize, next: null, prev: null });
     }
     const settings = await loadSettings(actor.organizationId);
-    const sources = await loadAttackSources(db, connection.id, input.period);
+    const sources = await loadAllAttackSources(
+      db,
+      actor.organizationId,
+      connection?.id ?? null,
+      input.period,
+    );
     const osint = await osintFor(
       actor.organizationId,
       settings,
@@ -513,12 +555,13 @@ export const attackRoutes = new Hono<AppEnv>()
     // The agents an address attacked, with the confirmed server if there is one, so the table can link to it.
     const a = schema.wazuhAgent;
     const agentIds = [...new Set(page.items.flatMap((r) => r.agents.map((x) => x.agentId)))];
-    const hostRows = agentIds.length
-      ? await db
-          .select({ agentId: a.agentId, hostId: a.hostId })
-          .from(a)
-          .where(and(eq(a.connectionId, connection.id), inArray(a.agentId, agentIds)))
-      : [];
+    const hostRows =
+      connection && agentIds.length
+        ? await db
+            .select({ agentId: a.agentId, hostId: a.hostId })
+            .from(a)
+            .where(and(eq(a.connectionId, connection.id), inArray(a.agentId, agentIds)))
+        : [];
     const hostOf = new Map(hostRows.map((r) => [r.agentId, r.hostId]));
     return c.json({
       ...page,
@@ -529,6 +572,8 @@ export const attackRoutes = new Hono<AppEnv>()
         asn: r.asn,
         org: r.org,
         count: r.count,
+        /** Of `count`, the events a UniFi console blocked (ADR 0022). */
+        blocked: r.blocked ?? 0,
         groups: r.groups,
         agents: r.agents.map((x) => ({ ...x, hostId: hostOf.get(x.agentId) ?? null })),
         firstSeen: r.firstSeen,
@@ -1073,6 +1118,12 @@ export const attackRoutes = new Hono<AppEnv>()
       .delete(schema.wazuhAttackEvent)
       .where(eq(schema.wazuhAttackEvent.organizationId, actor.organizationId))
       .returning({ id: schema.wazuhAttackEvent.seq });
+    // So do the threat events of UniFi (ADR 0022); the cursor stays there too, so they do not come back.
+    const threatEvents = await db
+      .delete(schema.unifiThreatEvent)
+      .where(eq(schema.unifiThreatEvent.organizationId, actor.organizationId))
+      .returning({ id: schema.unifiThreatEvent.seq });
+    liveEvents.push(...threatEvents);
     await audit(
       actor,
       "attacks.data_purged",

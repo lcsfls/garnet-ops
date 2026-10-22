@@ -386,8 +386,11 @@ describe.skipIf(!adminUrl)("Wazuh API", () => {
       ] as [string, string, unknown][]) {
         expect((await call(method, path, { org: OTHER, body })).status, `${method} ${path}`).toBe(404);
       }
-      expect((await call("GET", "/api/v1/xdr/status", { org: OTHER })).json).toEqual({ connected: false });
-      expect((await call("GET", "/api/v1/xdr/status")).json).toEqual({ connected: true });
+      expect((await call("GET", "/api/v1/xdr/status", { org: OTHER })).json).toEqual({
+        connected: false,
+        attacks: false,
+      });
+      expect((await call("GET", "/api/v1/xdr/status")).json).toEqual({ connected: true, attacks: true });
       expect((await call("GET", "/api/v1/xdr/connection", { org: OTHER })).json?.connection).toBeNull();
       expect((await call("GET", "/api/v1/xdr/overview", { org: OTHER })).json).toEqual({ connection: null });
       expect((await call("GET", "/api/v1/xdr/agents", { org: OTHER })).json?.items).toEqual([]);

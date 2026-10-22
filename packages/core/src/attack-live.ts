@@ -161,7 +161,14 @@ export function liveStatus(input: LiveStatusInput): LiveStatus {
   return stale ? status("waiting") : status("live");
 }
 
-/** The shape of one event in the API and in the stream. Country, network and score are looked up when it is read. */
+/** Where an event came from (ADR 0022 added UniFi next to Wazuh). */
+export type EventSource = "wazuh" | "unifi";
+
+/**
+ * The shape of one event in the API and in the stream. Country, network and score are looked up when it is read.
+ * For a UniFi event `description` is the signature, `groups` holds its category, `agentName` the site, `level` is 0
+ * and `ruleId`/`agentId` are empty; `action` says what the console did (blocked or only alerted).
+ */
 export interface AttackEventView {
   seq: number;
   at: string;
@@ -177,6 +184,11 @@ export interface AttackEventView {
   agentName: string;
   /** The cached OSINT score, only while OSINT is switched on and a result exists. */
   score: number | null;
+  source: EventSource;
+  /** What UniFi did with the traffic; null for Wazuh alerts (they report, they do not block). */
+  action: "blocked" | "alerted" | null;
+  /** The port of the attacked service (UniFi events only). */
+  destPort: number | null;
 }
 
 /** An abuse score above this is drawn and listed as high. */

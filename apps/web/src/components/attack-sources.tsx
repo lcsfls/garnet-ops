@@ -399,7 +399,14 @@ export function AttackSources({
               <td className="hidden px-3 py-3 @3xl:table-cell">
                 <Network row={row} onFilter={(asn) => filter({ asn: String(asn) })} />
               </td>
-              <td className="px-3 py-3 text-right tabular-nums">{formatNumber(row.count)}</td>
+              <td className="px-3 py-3 text-right tabular-nums">
+                {formatNumber(row.count)}
+                {row.blocked ? (
+                  <div className="text-sm text-muted-foreground" data-testid="attack-row-blocked">
+                    {t("attacks.blockedCount", { count: row.blocked })}
+                  </div>
+                ) : null}
+              </td>
               <td className="hidden px-3 py-3 @wide:table-cell">
                 {row.groups.length > 0 ? (
                   <ul className="flex flex-wrap gap-1">

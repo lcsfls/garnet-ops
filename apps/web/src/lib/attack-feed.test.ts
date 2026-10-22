@@ -16,6 +16,9 @@ const event = (seq: number, over: Partial<AttackEvent> = {}): AttackEvent => ({
   agentId: "001",
   agentName: "web-01",
   score: null,
+  source: "wazuh",
+  action: null,
+  destPort: null,
   ...over,
 });
 const live = (over: Partial<AttackLiveInfo> = {}): AttackLiveInfo => ({

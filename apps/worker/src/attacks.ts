@@ -416,7 +416,7 @@ export interface SweepResult {
   sourceAddresses: number;
   attackWindows: number;
   osintResults: number;
-  /** Alerts of the live attack feed (ADR 0021). */
+  /** Alerts of the live attack feed (ADR 0021), including the threat events of UniFi (ADR 0022). */
   attackEvents: number;
 }
 
@@ -451,11 +451,16 @@ export async function retentionSweep(now: Date = new Date()): Promise<SweepResul
     .delete(ev)
     .where(sql`${ev.at} < ${cutoff(ev.organizationId)}`)
     .returning({ id: ev.seq });
+  const ufe = schema.unifiThreatEvent;
+  const u = await db
+    .delete(ufe)
+    .where(sql`${ufe.at} < ${cutoff(ufe.organizationId)}`)
+    .returning({ id: ufe.seq });
   return {
     sourceAddresses: a.length,
     attackWindows: b.length,
     osintResults: c.length,
-    attackEvents: d.length,
+    attackEvents: d.length + u.length,
   };
 }
 

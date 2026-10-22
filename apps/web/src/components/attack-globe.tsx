@@ -8,11 +8,13 @@ import { countryName, MAP_FILL } from "../lib/attacks.ts";
 import { cn } from "../lib/cn.ts";
 import {
   ARC_STROKE,
+  type ArcToneName,
   arcDelay,
   arcLine,
   arcProgress,
   arcWidthFor,
   autoRotate,
+  BLOCKED_DASH,
   dragView,
   initialView,
   isFacing,
@@ -41,6 +43,8 @@ export interface GlobeCountryData {
   sources: number;
   /** The highest cached abuse score among the country's addresses (only while OSINT is on). */
   topScore?: number | undefined;
+  /** Of `alerts`, the ones a UniFi console blocked (ADR 0022). */
+  blocked?: number | undefined;
 }
 
 export interface AttackGlobeProps {
@@ -70,12 +74,14 @@ interface StaticArc {
   from: LonLat;
   width: number;
   radius: number;
-  tone: "high" | "observed";
+  tone: ArcToneName;
+  /** Whether this arc draws the start dot (a country with observed and blocked alerts draws one dot). */
+  dot: boolean;
 }
 interface LiveArc {
   id: number;
   from: LonLat;
-  tone: "high" | "observed";
+  tone: ArcToneName;
   start: number;
 }
 
@@ -114,6 +120,9 @@ export default function AttackGlobe({ countries, home, osintEnabled, events, sel
   const hasHome = homeLat !== null && homeLon !== null;
   const max = Math.max(1, ...countries.map((c) => c.alerts));
   const byCode = useMemo(() => new Map(countries.map((c) => [c.country, c])), [countries]);
+  // The legend names "Blocked by UniFi" only when something was blocked in this period or a live event was.
+  const hasBlocked =
+    countries.some((c) => (c.blocked ?? 0) > 0) || (events ?? []).some((e) => e.action === "blocked");
 
   // The lines (or, without a home, the points) of the countries that have alerts.
   const arcs = useMemo<StaticArc[]>(() => {
@@ -121,13 +130,29 @@ export default function AttackGlobe({ countries, home, osintEnabled, events, sel
     for (const c of countries) {
       const from = sourcePoint(c.country, CENTROIDS);
       if (!from) continue;
-      out.push({
-        key: c.country,
-        from,
-        width: arcWidthFor(c.alerts, max),
-        radius: pointRadiusFor(c.alerts, max),
-        tone: arcTone(c.topScore, osintEnabled),
-      });
+      // Alerts a UniFi console blocked are a dashed steel-blue line of their own; the rest keep the usual line.
+      const blocked = Math.min(c.blocked ?? 0, c.alerts);
+      const observed = c.alerts - blocked;
+      if (observed > 0 || blocked === 0) {
+        out.push({
+          key: c.country,
+          from,
+          width: arcWidthFor(observed || c.alerts, max),
+          radius: pointRadiusFor(c.alerts, max),
+          tone: arcTone(c.topScore, osintEnabled),
+          dot: true,
+        });
+      }
+      if (blocked > 0) {
+        out.push({
+          key: `${c.country}:blocked`,
+          from,
+          width: arcWidthFor(blocked, max),
+          radius: pointRadiusFor(c.alerts, max),
+          tone: "blocked",
+          dot: observed === 0,
+        });
+      }
     }
     return out.sort((a, b) => b.width - a.width || a.key.localeCompare(b.key));
   }, [countries, max, osintEnabled]);
@@ -205,7 +230,12 @@ export default function AttackGlobe({ countries, home, osintEnabled, events, sel
       if (event.scope !== "public" || !event.country) continue;
       const from = sourcePoint(event.country, CENTROIDS);
       if (!from) continue;
-      added.push({ id: ++liveId.current, from, tone: arcTone(event.score, osintEnabled), start: now });
+      added.push({
+        id: ++liveId.current,
+        from,
+        tone: event.action === "blocked" ? "blocked" : arcTone(event.score, osintEnabled),
+        start: now,
+      });
     }
     if (added.length === 0) return;
     setLiveArcs((old) => [...old, ...added].slice(-MAX_LIVE_ARCS));
@@ -500,19 +530,22 @@ export default function AttackGlobe({ countries, home, osintEnabled, events, sel
                       strokeLinecap="round"
                       strokeWidth={arc.width}
                       opacity={0.85}
+                      {...(arc.tone === "blocked" ? { strokeDasharray: BLOCKED_DASH } : {})}
                       className={ARC_STROKE[arc.tone]}
                     />
                   ) : null}
-                  <circle
-                    ref={(el) => {
-                      if (el) parts.current.dots.set(arc.key, el);
-                      else parts.current.dots.delete(arc.key);
-                    }}
-                    r={arc.radius}
-                    visibility="hidden"
-                    className={cn(POINT_FILL[arc.tone], "stroke-card")}
-                    strokeWidth={1}
-                  />
+                  {arc.dot ? (
+                    <circle
+                      ref={(el) => {
+                        if (el) parts.current.dots.set(arc.key, el);
+                        else parts.current.dots.delete(arc.key);
+                      }}
+                      r={arc.radius}
+                      visibility="hidden"
+                      className={cn(POINT_FILL[arc.tone], "stroke-card")}
+                      strokeWidth={1}
+                    />
+                  ) : null}
                 </g>
               ))}
             </g>
@@ -528,6 +561,7 @@ export default function AttackGlobe({ countries, home, osintEnabled, events, sel
                       fill="none"
                       strokeLinecap="round"
                       strokeWidth={LIVE_ARC_WIDTH}
+                      {...(arc.tone === "blocked" ? { strokeDasharray: BLOCKED_DASH } : {})}
                       className={ARC_STROKE[arc.tone]}
                     />
                   ) : null}
@@ -570,6 +604,22 @@ export default function AttackGlobe({ countries, home, osintEnabled, events, sel
             <span aria-hidden="true" className="h-0.5 w-5 rounded-full bg-chart-high" />
             {t("attacks.globe.legendObserved")}
           </li>
+          {hasBlocked ? (
+            <li className="flex items-center gap-1.5" data-testid="legend-blocked">
+              <svg aria-hidden="true" viewBox="0 0 20 4" className="h-1 w-5 flex-none">
+                <line
+                  x1="0"
+                  y1="2"
+                  x2="20"
+                  y2="2"
+                  strokeWidth={2}
+                  strokeDasharray="5 3"
+                  className="stroke-info"
+                />
+              </svg>
+              {t("attacks.globe.legendBlocked")}
+            </li>
+          ) : null}
           {hasHome ? (
             <li className="flex items-center gap-1.5">
               <span aria-hidden="true" className="size-3 rounded-full border-2 border-foreground bg-card" />

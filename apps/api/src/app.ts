@@ -33,6 +33,7 @@ import { setupRoutes } from "./routes/setup.ts";
 import { signInOptionsRoutes } from "./routes/sign-in-options.ts";
 import { systemRoutes } from "./routes/system.ts";
 import { teamRoutes } from "./routes/team.ts";
+import { unifiRoutes } from "./routes/unifi.ts";
 import { maintenanceRoutes, updateRoutes } from "./routes/updates.ts";
 import { userNotificationRoutes } from "./routes/user-notifications.ts";
 import { xdrRoutes } from "./routes/xdr.ts";
@@ -124,6 +125,7 @@ const v1 = new Hono<AppEnv>()
   .route("/notifications", notificationRoutes)
   .route("/hosts", hostRoutes)
   .route("/proxmox", proxmoxRoutes)
+  .route("/unifi", unifiRoutes)
   .route("/xdr", xdrRoutes)
   .route("/attacks", attackRoutes)
   .route("/maintenance", maintenanceRoutes)

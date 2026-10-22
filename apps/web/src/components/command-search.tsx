@@ -6,6 +6,7 @@ import {
   GitBranch,
   Globe,
   type LucideIcon,
+  Network,
   Package,
   Radar,
   Search,
@@ -127,7 +128,10 @@ export function CommandSearch({ me }: { me: Me }) {
             })),
           ]
         : [];
-    const pages: Option[] = navFor(me, { xdr: xdr.data?.connected === true })
+    const pages: Option[] = navFor(me, {
+      xdr: xdr.data?.connected === true,
+      attacks: xdr.data?.attacks === true,
+    })
       .flatMap((group) => group.items)
       .filter((item) => !q || t(item.label).toLowerCase().includes(q.toLowerCase()))
       .map((item) => ({
@@ -144,6 +148,16 @@ export function CommandSearch({ me }: { me: Me }) {
         label: t("shell.searchGoTo", { page: proxmoxName }),
         icon: Boxes,
         go: () => navigate({ to: "/servers", search: { view: "proxmox" } }),
+      });
+    }
+    // The UniFi network devices are a view of the Servers page too (ADR 0022).
+    const unifiName = t("unifi.viewUnifi");
+    if (!q || unifiName.toLowerCase().includes(q.toLowerCase())) {
+      pages.push({
+        id: "page:unifi",
+        label: t("shell.searchGoTo", { page: unifiName }),
+        icon: Network,
+        go: () => navigate({ to: "/servers", search: { view: "unifi" } }),
       });
     }
     // Settings, AI is a section of the settings page, so it is offered here by name (owners and admins).
@@ -229,7 +243,7 @@ export function CommandSearch({ me }: { me: Me }) {
       },
       ...pages,
     ];
-  }, [text, hits.data, me, t, navigate, xdr.data?.connected]);
+  }, [text, hits.data, me, t, navigate, xdr.data?.connected, xdr.data?.attacks]);
 
   const choose = (option: Option | undefined) => {
     if (!option) return;

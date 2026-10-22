@@ -84,13 +84,22 @@ function AttacksPage() {
               {canEdit ? t("attacks.emptyAdmin") : t("attacks.emptyMember")}
             </p>
             {canEdit ? (
-              <Link
-                to="/settings"
-                search={{ section: "xdr" }}
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                {t("attacks.connect")}
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  to="/settings"
+                  search={{ section: "xdr" }}
+                  className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  {t("attacks.connect")}
+                </Link>
+                <Link
+                  to="/settings"
+                  search={{ section: "unifi" }}
+                  className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-card px-4 font-medium shadow-xs hover:bg-accent"
+                >
+                  {t("attacks.connectUnifi")}
+                </Link>
+              </div>
             ) : null}
           </div>
         </Card>
@@ -259,6 +268,7 @@ function AttacksPage() {
               scrollClassName="@wide:max-h-[26rem] @xwide:max-h-[min(64vh,46rem)]"
               events={feed.events}
               live={feed.live ?? data.live}
+              unifi={feed.unifi ?? data.unifi ?? null}
               connected={feed.connected}
               query={feed.query}
               osintEnabled={data.osint.enabled}
@@ -492,7 +502,14 @@ function CountriesCard({
                 </button>
                 <Bar value={c.alerts} max={max} />
               </td>
-              <td className="px-3 py-2.5 text-right tabular-nums">{formatNumber(c.alerts)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">
+                {formatNumber(c.alerts)}
+                {c.blocked ? (
+                  <div className="text-sm text-muted-foreground" data-testid={`country-blocked-${c.country}`}>
+                    {t("attacks.blockedCount", { count: c.blocked })}
+                  </div>
+                ) : null}
+              </td>
               <td className="px-5 py-2.5 text-right tabular-nums">{formatNumber(c.sources)}</td>
             </tr>
           ))}

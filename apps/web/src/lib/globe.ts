@@ -97,8 +97,20 @@ export const pointRadiusFor = (count: number, max: number): number => POINT_RADI
 export { ARC_STEPS };
 
 /** Colour class of an arc: vermilion above an abuse score of 80 (OSINT on and a score), otherwise orange. */
-export const ARC_STROKE = { high: "stroke-chart-critical", observed: "stroke-chart-high" } as const;
-export const POINT_FILL = { high: "fill-chart-critical", observed: "fill-chart-high" } as const;
+export const ARC_STROKE = {
+  high: "stroke-chart-critical",
+  observed: "stroke-chart-high",
+  // Events a UniFi console blocked (ADR 0022): steel blue and dashed, so the colour is never a severity and green is not used.
+  blocked: "stroke-info",
+} as const;
+export const POINT_FILL = {
+  high: "fill-chart-critical",
+  observed: "fill-chart-high",
+  blocked: "fill-info",
+} as const;
+/** The dash pattern of an arc for blocked events: a second signal besides colour. */
+export const BLOCKED_DASH = "7 5";
+export type ArcToneName = keyof typeof ARC_STROKE;
 export const toneOf = arcTone;
 
 /**

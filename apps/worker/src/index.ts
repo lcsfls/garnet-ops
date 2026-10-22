@@ -38,6 +38,14 @@ import {
 } from "./proxmox.ts";
 import { runScan } from "./scan.ts";
 import { SCAN_QUEUE as QUEUE, startScheduler } from "./schedule.ts";
+import {
+  readCertificate as readUnifiCertificate,
+  runUnifiSync,
+  startUnifiScheduler,
+  UNIFI_CERT_QUEUE,
+  UNIFI_SYNC_QUEUE,
+} from "./unifi.ts";
+import { startUnifiIpsPoller } from "./unifi-ips.ts";
 import { startUserNotificationUpkeep, tellAboutScan } from "./user-notify.ts";
 import { startVulnDbUpdates } from "./vulndb.ts";
 import {
@@ -66,6 +74,8 @@ await boss.createQueue(HOST_INVENTORY_QUEUE);
 await boss.createQueue(HOST_ACCESS_KEY_QUEUE);
 await boss.createQueue(PROXMOX_CERT_QUEUE);
 await boss.createQueue(PROXMOX_SYNC_QUEUE);
+await boss.createQueue(UNIFI_CERT_QUEUE);
+await boss.createQueue(UNIFI_SYNC_QUEUE);
 await boss.createQueue(WAZUH_CERT_QUEUE);
 await boss.createQueue(WAZUH_SYNC_QUEUE);
 await boss.createQueue(WAZUH_SUMMARY_QUEUE);
@@ -147,6 +157,18 @@ await boss.work<{ runId: string }>(PROXMOX_SYNC_QUEUE, { batchSize: 1 }, async (
     `proxmox sync ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`,
   );
 });
+// UniFi (ADR 0022): certificate reads and read-only syncs of the official local API.
+await boss.work<{ connectionId: string }>(UNIFI_CERT_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await readUnifiCertificate(job.data.connectionId);
+});
+await boss.work<{ runId: string }>(UNIFI_SYNC_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (!job) return;
+  const started = performance.now();
+  await runUnifiSync(job.data.runId);
+  console.log(
+    `unifi sync ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`,
+  );
+});
 // Wazuh (ADR 0015): certificate reads, read-only syncs and the optional AI summary of the aggregates.
 await boss.work<{ endpointId: string }>(WAZUH_CERT_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await readWazuhCertificate(job.data.endpointId);
@@ -207,10 +229,13 @@ await boss.work<{ organizationId?: string; repositoryId?: string }>(
 await startFixPrScheduler(boss);
 await startScheduler(boss);
 await startProxmoxScheduler(boss);
+await startUnifiScheduler(boss);
 await startWazuhScheduler(boss);
 await startAttacksScheduler(boss);
 // The live attack feed (ADR 0021): a light, read-only poll of the Wazuh indexer, every 30 seconds by default.
 const stopWazuhLive = startWazuhLivePoller();
+// The UniFi IPS preview (ADR 0022): off unless an admin switches it on for a console; a light poll every 60 seconds by default.
+const stopUnifiIps = startUnifiIpsPoller();
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();
 const stopUserNotifications = startUserNotificationUpkeep();
@@ -218,6 +243,7 @@ console.log(`worker: ready (${env.GARNETOPS_SCAN_CONCURRENCY} scan slots, nightl
 
 async function shutdown() {
   stopWazuhLive();
+  stopUnifiIps();
   stopDirectoryReconcile();
   stopVulnDbUpdates();
   stopUserNotifications();

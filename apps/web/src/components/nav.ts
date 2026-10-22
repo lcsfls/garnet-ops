@@ -31,7 +31,7 @@ export type NavTo =
   | "/audit-log";
 
 /** Screens that only exist once something is connected. */
-export type NavFeature = "xdr";
+export type NavFeature = "xdr" | "attacks";
 export type NavFeatures = Partial<Record<NavFeature, boolean>>;
 
 export interface NavItem {
@@ -39,8 +39,8 @@ export interface NavItem {
   label: MessageKey;
   icon: LucideIcon;
   adminOnly?: boolean;
-  /** Listed only while this feature is available (XDR: a Wazuh connection exists). */
-  feature?: NavFeature;
+  /** Listed only while one of these features is available (XDR: a Wazuh connection exists). */
+  feature?: NavFeature | NavFeature[];
 }
 
 /** Only screens that exist are listed; nothing is shown as a teaser. */
@@ -67,7 +67,8 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
       { to: "/servers", label: "nav.servers", icon: Server },
       { to: "/xdr", label: "nav.xdr", icon: Radar, feature: "xdr" },
       // Built from Wazuh's alerts, so it is listed with the XDR page: only while a Wazuh connection exists.
-      { to: "/attacks", label: "nav.attacks", icon: Globe, feature: "xdr" },
+      // ... or while the UniFi threat events are on (ADR 0022).
+      { to: "/attacks", label: "nav.attacks", icon: Globe, feature: ["xdr", "attacks"] },
     ],
   },
   {
@@ -87,7 +88,9 @@ export function navFor(me: Me, features: NavFeatures = {}) {
   return NAV.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => (!item.adminOnly || isAdmin(me)) && (!item.feature || features[item.feature] === true),
+      (item) =>
+        (!item.adminOnly || isAdmin(me)) &&
+        (!item.feature || [item.feature].flat().some((feature) => features[feature] === true)),
     ),
   })).filter((group) => group.items.length > 0);
 }

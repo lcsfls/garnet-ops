@@ -8,6 +8,7 @@ import {
   AI,
   ATTACKS,
   addLiveEvent,
+  addUnifiEvent,
   FIXES,
   LIVE,
   PROXMOX,
@@ -19,8 +20,10 @@ import {
   SERVERS,
   seed,
   setLivePoll,
+  setUnifiIps,
   signedInAt,
   sql,
+  UNIFI,
   WAZUH,
 } from "./seed.ts";
 
@@ -2190,6 +2193,610 @@ test.describe("proxmox", () => {
     await search.getByRole("combobox", { name: "Search" }).fill("db-0");
     await search.getByRole("option", { name: /Proxmox guests matching/ }).click();
     await expect(page).toHaveURL(/pxQ=db-0/);
+  });
+});
+
+/** UniFi (ADR 0022). No worker syncs or polls here: its part is played by database rows and NOTIFY. */
+test.describe("unifi", () => {
+  const section = (page: Page, heading: string | RegExp) =>
+    page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: heading, exact: typeof heading === "string" }) });
+  const view = (page: Page) => page.getByRole("group", { name: "View" });
+
+  test("the Network devices tab shows consoles and devices, flags what needs a look and never says vulnerable", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/servers");
+    await view(page).getByRole("button", { name: "Network devices" }).click();
+    await expect(page).toHaveURL(/view=unifi/);
+    await expect(page.getByRole("heading", { name: "Servers", level: 1 })).toBeVisible();
+
+    // One card per console, with the state of its certificate. The clients are a number.
+    const main = section(page, UNIFI.main.name);
+    await expect(main).toContainText("UniFi Network 9.0.114");
+    await expect(main.getByText("Devices online").locator("xpath=..")).toContainText(
+      `${UNIFI.online} / ${UNIFI.total}`,
+    );
+    await expect(main.getByText("Offline", { exact: true }).locator("xpath=..")).toContainText(
+      String(UNIFI.offline),
+    );
+    await expect(main.getByText("Firmware updates").locator("xpath=..")).toContainText(
+      String(UNIFI.updatable),
+    );
+    await expect(main.getByText("Sites").locator("xpath=..")).toContainText("2");
+    await expect(main.getByText("Clients").locator("xpath=..")).toContainText(String(UNIFI.clients));
+    await expect(main).toContainText("Certificate pinned");
+    // A pinned certificate is not proof of anything: neutral, never green (AGENTS.md rule 6).
+    await expect(main.locator(".text-success-text, .bg-success\\/16")).toHaveCount(0);
+    await expect(section(page, UNIFI.pending.name)).toContainText("Certificate not confirmed");
+    await expect(section(page, UNIFI.changed.name)).toContainText("Certificate changed");
+    await expect(section(page, UNIFI.changed.name)).toContainText(
+      "The certificate of the UniFi console changed.",
+    );
+
+    // Devices: every flag is a word with an icon; update available is neutral and says it is no vulnerability check.
+    const devices = section(page, "Network devices");
+    await expect(devices).toContainText("never called vulnerable");
+    await expect(devices.locator("tbody tr")).toHaveCount(UNIFI.total);
+    const gateway = devices.getByRole("row", { name: /gateway\.example\.lan/ });
+    await expect(gateway).toContainText("UCG Example");
+    await expect(gateway).toContainText("4.0.6");
+    await expect(gateway).toContainText("Update available");
+    await expect(devices.getByRole("row", { name: /switch-1/ })).not.toContainText("Update available");
+    const hall = devices.getByRole("row", { name: /ap-hall/ });
+    await expect(hall).toContainText("Offline");
+    await expect(hall).toContainText("Update available");
+    await expect(devices.getByRole("row", { name: /ap-new/ })).toContainText("pending adoption");
+    await expect(devices.getByRole("row", { name: /ap-new/ })).not.toContainText("Offline");
+    await expect(devices.locator("tbody")).not.toContainText(/vulnerab/i);
+    await expect(devices.locator(".text-success-text, .bg-success\\/16, .bg-destructive\\/15")).toHaveCount(
+      0,
+    );
+
+    // What a console calls a device is text, never markup.
+    await expect(devices.getByRole("row", { name: /onerror/ })).toContainText(UNIFI.devices.hostile);
+    await expect(devices.locator("tbody img")).toHaveCount(0);
+    await expect(page).not.toHaveTitle(/pwned/);
+
+    const flags = devices.getByRole("group", { name: "Show" });
+    await expect(flags.getByRole("button", { name: new RegExp(`^All\\s*${UNIFI.total}$`) })).toBeVisible();
+    await expect(
+      flags.getByRole("button", { name: new RegExp(`^Offline\\s*${UNIFI.offline}$`) }),
+    ).toBeVisible();
+    await expect(
+      flags.getByRole("button", { name: new RegExp(`^Update available\\s*${UNIFI.updatable}$`) }),
+    ).toBeVisible();
+    await flags.getByRole("button", { name: /^Offline/ }).click();
+    await expect(page).toHaveURL(/ufFlag=offline/);
+    await expect(devices.locator("tbody tr")).toHaveCount(UNIFI.offline);
+    await flags.getByRole("button", { name: /^Update available/ }).click();
+    await expect(devices.locator("tbody tr")).toHaveCount(UNIFI.updatable);
+    await flags.getByRole("button", { name: /^All/ }).click();
+
+    await devices.getByLabel("Status", { exact: true }).selectOption("online");
+    await expect(devices.locator("tbody tr")).toHaveCount(UNIFI.online);
+    await devices.getByLabel("Status", { exact: true }).selectOption("");
+    await devices.getByLabel("Site", { exact: true }).selectOption({ label: "Branch" });
+    await expect(devices.locator("tbody tr")).toHaveCount(2);
+    await devices.getByLabel("Site", { exact: true }).selectOption("");
+    await devices.getByRole("searchbox", { name: /Filter by name, model/ }).fill("192.0.2.2");
+    await expect(devices.locator("tbody tr")).toHaveCount(1);
+    await expect(devices.locator("tbody tr")).toContainText("switch-1");
+    await devices.getByRole("searchbox", { name: /Filter by name, model/ }).fill("");
+    await expect(devices.locator("tbody tr")).toHaveCount(UNIFI.total);
+
+    const firmware = devices.getByRole("columnheader", { name: /Firmware/ });
+    await firmware.getByRole("button").click();
+    await expect(page).toHaveURL(/ufSort=firmware/);
+    await expect(firmware).toHaveAttribute("aria-sort", "ascending");
+    await expect(devices.locator("tbody tr").first()).toContainText("1.0.0");
+    expect(problems).toEqual([]);
+  });
+
+  test("a device opens a dialog with all its facts, and the firmware note", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/servers?view=unifi");
+    await page.getByRole("button", { name: "Open ap-hall" }).click();
+    const dialog = page.getByRole("dialog", { name: "ap-hall" });
+    await expect(dialog).toContainText("U7 Example at site Main office, console Main console");
+    await expect(dialog).toContainText("02:00:00:00:00:03");
+    await expect(dialog).toContainText("192.0.2.3");
+    await expect(dialog).toContainText("6.7.1");
+    await expect(dialog).toContainText("Offline");
+    await expect(dialog).toContainText("Update available");
+    await expect(dialog).toContainText("From the console. Not a vulnerability check.");
+    await expect(page).toHaveURL(/device=ufd_/);
+    await dialog.getByRole("button", { name: "Close", exact: true }).first().click();
+    await expect(dialog).toBeHidden();
+    expect(problems).toEqual([]);
+  });
+
+  test("search finds the Network devices view", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+    await page.keyboard.press("Control+k");
+    const search = page.getByRole("dialog", { name: "Search" });
+    await search.getByRole("combobox", { name: "Search" }).fill("network dev");
+    await search.getByRole("option", { name: "Go to Network devices" }).click();
+    await expect(page).toHaveURL(/\/servers\?view=unifi$/);
+    await expect(page.getByRole("heading", { name: "Servers", level: 1 })).toBeVisible();
+  });
+
+  test("settings: connect a console, confirm its certificate, never see the key again, remove it", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const problems = watchForProblems(page);
+    // Assembled at run time, so the test file holds nothing that looks like a key.
+    const key = `${["e2e", "unifi", "key"].join("-")}-0123456789abcdef0123456789`;
+    await signedInAt("now");
+    await page.goto("/settings?section=unifi");
+    await expect(page.getByRole("heading", { name: "UniFi", exact: true })).toBeVisible();
+
+    for (const [name, text] of [
+      [UNIFI.main.name, "Certificate pinned"],
+      [UNIFI.pending.name, "Certificate not confirmed"],
+      [UNIFI.changed.name, "Certificate changed"],
+    ] as const) {
+      await expect(page.getByRole("listitem").filter({ hasText: name }).first()).toContainText(text);
+    }
+    await expect(page.getByRole("listitem").filter({ hasText: UNIFI.pending.name }).first()).toContainText(
+      "Confirm certificate",
+    );
+    await expect(page.getByRole("listitem").filter({ hasText: UNIFI.main.name }).first()).toContainText(
+      "Last sync",
+    );
+
+    await page.getByRole("button", { name: "Add console" }).click();
+    const dialog = page.getByRole("dialog", { name: "Connect a UniFi console" });
+    // The documentation is part of the dialog: where the key is made, what it can do, and the cloud is never used.
+    await expect(dialog).toContainText("Settings, Control Plane, Integrations");
+    await expect(dialog).toContainText("Ubiquiti does not offer read-only keys");
+    await expect(dialog).toContainText("api.ui.com is never used");
+
+    await dialog.getByLabel("Name", { exact: true }).fill("E2E console");
+    await dialog.getByLabel("API key").fill(key);
+    for (const [url, message] of [
+      ["http://udm-e2e.example.lan", "Use https://"],
+      ["https://127.0.0.1", "This address is not allowed"],
+      ["https://169.254.169.254", "This address is not allowed"],
+      ["https://udm-e2e.example.lan/proxy/network", "Only the host and port"],
+    ] as const) {
+      await dialog.getByLabel("Console address").fill(url);
+      await dialog.getByRole("button", { name: "Save and read certificate" }).click();
+      await expect(dialog.getByRole("alert").first()).toContainText("Check the fields marked below.");
+      await expect(dialog).toContainText(message);
+    }
+    await dialog.getByLabel("Console address").fill("https://udm-e2e.example.lan");
+    await dialog.getByLabel("API key").fill("short");
+    await dialog.getByRole("button", { name: "Save and read certificate" }).click();
+    await expect(dialog).toContainText("The key looks wrong");
+    await dialog.getByLabel("API key").fill(key);
+    await dialog.getByLabel("Kind of console").selectOption("unifi-os");
+    await dialog.getByRole("button", { name: "Save and read certificate" }).click();
+    await expect(dialog).toBeHidden();
+
+    const item = page.getByRole("listitem").filter({ hasText: "E2E console" }).first();
+    await expect(item).toContainText("https://udm-e2e.example.lan:443");
+    await expect(item).toContainText("Reading the certificate");
+    // The key is sealed: not on the page, not in any answer, not in a row.
+    await expect(page.getByText(key)).toHaveCount(0);
+    const listed = await page.request.get("/api/v1/unifi/connections");
+    expect(await listed.text()).not.toContain(key);
+    const rows = await sql<{ sealed: string }>(
+      "select sealed::text as sealed from secret where purpose = 'unifi-api-key'",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.sealed).not.toContain(key);
+
+    // The worker would now read the certificate; here its result is put in the database.
+    const fingerprint = UNIFI.pending.fingerprint;
+    await sql(
+      `update unifi_connection set candidate_fingerprint = $1, candidate_subject = 'CN=udm-e2e.example.lan, O=Example',
+         candidate_issuer = 'CN=udm-e2e.example.lan, O=Example', candidate_valid_from = now() - interval '1 day',
+         candidate_valid_to = now() + interval '10 years', candidate_ca_trusted = false, candidate_seen_at = now()
+       where name = 'E2E console'`,
+      [fingerprint],
+    );
+    await expect(item.getByRole("button", { name: "Confirm certificate" })).toBeVisible({ timeout: 15_000 });
+    await item.getByRole("button", { name: "Confirm certificate" }).click();
+    const cert = page.getByRole("dialog", { name: "Confirm the certificate of E2E console" });
+    await expect(cert.getByTestId("fingerprint")).toHaveText(fingerprint);
+    await expect(cert).toContainText("CN=udm-e2e.example.lan, O=Example");
+    await expect(cert).toContainText("It is not issued by a public certificate authority");
+    await expect(cert).toContainText("unifi-core.crt");
+    await cert.getByRole("button", { name: "Confirm and start the first sync" }).click();
+    await expect(cert).toBeHidden();
+
+    const [pinned] = await sql<Record<string, string>>(
+      "select cert_status, cert_fingerprint, candidate_fingerprint from unifi_connection where name = 'E2E console'",
+    );
+    expect(pinned).toMatchObject({
+      cert_status: "confirmed",
+      cert_fingerprint: fingerprint,
+      candidate_fingerprint: null,
+    });
+    await expect(item).toContainText("Certificate pinned");
+    const runs = await sql<Record<string, string>>(
+      "select r.trigger, r.state from unifi_sync_run r join unifi_connection c on c.id = r.connection_id where c.name = 'E2E console'",
+    );
+    expect(runs).toEqual([{ trigger: "setup", state: "queued" }]);
+
+    await page.goto("/audit-log?group=unifi");
+    for (const action of ["UniFi console added", "UniFi certificate confirmed"]) {
+      await expect(page.getByText(action).first()).toBeVisible();
+    }
+    await expect(
+      page.locator("tbody tr").filter({ hasText: "UniFi certificate confirmed" }).first(),
+    ).toContainText(fingerprint);
+    await expect(page.locator("body")).not.toContainText(key);
+
+    // Removing deletes the sealed key as well.
+    await page.goto("/settings?section=unifi");
+    await page.getByRole("button", { name: "Remove console: E2E console" }).click();
+    await page
+      .getByRole("dialog", { name: "Remove E2E console?" })
+      .getByRole("button", { name: "Remove console" })
+      .click();
+    await expect(page.getByRole("listitem").filter({ hasText: "E2E console" })).toHaveCount(0);
+    expect(await sql("select 1 from secret where purpose = 'unifi-api-key'")).toHaveLength(0);
+    expect(problems).toEqual([]);
+  });
+
+  test("a console needs a recent sign-in", async ({ page }) => {
+    await signedInAt("an hour ago");
+    try {
+      await page.goto("/settings?section=unifi");
+      await page.getByRole("button", { name: "Add console" }).click();
+      const dialog = page.getByRole("dialog", { name: "Connect a UniFi console" });
+      await dialog.getByLabel("Name", { exact: true }).fill("Stale console");
+      await dialog.getByLabel("Console address").fill("https://udm-stale.example.lan");
+      await dialog.getByLabel("API key").fill(`${["stale", "key"].join("-")}-0123456789abcdef0123456789`);
+      await dialog.getByRole("button", { name: "Save and read certificate" }).click();
+      await expect(page.getByRole("dialog", { name: "Confirm it is you" })).toBeVisible();
+      await page
+        .getByRole("dialog", { name: "Confirm it is you" })
+        .getByRole("button", { name: "Cancel" })
+        .click();
+      expect(await sql("select 1 from unifi_connection where name = 'Stale console'")).toHaveLength(0);
+    } finally {
+      await signedInAt("now");
+    }
+  });
+
+  test("a changed certificate shows both certificates and blocks until it is confirmed", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    await page.goto("/settings?section=unifi");
+    const item = page.getByRole("listitem").filter({ hasText: UNIFI.changed.name }).first();
+    // No sync while the certificate is not the pinned one.
+    await expect(item.getByRole("button", { name: "Sync now" })).toHaveCount(0);
+    await item.getByRole("button", { name: "Review the change" }).click();
+    const dialog = page.getByRole("dialog", { name: "The certificate of Moved console changed" });
+    await expect(dialog.getByRole("region", { name: "Pinned certificate" })).toContainText(
+      UNIFI.changed.pinned,
+    );
+    await expect(dialog.getByRole("region", { name: "Certificate the console presents now" })).toContainText(
+      UNIFI.changed.offered,
+    );
+    await expect(dialog).toContainText("no key or password is sent");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+    const [row] = await sql<Record<string, string>>(
+      "select cert_status, cert_fingerprint from unifi_connection where id = $1",
+      [UNIFI.changed.id],
+    );
+    expect(row).toMatchObject({ cert_status: "changed", cert_fingerprint: UNIFI.changed.pinned });
+    expect(problems).toEqual([]);
+  });
+
+  test("the IPS preview is off by default, marked preview, refuses administrator names and needs the acknowledgement", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const problems = watchForProblems(page);
+    // Assembled at run time, so the test file holds nothing that looks like a password.
+    const password = `${["e2e", "ips", "password"].join(" ")} 0123456789`;
+    await signedInAt("now");
+    await setUnifiIps(false);
+    try {
+      await page.goto("/settings?section=unifi");
+      const item = page.getByRole("listitem").filter({ hasText: UNIFI.main.name }).first();
+      const ips = item.getByTestId("uf-ips");
+      await expect(ips).toContainText("IPS and threat events");
+      await expect(ips).toContainText("Preview");
+      await expect(ips.getByTestId("uf-ips-state")).toContainText("Off");
+      await expect(item).not.toContainText("IPS preview on");
+      await ips.getByRole("button", { name: "Set up the preview" }).click();
+      const dialog = page.getByRole("dialog", { name: "IPS and threat events (preview) for Main console" });
+      await expect(dialog).toContainText("internal API, which Ubiquiti does not document");
+      await expect(dialog).toContainText("View Only");
+      await expect(dialog).toContainText("Never use the owner or an administrator");
+
+      // An administrator's name is refused, whatever the case.
+      await dialog.getByLabel("User name").fill("Admin");
+      await dialog.getByLabel("Password", { exact: true }).fill(password);
+      await dialog.getByRole("checkbox").check();
+      await dialog.getByRole("button", { name: "Switch on the preview" }).click();
+      await expect(dialog).toContainText("This looks like an administrator account");
+      expect(await sql("select 1 from unifi_connection where ips_enabled")).toHaveLength(0);
+
+      // Without the acknowledgement nothing is switched on either.
+      await dialog.getByLabel("User name").fill(UNIFI.ipsUser);
+      await dialog.getByRole("checkbox").uncheck();
+      await dialog.getByRole("button", { name: "Switch on the preview" }).click();
+      await expect(dialog).toContainText("Confirm that you understand the preview");
+      expect(await sql("select 1 from unifi_connection where ips_enabled")).toHaveLength(0);
+
+      await dialog.getByRole("checkbox").check();
+      await dialog.getByLabel("Ask every").fill("90");
+      await dialog.getByRole("button", { name: "Switch on the preview" }).click();
+      await expect(dialog).toBeHidden();
+
+      const [row] = await sql<Record<string, string | boolean | number>>(
+        "select ips_enabled, ips_username, ips_interval_seconds, ips_secret_id from unifi_connection where id = $1",
+        [UNIFI.main.id],
+      );
+      expect(row).toMatchObject({ ips_enabled: true, ips_username: UNIFI.ipsUser, ips_interval_seconds: 90 });
+      // The password is sealed: not on the page, not in any answer, not in a row.
+      await expect(page.getByText(password)).toHaveCount(0);
+      expect(await (await page.request.get("/api/v1/unifi/connections")).text()).not.toContain(password);
+      const sealed = await sql<{ sealed: string }>(
+        "select sealed::text as sealed from secret where purpose = 'unifi-ips-password'",
+      );
+      expect(sealed).toHaveLength(1);
+      expect(sealed[0]?.sealed).not.toContain(password);
+      await expect(item).toContainText("IPS preview on");
+      await expect(ips).toContainText(UNIFI.ipsUser);
+
+      // The login answer reported rights beyond viewing (the worker stores them): the preview is blocked, in the
+      // settings and on the card, until an admin acknowledges exactly that list.
+      await sql("update unifi_connection set ips_rights = $2::jsonb where id = $1", [
+        UNIFI.main.id,
+        JSON.stringify(["role: Super Admin", "super_admin"]),
+      ]);
+      await page.reload();
+      await expect(item).toContainText("IPS user can do more than view");
+      await expect(ips.getByTestId("uf-rights-blocked")).toContainText(
+        "The console reports rights beyond viewing for this user",
+      );
+      await expect(ips.getByTestId("uf-ips-state")).toContainText("Paused");
+      await expect(ips.getByTestId("uf-ips-state")).toContainText("acknowledge the rights");
+      await page.goto("/servers?view=unifi");
+      await expect(section(page, UNIFI.main.name)).toContainText("IPS user can do more than view");
+      await page.goto("/settings?section=unifi");
+
+      // The dialog lists exactly the rights, and the button waits for the confirmation.
+      await ips.getByRole("button", { name: "Review rights" }).click();
+      const rights = page.getByRole("dialog");
+      await expect(rights.getByTestId("uf-rights-list").getByRole("listitem")).toHaveText([
+        "role: Super Admin",
+        "super_admin",
+      ]);
+      const acknowledge = rights.getByRole("button", { name: "Acknowledge and start" });
+      await expect(acknowledge).toBeDisabled();
+      await rights.getByRole("checkbox").check();
+      await acknowledge.click();
+      await expect(rights).toBeHidden();
+      await expect(ips.getByTestId("uf-rights-acknowledged")).toContainText(
+        "An admin acknowledged these rights",
+      );
+      await expect(item).toContainText("IPS user rights acknowledged");
+      const [ack] = await sql<Record<string, unknown>>(
+        "select ips_rights_acknowledged, ips_rights_acknowledged_by from unifi_connection where id = $1",
+        [UNIFI.main.id],
+      );
+      expect(ack?.ips_rights_acknowledged).toEqual(["role: Super Admin", "super_admin"]);
+      expect(ack?.ips_rights_acknowledged_by).not.toBeNull();
+
+      // Other rights reported later (the worker clears the acknowledgement): blocked again.
+      await sql(
+        "update unifi_connection set ips_rights = $2::jsonb, ips_rights_acknowledged = '[]' where id = $1",
+        [UNIFI.main.id, JSON.stringify(["role: Site Admin"])],
+      );
+      await page.reload();
+      await expect(ips.getByTestId("uf-rights-blocked")).toBeVisible();
+      await expect(item).toContainText("IPS user can do more than view");
+      // Back to view-only: nothing to acknowledge, no warning.
+      await sql("update unifi_connection set ips_rights = '[]' where id = $1", [UNIFI.main.id]);
+      await page.reload();
+      await expect(ips.getByTestId("uf-rights-blocked")).toHaveCount(0);
+      await expect(item).not.toContainText("IPS user can do more than view");
+
+      // Switching off needs no new sign-in and leaves the user for later.
+      await page.goto("/settings?section=unifi");
+      await ips.getByRole("button", { name: "Switch off" }).click();
+      await expect(ips.getByTestId("uf-ips-state")).toContainText("Off");
+      const [off] = await sql<Record<string, unknown>>(
+        "select ips_enabled, ips_username from unifi_connection where id = $1",
+        [UNIFI.main.id],
+      );
+      expect(off).toMatchObject({ ips_enabled: false, ips_username: UNIFI.ipsUser });
+
+      await page.goto("/audit-log?group=unifi");
+      await expect(page.getByText("UniFi IPS preview changed").first()).toBeVisible();
+      await expect(page.getByText("UniFi IPS user rights acknowledged").first()).toBeVisible();
+      await expect(page.locator("body")).not.toContainText(password);
+    } finally {
+      await setUnifiIps(false);
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("the IPS preview needs a recent sign-in", async ({ page }) => {
+    await setUnifiIps(false);
+    await signedInAt("an hour ago");
+    try {
+      await page.goto("/settings?section=unifi");
+      const ips = page
+        .getByRole("listitem")
+        .filter({ hasText: UNIFI.main.name })
+        .first()
+        .getByTestId("uf-ips");
+      await ips.getByRole("button", { name: "Set up the preview" }).click();
+      const dialog = page.getByRole("dialog", { name: "IPS and threat events (preview) for Main console" });
+      await dialog.getByLabel("User name").fill(UNIFI.ipsUser);
+      await dialog.getByLabel("Password", { exact: true }).fill(`${["stale", "pw"].join("-")} 0123456789`);
+      await dialog.getByRole("checkbox").check();
+      await dialog.getByRole("button", { name: "Switch on the preview" }).click();
+      await expect(page.getByRole("dialog", { name: "Confirm it is you" })).toBeVisible();
+      await page
+        .getByRole("dialog", { name: "Confirm it is you" })
+        .getByRole("button", { name: "Cancel" })
+        .click();
+      expect(await sql("select 1 from unifi_connection where ips_enabled")).toHaveLength(0);
+    } finally {
+      await signedInAt("now");
+      await setUnifiIps(false);
+    }
+  });
+
+  test("threat events appear in the live list, on the globe and in the tables, with the Blocked by UniFi legend", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const problems = watchForProblems(page);
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    await sql(
+      `insert into attack_settings (organization_id, home_country) values ($1, 'DE')
+       on conflict (organization_id) do update set home_country = 'DE', home_lat = null, home_lon = null`,
+      [org?.id],
+    );
+    await setLivePoll("now");
+    await setUnifiIps(true);
+    try {
+      await addUnifiEvent({
+        ip: ATTACKS.ips.fr,
+        signature: "ET SCAN Example SSH brute force",
+        agoMinutes: 3,
+      });
+      await addUnifiEvent({
+        ip: ATTACKS.ips.fr,
+        signature: `ET WEB <img src=x onerror="document.title='pwned'"> probe`,
+        action: "alerted",
+        destPort: 443,
+        agoMinutes: 2,
+      });
+      await page.goto("/attacks");
+      await expect(page.getByRole("heading", { name: "Attacks", level: 1 })).toBeVisible();
+
+      // The list mixes Wazuh alerts and UniFi events; a blocked event says so in a word, not in colour alone.
+      const events = page.getByTestId("attack-events");
+      await expect(events.getByTestId("attack-event")).toHaveCount(6);
+      const blocked = events
+        .getByTestId("attack-event")
+        .filter({ hasText: "ET SCAN Example SSH brute force" });
+      await expect(blocked).toContainText("France");
+      await expect(blocked.getByTestId("attack-event-action")).toHaveText("Blocked by UniFi");
+      await expect(blocked).toContainText("UniFi, site Main office");
+      await expect(blocked).toContainText("port 22");
+      const observed = events.getByTestId("attack-event").filter({ hasText: "ET WEB" });
+      await expect(observed.getByTestId("attack-event-action")).toHaveText("observed");
+      await expect(observed).toContainText("port 443");
+      // The signature is text written by whoever attacks: never markup, never a link.
+      await expect(observed.locator("img, a")).toHaveCount(0);
+      await expect(page).not.toHaveTitle(/pwned/);
+      // A Wazuh alert is as before.
+      await expect(events.getByTestId("attack-event").filter({ hasText: "sshd: brute force" })).toContainText(
+        "Level 12",
+      );
+
+      // The preview has its own neutral status line and says it is a preview.
+      const status = page.getByTestId("unifi-status");
+      await expect(status).toContainText("UniFi IPS preview: live — last event");
+      await expect(status).toHaveAttribute("data-state", "live");
+      await expect(status.locator(".text-success-text")).toHaveCount(0);
+
+      // The globe: a dashed steel-blue line for what was blocked, next to the orange one; the legend names both.
+      const svg = page.getByTestId("attack-globe").locator("svg[role='img']");
+      const arc = svg.locator('[data-arc="FR:blocked"]');
+      await expect(arc).toHaveAttribute("data-tone", "blocked");
+      await expect(arc.locator("path")).toHaveAttribute("d", /^M/, { timeout: 4000 });
+      await expect(arc.locator("path")).toHaveAttribute("stroke-dasharray", "7 5");
+      await expect(arc.locator("path")).toHaveClass(/stroke-info/);
+      await expect(svg.locator('[data-arc="FR"]')).toHaveAttribute("data-tone", "observed");
+      const legend = page.getByTestId("attack-globe").getByRole("listitem");
+      await expect(legend.filter({ hasText: "Blocked by UniFi" })).toBeVisible();
+      await expect(legend.filter({ hasText: "Observed" })).toBeVisible();
+      // Blocked is not proof of anything: no green anywhere in the legend.
+      await expect(
+        page.getByTestId("attack-globe").locator(".bg-success, .stroke-success, .text-success-text"),
+      ).toHaveCount(0);
+
+      // The tables carry the numbers: France gets the UniFi alerts added, with the blocked part named.
+      await expect(page.getByTestId("attack-countries").getByTestId("country-FR")).toContainText("24");
+      await expect(page.getByTestId("country-blocked-FR")).toContainText("1 blocked by UniFi");
+      await expect(page.getByTestId(`attack-row-${ATTACKS.ips.fr}`)).toContainText("1 blocked by UniFi");
+
+      // A new blocked event arrives over the stream: it tops the list and draws a dashed live line.
+      await addUnifiEvent({
+        ip: ATTACKS.ips.de2,
+        signature: "ET EXPLOIT Example live block",
+        destPort: 8443,
+      });
+      await expect(events.getByTestId("attack-event")).toHaveCount(7, { timeout: 10_000 });
+      await expect(events.getByTestId("attack-event-description").first()).toHaveText(
+        "ET EXPLOIT Example live block",
+      );
+      const live = svg.locator("[data-live-arc]");
+      await expect(live).toHaveCount(1);
+      await expect(live).toHaveAttribute("data-tone", "blocked");
+      await expect(live.locator("path")).toHaveAttribute("stroke-dasharray", "7 5");
+      await expect(live).toHaveCount(0, { timeout: 12_000 });
+    } finally {
+      await setUnifiIps(false);
+      await sql("delete from attack_settings");
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("the Attacks page works with the UniFi preview alone, and the menu entry follows it", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const problems = watchForProblems(page);
+    const nav = page.getByRole("navigation", { name: "Main navigation" });
+    try {
+      await removeWazuh();
+      await setUnifiIps(true);
+      await addUnifiEvent({ ip: ATTACKS.ips.fr, signature: "ET SCAN Example alone" });
+      await addUnifiEvent({ ip: ATTACKS.ips.de, signature: "ET SCAN Example alone", action: "alerted" });
+      await page.goto("/");
+      await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+      // XDR needs Wazuh; Attacks does not.
+      await expect(nav.getByRole("link", { name: "XDR" })).toHaveCount(0);
+      await expect(nav.getByRole("link", { name: "Attacks" })).toBeVisible();
+      await nav.getByRole("link", { name: "Attacks" }).click();
+      await expect(page.getByRole("heading", { name: "Attacks", level: 1 })).toBeVisible();
+      await expect(page.getByText("The attack overview needs a Wazuh connection")).toHaveCount(0);
+      const figures = page.getByTestId("attack-figures");
+      await expect(figures.locator('[data-figure="alerts"]')).toContainText("2");
+      await expect(figures.locator('[data-figure="sources"]')).toContainText("2");
+      await expect(figures.locator('[data-figure="countries"]')).toContainText("2");
+      await expect(page.getByTestId("attack-events").getByTestId("attack-event")).toHaveCount(2);
+      // No Wazuh status line: the preview speaks for itself.
+      await expect(page.getByTestId("live-status")).toHaveCount(0);
+      await expect(page.getByTestId("unifi-status")).toContainText("UniFi IPS preview");
+      await expect(page.getByTestId("attack-countries").getByTestId("country-FR")).toContainText("1");
+
+      // Switched off, with the events gone, the page is not offered any more.
+      await setUnifiIps(false);
+      await page.goto("/");
+      await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+      await expect(nav.getByRole("link", { name: "Attacks" })).toHaveCount(0);
+      await page.goto("/attacks");
+      await expect(page.getByText("The attack overview needs a Wazuh connection")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Set up the UniFi preview" })).toHaveAttribute(
+        "href",
+        /section=unifi/,
+      );
+    } finally {
+      await setUnifiIps(false);
+      await restoreWazuh();
+    }
+    expect(problems).toEqual([]);
   });
 });
 

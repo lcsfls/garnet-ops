@@ -1,0 +1,21 @@
+{
+  "offset": 0,
+  "limit": 200,
+  "count": 1,
+  "totalCount": 1,
+  "data": [
+    {
+      "id": "0d0d0d0d-0000-4000-8000-000000000005",
+      "macAddress": "02:00:00:00:00:05",
+      "ipAddress": "198.51.100.5",
+      "name": "ap-branch",
+      "model": "U6 Example",
+      "supported": true,
+      "state": "ONLINE",
+      "firmwareVersion": "6.6.77",
+      "firmwareUpdatable": false,
+      "features": ["accessPoint"],
+      "interfaces": ["radios"]
+    }
+  ]
+}

@@ -145,6 +145,17 @@ export const HOST_SORTS = [
   "lastInventory",
 ] as const;
 
+export const UNIFI_SORTS = [
+  "name",
+  "model",
+  "site",
+  "state",
+  "ip",
+  "firmware",
+  "uptime",
+  "lastSeen",
+] as const;
+
 export const PROXMOX_SORTS = [
   "name",
   "vmid",
@@ -261,7 +272,19 @@ export const serverSearch = z.object({
   sort: sortOf(HOST_SORTS),
   dir,
   /** "proxmox": the Proxmox tab (ADR 0012). Anything else is the list of servers. */
-  view: z.enum(["servers", "proxmox", "wazuh"]).optional().catch(undefined),
+  view: z.enum(["servers", "proxmox", "wazuh", "unifi"]).optional().catch(undefined),
+  /** UniFi tab: filters, sort and position of the device list (ADR 0022). */
+  ufQ: text(100),
+  ufConnection: text(40),
+  ufSite: text(40),
+  ufState: z.enum(["online", "offline", "other"]).optional().catch(undefined),
+  ufFlag: z.enum(["all", "offline", "update"]).optional().catch(undefined),
+  ufSort: sortOf(UNIFI_SORTS),
+  ufDir: dir,
+  ufCursor: text(512),
+  ufPageSize: pageSize,
+  /** The device shown in the detail dialog. */
+  device: text(40),
   /** Wazuh tab: filters, sort and position of the agent list (ADR 0015). */
   wzQ: text(100),
   wzStatus: z.enum(XDR_AGENT_STATUSES).optional().catch(undefined),
@@ -320,6 +343,7 @@ export const AUDIT_FILTERS = [
   "team",
   "notification",
   "proxmox",
+  "unifi",
   "xdr",
   "attacks",
   "ai",
@@ -348,6 +372,7 @@ export const SETTINGS_SECTIONS = [
   "signin",
   "notifications",
   "proxmox",
+  "unifi",
   "xdr",
   "attacks",
   "ai",

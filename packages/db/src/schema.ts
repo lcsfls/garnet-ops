@@ -359,6 +359,8 @@ export const secret = pgTable(
         "osint-api-key",
         "ldap-bind-password",
         "ldap-user-password",
+        "unifi-api-key",
+        "unifi-ips-password",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -1164,6 +1166,236 @@ export const proxmoxSyncRun = pgTable(
   (t) => [
     index("proxmox_sync_run_cluster_idx").on(t.clusterId, t.createdAt, t.id),
     index("proxmox_sync_run_org_idx").on(t.organizationId, t.createdAt, t.id),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
+/* UniFi (ADR 0022): read-only network device inventory, optional IPS preview   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A connection to one UniFi console (UniFi OS console or a self-hosted Network Application). The API key of the
+ * official local UniFi Network API is sealed in `secret` (purpose unifi-api-key); the API only seals it, the worker
+ * opens it. The certificate is pinned on first contact exactly like a Proxmox node: `certStatus` is `pending` until
+ * an admin confirms the fingerprint of the candidate, `confirmed` while every request matches the pin and
+ * `changed` when the console presented another certificate.
+ *
+ * The `ips*` columns are the optional, off-by-default preview of threat events from the console's internal API
+ * (a separate view-only local user, sealed in `secret` with purpose unifi-ips-password). Session cookie and CSRF
+ * token are never stored; the columns only hold the poll cursor and the state of the last poll.
+ */
+export const unifiConnection = pgTable(
+  "unifi_connection",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Normalised `https://host:port`; host and port are kept apart for connecting. */
+    apiUrl: text("api_url").notNull(),
+    host: text("host").notNull(),
+    port: integer("port").notNull().default(443),
+    /** Where the official API lives; `auto` is resolved by the first sync and stored. */
+    apiBase: text("api_base", { enum: ["auto", "unifi-os", "network-app"] })
+      .notNull()
+      .default("auto"),
+    secretId: text("secret_id").references(() => secret.id, { onDelete: "set null" }),
+    enabled: boolean("enabled").notNull().default(true),
+
+    certStatus: text("cert_status", { enum: ["pending", "confirmed", "changed"] })
+      .notNull()
+      .default("pending"),
+    certFingerprint: text("cert_fingerprint"),
+    certSubject: text("cert_subject"),
+    certIssuer: text("cert_issuer"),
+    certValidFrom: timestamp("cert_valid_from", { withTimezone: true }),
+    certValidTo: timestamp("cert_valid_to", { withTimezone: true }),
+    certConfirmedAt: timestamp("cert_confirmed_at", { withTimezone: true }),
+    certConfirmedBy: text("cert_confirmed_by").references(() => user.id, { onDelete: "set null" }),
+    candidateFingerprint: text("candidate_fingerprint"),
+    candidateSubject: text("candidate_subject"),
+    candidateIssuer: text("candidate_issuer"),
+    candidateValidFrom: timestamp("candidate_valid_from", { withTimezone: true }),
+    candidateValidTo: timestamp("candidate_valid_to", { withTimezone: true }),
+    candidateCaTrusted: boolean("candidate_ca_trusted"),
+    candidateSeenAt: timestamp("candidate_seen_at", { withTimezone: true }),
+
+    /** From the last successful sync. */
+    version: text("version"),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    /** Short, user-safe reason of the last failure (packages/core/src/unifi-errors.ts); null if the last run worked. */
+    lastError: text("last_error"),
+
+    /** The IPS / threat event preview: off by default (ADR 0022). */
+    ipsEnabled: boolean("ips_enabled").notNull().default(false),
+    ipsUsername: text("ips_username"),
+    ipsSecretId: text("ips_secret_id").references(() => secret.id, { onDelete: "set null" }),
+    ipsIntervalSeconds: integer("ips_interval_seconds").notNull().default(60),
+    ipsEnabledBy: text("ips_enabled_by").references(() => user.id, { onDelete: "set null" }),
+    ipsEnabledAt: timestamp("ips_enabled_at", { withTimezone: true }),
+    /** Time of the newest event seen. Null until the first poll, which starts five minutes back. */
+    ipsCursorAt: timestamp("ips_cursor_at", { withTimezone: true }),
+    /** The earliest the next poll may start. Also the lease while a worker polls. */
+    ipsNextPollAt: timestamp("ips_next_poll_at", { withTimezone: true }).notNull().defaultNow(),
+    ipsLastPollAt: timestamp("ips_last_poll_at", { withTimezone: true }),
+    ipsLastEventAt: timestamp("ips_last_event_at", { withTimezone: true }),
+    /** A `UnifiErrorCode` text of the last poll; null if it worked. */
+    ipsLastError: text("ips_last_error"),
+    ipsFailures: integer("ips_failures").notNull().default(0),
+    /**
+     * The rights beyond viewing that the last login of the IPS user reported (packages/core/src/unifi-ips.ts), as
+     * short labels. Empty means: view-only, as far as the console tells.
+     */
+    ipsRights: jsonb("ips_rights").$type<string[]>().notNull().default([]),
+    /**
+     * The rights list an admin has acknowledged. It counts only if it is exactly `ipsRights`; the worker clears it
+     * when the reported rights change. While rights are reported and not acknowledged, the preview does not poll.
+     */
+    ipsRightsAcknowledged: jsonb("ips_rights_acknowledged").$type<string[]>().notNull().default([]),
+    ipsRightsAcknowledgedAt: timestamp("ips_rights_acknowledged_at", { withTimezone: true }),
+    ipsRightsAcknowledgedBy: text("ips_rights_acknowledged_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("unifi_connection_org_name_uq").on(t.organizationId, t.name),
+    uniqueIndex("unifi_connection_org_endpoint_uq").on(t.organizationId, t.host, t.port),
+    check("unifi_connection_ips_interval", sql`${t.ipsIntervalSeconds} between 30 and 600`),
+  ],
+);
+
+/** A site of a console. The client count is a number only: no client is ever stored (privacy, ADR 0022). */
+export const unifiSite = pgTable(
+  "unifi_site",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => unifiConnection.id, { onDelete: "cascade" }),
+    unifiId: text("unifi_id").notNull(),
+    name: text("name").notNull(),
+    /** The short name of the internal API's paths ("default"). */
+    internalRef: text("internal_ref"),
+    clientCount: integer("client_count"),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("unifi_site_connection_uq").on(t.connectionId, t.unifiId)],
+);
+
+export const unifiDevice = pgTable(
+  "unifi_device",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => unifiConnection.id, { onDelete: "cascade" }),
+    siteId: text("site_id")
+      .notNull()
+      .references(() => unifiSite.id, { onDelete: "cascade" }),
+    unifiId: text("unifi_id").notNull(),
+    name: text("name").notNull(),
+    model: text("model"),
+    mac: text("mac"),
+    ip: text("ip"),
+    state: text("state", { enum: ["online", "offline", "other"] }).notNull(),
+    /** The console's own state word (`ONLINE`, `UPDATING` ...). */
+    rawState: text("raw_state").notNull(),
+    /** When GarnetOps first saw the device in this state (the console does not say how long it has been offline). */
+    stateSince: timestamp("state_since", { withTimezone: true }).notNull(),
+    firmwareVersion: text("firmware_version"),
+    /** The console says a newer firmware exists; null when it does not say. A maintenance hint, never a vulnerability. */
+    firmwareUpdatable: boolean("firmware_updatable"),
+    latestFirmware: text("latest_firmware"),
+    uptimeSec: bigint("uptime_sec", { mode: "number" }),
+    /** Consecutive syncs that saw the device offline (the debounce of the offline notification). */
+    offlineSyncs: integer("offline_syncs").notNull().default(0),
+    offlineNotified: boolean("offline_notified").notNull().default(false),
+    /** The firmware version for which people were told that an update exists (once per device and version). */
+    firmwareNotifiedVersion: text("firmware_notified_version"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("unifi_device_connection_uq").on(t.connectionId, t.unifiId),
+    index("unifi_device_org_name_idx").on(t.organizationId, t.name, t.id),
+  ],
+);
+
+export const unifiSyncRun = pgTable(
+  "unifi_sync_run",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => unifiConnection.id, { onDelete: "cascade" }),
+    state: text("state", { enum: ["queued", "running", "succeeded", "failed"] }).notNull(),
+    trigger: text("trigger", { enum: ["manual", "schedule", "setup"] }).notNull(),
+    requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+    siteCount: integer("site_count"),
+    deviceCount: integer("device_count"),
+    requestCount: integer("request_count"),
+    warnings: jsonb("warnings").$type<string[]>().notNull().default([]),
+    /** Short, user-safe error message. Never contains output of the console. */
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("unifi_sync_run_connection_idx").on(t.connectionId, t.createdAt, t.id),
+    index("unifi_sync_run_org_idx").on(t.organizationId, t.createdAt, t.id),
+  ],
+);
+
+/**
+ * Threat events read from the console's internal API (the IPS preview, ADR 0022): a sibling of
+ * `wazuh_attack_event`. The sequence number comes from the same sequence, so the live stream orders and resumes the
+ * events of both sources with one number. Only what the attack overview needs is kept: when, the source address, what
+ * the console did (blocked or alerted), the signature and category as cleaned plain text, and the port of the attacked
+ * service. The destination address, ports of the source, and the packet are never read. Retention follows the attack
+ * overview (default 90 days) and at most 20,000 events are kept per connection; source addresses are personal data.
+ */
+export const unifiThreatEvent = pgTable(
+  "unifi_threat_event",
+  {
+    seq: bigint("seq", { mode: "number" }).primaryKey().default(sql`nextval('wazuh_attack_event_seq_seq')`),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => unifiConnection.id, { onDelete: "cascade" }),
+    docId: text("doc_id").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    ip: text("ip").notNull(),
+    action: text("action", { enum: ["blocked", "alerted"] }).notNull(),
+    signature: text("signature").notNull(),
+    category: text("category"),
+    destPort: integer("dest_port"),
+    proto: text("proto"),
+    /** The site's name at the time (an admin's own text, not the attacker's). */
+    siteName: text("site_name"),
+  },
+  (t) => [
+    uniqueIndex("unifi_threat_event_doc_uq").on(t.connectionId, t.docId),
+    index("unifi_threat_event_org_idx").on(t.organizationId, t.seq),
+    index("unifi_threat_event_org_at_idx").on(t.organizationId, t.at),
+    index("unifi_threat_event_at_idx").on(t.at),
   ],
 );
 

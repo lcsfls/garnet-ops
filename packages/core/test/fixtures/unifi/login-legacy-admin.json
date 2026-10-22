@@ -1,0 +1,12 @@
+{
+  "meta": {
+    "rc": "ok"
+  },
+  "data": [
+    {
+      "name": "someone",
+      "is_super": false,
+      "role": "admin"
+    }
+  ]
+}

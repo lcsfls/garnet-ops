@@ -583,6 +583,128 @@ export interface ProxmoxRun {
   createdAt: string;
 }
 
+/* UniFi (ADR 0022) */
+
+export type UnifiDeviceFlag = "offline" | "updateAvailable";
+export type UnifiFirmware = "updateAvailable" | "current" | "unknown";
+export type IpsState = "live" | "waiting" | "paused" | "off";
+export type IpsPausedReason = "disabled" | "certificate" | "credentials" | "no-sync" | "rights";
+
+export interface UnifiIps {
+  enabled: boolean;
+  /** Owners and admins only. */
+  username: string | null;
+  hasPassword: boolean;
+  intervalSeconds: number;
+  /** Rights beyond viewing that the last login reported; the preview does not poll until they are acknowledged. */
+  rights: { reported: string[]; acknowledged: boolean; acknowledgedAt: string | null };
+  state: IpsState;
+  reason: IpsPausedReason | null;
+  error: string | null;
+  lastPollAt: string | null;
+  lastEventAt: string | null;
+  enabledAt: string | null;
+}
+
+/** The state of the IPS preview over all consoles, as the Attacks page and the stream give it. */
+export interface UnifiLiveInfo {
+  enabled: boolean;
+  state: IpsState;
+  reason: IpsPausedReason | null;
+  error: string | null;
+  lastEventAt: string | null;
+  lastPollAt: string | null;
+  connections: number;
+}
+
+export interface UnifiConnection {
+  id: string;
+  name: string;
+  apiUrl: string;
+  host: string;
+  port: number;
+  apiBase: "auto" | "unifi-os" | "network-app";
+  enabled: boolean;
+  hasKey: boolean;
+  certificate: {
+    status: "pending" | "confirmed" | "changed";
+    fingerprint: string | null;
+    subject: string | null;
+    issuer: string | null;
+    validFrom: string | null;
+    validTo: string | null;
+    confirmedAt: string | null;
+    candidate: {
+      fingerprint: string;
+      subject: string | null;
+      issuer: string | null;
+      validFrom: string | null;
+      validTo: string | null;
+      caTrusted: boolean | null;
+      seenAt: string | null;
+    } | null;
+  };
+  version: string | null;
+  lastSyncAt: string | null;
+  lastError: string | null;
+  counts: {
+    sites: number;
+    clients: number | null;
+    devices: number;
+    online: number;
+    offline: number;
+    updatable: number;
+  };
+  ips: UnifiIps;
+  run: {
+    id: string;
+    state: RunState;
+    trigger: "manual" | "schedule" | "setup";
+    error: string | null;
+    warnings: string[];
+    createdAt: string;
+    finishedAt: string | null;
+  } | null;
+  createdAt: string;
+}
+
+export interface UnifiConnections {
+  syncIntervalMinutes: number;
+  ips: { intervalSeconds: { min: number; max: number; default: number } };
+  items: UnifiConnection[];
+}
+
+export interface UnifiDevice {
+  id: string;
+  connectionId: string;
+  connectionName: string;
+  siteId: string;
+  siteName: string;
+  name: string;
+  model: string | null;
+  mac: string | null;
+  ip: string | null;
+  state: "online" | "offline" | "other";
+  rawState: string;
+  stateSince: string | null;
+  firmwareVersion: string | null;
+  firmwareUpdatable: boolean | null;
+  latestFirmware: string | null;
+  firmware: UnifiFirmware;
+  uptimeSec: number | null;
+  flags: UnifiDeviceFlag[];
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+}
+
+export interface UnifiSite {
+  id: string;
+  connectionId: string;
+  connectionName: string;
+  name: string;
+  clients: number | null;
+}
+
 /* AI triage (ADR 0013) */
 
 export type { AiError, TriageResult };
@@ -871,6 +993,8 @@ export interface AttackEventsAnswer {
   items: AttackEvent[];
   latestSeq: number;
   live: AttackLiveInfo | null;
+  /** The IPS preview of UniFi (ADR 0022); null while no console has it switched on. */
+  unifi?: UnifiLiveInfo | null;
 }
 
 export interface AttackOverview {
@@ -878,6 +1002,7 @@ export interface AttackOverview {
   /** Where the globe ends its arcs; null if an admin has not set it. */
   home: HomeLocation | null;
   live: AttackLiveInfo | null;
+  unifi?: UnifiLiveInfo | null;
   period: AttackWindow;
   syncedAt: string | null;
   attribution: { text: string; url: string; licenseUrl: string };
@@ -896,11 +1021,13 @@ export interface AttackOverview {
     /** The addresses listed are the busiest ones; these say how much of the whole they cover. */
     listedAlerts: number;
     listedSources: number;
-    countries: { country: string; alerts: number; sources: number; topScore?: number }[];
+    countries: { country: string; alerts: number; sources: number; topScore?: number; blocked?: number }[];
     unlocated: { alerts: number; sources: number };
     internal: { alerts: number; sources: number };
     asns: { asn: number | null; org: string | null; alerts: number; sources: number }[];
     agents: AttackAgent[];
+    /** Of the listed alerts, the ones a UniFi console blocked (ADR 0022). */
+    blockedAlerts?: number;
   } | null;
 }
 
@@ -911,6 +1038,8 @@ export interface AttackSourceRow {
   asn: number | null;
   org: string | null;
   count: number;
+  /** Of `count`, the events a UniFi console blocked. */
+  blocked?: number;
   groups: string[];
   agents: AttackAgent[];
   firstSeen: string | null;

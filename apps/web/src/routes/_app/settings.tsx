@@ -18,6 +18,7 @@ import { Button } from "../../components/ui/button.tsx";
 import { Checkbox } from "../../components/ui/checkbox.tsx";
 import { Field, FormField, FormRow } from "../../components/ui/field.tsx";
 import { Select } from "../../components/ui/select.tsx";
+import { UnifiPanel } from "../../components/unifi-panel.tsx";
 import { UpdatesPanel } from "../../components/updates-panel.tsx";
 import { XdrPanel } from "../../components/xdr-panel.tsx";
 import { ApiError, api } from "../../lib/api.ts";
@@ -47,6 +48,7 @@ const SECTION_LABELS = {
   signin: "settings.sectionSignin",
   notifications: "settings.sectionNotifications",
   proxmox: "settings.sectionProxmox",
+  unifi: "settings.sectionUnifi",
   xdr: "settings.sectionXdr",
   attacks: "settings.sectionAttacks",
   ai: "ai.sectionName",
@@ -75,6 +77,7 @@ function SettingsPage() {
       ((s !== "updates" &&
         s !== "notifications" &&
         s !== "proxmox" &&
+        s !== "unifi" &&
         s !== "xdr" &&
         s !== "attacks" &&
         s !== "ai") ||
@@ -106,6 +109,7 @@ function SettingsPage() {
           {section === "signin" ? <DirectoryPanel me={me} /> : null}
           {section === "notifications" ? <NotificationsPanel me={me} /> : null}
           {section === "proxmox" ? <ProxmoxPanel me={me} /> : null}
+          {section === "unifi" ? <UnifiPanel me={me} /> : null}
           {section === "xdr" ? <XdrPanel me={me} /> : null}
           {section === "attacks" ? <AttacksPanel me={me} /> : null}
           {section === "ai" ? <AiSettingsPanel me={me} /> : null}
@@ -136,6 +140,11 @@ const HELP: Record<SettingsSection, { title: MessageKey; text: MessageKey }[]> =
   proxmox: [
     { title: "settings.helpProxmoxReadOnlyTitle", text: "settings.helpProxmoxReadOnlyText" },
     { title: "settings.helpProxmoxCertificateTitle", text: "settings.helpProxmoxCertificateText" },
+  ],
+  unifi: [
+    { title: "settings.helpUnifiReadOnlyTitle", text: "settings.helpUnifiReadOnlyText" },
+    { title: "settings.helpUnifiCertificateTitle", text: "settings.helpUnifiCertificateText" },
+    { title: "settings.helpUnifiCloudTitle", text: "settings.helpUnifiCloudText" },
   ],
   xdr: [
     { title: "settings.helpXdrReadOnlyTitle", text: "settings.helpXdrReadOnlyText" },

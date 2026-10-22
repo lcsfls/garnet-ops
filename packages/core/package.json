@@ -18,6 +18,8 @@
     "./host-setup": "./src/host-setup.ts",
     "./proxmox": "./src/proxmox.ts",
     "./proxmox-flags": "./src/proxmox-flags.ts",
+    "./unifi": "./src/unifi.ts",
+    "./unifi-ips": "./src/unifi-ips.ts",
     "./ai": "./src/ai.ts",
     "./ai-endpoint": "./src/ai-endpoint.ts",
     "./versions": "./src/versions.ts",

@@ -54,7 +54,7 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
   const counts = useQuery({ ...findingCountsQuery(), refetchInterval: 60_000 });
   const system = useQuery(systemQuery);
   const xdr = useQuery(xdrStatusQuery);
-  const features = { xdr: xdr.data?.connected === true };
+  const features = { xdr: xdr.data?.connected === true, attacks: xdr.data?.attacks === true };
   const criticalOpen = counts.data?.open.critical ?? 0;
   const trail = navTrail(pathname);
   const versionText = system.data

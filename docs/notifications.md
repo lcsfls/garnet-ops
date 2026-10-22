@@ -80,7 +80,10 @@ vulnerability ids, package names, paths, error output or code. You only get noti
 | Code | A fix pull request was merged, or failed | members, admins, owners (default: only requests you made or repositories you added) |
 | Infrastructure | A server's SSH host key changed | admins, owners |
 | Infrastructure | A Proxmox VE or Wazuh certificate changed | admins, owners |
-| Infrastructure | A Proxmox VE or Wazuh sync is blocked because the token can do more than read | admins, owners |
+| Infrastructure | A Proxmox VE or Wazuh sync, or the UniFi IPS preview, is blocked because the token or user can do more than read | admins, owners |
+| Infrastructure | A UniFi certificate changed | admins, owners |
+| Infrastructure | A UniFi device is offline (in two syncs in a row; once until it was online again) | admins, owners |
+| Infrastructure | A UniFi firmware update is available (once per device and firmware version) | admins, owners |
 | Account and team | An invitation was accepted | admins, owners |
 | Account and team | Your role changed | you |
 | System | An update finished or failed | admins, owners |

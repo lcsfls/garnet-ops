@@ -8,7 +8,7 @@ import { LIVE_VISIBLE } from "@garnetops/core/attack-live";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "./api.ts";
-import type { AttackEvent, AttackEventsAnswer, AttackLiveInfo } from "./types.ts";
+import type { AttackEvent, AttackEventsAnswer, AttackLiveInfo, UnifiLiveInfo } from "./types.ts";
 
 export const attackEventsKey = ["attack-events"] as const;
 const STREAM_URL = "/api/v1/attacks/live";
@@ -112,11 +112,17 @@ export function useAttackFeed(options: { enabled?: boolean } = {}) {
       source.addEventListener("ready", (event) => {
         failures = 0;
         setConnected(true);
-        const data = parse<{ latestSeq?: number; live?: AttackLiveInfo | null }>(event);
+        const data = parse<{
+          latestSeq?: number;
+          live?: AttackLiveInfo | null;
+          unifi?: UnifiLiveInfo | null;
+        }>(event);
         const cached = queryClient.getQueryData<AttackEventsAnswer>(attackEventsKey);
         // Whatever arrived between the list and the stream, or while the stream was down.
         if (!cached || (data?.latestSeq ?? 0) > (cached.items[0]?.seq ?? 0)) void reload();
-        else if (data?.live !== undefined) update((old) => ({ ...old, live: data.live ?? null }));
+        else if (data?.live !== undefined) {
+          update((old) => ({ ...old, live: data.live ?? null, unifi: data.unifi ?? null }));
+        }
       });
       source.addEventListener("event", (event) => {
         const item = parse<AttackEvent>(event);
@@ -132,6 +138,10 @@ export function useAttackFeed(options: { enabled?: boolean } = {}) {
       source.addEventListener("status", (event) => {
         const live = parse<AttackLiveInfo | null>(event);
         update((old) => ({ ...old, live }));
+      });
+      source.addEventListener("unifi", (event) => {
+        const unifi = parse<UnifiLiveInfo | null>(event);
+        update((old) => ({ ...old, unifi }));
       });
       source.addEventListener("resync", () => void reload());
       source.onerror = () => {
@@ -157,6 +167,7 @@ export function useAttackFeed(options: { enabled?: boolean } = {}) {
     query,
     events: query.data?.items,
     live: query.data?.live ?? null,
+    unifi: query.data?.unifi ?? null,
     connected,
   };
 }

@@ -56,6 +56,9 @@ const EVENTS = [
   "infra.host_key_changed",
   "infra.certificate_changed",
   "infra.sync_blocked",
+  "unifi.certificate_changed",
+  "unifi.device_offline",
+  "unifi.firmware_update_available",
   "team.invitation_accepted",
   "team.role_changed",
   "system.update_finished",
@@ -143,6 +146,53 @@ test("the bell shows the unread count and the panel lists notifications by day",
     "href",
     "/account?section=notifications",
   );
+  expect(problems).toEqual([]);
+});
+
+test("UniFi notifications read as sentences, with a link to the network devices, in English and German", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  await notify({
+    titleKey: "unifiCertificateChanged",
+    event: "unifi.certificate_changed",
+    params: { name: "Main console" },
+    link: "/settings?section=unifi",
+  });
+  await notify({
+    titleKey: "unifiDeviceOffline",
+    event: "unifi.device_offline",
+    params: { name: "Main console", device: "ap-hall", count: 2 },
+    link: "/servers?view=unifi",
+  });
+  await notify({
+    titleKey: "unifiFirmwareUpdate",
+    event: "unifi.firmware_update_available",
+    // A device name is text from the console: it stays text.
+    params: { name: "Main console", device: "<b>gateway</b>", count: 3 },
+    link: "/servers?view=unifi",
+  });
+  await page.goto("/");
+  await bell(page).click();
+  const list = panel(page);
+  await expect(list.getByText("UniFi certificate changed: Main console")).toBeVisible();
+  await expect(list.getByText("UniFi device offline: ap-hall")).toBeVisible();
+  await expect(list.getByText("Devices offline in two syncs in a row: 2, on Main console.")).toBeVisible();
+  await expect(list.getByText("UniFi firmware update available: <b>gateway</b>")).toBeVisible();
+  await expect(list.getByText("A maintenance hint, not a vulnerability check.")).toBeVisible();
+  await expect(list.locator("b")).toHaveCount(0);
+  await list.getByRole("link", { name: /UniFi device offline/ }).click();
+  await expect(page).toHaveURL(/\/servers\?view=unifi$/);
+  await expect(page.getByRole("heading", { name: "Network devices", level: 2 })).toBeVisible();
+
+  await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "de");
+  await page.getByRole("button", { name: /^Benachrichtigungen/ }).click();
+  const german = page.getByRole("region", { name: "Ihre Benachrichtigungen" });
+  await expect(german.getByText("UniFi-Zertifikat geändert: Main console")).toBeVisible();
+  await expect(german.getByText("UniFi-Gerät offline: ap-hall")).toBeVisible();
+  await expect(german.getByText("UniFi-Firmware-Update verfügbar: <b>gateway</b>")).toBeVisible();
   expect(problems).toEqual([]);
 });
 
@@ -360,9 +410,20 @@ test.describe("the matrix on the account page", () => {
     await page.goto("/account?section=notifications");
     await expect(page.getByRole("heading", { name: "Notifications", level: 2 })).toBeVisible();
     const table = matrix(page);
-    await expect(table.getByRole("rowheader")).toHaveCount(11); // one row per event; the group rows are column groups
+    await expect(table.getByRole("rowheader")).toHaveCount(14); // one row per event; the group rows are column groups
     for (const group of ["Code", "Infrastructure", "Account and team", "System"]) {
       await expect(table.getByRole("columnheader", { name: group })).toBeVisible();
+    }
+    // The UniFi events (ADR 0022) are in the Infrastructure group, for owners and admins, in the app by default.
+    for (const [event, label] of [
+      ["unifi.certificate_changed", "A UniFi certificate changed"],
+      ["unifi.device_offline", "A UniFi device is offline"],
+      ["unifi.firmware_update_available", "A UniFi firmware update is available"],
+    ] as const) {
+      const row = table.locator(`tr[data-event='${event}']`);
+      await expect(row.getByRole("rowheader")).toContainText(label);
+      await expect(row.getByRole("checkbox", { name: `${label}: in the app` })).toBeChecked();
+      await expect(row.getByRole("checkbox", { name: `${label}: by email` })).toBeDisabled();
     }
     await expect(page.getByText("The shared channels of your organisation")).toBeVisible();
     await expect(page.getByRole("link", { name: "Open the organisation channels" })).toHaveAttribute(

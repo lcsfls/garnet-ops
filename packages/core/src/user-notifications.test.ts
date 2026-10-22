@@ -77,6 +77,9 @@ describe("roles", () => {
       "infra.host_key_changed",
       "infra.certificate_changed",
       "infra.sync_blocked",
+      "unifi.certificate_changed",
+      "unifi.device_offline",
+      "unifi.firmware_update_available",
       "team.invitation_accepted",
       "system.update_finished",
     ] as const) {

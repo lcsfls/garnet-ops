@@ -94,4 +94,5 @@ export * from "./pagination.ts";
 export * from "./proxmox-errors.ts";
 export * from "./proxmox-flags.ts";
 export * from "./scan-errors.ts";
+export * from "./unifi-errors.ts";
 export * from "./wazuh-errors.ts";

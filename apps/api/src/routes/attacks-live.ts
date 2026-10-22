@@ -7,19 +7,14 @@
  * organisation only. There is no inbound endpoint for Wazuh and nothing here contacts the outside.
  */
 import { LIVE_VISIBLE, liveChannel } from "@garnetops/core/attack-live";
-import { schema } from "@garnetops/db";
-import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
-import { db } from "../db.ts";
-import { liveInfo, viewEvents } from "../lib/attack-live.ts";
+import { liveInfo, loadEvents, newestSeq, unifiLiveInfo, viewEvents } from "../lib/attack-live.ts";
 import type { AppEnv } from "../lib/context.ts";
 import { listenBus } from "../lib/listen-bus.ts";
 import { ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
-
-const e = schema.wazuhAttackEvent;
 
 /** Open live streams of one person in this process (several tabs; the same limit as the notification stream). */
 export const MAX_LIVE_STREAMS_PER_USER = 4;
@@ -40,18 +35,15 @@ export const attackLiveRoutes = new Hono<AppEnv>()
     const { limit } = z
       .object({ limit: z.coerce.number().int().min(1).max(LIVE_VISIBLE).default(LIVE_VISIBLE) })
       .parse(c.req.query());
-    const rows = await db
-      .select()
-      .from(e)
-      .where(eq(e.organizationId, actor.organizationId))
-      .orderBy(desc(e.seq))
-      .limit(limit);
+    // Wazuh alerts and UniFi threat events, one list in the order of their shared sequence number (ADR 0022).
+    const rows = await loadEvents(actor.organizationId, { limit });
     return c.json(
       {
         items: await viewEvents(actor.organizationId, rows),
         // The newest sequence number of the organisation: where a stream that opens now starts.
         latestSeq: rows[0]?.seq ?? 0,
         live: await liveInfo(actor.organizationId),
+        unifi: await unifiLiveInfo(actor.organizationId),
       },
       200,
       { "cache-control": "no-store" },
@@ -96,22 +88,29 @@ export const attackLiveRoutes = new Hono<AppEnv>()
         /** Notices that arrive before the starting point is known wait for it (the catch-up after `ready` covers them). */
         let started = false;
         let lastStatus = "";
+        let lastUnifi = "";
+        /** Sends the status of the Wazuh feed and of the UniFi preview, each only when it changed. */
+        const sendStatus = async () => {
+          const live = await liveInfo(actor.organizationId);
+          const text = JSON.stringify(live);
+          if (text !== lastStatus) {
+            lastStatus = text;
+            await send("status", live);
+          }
+          const unifi = await unifiLiveInfo(actor.organizationId);
+          const unifiText = JSON.stringify(unifi);
+          if (unifiText !== lastUnifi) {
+            lastUnifi = unifiText;
+            await send("unifi", unifi);
+          }
+        };
 
         /** Sends everything newer than the last sequence number sent; too much at once is left to a reload. */
         const catchUp = async () => {
           if (finished || !started) return;
-          const rows = await db
-            .select()
-            .from(e)
-            .where(and(eq(e.organizationId, actor.organizationId), gt(e.seq, lastSent)))
-            .orderBy(e.seq)
-            .limit(MAX_BACKLOG + 1);
+          const rows = await loadEvents(actor.organizationId, { after: lastSent, limit: MAX_BACKLOG + 1 });
           if (rows.length > MAX_BACKLOG) {
-            const [latest] = await db
-              .select({ seq: sql<number>`max(${e.seq})::bigint` })
-              .from(e)
-              .where(eq(e.organizationId, actor.organizationId));
-            lastSent = Number(latest?.seq ?? lastSent);
+            lastSent = Math.max(lastSent, await newestSeq(actor.organizationId));
             await send("resync", {});
             return;
           }
@@ -124,19 +123,17 @@ export const attackLiveRoutes = new Hono<AppEnv>()
             const live = await liveInfo(actor.organizationId);
             lastStatus = JSON.stringify(live);
             await send("status", live);
+            const unifi = await unifiLiveInfo(actor.organizationId);
+            if (JSON.stringify(unifi) !== lastUnifi) {
+              lastUnifi = JSON.stringify(unifi);
+              await send("unifi", unifi);
+            }
           }
         };
 
         const heartbeat = setInterval(() => {
           stream.write(": keep-alive\n\n").catch(() => {});
-          later(async () => {
-            const live = await liveInfo(actor.organizationId);
-            const text = JSON.stringify(live);
-            if (text !== lastStatus) {
-              lastStatus = text;
-              await send("status", live);
-            }
-          });
+          later(sendStatus);
         }, HEARTBEAT_MS);
         const lifetime = setTimeout(() => {
           finished = true;
@@ -154,16 +151,14 @@ export const attackLiveRoutes = new Hono<AppEnv>()
             () => later(catchUp),
             () => later(async () => void (await send("resync", {}))),
           );
-          const [latest] = await db
-            .select({ seq: sql<number>`coalesce(max(${e.seq}), 0)::bigint` })
-            .from(e)
-            .where(eq(e.organizationId, actor.organizationId));
-          const newest = Number(latest?.seq ?? 0);
+          const newest = await newestSeq(actor.organizationId);
           if (!(after.success && after.data)) lastSent = newest;
           if (finished) return;
           const live = await liveInfo(actor.organizationId);
+          const unifi = await unifiLiveInfo(actor.organizationId);
           lastStatus = JSON.stringify(live);
-          await send("ready", { latestSeq: newest, live });
+          lastUnifi = JSON.stringify(unifi);
+          await send("ready", { latestSeq: newest, live, unifi });
           started = true;
           later(catchUp);
           await ended;

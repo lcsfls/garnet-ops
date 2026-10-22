@@ -33,6 +33,8 @@ export interface AttackSource {
   country: string | null;
   asn: number | null;
   org: string | null;
+  /** Of `count`, the events a UniFi console blocked (ADR 0022); absent or 0 for sources that only Wazuh saw. */
+  blocked?: number;
 }
 
 export interface CountryTotal {
@@ -40,6 +42,8 @@ export interface CountryTotal {
   country: string | null;
   alerts: number;
   sources: number;
+  /** Of `alerts`, the events a UniFi console blocked (ADR 0022). Absent when there are none. */
+  blocked?: number;
 }
 export interface AsnTotal {
   asn: number | null;
@@ -59,11 +63,42 @@ export function countryTotals(sources: readonly AttackSource[]): CountryTotal[] 
     const total = totals.get(key) ?? { country: key, alerts: 0, sources: 0 };
     total.alerts += s.count;
     total.sources += 1;
+    if (s.blocked) total.blocked = (total.blocked ?? 0) + s.blocked;
     totals.set(key, total);
   }
   return [...totals.values()].sort(
     (a, b) => byAlerts(a, b) || (a.country ?? "~").localeCompare(b.country ?? "~"),
   );
+}
+
+/**
+ * Joins the sources of two origins (Wazuh and UniFi, ADR 0022) into one list: an address seen by both is one row with
+ * the counts added, the rule groups joined, the earliest first and the latest last time, and the agents of the
+ * Wazuh side. Order of the result: busiest first.
+ */
+export function mergeSources(
+  a: readonly AttackSource[],
+  b: readonly AttackSource[],
+  canonical: (ip: string) => string = (ip) => ip,
+): AttackSource[] {
+  const merged = new Map<string, AttackSource>();
+  for (const source of [...a, ...b]) {
+    const key = canonical(source.ip);
+    const prior = merged.get(key);
+    if (!prior) {
+      merged.set(key, { ...source, groups: [...source.groups], agents: [...source.agents] });
+      continue;
+    }
+    prior.count += source.count;
+    if (source.blocked) prior.blocked = (prior.blocked ?? 0) + source.blocked;
+    prior.groups = [...new Set([...prior.groups, ...source.groups])];
+    prior.agents = [...prior.agents, ...source.agents];
+    if (source.firstSeen && (!prior.firstSeen || source.firstSeen < prior.firstSeen))
+      prior.firstSeen = source.firstSeen;
+    if (source.lastSeen && (!prior.lastSeen || source.lastSeen > prior.lastSeen))
+      prior.lastSeen = source.lastSeen;
+  }
+  return [...merged.values()].sort((x, y) => y.count - x.count || x.ip.localeCompare(y.ip));
 }
 
 /** Alerts and addresses per autonomous system, busiest first. */

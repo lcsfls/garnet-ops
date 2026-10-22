@@ -22,6 +22,9 @@ export const QUEUES = {
   /** Proxmox VE (ADR 0012): reading the certificate a server presents, and the read-only sync. */
   proxmoxCertificate: "proxmox.certificate",
   proxmoxSync: "proxmox.sync",
+  /** UniFi (ADR 0022): reading the certificate a console presents, and the read-only sync of the official local API. */
+  unifiCertificate: "unifi.certificate",
+  unifiSync: "unifi.sync",
   /** Wazuh (ADR 0015): reading the certificate of an endpoint, the read-only sync, and the optional AI summary. */
   xdrCertificate: "xdr.certificate",
   xdrSync: "xdr.sync",

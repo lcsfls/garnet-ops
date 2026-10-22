@@ -8,7 +8,18 @@ import {
   sidebarFooterOnOneLine,
   watchForProblems,
 } from "./helpers.ts";
-import { AI, ATTACKS, FIXES, PROXMOX, restoreWazuh, sql, WAZUH } from "./seed.ts";
+import {
+  AI,
+  ATTACKS,
+  addUnifiEvent,
+  FIXES,
+  PROXMOX,
+  restoreWazuh,
+  setUnifiIps,
+  sql,
+  UNIFI,
+  WAZUH,
+} from "./seed.ts";
 
 /** Layout baseline (AGENTS.md rule 5): every screen fits at 1080p with 100, 125 and 150 % scaling. */
 test.describe("signed out", () => {
@@ -74,6 +85,12 @@ test.describe("signed in", () => {
       heading: "Servers",
       name: "proxmox-filtered",
     },
+    { path: "/servers?view=unifi", heading: "Servers", name: "unifi" },
+    {
+      path: "/servers?view=unifi&ufFlag=update&ufSort=firmware&ufDir=desc",
+      heading: "Servers",
+      name: "unifi-filtered",
+    },
     { path: "/servers?view=wazuh", heading: "Servers", name: "wazuh-agents" },
     { path: "/xdr", heading: "XDR", name: "xdr" },
     { path: "/attacks", heading: "Attacks", name: "attacks" },
@@ -105,6 +122,7 @@ test.describe("signed in", () => {
     { path: "/settings?section=updates", heading: "Settings", name: "settings-updates" },
     { path: "/settings?section=notifications", heading: "Settings", name: "settings-notifications" },
     { path: "/settings?section=proxmox", heading: "Settings", name: "settings-proxmox" },
+    { path: "/settings?section=unifi", heading: "Settings", name: "settings-unifi" },
     { path: "/settings?section=xdr", heading: "Settings", name: "settings-xdr" },
     { path: "/settings?section=ai", heading: "Settings", name: "settings-ai" },
     { path: "/settings?section=signin", heading: "Settings", name: "settings-signin" },
@@ -138,6 +156,7 @@ test.describe("signed in", () => {
       "signin",
       "notifications",
       "proxmox",
+      "unifi",
       "xdr",
       "attacks",
       "ai",
@@ -222,6 +241,8 @@ test.describe("signed in", () => {
       "/settings?section=signin",
       "/settings?section=notifications",
       "/settings?section=proxmox",
+      "/settings?section=unifi",
+      "/servers?view=unifi",
       "/settings?section=xdr",
       "/settings?section=attacks",
       "/settings?section=ai",
@@ -598,6 +619,163 @@ test.describe("signed in", () => {
     }
     expect(problems).toEqual([]);
   });
+
+  for (const language of ["en", "de"] as const) {
+    test(`Network devices: the cards, the table and the preview dialog fit at every width (${language})`, async ({
+      page,
+    }, info) => {
+      const problems = watchForProblems(page);
+      await page.addInitScript((lang) => localStorage.setItem("garnetops.language", lang), language);
+      await page.goto("/servers?view=unifi");
+      await expect(page.locator("html")).toHaveAttribute("lang", language);
+      const table = page.getByTestId("uf-devices");
+      await expect(table.locator("tbody tr")).toHaveCount(UNIFI.total);
+      await page.waitForLoadState("networkidle");
+      const content = await contentWidth(page);
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+      // Information never disappears: below wide, site and address move under the name; wide adds columns; xwide more.
+      const visible = async (n: number) => table.locator("thead th").nth(n).isVisible();
+      expect(await visible(0)).toBe(true); // device
+      expect(await visible(3)).toBe(true); // status
+      expect(await visible(4)).toBe(true); // firmware
+      expect(await visible(1)).toBe(content >= 1450); // site
+      expect(await visible(2)).toBe(content >= 1450); // address
+      expect(await visible(5)).toBe(content >= 1900); // uptime
+      const rowsFit = await page.evaluate(() => {
+        const t = document.querySelector("[data-testid='uf-devices']");
+        if (!t) return false;
+        return Array.from(t.querySelectorAll("tbody td")).every((td) => td.scrollWidth <= td.clientWidth + 1);
+      });
+      expect(rowsFit).toBe(true);
+      await expect(
+        page
+          .locator("section")
+          .filter({ has: page.getByRole("heading", { name: UNIFI.main.name, exact: true }) }),
+      ).toBeVisible();
+      await page.screenshot({ path: info.outputPath(`unifi-${language}.png`), fullPage: true });
+
+      // The preview dialog fits the window.
+      await page.goto("/settings?section=unifi");
+      await page.waitForLoadState("networkidle");
+      await page
+        .getByRole("listitem")
+        .filter({ hasText: UNIFI.main.name })
+        .first()
+        .getByTestId("uf-ips")
+        .getByRole("button")
+        .first()
+        .click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      const box = await dialog.boundingBox();
+      const viewport = page.viewportSize() ?? { width: 0, height: 0 };
+      expect(box && box.x >= 0 && box.x + box.width <= viewport.width).toBe(true);
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`unifi-ips-dialog-${language}.png`) });
+      expect(problems).toEqual([]);
+    });
+
+    test(`Rights beyond viewing: the warning, the list and the dialog fit at every width (${language})`, async ({
+      page,
+    }, info) => {
+      const problems = watchForProblems(page);
+      await page.addInitScript((lang) => localStorage.setItem("garnetops.language", lang), language);
+      await sql("update unifi_connection set ips_rights = $2::jsonb where id = $1", [
+        UNIFI.main.id,
+        JSON.stringify(["role: Super Admin", "super_admin", `role: ${"Long role name ".repeat(3).trim()}`]),
+      ]);
+      try {
+        await page.goto("/settings?section=unifi");
+        await expect(page.locator("html")).toHaveAttribute("lang", language);
+        const ips = page
+          .getByRole("listitem")
+          .filter({ hasText: UNIFI.main.name })
+          .first()
+          .getByTestId("uf-ips");
+        await expect(ips.getByTestId("uf-rights-blocked")).toBeVisible();
+        await page.waitForLoadState("networkidle");
+        expect(await hasNoHorizontalScroll(page)).toBe(true);
+        expect(await overflowingCards(page)).toEqual([]);
+        await page.screenshot({ path: info.outputPath(`unifi-rights-${language}.png`), fullPage: true });
+        await ips
+          .getByRole("button", { name: language === "en" ? "Review rights" : "Rechte prüfen" })
+          .click();
+        const dialog = page.getByRole("dialog");
+        await expect(dialog.getByTestId("uf-rights-list").getByRole("listitem")).toHaveCount(3);
+        const box = await dialog.boundingBox();
+        const viewport = page.viewportSize() ?? { width: 0, height: 0 };
+        expect(
+          box && box.x >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height,
+        ).toBe(true);
+        expect(await hasNoHorizontalScroll(page)).toBe(true);
+        await page.screenshot({ path: info.outputPath(`unifi-rights-dialog-${language}.png`) });
+        expect(problems).toEqual([]);
+      } finally {
+        await sql("update unifi_connection set ips_rights = '[]' where id = $1", [UNIFI.main.id]);
+      }
+    });
+
+    test(`Attacks with UniFi events: the legend, the blocked lines and the list fit at every width (${language})`, async ({
+      page,
+    }, info) => {
+      const problems = watchForProblems(page);
+      await page.addInitScript((lang) => localStorage.setItem("garnetops.language", lang), language);
+      const [org] = await sql<{ id: string }>("select id from organization limit 1");
+      await sql(
+        "insert into attack_settings (organization_id, home_country, home_lat, home_lon) values ($1, 'DE', 50.94, 6.96) on conflict (organization_id) do update set home_country = 'DE', home_lat = 50.94, home_lon = 6.96",
+        [org?.id],
+      );
+      await setUnifiIps(true);
+      try {
+        await addUnifiEvent({
+          ip: ATTACKS.ips.fr,
+          signature:
+            "ET SCAN Example SSH brute force with a rather long signature text that has to be cut by the layout",
+          agoMinutes: 2,
+        });
+        await addUnifiEvent({
+          ip: ATTACKS.ips.de,
+          signature: "ET WEB Example probe",
+          action: "alerted",
+          destPort: 8443,
+        });
+        await page.goto("/attacks");
+        await expect(page.locator("html")).toHaveAttribute("lang", language);
+        const globe = page.getByTestId("attack-globe");
+        const svg = globe.locator("svg[role='img']");
+        await expect(svg).toBeVisible();
+        await expect(svg.locator('[data-arc="FR:blocked"] path')).toHaveAttribute("d", /^M/, {
+          timeout: 4000,
+        });
+        await expect(page.getByTestId("attack-events").getByTestId("attack-event").first()).toBeVisible();
+        await expect(page.getByTestId("unifi-status")).toBeVisible();
+        await page.waitForLoadState("networkidle");
+        expect(await hasNoHorizontalScroll(page)).toBe(true);
+        expect(await overflowingCards(page)).toEqual([]);
+        // The legend names the blocked lines and stays inside the window.
+        const blocked = globe.getByTestId("legend-blocked");
+        await expect(blocked).toContainText(language === "en" ? "Blocked by UniFi" : "Von UniFi blockiert");
+        const legend = await blocked.boundingBox();
+        expect(legend).toBeTruthy();
+        if (legend) {
+          expect(legend.x).toBeGreaterThanOrEqual(0);
+          expect(legend.x + legend.width).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0);
+        }
+        const rowsFit = await page.evaluate(() => {
+          const list = document.querySelector("[data-testid='attack-events']");
+          if (!list) return false;
+          return Array.from(list.querySelectorAll("li")).every((li) => li.scrollWidth <= li.clientWidth + 1);
+        });
+        expect(rowsFit).toBe(true);
+        await page.screenshot({ path: info.outputPath(`attacks-unifi-${language}.png`), fullPage: true });
+      } finally {
+        await setUnifiIps(false);
+        await sql("delete from attack_settings");
+      }
+      expect(problems).toEqual([]);
+    });
+  }
 
   for (const language of ["en", "de"] as const) {
     test(`Attacks: the globe, the latest events and the lists fit at every width (${language})`, async ({

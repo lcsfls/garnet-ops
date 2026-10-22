@@ -62,7 +62,10 @@ export type SecretPurpose =
    */
   | "ldap-bind-password"
   /** A directory password typed at sign-in, sealed for the worker for the length of one request and then deleted. */
-  | "ldap-user-password";
+  | "ldap-user-password"
+  /** UniFi (ADR 0022): the API key of the official local UniFi Network API, and the password of the view-only IPS preview user. */
+  | "unifi-api-key"
+  | "unifi-ips-password";
 
 export interface SecretBinding {
   organizationId: string;

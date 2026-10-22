@@ -28,6 +28,7 @@ import { ActionMenu, type MenuAction } from "../../components/ui/action-menu.tsx
 import { BADGE_TONE, Badge } from "../../components/ui/badge.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog.tsx";
+import { UnifiView } from "../../components/unifi-view.tsx";
 import { useStepUp } from "../../components/use-step-up.tsx";
 import { type AgentListState, agentPrefill, XdrAgents } from "../../components/xdr-agents.tsx";
 import { api } from "../../lib/api.ts";
@@ -64,6 +65,16 @@ const UI_ONLY = [
   "pxPageSize",
   "guest",
   "addGuest",
+  "ufQ",
+  "ufConnection",
+  "ufSite",
+  "ufState",
+  "ufFlag",
+  "ufSort",
+  "ufDir",
+  "ufCursor",
+  "ufPageSize",
+  "device",
   "wzQ",
   "wzStatus",
   "wzLink",
@@ -84,6 +95,7 @@ function Servers() {
   const canEdit = me.role === "owner" || me.role === "admin";
   const proxmox = search.view === "proxmox";
   const wazuh = search.view === "wazuh";
+  const unifi = search.view === "unifi";
   const xdr = useQuery(xdrStatusQuery);
   const [addingAgent, setAddingAgent] = useState<XdrAgent | null>(null);
   const wazuhConnection = useQuery({
@@ -95,7 +107,7 @@ function Servers() {
   const query = useQuery({
     queryKey: ["hosts", search],
     queryFn: () => api<Page<HostRow>>(`/hosts${toQuery(search, UI_ONLY)}`),
-    enabled: !proxmox && !wazuh,
+    enabled: !proxmox && !wazuh && !unifi,
     placeholderData: keepPreviousData,
     // Follow the worker until it has read the host key or finished the inventory.
     refetchInterval: (q) => (q.state.data?.items.some(serverIsBusy) ? 3000 : false),
@@ -104,14 +116,14 @@ function Servers() {
     queryKey: ["host-counts", search.q ?? ""],
     queryFn: () => api<Record<(typeof STATUSES)[number], number>>(`/hosts/counts${toQuery({ q: search.q })}`),
     placeholderData: keepPreviousData,
-    enabled: !proxmox && !wazuh,
+    enabled: !proxmox && !wazuh && !unifi,
   });
 
   const grades = useQuery({
     queryKey: ["host-grades", search.q ?? ""],
     queryFn: () => api<Record<Grade | "none", number>>(`/hosts/grades${toQuery({ q: search.q })}`),
     placeholderData: keepPreviousData,
-    enabled: !proxmox && !wazuh,
+    enabled: !proxmox && !wazuh && !unifi,
   });
 
   const setSearch = (patch: Partial<ServerSearch>, replace = false) =>
@@ -153,14 +165,14 @@ function Servers() {
         title={t("servers.title")}
         description={t("servers.description")}
         actions={
-          canEdit && (proxmox || wazuh) ? (
+          canEdit && (proxmox || wazuh || unifi) ? (
             <Link
               to="/settings"
-              search={{ section: proxmox ? "proxmox" : "xdr" }}
+              search={{ section: proxmox ? "proxmox" : unifi ? "unifi" : "xdr" }}
               className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-card px-4 font-medium shadow-xs hover:bg-accent"
             >
               <Settings aria-hidden="true" className="size-4" />
-              {t(proxmox ? "proxmox.manage" : "xdr.manage")}
+              {t(proxmox ? "proxmox.manage" : unifi ? "unifi.manage" : "xdr.manage")}
             </Link>
           ) : canEdit ? (
             <>
@@ -180,10 +192,11 @@ function Servers() {
       <div className="mb-4">
         <Segmented
           label={t("proxmox.viewLabel")}
-          value={proxmox ? "proxmox" : wazuh ? "wazuh" : "servers"}
+          value={proxmox ? "proxmox" : wazuh ? "wazuh" : unifi ? "unifi" : "servers"}
           options={[
             { value: "servers", label: t("proxmox.viewServers") },
             { value: "proxmox", label: t("proxmox.viewProxmox") },
+            { value: "unifi", label: t("unifi.viewUnifi") },
             // Wazuh agents are a source of servers once a Wazuh is connected (ADR 0015).
             ...(xdr.data?.connected || wazuh ? [{ value: "wazuh" as const, label: t("xdr.viewWazuh") }] : []),
           ]}
@@ -193,6 +206,8 @@ function Servers() {
 
       {proxmox ? (
         <ProxmoxView search={search} setSearch={setSearch} me={me} />
+      ) : unifi ? (
+        <UnifiView search={search} setSearch={setSearch} canEdit={canEdit} />
       ) : wazuh ? (
         <>
           <XdrAgents

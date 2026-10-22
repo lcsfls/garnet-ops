@@ -51,6 +51,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
 import { vaultPublicKey } from "../env.ts";
+import { unifiActive } from "../lib/attack-live.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, isAdmin, requireRole } from "../lib/context.ts";
 import {
@@ -521,11 +522,15 @@ async function aiAvailability(organizationId: string) {
 /* -------------------------------------------------------------------------- */
 
 export const xdrRoutes = new Hono<AppEnv>()
-  /** Whether the XDR entry shows in the navigation: a connection exists. Reveals nothing else. */
+  /**
+   * Whether the XDR entry shows in the navigation: a connection exists. `attacks` is whether the Attacks entry does: a
+   * Wazuh connection exists or UniFi threat events are on (ADR 0022). Reveals nothing else.
+   */
   .get("/status", async (c2) => {
     const actor = c2.get("actor");
     const [row] = await db.select({ n: count() }).from(c).where(eq(c.organizationId, actor.organizationId));
-    return c2.json({ connected: (row?.n ?? 0) > 0 });
+    const connected = (row?.n ?? 0) > 0;
+    return c2.json({ connected, attacks: connected || (await unifiActive(actor.organizationId)) });
   })
 
   /* ------------------------------ connection ------------------------------ */

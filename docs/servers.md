@@ -147,6 +147,13 @@ On **Servers → Proxmox**, a guest of a connected Proxmox VE cluster becomes a 
 linked to the guest (`source` Proxmox). Everything else is as above and happens on the guest
 itself; GarnetOps never runs anything on the Proxmox node. See [proxmox.md](proxmox.md).
 
+## Network devices from UniFi
+
+On **Servers → Network devices**, the gateways, switches and access points of connected UniFi
+consoles are listed read-only with their state, firmware version and whether a newer firmware
+exists, per site. They are not servers: GarnetOps does not scan them, and a firmware hint is not a
+vulnerability finding. See [unifi.md](unifi.md).
+
 ## API
 
 `/api/v1/hosts` (see ADR 0011): list, counts, detail, add, import, delete, host key confirm

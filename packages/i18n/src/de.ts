@@ -179,8 +179,20 @@ export const de: Messages = {
           hint: "Der Abgleich ruht, bis ein Admin das neue Zertifikat bestätigt.",
         },
         infraSyncBlocked: {
-          label: "Ein Abgleich ist blockiert (Proxmox VE, Wazuh)",
+          label: "Ein Abgleich ist blockiert (Proxmox VE, Wazuh, UniFi-IPS)",
           hint: "Token oder Konto dürfen mehr als lesen, und niemand hat das bestätigt.",
+        },
+        unifiCertificateChanged: {
+          label: "Ein UniFi-Zertifikat hat sich geändert",
+          hint: "Der Abgleich stoppt, bis ein Admin das neue Zertifikat bestätigt.",
+        },
+        unifiDeviceOffline: {
+          label: "Ein UniFi-Gerät ist offline",
+          hint: "Ein Gerät war bei zwei Abgleichen in Folge offline. Sie erfahren es einmal, bis es wieder online war.",
+        },
+        unifiFirmwareUpdateAvailable: {
+          label: "Ein UniFi-Firmware-Update ist verfügbar",
+          hint: "Die Konsole meldet eine neuere Firmware für ein Gerät. Sie erfahren es einmal je Gerät und Firmware-Version.",
         },
         teamInvitationAccepted: {
           label: "Eine Einladung wurde angenommen",
@@ -1068,6 +1080,16 @@ export const de: Messages = {
     helpProxmoxCertificateTitle: "Zertifikat festlegen",
     helpProxmoxCertificateText:
       "Proxmox hat meist ein selbst signiertes Zertifikat. Sie bestätigen seinen Fingerabdruck einmal; danach muss jede Anfrage genau dieses Zertifikat vorlegen, sonst stoppt die Synchronisierung, bis Sie das neue bestätigen.",
+    sectionUnifi: "UniFi",
+    helpUnifiReadOnlyTitle: "Nur lesen, mit Absicht",
+    helpUnifiReadOnlyText:
+      "GarnetOps sendet nur GET-Anfragen an eine kurze Liste von Endpunkten der offiziellen lokalen UniFi-Network-API. Ubiquiti bietet keine schreibgeschützten Schlüssel, halten Sie den Schlüssel also geheim; auf der Konsole können Sie ihn widerrufen, um den Zugriff zu beenden.",
+    helpUnifiCertificateTitle: "Zertifikat festsetzen",
+    helpUnifiCertificateText:
+      "UniFi-Konsolen haben meist ein selbst signiertes Zertifikat. Sie bestätigen seinen Fingerabdruck einmal; danach muss jede Anfrage genau dieses Zertifikat vorlegen, sonst stoppt der Abgleich, bis Sie das neue bestätigen.",
+    helpUnifiCloudTitle: "Nur lokal",
+    helpUnifiCloudText:
+      "GarnetOps nutzt nie die Ubiquiti-Cloud (Site Manager, api.ui.com). Ihr Inventar bleibt in Ihrem Netzwerk.",
     notificationsTitle: "Benachrichtigungskanäle",
     notificationsDescription:
       "Webhooks und Mail bei neuen kritischen Schwachstellen, blockierten Gates und fehlgeschlagenen Scans.",
@@ -1417,6 +1439,284 @@ export const de: Messages = {
     privilegesAcknowledge: "Bestätigen und synchronisieren",
     privilegesChanged:
       "Die Rechte des Tokens haben sich geändert, während dieser Dialog offen war. Prüfen Sie sie erneut.",
+  },
+  unifiError: {
+    connectionRemoved: "Die UniFi-Verbindung wurde entfernt.",
+    certificateNotConfirmed:
+      "Das Zertifikat ist noch nicht bestätigt. Bestätigen Sie zuerst seinen Fingerabdruck.",
+    certificateChanged:
+      "Das Zertifikat der UniFi-Konsole hat sich geändert. Vor dem nächsten Abgleich muss eine Administratorin oder ein Administrator den neuen Fingerabdruck bestätigen.",
+    keyMissing:
+      "Der API-Schlüssel ist nicht verfügbar. Bearbeiten Sie die Verbindung und geben Sie den Schlüssel erneut ein.",
+    addressRefused: "Die Adresse zeigt auf eine Loopback-, Link-Local- oder anderweitig reservierte Adresse.",
+    addressUnresolvable: "Die Adresse konnte nicht aufgelöst werden.",
+    unreachable: "Die UniFi-Konsole ist nicht erreichbar.",
+    timeout: "Die UniFi-Konsole hat nicht rechtzeitig geantwortet.",
+    tlsFailed: "Die TLS-Verbindung zur UniFi-Konsole ist fehlgeschlagen.",
+    keyRejected:
+      "Die Konsole hat den API-Schlüssel abgelehnt. Erstellen Sie einen neuen Schlüssel und geben Sie ihn erneut ein.",
+    forbidden: "Der API-Schlüssel darf diese Informationen nicht lesen.",
+    notUnifi:
+      "Die Konsole hat nicht wie die UniFi-Network-API geantwortet. Prüfen Sie die Adresse und den API-Pfad (UniFi-OS-Konsole oder selbst betriebene Anwendung).",
+    rateLimited: "Die Konsole begrenzt Anfragen. GarnetOps versucht es später erneut.",
+    invalidResponse: "Die Konsole hat eine Antwort in einem unerwarteten Format geliefert.",
+    responseTooLarge: "Eine Antwort der Konsole ist größer als das Limit von {limit} MB.",
+    redirected: "Die Konsole hat die Anfrage umgeleitet. Umleitungen werden nicht verfolgt.",
+    serverError: "Die Konsole meldet einen Fehler. Prüfen Sie die Konsole.",
+    tooManyRequests: "Der Abgleich wurde gestoppt, weil er zu viele Anfragen senden würde.",
+    syncTimeout: "Der Abgleich hat länger als {minutes} Minuten gedauert und wurde gestoppt.",
+    ipsCredentialsMissing: "Das Passwort des IPS-Benutzers ist nicht verfügbar. Geben Sie es erneut ein.",
+    ipsLoginRejected:
+      "Die Konsole hat die Anmeldung des IPS-Benutzers abgelehnt. Prüfen Sie Benutzername und Passwort; der Benutzer muss ein lokaler Benutzer ohne Zwei-Faktor-Anmeldung sein.",
+    ipsSessionRejected: "Die Konsole hat die Sitzung des IPS-Benutzers nicht akzeptiert.",
+    ipsEndpointMissing:
+      "Diese Konsole bietet den Endpunkt für Bedrohungsereignisse nicht an, den GarnetOps erwartet. Die Vorschau funktioniert mit dieser Version nicht.",
+    unexpected: "Der Abgleich ist unerwartet fehlgeschlagen. Das Worker-Log enthält Details.",
+  },
+  unifi: {
+    viewUnifi: "Netzwerkgeräte",
+    manage: "Konsolen verwalten",
+    connect: "UniFi verbinden",
+    emptyAdmin:
+      "Noch keine UniFi-Konsole. Verbinden Sie eine Konsole mit einem API-Schlüssel ihrer offiziellen lokalen API, um Netzwerkgeräte, ihre Firmware und ihren Online-Status zu sehen. GarnetOps liest nur: Es wird nichts neu gestartet, übernommen, aktualisiert oder geändert.",
+    emptyMember:
+      "Noch keine UniFi-Konsole. Eine Administratorin oder ein Administrator kann sie unter Einstellungen anlegen.",
+    consoleVersion: "UniFi Network {version}",
+    figureDevices: "Geräte online",
+    figureOffline: "Offline",
+    figureUpdates: "Firmware-Updates",
+    figureSites: "Standorte",
+    figureClients: "Clients",
+    figureSync: "Letzter Abgleich",
+    clientsHint:
+      "Nur die Anzahl wird gelesen. Kein Clientname, keine MAC- und keine Adresse wird gespeichert.",
+    neverSynced: "Noch nicht abgeglichen",
+    syncNow: "Jetzt abgleichen",
+    syncing: "Gleiche ab",
+    disabled: "Abgleich aus",
+    finishSetup: "Einrichtung dieser Konsole abschließen",
+    certificate: {
+      pending: "Zertifikat nicht bestätigt",
+      confirmed: "Zertifikat festgesetzt",
+      changed: "Zertifikat geändert",
+    },
+    previewBadge: "IPS-Vorschau an",
+    rightsBadge: "IPS-Benutzer darf mehr als ansehen",
+    rightsAcknowledgedBadge: "Rechte des IPS-Benutzers bestätigt",
+    devicesTitle: "Netzwerkgeräte",
+    devicesDescription:
+      "Alle {minutes} Minuten über die offizielle lokale API jeder Konsole gelesen. „Update verfügbar“ ist ein Wartungshinweis der Konsole. GarnetOps kann Netzwerk-Firmware nicht mit Schwachstellendaten abgleichen, deshalb wird hier kein Gerät als verwundbar bezeichnet.",
+    search: "Nach Name, Modell, MAC, Adresse oder Firmware filtern",
+    flagFilter: "Anzeigen",
+    flag: { all: "Alle", offline: "Offline", update: "Update verfügbar" },
+    consoleFilter: "Konsole",
+    allConsoles: "Alle Konsolen",
+    siteFilter: "Standort",
+    allSites: "Alle Standorte",
+    stateFilter: "Status",
+    allStates: "Alle Status",
+    state: { online: "Online", offline: "Offline", other: "Sonstige" },
+    noDevices: "Noch keine Geräte. Der erste Abgleich ist nicht fertig, oder die Konsole meldet keine.",
+    noMatch: "Kein Gerät passt.",
+    columnDevice: "Gerät",
+    columnSite: "Standort",
+    columnAddress: "Adresse",
+    columnStatus: "Status",
+    columnFirmware: "Firmware",
+    columnUptime: "Laufzeit",
+    columnConsole: "Konsole",
+    flags: { offline: "Offline", updateAvailable: "Update verfügbar" },
+    firmware: { updateAvailable: "Update verfügbar", current: "Aktuell", unknown: "Nicht gemeldet" },
+    firmwareNote: "Von der Konsole. Keine Schwachstellenprüfung.",
+    stateSince: "seit {when}",
+    openDevice: "{name} öffnen",
+    deviceDescription: "{model} am Standort {site}, Konsole {console}",
+    factModel: "Modell",
+    factMac: "MAC-Adresse",
+    factAddress: "IP-Adresse",
+    factFirmware: "Firmware",
+    factLatest: "Neueste Firmware",
+    factState: "Status",
+    factSince: "In diesem Status",
+    factUptime: "Laufzeit",
+    factSite: "Standort",
+    factConsole: "Konsole",
+    factSeen: "Zuletzt gesehen",
+    factNone: "nicht gemeldet",
+    warnings: {
+      statisticsUnreadable: "Die Laufzeit einiger Geräte konnte nicht gelesen werden.",
+      clientsUnreadable: "Die Client-Anzahl einiger Standorte konnte nicht gelesen werden.",
+      siteUnreadable:
+        "Die Geräte einiger Standorte konnten nicht gelesen werden. Ihre zuletzt bekannten Geräte bleiben erhalten.",
+      sitesTruncated: "Es gibt mehr Standorte, als GarnetOps liest.",
+      devicesTruncated: "Es gibt mehr Geräte, als GarnetOps liest.",
+      entriesDropped: "Einige Einträge sahen anders aus als erwartet und wurden ausgelassen.",
+    },
+    panelTitle: "UniFi",
+    panelDescription:
+      "Verbinden Sie UniFi-Konsolen mit einem API-Schlüssel der offiziellen lokalen UniFi-Network-API. GarnetOps liest Standorte, Geräte, Firmware-Status und die Anzahl der Clients. Es startet nichts neu, übernimmt, aktualisiert oder ändert nichts und spricht nie mit der Ubiquiti-Cloud.",
+    panelEmpty: "Noch keine Konsole.",
+    panelFooter: "Ein Abgleich läuft alle 15 Minuten und auf Anfrage. Nichts verlässt Ihr Netzwerk.",
+    openOverview: "Netzwerkgeräte öffnen",
+    addConnection: "Konsole hinzufügen",
+    editConnection: "Konsole bearbeiten",
+    removeConnection: "Konsole entfernen",
+    removeTitle: "{name} entfernen?",
+    removeDescription:
+      "Der versiegelte Schlüssel und das Passwort des IPS-Benutzers werden gelöscht, und die von dieser Konsole gelesenen Geräte verschwinden aus GarnetOps. Der API-Schlüssel auf der Konsole bleibt gültig, bis Sie ihn dort löschen.",
+    syncEnabledHint: "Alle {minutes} Minuten abgleichen",
+    lastSync: "Letzter Abgleich {when}",
+    readingCertificate: "Zertifikat wird gelesen",
+    waitingForCertificate: "Warte auf die Bestätigung des Zertifikats",
+    lookAgain: "Zertifikat erneut prüfen",
+    confirmCertificate: "Zertifikat bestätigen",
+    reviewChange: "Änderung prüfen",
+    addTitle: "UniFi-Konsole verbinden",
+    editTitle: "{name} bearbeiten",
+    addDescription:
+      "Der Schlüssel wird im Tresor versiegelt; GarnetOps zeigt ihn nie wieder an. Bevor Sie das Zertifikat bestätigt haben, wird nichts an die Konsole gesendet.",
+    howToTitle: "API-Schlüssel auf der Konsole erstellen",
+    howToStep1:
+      "Öffnen Sie die Weboberfläche der Konsole und gehen Sie zu Einstellungen, Control Plane, Integrationen.",
+    howToStep2:
+      "Erstellen Sie einen API-Schlüssel (beliebiger Name, zum Beispiel GarnetOps) und kopieren Sie ihn. Die Konsole zeigt ihn nur einmal.",
+    howToStep3:
+      "Erlauben Sie Ihrem GarnetOps-Worker den Zugriff auf die Konsole über Port 443. Bei einer selbst betriebenen Network Application ist der Port meist 8443.",
+    howToCloud:
+      "Verwenden Sie nur den lokalen Schlüssel. Die Site-Manager-API unter api.ui.com wird nie genutzt: Sie würde Ihr Inventar an Ubiquiti senden.",
+    howToScope:
+      "Ubiquiti bietet keine schreibgeschützten Schlüssel. Ein Schlüssel hat die Rechte der gesamten offiziellen API, behandeln Sie ihn also wie ein Passwort. GarnetOps sendet nur Leseanfragen.",
+    name: "Name",
+    apiUrl: "Adresse der Konsole",
+    apiUrlHint:
+      "Nur https, zum Beispiel https://udm.example.lan. Geben Sie den Port an, wenn er nicht 443 ist.",
+    apiKey: "API-Schlüssel",
+    apiKeyHint: "Aus Einstellungen, Control Plane, Integrationen.",
+    apiKeyKeep: "Leer lassen, um den aktuellen Schlüssel zu behalten.",
+    apiBase: "Art der Konsole",
+    apiBaseHint: "Bei „automatisch“ wird sie beim ersten Abgleich erkannt.",
+    apiBaseOption: {
+      auto: "Automatisch erkennen",
+      "unifi-os": "UniFi-OS-Konsole (UDM, UCG, Cloud Key)",
+      "network-app": "Selbst betriebene Network Application",
+    },
+    saveAndRead: "Speichern und Zertifikat lesen",
+    saveChanges: "Änderungen speichern",
+    errorInvalid: "Prüfen Sie die unten markierten Felder.",
+    errorDuplicate: "Eine Konsole mit diesem Namen oder dieser Adresse gibt es schon.",
+    errorLimit: "Die Organisation hat die Anzahl der erlaubten UniFi-Konsolen erreicht.",
+    fieldError: {
+      name_invalid: "Geben Sie einen Namen mit bis zu 80 Zeichen ein.",
+      url_empty: "Geben Sie die Adresse der Konsole ein.",
+      url_tooLong: "Die Adresse ist zu lang.",
+      url_invalid: "Das ist keine gültige Adresse.",
+      url_notHttps: "Verwenden Sie https://. Einfaches http wird nie genutzt.",
+      url_credentials: "Kein Benutzername und kein Passwort in der Adresse.",
+      url_path: "Nur Host und Port: kein Pfad, keine Query, kein Fragment.",
+      url_address:
+        "Diese Adresse ist nicht erlaubt: Loopback-, Link-Local-, Metadaten- und reservierte Adressen werden abgelehnt.",
+      key_invalid: "Der Schlüssel sieht falsch aus. Fügen Sie ihn so ein, wie die Konsole ihn angezeigt hat.",
+    },
+    certTitle: "Zertifikat von {name} bestätigen",
+    certChangedTitle: "Das Zertifikat von {name} hat sich geändert",
+    certIntro:
+      "UniFi-Konsolen haben meist ein selbst signiertes Zertifikat. Vergleichen Sie diesen Fingerabdruck mit dem, den die Konsole zeigt. Bestätigen Sie erst dann: Jede spätere Anfrage muss genau dieses Zertifikat vorlegen.",
+    certChangedText:
+      "Die Konsole legt ein anderes Zertifikat vor als das festgesetzte. Es kann erneuert oder ersetzt worden sein, oder jemand fängt die Verbindung ab. Es wird nichts abgeglichen und weder Schlüssel noch Passwort gesendet, bis eine Administratorin oder ein Administrator den neuen Fingerabdruck verglichen und bestätigt hat.",
+    certPinned: "Festgesetztes Zertifikat",
+    certOffered: "Zertifikat, das die Konsole jetzt vorlegt",
+    certPresented: "Zertifikat, das die Konsole vorlegt",
+    certSubject: "Inhaber",
+    certIssuer: "Aussteller",
+    certValid: "Gültig",
+    certExpired: "abgelaufen",
+    certCaTrusted:
+      "Es lässt sich auch gegen die öffentlichen Zertifizierungsstellen prüfen. Der Fingerabdruck wird trotzdem angewendet.",
+    certSelfSigned: "Es stammt nicht von einer öffentlichen Zertifizierungsstelle, was bei UniFi normal ist.",
+    certSeen: "Gesehen {when}.",
+    certCompare:
+      "Vergleichen Sie ihn mit den Zertifikatsdetails, die Ihr Browser für die Adresse der Konsole zeigt, oder führen Sie auf der Konsole aus:",
+    certConfirm: "Bestätigen und ersten Abgleich starten",
+    certConfirmChange: "Ich habe die Änderung verglichen, neues Zertifikat bestätigen",
+    certMismatch:
+      "Das Zertifikat hat sich geändert, während dieser Dialog offen war. Vergleichen Sie den neuen Fingerabdruck.",
+    noCertificate: "Es wartet kein Zertifikat auf Bestätigung.",
+    ipsSectionTitle: "IPS und Bedrohungsereignisse",
+    ipsPreview: "Vorschau",
+    ipsSectionText:
+      "Die offizielle API meldet keine blockierten oder erkannten Bedrohungen. Diese optionale Vorschau liest sie mit einem eigenen Benutzer mit reinem Leserecht aus der internen API der Konsole. Standardmäßig aus.",
+    ipsStatusLine: "Zustand",
+    ipsState: {
+      live: "Live",
+      waiting: "Warte auf die Konsole",
+      paused: "Pausiert",
+      off: "Aus",
+    },
+    ipsPaused: {
+      disabled: "Die Konsole ist abgeschaltet.",
+      certificate: "Bestätigen Sie zuerst das Zertifikat.",
+      credentials: "Geben Sie Benutzer und Passwort ein.",
+      "no-sync": "Warte auf den ersten Abgleich.",
+      rights: "Wartet darauf, dass ein Admin die Rechte des Benutzers bestätigt.",
+    },
+    ipsLastEvent: "letztes Ereignis {when}",
+    ipsNoEvents: "noch keine Ereignisse",
+    ipsSetup: "Vorschau einrichten",
+    ipsChange: "Vorschau ändern",
+    ipsDisable: "Ausschalten",
+    ipsRemove: "Benutzer und Passwort entfernen",
+    ipsTitle: "IPS und Bedrohungsereignisse (Vorschau) für {name}",
+    ipsIntro:
+      "Blockierte und erkannte Bedrohungen erscheinen auf der Seite Angriffe, auf dem Globus und in der Live-Liste. Gespeichert werden nur Zeit, Quelladresse, was die Konsole getan hat, Signatur, Kategorie und der angegriffene Port. Keine Nutzdaten, keine Zieladresse.",
+    ipsWarning:
+      "Vorschau: Das nutzt die interne API der Konsole, die Ubiquiti weder dokumentiert noch zu erhalten verspricht. Sie kann nach jedem UniFi-Update nicht mehr funktionieren. Nichts anderes in GarnetOps hängt davon ab.",
+    ipsHowTitle: "Benutzer mit reinem Leserecht auf der Konsole anlegen",
+    ipsHowStep1:
+      "Öffnen Sie in der Konsole „Admins und Benutzer“ und fügen Sie einen neuen lokalen Benutzer hinzu (kein Ubiquiti-Konto, keine Zwei-Faktor-Anmeldung).",
+    ipsHowStep2:
+      "Geben Sie ihm für die Network Application die Rolle „Nur Ansicht“. Nehmen Sie nie den Eigentümer oder einen Administrator.",
+    ipsHowStep3:
+      "Geben Sie Benutzername und Passwort hier ein. Das Passwort wird versiegelt und nur vom Worker geöffnet.",
+    ipsUsername: "Benutzername",
+    ipsUsernameHint: "Namen wie admin, root oder ubnt werden abgelehnt.",
+    ipsPassword: "Passwort",
+    ipsPasswordKeep: "Leer lassen, um das aktuelle Passwort zu behalten.",
+    ipsInterval: "Abfrage alle",
+    ipsIntervalHint:
+      "Sekunden, von {min} bis {max}. Bei jeder Abfrage wird angemeldet und wieder abgemeldet.",
+    ipsAcknowledge:
+      "Mir ist bewusst, dass dies eine Vorschau mit der inoffiziellen internen API ist und dass der Benutzer ein eigener Benutzer mit reinem Leserecht ist.",
+    ipsEnable: "Vorschau einschalten",
+    ipsSave: "Speichern",
+    rightsBlocked:
+      "Die Konsole meldet für diesen Benutzer Rechte über das Ansehen hinaus. Die Vorschau liest nichts, bis ein Admin genau diese Rechte bestätigt. Besser ist ein Benutzer, der nur ansehen darf.",
+    rightsAcknowledgedText:
+      "Ein Admin hat diese Rechte {when} bestätigt. Ändern sich die gemeldeten Rechte, ruht die Vorschau, bis sie erneut bestätigt werden.",
+    rightsReview: "Rechte prüfen",
+    rightsTitle: "{name}: Der IPS-Benutzer darf mehr als ansehen",
+    rightsIntro:
+      "GarnetOps sendet ausschließlich Leseanfragen, aber ein gestohlenes Passwort wäre nicht darauf beschränkt.",
+    rightsWarning:
+      "Bis Sie genau diese Liste bestätigen, liest die Vorschau keine Ereignisse von der Konsole. Besser ist es, auf der Konsole dem Benutzer nur eine Rolle zum Ansehen zu geben und die nächste Prüfung abzuwarten.",
+    rightsList: "Von der Konsole gemeldete Rechte",
+    rightsUnderstood:
+      "Ich verstehe, dass der Benutzer mehr als ansehen darf, und möchte, dass GarnetOps ihn trotzdem für Leseanfragen nutzt.",
+    rightsAcknowledge: "Bestätigen und starten",
+    rightsChanged:
+      "Die gemeldeten Rechte haben sich geändert, während dieser Dialog offen war. Prüfen Sie sie erneut.",
+    ipsRemoveTitle: "IPS-Benutzer entfernen?",
+    ipsRemoveDescription:
+      "Das versiegelte Passwort wird gelöscht und die Vorschau endet. Gespeicherte Ereignisse bleiben, bis ihre Aufbewahrung abläuft.",
+    ipsFieldError: {
+      username_invalid: "Nur Buchstaben, Ziffern und . _ @ + - sind erlaubt.",
+      username_forbidden:
+        "Das sieht nach einem Administratorkonto aus. Legen Sie einen Benutzer mit reinem Leserecht an.",
+      username_missing: "Geben Sie den Benutzernamen ein.",
+      password_invalid: "Das Passwort muss aus 8 bis 200 druckbaren Zeichen bestehen.",
+      password_missing: "Geben Sie das Passwort ein.",
+      interval_invalid: "Wählen Sie einen Wert im erlaubten Bereich.",
+      preview_not_acknowledged: "Bestätigen Sie, dass Sie die Vorschau verstanden haben.",
+    },
   },
   servers: {
     errorAlreadyLinked: "Mit diesem Gast ist bereits ein Server verknüpft.",
@@ -2402,12 +2702,14 @@ export const de: Messages = {
   attacks: {
     title: "Angriffe",
     description:
-      "Woher fehlgeschlagene Anmeldungen und Angriffe auf Ihre Server kommen, aus den Alarmen Ihres Wazuh. Die Standorte stammen aus einer lokalen Datenbank und sind ungefähr.",
+      "Woher fehlgeschlagene Anmeldungen und Angriffe auf Ihre Server kommen, aus den Alarmen Ihres Wazuh und, als Vorschau, den Bedrohungsereignissen einer UniFi-Konsole. Die Standorte stammen aus einer lokalen Datenbank und sind ungefähr.",
     settingsPageName: "Einstellungen, Angriffsübersicht",
     emptyAdmin:
       "Die Angriffsübersicht braucht eine Wazuh-Verbindung, weil sie aus den Alarmen von Wazuh entsteht. Verbinden Sie zuerst Wazuh.",
     emptyMember: "Noch keine Wazuh-Verbindung. Ein Admin kann sie unter Einstellungen einrichten.",
     connect: "Wazuh verbinden",
+    connectUnifi: "UniFi-Vorschau einrichten",
+    blockedCount: "{count, plural, one {# von UniFi blockiert} other {# von UniFi blockiert}}",
     manage: "Einstellungen für Angriffe",
     waitingForData:
       "Noch keine Angriffsdaten. Sie erscheinen nach dem nächsten Wazuh-Abgleich, der alle 15 Minuten läuft.",
@@ -2470,6 +2772,7 @@ export const de: Messages = {
       resume: "Langsam drehen",
       legendHigh: "Hoher Missbrauchswert",
       legendObserved: "Beobachtet",
+      legendBlocked: "Von UniFi blockiert",
       legendHome: "Ihr Netz",
       legendWidth: "Eine dickere Linie bedeutet mehr Alarme.",
       homeTitle: "Ihr Netz",
@@ -2496,6 +2799,16 @@ export const de: Messages = {
       offHint: "Ein Admin kann ihn unter Einstellungen, Angriffsübersicht einschalten.",
       polling: "Live-Aktualisierung ist nicht verfügbar. Die Liste wird alle 30 Sekunden neu geladen.",
       empty: "Noch keine Ereignisse. Neue Alarme erscheinen hier, sobald Wazuh sie meldet.",
+      blocked: "Von UniFi blockiert",
+      sourceUnifi: "UniFi, Standort {site}",
+      sourceUnifiPlain: "UniFi",
+      destPort: "Port {port}",
+      unifiLive: "UniFi-IPS-Vorschau: live — letztes Ereignis {when}",
+      unifiLiveNone: "UniFi-IPS-Vorschau: live — noch keine Ereignisse",
+      unifiWaiting: "UniFi-IPS-Vorschau: warte auf die Konsole",
+      unifiWaitingReason: "UniFi-IPS-Vorschau: warte auf die Konsole ({reason})",
+      unifiPaused: "UniFi-IPS-Vorschau: pausiert",
+      unifiManage: "Verwalten unter Einstellungen, UniFi",
       observed: "beobachtet",
       internal: "intern",
       unknownCountry: "unbekannt",
@@ -2608,7 +2921,7 @@ export const de: Messages = {
         "Standortdaten für die Seite Angriffe, wie lange Quelladressen aufbewahrt werden, und eine optionale Reputationsabfrage. Nichts verlässt Ihr Netz, solange Sie es hier nicht einschalten.",
       noWazuhTitle: "Wazuh ist nicht verbunden",
       noWazuhText:
-        "Die Seite Angriffe erscheint im Menü, sobald eine Wazuh-Verbindung besteht. Die Standortdaten können Sie schon jetzt laden.",
+        "Die Seite Angriffe erscheint im Menü, sobald eine Wazuh-Verbindung besteht oder die UniFi-Vorschau eingeschaltet ist. Die Standortdaten können Sie schon jetzt laden.",
       noWazuhLink: "Wazuh verbinden",
       geoTitle: "Standortdaten",
       geoDescription:
@@ -2814,6 +3127,7 @@ export const de: Messages = {
       notification: "Benachrichtigungen",
       host: "Server",
       proxmox: "Proxmox",
+      unifi: "UniFi",
       xdr: "XDR",
       attacks: "Angriffe",
       fix_pr: "Fix-PRs",
@@ -2924,6 +3238,17 @@ export const de: Messages = {
       proxmox_privileges_detected: "Token mit mehr als Leserechten erkannt",
       proxmox_privileges_acknowledged: "Zusätzliche Token-Rechte bestätigt",
       proxmox_sync_requested: "Proxmox-Synchronisierung angefordert",
+      unifi_connection_created: "UniFi-Konsole hinzugefügt",
+      unifi_connection_changed: "UniFi-Konsole geändert",
+      unifi_connection_deleted: "UniFi-Konsole entfernt",
+      unifi_certificate_confirmed: "UniFi-Zertifikat bestätigt",
+      unifi_certificate_changed: "Änderung des UniFi-Zertifikats erkannt",
+      unifi_certificate_scan_requested: "Prüfung des UniFi-Zertifikats angefordert",
+      unifi_sync_requested: "UniFi-Abgleich angefordert",
+      unifi_ips_changed: "UniFi-IPS-Vorschau geändert",
+      unifi_ips_removed: "UniFi-IPS-Benutzer entfernt",
+      unifi_ips_rights_detected: "IPS-Benutzer mit Rechten über das Ansehen hinaus erkannt",
+      unifi_ips_rights_acknowledged: "Rechte des UniFi-IPS-Benutzers bestätigt",
       xdr_connection_created: "Wazuh-Verbindung hinzugefügt",
       xdr_connection_changed: "Wazuh-Verbindung geändert",
       xdr_connection_deleted: "Wazuh-Verbindung entfernt",
@@ -3410,6 +3735,22 @@ export const de: Messages = {
       syncBlockedXdr: {
         title: "Abgleich mit Wazuh blockiert: {name}",
         text: "Das Konto darf mehr als lesen. Ein Admin muss das bestätigen.",
+      },
+      unifiIpsBlocked: {
+        title: "UniFi-IPS-Vorschau blockiert: {name}",
+        text: "Der IPS-Benutzer darf mehr als ansehen. Ein Admin muss das bestätigen.",
+      },
+      unifiCertificateChanged: {
+        title: "UniFi-Zertifikat geändert: {name}",
+        text: "Der Abgleich stoppt, bis ein Admin das neue Zertifikat bestätigt.",
+      },
+      unifiDeviceOffline: {
+        title: "UniFi-Gerät offline: {device}",
+        text: "Geräte, die bei zwei Abgleichen in Folge offline waren: {count}, bei {name}.",
+      },
+      unifiFirmwareUpdate: {
+        title: "UniFi-Firmware-Update verfügbar: {device}",
+        text: "Geräte mit Firmware-Update: {count}, bei {name}. Ein Wartungshinweis, keine Schwachstellenprüfung.",
       },
       invitationAccepted: {
         title: "Einladung angenommen: {person}",

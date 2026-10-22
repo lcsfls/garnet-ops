@@ -110,6 +110,50 @@ export const PROXMOX = {
   untracked: 4,
 };
 
+/**
+ * UniFi as the sync would have left it (ADR 0022). No worker runs the sync here: its part is played by these rows.
+ * The IPS preview is off and there are no threat events; the tests that need them switch them on and clean up.
+ */
+export const UNIFI = {
+  /** Confirmed certificate, synced a few minutes ago: two sites, six devices, 53 clients. */
+  main: { id: "ufc_e2eseeded0000000001", name: "Main console", host: "udm.example.lan" },
+  /** First contact done: a certificate waits for confirmation. */
+  pending: {
+    id: "ufc_e2eseeded0000000002",
+    name: "New console",
+    host: "udm-new.example.lan",
+    fingerprint: fingerprintOfCertificate("unifi-pending"),
+  },
+  /** The console presents another certificate than the pinned one. */
+  changed: {
+    id: "ufc_e2eseeded0000000003",
+    name: "Moved console",
+    host: "udm-moved.example.lan",
+    pinned: fingerprintOfCertificate("unifi-moved-old"),
+    offered: fingerprintOfCertificate("unifi-moved-new"),
+  },
+  sites: {
+    main: { id: "ufs_e2eseeded0000000001", name: "Main office" },
+    branch: { id: "ufs_e2eseeded0000000002", name: "Branch" },
+  },
+  devices: {
+    gateway: "gateway.example.lan",
+    switch: "switch-1",
+    hall: "ap-hall",
+    fresh: "ap-new",
+    branch: "ap-branch",
+    hostile: `<img src=x onerror="document.title='pwned'">`,
+  },
+  total: 6,
+  online: 4,
+  offline: 1,
+  updatable: 2,
+  clients: 53,
+  /** The secret row that stands in for the sealed IPS password. */
+  ipsSecret: "sec_e2eunifiips00000001",
+  ipsUser: "garnetops-view",
+};
+
 /** Wazuh as the sync would have left it (ADR 0015). No worker runs the sync here: its part is played by these rows. */
 export const WAZUH = {
   connection: { id: "wzc_e2eseeded0000000001", name: "Lab Wazuh" },
@@ -364,6 +408,7 @@ export async function seed(): Promise<void> {
     await seedFixes(client, org.id, repoId, scanId, now);
     await seedServers(client, org.id, now);
     await seedProxmox(client, org.id, now);
+    await seedUnifi(client, org.id, now);
     await seedWazuhRows(client, org.id, now);
     await seedGeoipRows(client);
     await seedAi(client, org.id, now);
@@ -936,6 +981,180 @@ async function seedProxmox(client: Client, orgId: string, now: Date) {
   );
 }
 
+async function seedUnifi(client: Client, orgId: string, now: Date) {
+  const minutes = (n: number) => new Date(now.getTime() - n * 60_000);
+  const days = (n: number) => new Date(now.getTime() - n * 24 * 3600 * 1000);
+  const connection = async (
+    c: { id: string; name: string; host: string },
+    extra: Record<string, unknown>,
+  ) => {
+    const columns = Object.keys(extra);
+    await client.query(
+      `insert into unifi_connection (id, organization_id, name, api_url, host, port, api_base, ${columns.join(", ")})
+       values ($1, $2, $3, $4, $5, 443, 'unifi-os', ${columns.map((_, i) => `$${i + 6}`).join(", ")})`,
+      [c.id, orgId, c.name, `https://${c.host}:443`, c.host, ...Object.values(extra)],
+    );
+  };
+  await connection(UNIFI.main, {
+    cert_status: "confirmed",
+    cert_fingerprint: fingerprintOfCertificate("unifi-main"),
+    cert_subject: "CN=udm.example.lan, O=Example",
+    cert_issuer: "CN=udm.example.lan, O=Example",
+    cert_valid_from: days(300),
+    cert_valid_to: days(-3000),
+    cert_confirmed_at: days(20),
+    version: "9.0.114",
+    last_sync_at: minutes(5),
+  });
+  await connection(UNIFI.pending, {
+    candidate_fingerprint: UNIFI.pending.fingerprint,
+    candidate_subject: "CN=udm-new.example.lan, O=Example",
+    candidate_issuer: "CN=udm-new.example.lan, O=Example",
+    candidate_valid_from: days(2),
+    candidate_valid_to: days(-3650),
+    candidate_ca_trusted: false,
+    candidate_seen_at: minutes(1),
+  });
+  await connection(UNIFI.changed, {
+    cert_status: "changed",
+    cert_fingerprint: UNIFI.changed.pinned,
+    cert_subject: "CN=udm-moved.example.lan, O=Old",
+    cert_issuer: "CN=Old CA",
+    cert_valid_from: days(300),
+    cert_valid_to: days(-100),
+    candidate_fingerprint: UNIFI.changed.offered,
+    candidate_subject: "CN=udm-moved.example.lan, O=New",
+    candidate_issuer: "CN=New CA",
+    candidate_valid_from: days(1),
+    candidate_valid_to: days(-365),
+    candidate_ca_trusted: false,
+    candidate_seen_at: minutes(3),
+    last_error:
+      "The certificate of the UniFi console changed. An admin must confirm the new fingerprint before the next sync.",
+  });
+
+  const site = (s: { id: string; name: string }, n: number, ref: string, clients: number) =>
+    client.query(
+      `insert into unifi_site (id, organization_id, connection_id, unifi_id, name, internal_ref, client_count, last_seen_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        s.id,
+        orgId,
+        UNIFI.main.id,
+        `0a1b2c3d-0000-4000-8000-${String(n).padStart(12, "0")}`,
+        s.name,
+        ref,
+        clients,
+        minutes(5),
+      ],
+    );
+  await site(UNIFI.sites.main, 1, "default", 41);
+  await site(UNIFI.sites.branch, 2, "branch", 12);
+
+  let n = 0;
+  const device = (
+    siteId: string,
+    name: string,
+    values: {
+      model: string;
+      state: "online" | "offline" | "other";
+      raw: string;
+      firmware: string;
+      updatable: boolean | null;
+      ip: string | null;
+      uptime?: number;
+      since: Date;
+    },
+  ) => {
+    n += 1;
+    return client.query(
+      `insert into unifi_device (id, organization_id, connection_id, site_id, unifi_id, name, model, mac, ip, state, raw_state,
+         state_since, firmware_version, firmware_updatable, uptime_sec, offline_syncs, first_seen_at, last_seen_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+      [
+        `ufd_e2eseeded${String(n).padStart(8, "0")}`,
+        orgId,
+        UNIFI.main.id,
+        siteId,
+        `0d0d0d0d-0000-4000-8000-${String(n).padStart(12, "0")}`,
+        name,
+        values.model,
+        `02:00:00:00:00:${String(n).padStart(2, "0")}`,
+        values.ip,
+        values.state,
+        values.raw,
+        values.since,
+        values.firmware,
+        values.updatable,
+        values.uptime ?? null,
+        values.state === "offline" ? 3 : 0,
+        days(30),
+        minutes(5),
+      ],
+    );
+  };
+  const main = UNIFI.sites.main.id;
+  const branch = UNIFI.sites.branch.id;
+  await device(main, UNIFI.devices.gateway, {
+    model: "UCG Example",
+    state: "online",
+    raw: "ONLINE",
+    firmware: "4.0.6",
+    updatable: true,
+    ip: "192.0.2.1",
+    uptime: 864_000,
+    since: days(10),
+  });
+  await device(main, UNIFI.devices.switch, {
+    model: "USW Example 24",
+    state: "online",
+    raw: "ONLINE",
+    firmware: "7.1.26",
+    updatable: false,
+    ip: "192.0.2.2",
+    uptime: 90_000,
+    since: days(3),
+  });
+  await device(main, UNIFI.devices.hall, {
+    model: "U7 Example",
+    state: "offline",
+    raw: "OFFLINE",
+    firmware: "6.7.1",
+    updatable: true,
+    ip: "192.0.2.3",
+    since: minutes(50),
+  });
+  await device(main, UNIFI.devices.fresh, {
+    model: "U7 Example",
+    state: "other",
+    raw: "PENDING_ADOPTION",
+    firmware: "6.5.0",
+    updatable: null,
+    ip: null,
+    since: minutes(20),
+  });
+  await device(branch, UNIFI.devices.branch, {
+    model: "U6 Example",
+    state: "online",
+    raw: "ONLINE",
+    firmware: "6.6.77",
+    updatable: false,
+    ip: "198.51.100.5",
+    uptime: 4000,
+    since: days(1),
+  });
+  await device(branch, UNIFI.devices.hostile, {
+    model: "<b>model</b>",
+    state: "online",
+    raw: "ONLINE",
+    firmware: "1.0.0",
+    updatable: false,
+    ip: "198.51.100.6",
+    uptime: 100,
+    since: days(1),
+  });
+}
+
 async function seedWazuhRows(client: Client, orgId: string, now: Date) {
   const minutes = (n: number) => new Date(now.getTime() - n * 60_000);
   const days = (n: number) => new Date(now.getTime() - n * 24 * 3600 * 1000);
@@ -1367,4 +1586,79 @@ export async function setLivePoll(
        last_error = null, failures = 0,
        last_event_at = ${lastEventMinutesAgo === null ? "null" : `now() - interval '${lastEventMinutesAgo} minutes'`}`,
   );
+}
+
+/**
+ * Switches the IPS preview of the main console on or off as an admin would, with the sealed password played by a row
+ * (ADR 0022). Switching off also deletes the threat events, so the other tests see an untouched Attacks page.
+ */
+export async function setUnifiIps(
+  on: boolean,
+  options: { lastEventMinutesAgo?: number | null } = {},
+): Promise<void> {
+  if (on) {
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    await sql(
+      `insert into secret (id, organization_id, purpose, sealed, vault_key_id)
+       values ($1, $2, 'unifi-ips-password', '{}', 'e2e') on conflict do nothing`,
+      [UNIFI.ipsSecret, org?.id],
+    );
+    const ago = options.lastEventMinutesAgo === undefined ? 2 : options.lastEventMinutesAgo;
+    await sql(
+      `update unifi_connection set ips_enabled = true, ips_username = $2, ips_secret_id = $3,
+         ips_last_poll_at = now(), ips_last_error = null, ips_failures = 0, ips_rights = '[]', ips_rights_acknowledged = '[]', ips_rights_acknowledged_at = null,
+         ips_rights_acknowledged_by = null,
+         ips_last_event_at = ${ago === null ? "null" : `now() - interval '${ago} minutes'`}
+       where id = $1`,
+      [UNIFI.main.id, UNIFI.ipsUser, UNIFI.ipsSecret],
+    );
+  } else {
+    await sql(
+      `update unifi_connection set ips_enabled = false, ips_username = null, ips_secret_id = null,
+         ips_last_poll_at = null, ips_last_event_at = null, ips_last_error = null, ips_rights = '[]', ips_rights_acknowledged = '[]', ips_rights_acknowledged_at = null,
+         ips_rights_acknowledged_by = null,
+         ips_interval_seconds = 60, ips_enabled_by = null, ips_enabled_at = null`,
+    );
+    await sql("delete from secret where purpose = 'unifi-ips-password'");
+    await sql("delete from unifi_threat_event");
+  }
+}
+
+/**
+ * Stores one threat event as the worker does after a poll of the IPS preview and tells the browsers (ADR 0022). The
+ * channel is the one of the Wazuh live feed: both sources share it and one sequence.
+ */
+export async function addUnifiEvent(event: {
+  ip: string;
+  signature: string;
+  action?: "blocked" | "alerted";
+  category?: string;
+  destPort?: number | null;
+  site?: string;
+  agoMinutes?: number;
+}): Promise<number> {
+  const [org] = await sql<{ id: string }>("select id from organization limit 1");
+  if (!org) throw new Error("No organisation in the e2e database");
+  const doc = `e2e-unifi-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const [row] = await sql<{ seq: string }>(
+    `insert into unifi_threat_event (organization_id, connection_id, doc_id, at, ip, action, signature, category, dest_port,
+       proto, site_name)
+     values ($1, $2, $3, now() - make_interval(mins => $4), $5, $6, $7, $8, $9, 'tcp', $10) returning seq`,
+    [
+      org.id,
+      UNIFI.main.id,
+      doc,
+      event.agoMinutes ?? 0,
+      event.ip,
+      event.action ?? "blocked",
+      event.signature,
+      event.category ?? "Attempted Administrator Privilege Gain",
+      event.destPort === undefined ? 22 : event.destPort,
+      event.site ?? UNIFI.sites.main.name,
+    ],
+  );
+  const seq = Number(row?.seq);
+  const channel = `attack_live_${org.id.toLowerCase().replace(/[^a-z0-9]/g, "_")}`.slice(0, 63);
+  await sql("select pg_notify($1, $2)", [channel, JSON.stringify({ s: seq })]);
+  return seq;
 }

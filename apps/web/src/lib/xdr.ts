@@ -11,7 +11,7 @@ import type { XdrAgentStatus, XdrCounts, XdrSeverity, XdrWindow } from "./types.
 /** Whether a Wazuh connection exists; the XDR entry is listed only then (ADR 0015). */
 export const xdrStatusQuery = {
   queryKey: ["xdr-status"],
-  queryFn: () => api<{ connected: boolean }>("/xdr/status"),
+  queryFn: () => api<{ connected: boolean; attacks?: boolean }>("/xdr/status"),
   staleTime: 60_000,
 };
 

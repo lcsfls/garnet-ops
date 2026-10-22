@@ -1,0 +1,11 @@
+{
+  "unique_id": "u-2",
+  "username": "someone",
+  "isOwner": false,
+  "isSuperAdmin": true,
+  "roles": [
+    {
+      "name": "Super Admin"
+    }
+  ]
+}

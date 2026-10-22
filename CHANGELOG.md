@@ -10,6 +10,35 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- **UniFi integration, read-only and local** (ADR 0022, `docs/unifi.md`). **Settings → UniFi** (owners and admins) connects UniFi
+  consoles (UniFi OS or a self-hosted Network Application, 9.0 or newer) through the **official local UniFi Network API** with an
+  API key made on the console; the key is sealed in the vault (new secret purpose `unifi-api-key`) and only the worker opens it. The
+  client sends `GET` only, to a short allow-list, with response caps, timeouts and defensive parsers; the console's **certificate is
+  pinned on first contact** (an admin confirms the SHA-256 fingerprint with a recent sign-in; a changed certificate blocks the sync
+  before any request) exactly like Proxmox; loopback, link-local and metadata addresses are refused, private ones allowed. The cloud
+  Site Manager API (`api.ui.com`) is never used. A sync every 15 minutes and on request reads sites, devices (name, model, MAC,
+  address, state, firmware version, "update available", uptime) and the **number** of clients per site (no client name, MAC or
+  address is read or stored). New tab **Servers → Network devices** with a card per console and a sortable, filterable device table
+  (offline devices flagged, "update available" as a neutral maintenance hint: GarnetOps cannot match network firmware against
+  vulnerability data, so a device is never called vulnerable), a detail dialog, command search and an audit filter. Three new
+  notification events (Account → Notifications; owners and admins; app and email): a UniFi certificate changed, a UniFi device is
+  offline (after two syncs in a row, once until it was online again), a UniFi firmware update is available (once per device and
+  version). Migration 0020 (additive: `unifi_connection`, `unifi_site`, `unifi_device`, `unifi_sync_run`, `unifi_threat_event`).
+  New audit actions `unifi.connection_*`, `unifi.certificate_*`, `unifi.sync_requested`. No new dependency. Not tested against a
+  real console, only against a local HTTPS server with synthetic answers.
+- **UniFi IPS and threat events, a preview, off by default** (ADR 0022). The official API reports no blocked or detected threats; this
+  optional preview reads them from the console's **internal, unofficial** API with a **separate local view-only user** (names such as
+  `admin`, `root`, `ubnt` are refused; a login answer that reports rights beyond viewing, such as owner, super administrator or any role that is not view-only, stops the preview before anything is read until an owner or admin acknowledges exactly that list, with a recent sign-in and an audit entry; other rights reported later void the acknowledgement, as with Proxmox and Wazuh). The
+  password is sealed (`unifi-ips-password`); each poll is login, read, logout with the cookie and CSRF token kept in worker memory
+  only, and the only POST requests the client can send are the console's login and logout. Every 60 seconds by default (30 to 600).
+  Events (time, source address, blocked or alerted, signature and category as cleaned plain text, the targeted port; never payload,
+  destination address or source port) join the **Attacks** page: the numbers, countries, networks and address table (with the
+  part "blocked by UniFi"), the live list and stream (one shared sequence with the Wazuh events), and the **globe**, where blocked
+  events are dashed steel-blue lines with the legend "Blocked by UniFi" next to "Observed". Kept for the attack overview's
+  retention period (90 days) and at most 20,000 per console; "Delete stored addresses now" deletes them too. The Attacks entry
+  now also appears when only the preview is used. May stop working with any UniFi update; the rest of GarnetOps does not depend on
+  it. `GET /api/v1/xdr/status` gains `attacks`; `/api/v1/attacks/events`, the stream and the overview gain `source`, `action`,
+  `destPort`, `unifi` and `blocked` fields (additive).
 - **Globe view and live attack feed** (ADR 0021, `docs/attacks.md`, `docs/xdr.md`). **Attacks → Globe | Map**: an orthographic
   **globe** (the default; the flat map stays, and the choice is remembered in this browser) drawn with `d3-geo` (ISC) from the
   vendored Natural Earth shapes, countries filled on the same single-hue scale, with **lines from each source country to your
@@ -572,6 +601,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Security
 
+- UniFi integration (ADR 0022): read-only by construction (a client that can only send allow-listed `GET` requests and, for the
+  optional preview, the console's login and logout); the API key and the IPS password are sealed and opened by the worker only;
+  the console's certificate is pinned and checked before the first byte of any request, so neither is sent to a console that
+  presents another certificate; resolve-check-connect SSRF rules; hostile JSON and attacker-written signatures are cleaned, cut,
+  stored and shown as plain text and never sent to a model; clients are a number only. Ubiquiti's API key cannot be narrowed to
+  read-only, which the documentation and the dialog state; the preview's user must be view-only and administrator names are refused and rights
+  beyond viewing block the preview until acknowledged.
 - Live attack feed (ADR 0021): read-only and outbound only (we poll, nothing calls us), one fixed query template whose only
   inputs are a time we parsed ourselves and an integer rule level between fixed bounds, so no alert text ever reaches a
   query; at most 50 alerts and 1 MiB per request, eight fields and never the log line, source port or user name tried;

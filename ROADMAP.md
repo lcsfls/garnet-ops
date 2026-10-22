@@ -190,6 +190,16 @@ See ADR 0002 and ADR 0004.
       root access on the node). Open: configurable thresholds, notifications for stale or
       untracked guests, public-key pinning for certificates that renew, Proxmox Backup Server,
       run against real Proxmox VE 8 and 9 installations (tested with recorded fixtures only)
+- [~] UniFi (ADR 0022, `docs/unifi.md`): done: connect UniFi OS consoles and self-hosted Network Applications through
+      the official local API with a key sealed in the vault (opened by the worker only), GET-only client with an allow-list,
+      pinned TLS certificate on first contact, SSRF rules, sync every 15 minutes, sites, devices (state, firmware status,
+      uptime) and the number of clients per site (no client data stored), tab Servers → Network devices, notifications for a
+      changed certificate, an offline device (debounced) and a firmware update (once per version). **Preview, off by default:**
+      IPS / threat events from the internal API with a separate view-only user (cookie session in worker memory, login and logout
+      the only POSTs), joined to the attack overview, live stream and globe (dashed blue "Blocked by UniFi"). Open: run against
+      real UniFi OS and Network application 9.x consoles (synthetic fixtures only; field names and the unofficial endpoints are
+      assumptions), public-key pinning for renewing certificates, the v2 threat endpoints, UniFi data in the AI summary,
+      per-port and Wi-Fi views
 - [ ] Post-quantum SSH key exchange (`mlkem768x25519-sha256`): check support
       in the ssh2 library, otherwise document the gap
 

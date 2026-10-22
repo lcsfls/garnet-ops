@@ -13,8 +13,9 @@ the optional reputation lookup.
 
 ## 1. What you need
 
-1. A **Wazuh connection** ([xdr.md](xdr.md)). The Attacks entry appears in the menu, under Infrastructure,
-   only while one exists; without it the page and Settings say how to connect.
+1. A **Wazuh connection** ([xdr.md](xdr.md)) **or** the **UniFi IPS preview** ([unifi.md](unifi.md), section 5). The
+   Attacks entry appears in the menu, under Infrastructure, only while one of them exists (or UniFi events are still
+   stored); without either, the page and Settings say how to connect. With both, their numbers are added up.
 2. **Location data** from DB-IP, loaded once (and refreshed monthly): see section 2. Without it the page
    still lists the addresses, but every country and network is "Unknown".
 
@@ -93,6 +94,24 @@ If DB-IP ever answered with a redirect, the download would fail and say so; the 
 - **Summarise with AI** (only when AI is set up and on): the model receives numbers per country code and
   per AS number, never an address, organisation, machine name or rule text. The answer is labelled "AI
   suggestion" and is never acted on.
+
+## 3-unifi. UniFi threat events (preview)
+
+When an owner or admin switches on the **IPS preview** for a UniFi console ([unifi.md](unifi.md), ADR 0022), the events
+that the gateway detected or **blocked** join the page:
+
+- The numbers, countries, networks and the address table add the UniFi events to Wazuh's. An address that both saw is one
+  row. The table shows "N blocked by UniFi" under the count; the country list shows it too.
+- On the **globe**, what a console blocked is drawn as a **dashed blue line** (legend **Blocked by UniFi**), next to the orange
+  **Observed** lines. Blue is the colour of "information", never a severity colour, and never green: blocking an attack
+  proves nothing about the next one. Under reduced motion nothing turns and lines appear at once, as before.
+- The **Latest events** list mixes Wazuh alerts and UniFi events in the order they were stored. A UniFi event shows the
+  signature, the address, the country, "Blocked by UniFi" or "Observed", the site and the targeted port. A second status
+  line says "UniFi IPS preview: live, last event 12 s ago", "waiting for the console" or "paused" (with the reason).
+- Signatures and categories are written by whoever attacks you: plain text, never a link, never sent to an AI model. The AI
+  summary reads Wazuh's aggregated numbers only.
+- Retention, "Delete stored addresses now" and the home location are the same as for Wazuh. At most 20,000 UniFi events are
+  kept per console.
 
 ## 3a. The globe
 

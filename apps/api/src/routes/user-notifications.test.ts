@@ -442,10 +442,11 @@ describe.skipIf(!adminUrl)("personal notifications", () => {
       });
       const admin = await get({ user: "u_admin", role: "admin" });
       expect(admin.json?.canManageChannels).toBe(true);
-      expect(admin.json?.events).toHaveLength(11);
+      expect(admin.json?.events).toHaveLength(14);
       expect(admin.json?.events.map((e: Json) => e.group)).toEqual([
         ...Array(5).fill("code"),
-        ...Array(3).fill("infrastructure"),
+        // Host key, certificate, blocked sync, and the three UniFi events (ADR 0022).
+        ...Array(6).fill("infrastructure"),
         ...Array(2).fill("account"),
         "system",
       ]);

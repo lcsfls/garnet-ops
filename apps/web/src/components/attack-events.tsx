@@ -1,12 +1,13 @@
 import { HIGH_ABUSE_SCORE } from "@garnetops/core/attack-live";
 import { Link } from "@tanstack/react-router";
-import { CircleOff, Clock, PauseCircle, Radio } from "lucide-react";
+import { CircleOff, Clock, FlaskConical, PauseCircle, Radio } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type Freshness, formatAge, freshnessOf, useNow } from "../lib/attack-feed.ts";
 import { countryName } from "../lib/attacks.ts";
 import { cn } from "../lib/cn.ts";
 import { formatDateTime } from "../lib/format.ts";
-import type { AttackEvent, AttackLiveInfo } from "../lib/types.ts";
+import type { AttackEvent, AttackLiveInfo, UnifiLiveInfo } from "../lib/types.ts";
+import { useUnifiErrorText } from "../lib/unifi.ts";
 import { useWazuhCodeText } from "../lib/xdr.ts";
 import { Card, CardHeader } from "./page-header.tsx";
 import { QueryStatus } from "./query-state.tsx";
@@ -90,6 +91,58 @@ export function LiveStatusLine({
   );
 }
 
+/**
+ * One honest line about the UniFi IPS preview (ADR 0022): neutral, like the Wazuh line, and always called a preview.
+ * Shown only while a console has the preview switched on.
+ */
+export function UnifiStatusLine({
+  unifi,
+  canEdit,
+  className,
+}: {
+  unifi: UnifiLiveInfo | null | undefined;
+  canEdit: boolean;
+  className?: string;
+}) {
+  const { t, i18n } = useTranslation();
+  const now = useNow(5_000);
+  const errorText = useUnifiErrorText();
+  if (!unifi) return null;
+  let text: string;
+  let Icon = FlaskConical;
+  switch (unifi.state) {
+    case "live":
+      text = unifi.lastEventAt
+        ? t("attacks.live.unifiLive", { when: formatAge(unifi.lastEventAt, now, i18n.language) })
+        : t("attacks.live.unifiLiveNone");
+      break;
+    case "paused":
+      Icon = PauseCircle;
+      text = t("attacks.live.unifiPaused");
+      break;
+    default:
+      Icon = Clock;
+      text = unifi.error
+        ? t("attacks.live.unifiWaitingReason", { reason: errorText(unifi.error) })
+        : t("attacks.live.unifiWaiting");
+  }
+  return (
+    <p
+      className={cn("flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground", className)}
+      data-testid="unifi-status"
+      data-state={unifi.state}
+    >
+      <Icon aria-hidden="true" className="size-3.5 flex-none" />
+      <span className="font-medium text-foreground">{text}</span>
+      {canEdit && unifi.state !== "live" ? (
+        <Link to="/settings" search={{ section: "unifi" }} className="text-primary-text hover:underline">
+          {t("attacks.live.unifiManage")}
+        </Link>
+      ) : null}
+    </p>
+  );
+}
+
 /** The abuse score of an event, only while OSINT is on and a cached score exists. */
 function Score({ score }: { score: number }) {
   const { t } = useTranslation();
@@ -127,6 +180,8 @@ export function AttackEventRow({
   const code =
     event.scope === "internal" ? "LAN" : event.country && event.country !== "ZZ" ? event.country : "–";
   const description = event.description || t("attacks.live.noRule");
+  const fromUnifi = event.source === "unifi";
+  const blocked = event.action === "blocked";
   return (
     <li
       className="flex items-start gap-3 border-b px-5 py-2.5 last:border-0"
@@ -147,13 +202,30 @@ export function AttackEventRow({
           <span aria-hidden="true">·</span>
           <span>{country}</span>
           <span aria-hidden="true">·</span>
-          <span>{t("attacks.live.observed")}</span>
+          {blocked ? (
+            <span data-testid="attack-event-action">
+              <Badge tone="info" className="h-5">
+                {t("attacks.live.blocked")}
+              </Badge>
+            </span>
+          ) : (
+            <span data-testid="attack-event-action">{t("attacks.live.observed")}</span>
+          )}
         </div>
-        <div className="truncate text-sm text-muted-foreground" title={event.agentName}>
-          {event.agentName ? t("attacks.live.onAgent", { agent: event.agentName }) : null}
-          {event.agentName ? " · " : null}
-          {t("attacks.live.level", { level: event.level })}
-        </div>
+        {fromUnifi ? (
+          <div className="truncate text-sm text-muted-foreground" title={event.agentName}>
+            {event.agentName
+              ? t("attacks.live.sourceUnifi", { site: event.agentName })
+              : t("attacks.live.sourceUnifiPlain")}
+            {event.destPort ? ` · ${t("attacks.live.destPort", { port: event.destPort })}` : ""}
+          </div>
+        ) : (
+          <div className="truncate text-sm text-muted-foreground" title={event.agentName}>
+            {event.agentName ? t("attacks.live.onAgent", { agent: event.agentName }) : null}
+            {event.agentName ? " · " : null}
+            {t("attacks.live.level", { level: event.level })}
+          </div>
+        )}
       </div>
       <div className="flex flex-none flex-col items-end gap-1">
         <time
@@ -173,6 +245,7 @@ export function AttackEventRow({
 export function AttackEventsCard({
   events,
   live,
+  unifi = null,
   connected,
   query,
   osintEnabled,
@@ -182,6 +255,8 @@ export function AttackEventsCard({
 }: {
   events: AttackEvent[] | undefined;
   live: AttackLiveInfo | null;
+  /** The IPS preview of UniFi (ADR 0022), if a console has it on. */
+  unifi?: UnifiLiveInfo | null | undefined;
   connected: boolean;
   query: Parameters<typeof QueryStatus>[0]["query"];
   osintEnabled: boolean;
@@ -194,7 +269,10 @@ export function AttackEventsCard({
   return (
     <Card className={className}>
       <CardHeader title={t("attacks.live.title")} description={t("attacks.live.description")} />
-      <LiveStatusLine live={live} canEdit={canEdit} className="px-5 pb-2" />
+      {live !== null || !unifi ? (
+        <LiveStatusLine live={live} canEdit={canEdit} className="px-5 pb-2" />
+      ) : null}
+      <UnifiStatusLine unifi={unifi} canEdit={canEdit} className="px-5 pb-2" />
       {events === undefined ? (
         <QueryStatus query={query} />
       ) : events.length === 0 ? (

@@ -12,9 +12,10 @@ import {
   type PausedReason,
 } from "@garnetops/core/attack-live";
 import { canonicalIp, ipScope } from "@garnetops/core/geoip";
+import { type IpsState, ipsStatus } from "@garnetops/core/unifi-ips";
 import { privilegesAcknowledged } from "@garnetops/core/wazuh";
 import { lookupIps, schema } from "@garnetops/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "../db.ts";
 
 export interface LiveInfo {
@@ -72,7 +73,57 @@ export async function liveInfo(organizationId: string, now = new Date()): Promis
   };
 }
 
-type EventRow = typeof schema.wazuhAttackEvent.$inferSelect;
+type WazuhEventRow = typeof schema.wazuhAttackEvent.$inferSelect;
+type UnifiEventRow = typeof schema.unifiThreatEvent.$inferSelect;
+export type EventRow = ({ source: "wazuh" } & WazuhEventRow) | ({ source: "unifi" } & UnifiEventRow);
+
+const we = schema.wazuhAttackEvent;
+const ue = schema.unifiThreatEvent;
+
+/**
+ * Events of both origins (Wazuh alerts and UniFi threat events, ADR 0022) of one organisation, ordered by their shared
+ * sequence number. `after` returns the ones newer than a number, oldest first; without it the newest ones come first.
+ */
+export async function loadEvents(
+  organizationId: string,
+  options: { after?: number; limit: number },
+): Promise<EventRow[]> {
+  const { after, limit } = options;
+  const ascending = after !== undefined;
+  const [wazuh, unifi] = await Promise.all([
+    db
+      .select()
+      .from(we)
+      .where(and(eq(we.organizationId, organizationId), ascending ? gt(we.seq, after) : undefined))
+      .orderBy(ascending ? we.seq : desc(we.seq))
+      .limit(limit),
+    db
+      .select()
+      .from(ue)
+      .where(and(eq(ue.organizationId, organizationId), ascending ? gt(ue.seq, after) : undefined))
+      .orderBy(ascending ? ue.seq : desc(ue.seq))
+      .limit(limit),
+  ]);
+  const rows: EventRow[] = [
+    ...wazuh.map((r) => ({ source: "wazuh" as const, ...r })),
+    ...unifi.map((r) => ({ source: "unifi" as const, ...r })),
+  ];
+  rows.sort((a, b) => (ascending ? a.seq - b.seq : b.seq - a.seq));
+  return rows.slice(0, limit);
+}
+
+/** The newest sequence number of the organisation's events of both origins; 0 if there are none. */
+export async function newestSeq(organizationId: string): Promise<number> {
+  const [a] = await db
+    .select({ seq: sql<number>`coalesce(max(${we.seq}), 0)::bigint` })
+    .from(we)
+    .where(eq(we.organizationId, organizationId));
+  const [b] = await db
+    .select({ seq: sql<number>`coalesce(max(${ue.seq}), 0)::bigint` })
+    .from(ue)
+    .where(eq(ue.organizationId, organizationId));
+  return Math.max(Number(a?.seq ?? 0), Number(b?.seq ?? 0));
+}
 
 /**
  * The events as the page shows them: country and network from the local tables (internal addresses are never looked
@@ -107,20 +158,130 @@ export async function viewEvents(organizationId: string, rows: EventRow[]): Prom
   return rows.map((r) => {
     const scope = ipScope(r.ip) === "public" ? ("public" as const) : ("internal" as const);
     const info = scope === "public" ? geo.get(canonical(r.ip)) : undefined;
-    return {
-      seq: r.seq,
+    const common = {
+      seq: Number(r.seq),
       at: r.at.toISOString(),
       ip: r.ip,
       scope,
       country: info?.country ?? null,
       asn: info?.asn ?? null,
+      score: scope === "public" ? (scores.get(canonical(r.ip)) ?? null) : null,
+    };
+    if (r.source === "unifi") {
+      return {
+        ...common,
+        ruleId: "",
+        level: 0,
+        description: r.signature,
+        groups: r.category ? [r.category] : [],
+        agentId: "",
+        agentName: r.siteName ?? "",
+        source: "unifi" as const,
+        action: r.action,
+        destPort: r.destPort,
+      };
+    }
+    return {
+      ...common,
       ruleId: r.ruleId,
       level: r.ruleLevel,
       description: r.description,
       groups: r.groups,
       agentId: r.agentId,
       agentName: r.agentName,
-      score: scope === "public" ? (scores.get(canonical(r.ip)) ?? null) : null,
+      source: "wazuh" as const,
+      action: null,
+      destPort: null,
     };
   });
+}
+
+/* -------------------------------------------------------------------------- */
+/* The UniFi preview                                                           */
+/* -------------------------------------------------------------------------- */
+
+export interface UnifiLiveInfo {
+  enabled: boolean;
+  state: IpsState;
+  reason: "disabled" | "certificate" | "credentials" | "no-sync" | "rights" | null;
+  /** A stored error text of the last poll while the state is "waiting". */
+  error: string | null;
+  lastEventAt: string | null;
+  lastPollAt: string | null;
+  /** The connections whose preview is switched on. */
+  connections: number;
+}
+
+/**
+ * The state of the IPS preview of an organisation (ADR 0022), or null if no console has it switched on. With several
+ * consoles the one with the newest event speaks for all; the others only add to the count.
+ */
+export async function unifiLiveInfo(organizationId: string, now = new Date()): Promise<UnifiLiveInfo | null> {
+  const c = schema.unifiConnection;
+  const rows = await db
+    .select()
+    .from(c)
+    .where(and(eq(c.organizationId, organizationId), eq(c.ipsEnabled, true)));
+  if (rows.length === 0) return null;
+  const infos = rows.map((row) => ({
+    row,
+    status: ipsStatus({
+      enabled: row.ipsEnabled,
+      connectionEnabled: row.enabled,
+      certificateOk: row.certStatus === "confirmed",
+      hasCredentials: Boolean(row.ipsUsername && row.ipsSecretId),
+      synced: row.apiBase !== "auto" && row.lastSyncAt !== null,
+      rights: row.ipsRights,
+      rightsAcknowledged: row.ipsRightsAcknowledged,
+      lastPollAt: row.ipsLastPollAt,
+      lastError: row.ipsLastError,
+      intervalSeconds: row.ipsIntervalSeconds,
+      now,
+    }),
+  }));
+  const best =
+    infos.find((i) => i.status.state === "live") ??
+    infos.find((i) => i.status.state === "waiting") ??
+    (infos[0] as (typeof infos)[number]);
+  const lastEvent = rows.reduce<Date | null>(
+    (m, r) => (r.ipsLastEventAt && (!m || r.ipsLastEventAt > m) ? r.ipsLastEventAt : m),
+    null,
+  );
+  const lastPoll = rows.reduce<Date | null>(
+    (m, r) => (r.ipsLastPollAt && (!m || r.ipsLastPollAt > m) ? r.ipsLastPollAt : m),
+    null,
+  );
+  return {
+    enabled: true,
+    state: best.status.state,
+    reason: best.status.reason,
+    error: best.status.error,
+    lastEventAt: lastEvent?.toISOString() ?? null,
+    lastPollAt: lastPoll?.toISOString() ?? null,
+    connections: rows.length,
+  };
+}
+
+/**
+ * Whether UniFi threat events (ADR 0022) are part of the picture: the preview is switched on for a console, or events
+ * of it are still stored. Without Wazuh, this is what makes the page show anything.
+ */
+export async function unifiActive(organizationId: string): Promise<boolean> {
+  const [on] = await db
+    .select({ id: schema.unifiConnection.id })
+    .from(schema.unifiConnection)
+    .where(
+      and(
+        eq(schema.unifiConnection.organizationId, organizationId),
+        eq(schema.unifiConnection.ipsEnabled, true),
+      ),
+    )
+    .limit(1);
+  if (on) return true;
+  const [event] = await db
+    .select({ seq: schema.unifiThreatEvent.seq })
+    .from(schema.unifiThreatEvent)
+    .where(eq(schema.unifiThreatEvent.organizationId, organizationId))
+    .limit(1);
+  return Boolean(event);
 }

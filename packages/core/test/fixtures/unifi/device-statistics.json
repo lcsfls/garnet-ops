@@ -1,0 +1,14 @@
+{
+  "uptimeSec": 864000,
+  "lastHeartbeatAt": "2026-10-22T10:00:00Z",
+  "nextHeartbeatAt": "2026-10-22T10:00:25Z",
+  "loadAverage1Min": 0.12,
+  "loadAverage5Min": 0.1,
+  "loadAverage15Min": 0.08,
+  "cpuUtilizationPct": 3.5,
+  "memoryUtilizationPct": 41.2,
+  "uplink": {
+    "txRateBps": 1000,
+    "rxRateBps": 2000
+  }
+}
