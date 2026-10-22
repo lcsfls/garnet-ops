@@ -1,8 +1,9 @@
 /** Response shapes of /api/v1, as the API routes return them (apps/api/src/routes). */
 import type { FindingState, ScanState, Severity } from "@garnetops/core";
 import type { AiError, TriageResult } from "@garnetops/core/ai";
+import type { Grade, GradeRule } from "@garnetops/core/grades";
 
-export type { FindingState, ScanState, Severity };
+export type { FindingState, Grade, GradeRule, ScanState, Severity };
 export type SeverityCounts = Partial<Record<Severity, number>>;
 
 export interface Page<T> {
@@ -68,7 +69,18 @@ export interface ActivityItem {
   count: number | null;
 }
 
-export interface RepositoryRow {
+/**
+ * The grade of a repository or server (ADR 0018), display only. `grade` is null before the
+ * first successful scan or inventory. `gradeStale`: the latest scan failed, the grade is that
+ * of the last successful one.
+ */
+export interface GradeFields {
+  grade: Grade | null;
+  gradeReason: { rule: GradeRule; count: number; example: string | null } | null;
+  gradeStale: boolean;
+}
+
+export interface RepositoryRow extends GradeFields {
   id: string;
   name: string;
   url: string;
@@ -309,7 +321,7 @@ export interface GateTokenRow {
 export type HostKeyStatus = "pending" | "confirmed" | "changed";
 export type RunState = "queued" | "running" | "succeeded" | "failed";
 
-export interface HostRow {
+export interface HostRow extends GradeFields {
   id: string;
   name: string;
   address: string;

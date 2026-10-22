@@ -6,11 +6,14 @@ export function PageHeader({
   title,
   description,
   actions,
+  meta,
 }: {
   icon: LucideIcon;
   title: string;
   description: string;
   actions?: ReactNode;
+  /** Facts about the page's subject under the description, e.g. its grade. */
+  meta?: ReactNode;
 }) {
   return (
     <div className="mb-5 flex flex-wrap items-start gap-3.5">
@@ -20,6 +23,7 @@ export function PageHeader({
       <div className="min-w-0 flex-[1_1_24rem]">
         <h1 className="text-2xl leading-tight font-semibold tracking-tight">{title}</h1>
         <p className="text-muted-foreground">{description}</p>
+        {meta}
       </div>
       {actions ? <div className="ml-auto flex items-center gap-2">{actions}</div> : null}
     </div>
@@ -27,9 +31,20 @@ export function PageHeader({
 }
 
 /** A bordered surface for tables and panels. */
-export function Card({ className = "", children }: { className?: string; children: ReactNode }) {
+export function Card({
+  className = "",
+  id,
+  children,
+}: {
+  className?: string;
+  id?: string;
+  children: ReactNode;
+}) {
   return (
-    <section className={`min-w-0 rounded-xl border bg-card text-card-foreground shadow-xs ${className}`}>
+    <section
+      id={id}
+      className={`min-w-0 rounded-xl border bg-card text-card-foreground shadow-xs ${className}`}
+    >
       {children}
     </section>
   );

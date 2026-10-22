@@ -130,4 +130,24 @@ describe("search params", () => {
       findingSort: undefined,
     });
   });
+
+  it("accepts one grade or 'none' in the lists, and the grade link's filters on the server page", () => {
+    expect(repositorySearch.parse({ grade: "F", sort: "grade" })).toMatchObject({
+      grade: "F",
+      sort: "grade",
+    });
+    expect(serverSearch.parse({ grade: "none", sort: "grade", dir: "asc" })).toMatchObject({
+      grade: "none",
+      sort: "grade",
+      dir: "asc",
+    });
+    expect(repositorySearch.parse({ grade: "G" })).toMatchObject({ grade: undefined });
+    expect(repositorySearch.parse({ grade: "f" })).toMatchObject({ grade: undefined });
+    expect(
+      serverDetailSearch.parse({ findingSeverity: "high", findingFixable: 1, findingKev: "1" }),
+    ).toMatchObject({ findingSeverity: "high", findingFixable: "1", findingKev: "1" });
+    expect(serverDetailSearch.parse({ findingSeverity: "bogus" })).toMatchObject({
+      findingSeverity: undefined,
+    });
+  });
 });

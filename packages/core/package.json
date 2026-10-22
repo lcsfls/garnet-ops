@@ -11,6 +11,7 @@
     "./password": "./src/password.ts",
     "./ssh": "./src/ssh.ts",
     "./gates": "./src/gates.ts",
+    "./grades": "./src/grades.ts",
     "./team": "./src/team.ts",
     "./notifications": "./src/notifications.ts",
     "./hosts": "./src/hosts.ts",

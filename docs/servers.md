@@ -98,6 +98,9 @@ with the old and the new fingerprint).
   your distribution's security data and can be matched less reliably.
 - Pending updates come from the server's own package cache; GarnetOps never refreshes it. If
   the cache is old, so is the list. `apt` marks updates from a security repository.
+- Every server that has been read gets a **grade from A to F** from its open vulnerabilities
+  (worst one decides; display only, it changes no alert or setting). A server that has not been
+  read yet has no grade. See [grades.md](grades.md).
 
 ## Network and firewall
 

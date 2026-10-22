@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Flame, GitBranch, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ExportMenu } from "../../components/export-menu.tsx";
+import { GradeSummary } from "../../components/grade-badge.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
 import { Pagination } from "../../components/pagination.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
@@ -74,6 +75,7 @@ function RepositoryPage() {
         icon={GitBranch}
         title={data?.name ?? t("common.loading")}
         description={data?.url ?? ""}
+        meta={data ? <GradeSummary row={data} kind="repository" id={id} /> : null}
         actions={
           data ? (
             <>

@@ -10,6 +10,18 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- Grades A to F for repositories and servers (ADR 0018, `docs/grades.md`), display only: they never change a gate
+  result, a notification or an alert. The worst open finding decides: F a known exploited vulnerability (CISA KEV)
+  with a fix, E a critical with a fix, D a high with a fix or a critical without, C a medium with a fix or a high
+  without, B anything milder, A nothing open. Accepted risks do not count while the acceptance lasts and count again
+  once it has run out. A repository or server that was never scanned has no grade (not an A); after a failed run the
+  grade of the last successful one stays, marked as such. A is neutral, never green. A Grade column on the
+  Repositories and Servers lists (letter badge, a note on hover or focus with the reason in plain words and a link to
+  the findings behind it), the grade under the title of both detail pages, sorting (F first), a grade filter and a
+  short "How grades work" help, in English and German. API (additive): `grade`, `gradeReason` and `gradeStale` on
+  `GET /repositories`, `/repositories/{id}`, `/hosts` and `/hosts/{id}`; `sort=grade` and `grade=` on both lists;
+  `GET /repositories/grades` and `GET /hosts/grades`; `fixable` and `kev` filters on `GET /hosts/{id}/findings`. The
+  server page has the same filters (severity, known exploited, fix available). No migration.
 - Account page (avatar menu, then "Account settings"; ADR 0017, `docs/account.md`), readable width with sections on
   the left like Settings: **Profile** (display name; the email address is shown and cannot be changed yet; language and
   time zone saved on the account and applied to shown times), **Password** (current and new password, 12 or more

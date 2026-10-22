@@ -19,6 +19,9 @@ in the audit log and counts from the next run on. Accepted risks never count.
 **Nothing blocks by itself.** New rules arrive as Off or Report, and an update never
 changes a mode you chose.
 
+The grades A to F on the repositories and servers lists ([grades.md](grades.md)) are display
+only. They are not an input to a gate, and a gate result never depends on one.
+
 The result of a run is **Passed** (no rule matched), **With notes** (only Report rules
 matched) or **Blocked** (a Block rule matched).
 

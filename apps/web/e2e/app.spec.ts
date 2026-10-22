@@ -410,6 +410,221 @@ test("a repository opens its own page with scan and patch history", async ({ pag
   expect(problems).toEqual([]);
 });
 
+/** Grades A to F (ADR 0018) on the repositories screens. The seeded repository has a known exploited vulnerability with a fix: F. */
+test.describe("repository grades", () => {
+  const SEEDED_LINE = "F: 1 known exploited vulnerability with a fix (pkg-1)";
+  const FIRST_FINDING = "fnd_e2e0000000000000001";
+
+  test("the column shows the letter, explains it on hover and focus, and links to the findings behind it", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/repositories");
+    const header = page.getByRole("columnheader", { name: /Grade/ });
+    await expect(header).toBeVisible();
+
+    const row = page.getByRole("row", { name: new RegExp(SEEDED.repositoryName) });
+    const badge = row.getByRole("link", { name: SEEDED_LINE });
+    await expect(badge).toHaveText("F");
+    // F is vermilion like critical, never green, and the letter is the signal, not the colour.
+    await expect(badge.locator("span").first()).toHaveClass(/bg-destructive/);
+    await expect(row.locator(".bg-success\\/16, .text-success-text")).toHaveCount(0);
+
+    // Hover shows the reason in plain words and says that the grade is display only.
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await badge.hover();
+    const tip = page.getByRole("tooltip");
+    await expect(tip).toContainText(SEEDED_LINE);
+    await expect(tip).toContainText("Display only");
+    await expect(tip).toContainText("never changes a gate result, a notification or an alert");
+    // The note can be dismissed with Escape, and comes back with the keyboard.
+    await page.keyboard.press("Escape");
+    await expect(tip).toHaveCount(0);
+    await page.mouse.move(0, 0);
+    await badge.focus();
+    await expect(page.getByRole("tooltip")).toContainText(SEEDED_LINE);
+
+    // The link in the note leads to the same findings as the badge: known exploited with a fix of this repository.
+    await page.getByRole("tooltip").getByRole("link", { name: "Show these vulnerabilities" }).click();
+    await expect(page).toHaveURL(/\/findings\?/);
+    await expect(page).toHaveURL(/repositoryId=repo_e2eseeded000000001/);
+    await expect(page).toHaveURL(/kev=1/);
+    await expect(page).toHaveURL(/fixable=1/);
+    await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText("1 entry");
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page.locator("tbody tr")).toContainText("CVE-2099-0001");
+    expect(problems).toEqual([]);
+  });
+
+  test("the badge itself leads to the findings, and the repository page shows the grade under its title", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/repositories");
+    await page
+      .getByRole("row", { name: new RegExp(SEEDED.repositoryName) })
+      .getByRole("link", { name: SEEDED_LINE })
+      .click();
+    await expect(page).toHaveURL(/kev=1/);
+
+    await page.goto("/repositories/repo_e2eseeded000000001");
+    const summary = page.getByTestId("grade-summary");
+    await expect(summary).toContainText("Grade");
+    await expect(summary).toContainText(SEEDED_LINE);
+    await summary.getByRole("link", { name: "Show these vulnerabilities" }).click();
+    await expect(page).toHaveURL(/kev=1/);
+    expect(problems).toEqual([]);
+  });
+
+  test("a repository that was never scanned has no grade, not A; sorting and filtering by grade", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await sql(
+      `insert into repository (id, organization_id, name, url, auth_kind)
+       select 'repo_e2egrade00000001', id, 'grade-never', 'https://git.example.test/team/grade-never.git', 'none'
+         from organization limit 1`,
+    );
+    try {
+      await page.goto("/repositories");
+      const never = page.getByRole("row", { name: /grade-never/ });
+      await expect(never).toBeVisible();
+      await expect(never.getByRole("button", { name: /^Not scanned yet\./ })).toBeVisible();
+      await expect(never).not.toContainText("A:");
+      await never.getByRole("button", { name: /^Not scanned yet\./ }).hover();
+      await expect(page.getByRole("tooltip")).toContainText("gets a grade after its first successful scan");
+
+      // Worst first: F, then the repositories without a grade.
+      const gradeHeader = page.getByRole("columnheader", { name: /Grade/ });
+      await gradeHeader.getByRole("button").click();
+      await expect(page).toHaveURL(/sort=grade/);
+      await expect(gradeHeader).toHaveAttribute("aria-sort", "descending");
+      await expect(page.locator("tbody tr").first()).toContainText(SEEDED.repositoryName);
+      await expect(
+        page
+          .locator("tbody tr")
+          .last()
+          .getByRole("button", { name: /^Not scanned yet\./ }),
+      ).toBeVisible();
+      await gradeHeader.getByRole("button").click();
+      await expect(gradeHeader).toHaveAttribute("aria-sort", "ascending");
+      await expect(
+        page
+          .locator("tbody tr")
+          .first()
+          .getByRole("button", { name: /^Not scanned yet\./ }),
+      ).toBeVisible();
+      await expect(page.locator("tbody tr").last()).toContainText(SEEDED.repositoryName);
+      await gradeHeader.getByRole("button").click();
+      await expect(gradeHeader).toHaveAttribute("aria-sort", "none");
+
+      // The filter lists the grades with their counts.
+      const filter = page.getByRole("combobox", { name: "Grade" });
+      await expect(filter.locator("option", { hasText: "Grade F (1)" })).toHaveCount(1);
+      await filter.selectOption("F");
+      await expect(page).toHaveURL(/grade=F/);
+      await expect(page.locator("tbody tr")).toHaveCount(1);
+      await expect(page.locator("tbody tr")).toContainText(SEEDED.repositoryName);
+      await filter.selectOption("none");
+      await expect(page).toHaveURL(/grade=none/);
+      await expect(page.locator("tbody tr").filter({ hasText: SEEDED.repositoryName })).toHaveCount(0);
+      await expect(page.locator("tbody tr").filter({ hasText: "grade-never" })).toHaveCount(1);
+      await filter.selectOption("A");
+      await expect(page.getByText("No repositories match.")).toBeVisible();
+      await filter.selectOption("");
+      await expect(page).not.toHaveURL(/grade=/);
+      expect(problems).toEqual([]);
+    } finally {
+      await sql("delete from repository where id = 'repo_e2egrade00000001'");
+    }
+  });
+
+  test("an accepted risk leaves the grade while it lasts and counts again once it has expired", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    const seeded = () => page.getByRole("row", { name: new RegExp(SEEDED.repositoryName) });
+    try {
+      // Accepted for 30 days: the known exploited vulnerability no longer decides, the next critical with a fix does.
+      await sql(
+        `update finding set state = 'accepted', accepted_reason = 'Accepted for the test',
+           accepted_until = now() + interval '30 days' where id = $1`,
+        [FIRST_FINDING],
+      );
+      await page.goto("/repositories");
+      await expect(
+        seeded().getByRole("link", { name: "E: 1 critical vulnerability with a fix (pkg-2)" }),
+      ).toHaveText("E");
+
+      // The acceptance ran out and no scan has reopened it yet: it counts again.
+      await sql("update finding set accepted_until = now() - interval '1 hour' where id = $1", [
+        FIRST_FINDING,
+      ]);
+      await page.reload();
+      await expect(seeded().getByRole("link", { name: SEEDED_LINE })).toHaveText("F");
+    } finally {
+      await sql(
+        `update finding set state = 'open', accepted_reason = null, accepted_until = null where id = $1`,
+        [FIRST_FINDING],
+      );
+    }
+    await page.reload();
+    await expect(seeded().getByRole("link", { name: SEEDED_LINE })).toHaveText("F");
+    expect(problems).toEqual([]);
+  });
+
+  test("when the latest scan failed the grade of the last successful scan stays, with a hint", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    try {
+      await sql(
+        `insert into scan (id, organization_id, repository_id, state, trigger, error, started_at, finished_at, created_at)
+         select 'scan_e2egrade00000001', organization_id, id, 'failed', 'manual', 'The repository could not be cloned.',
+                now(), now(), now() + interval '1 minute'
+           from repository where id = 'repo_e2eseeded000000001'`,
+      );
+      await page.goto("/repositories");
+      const badge = page.getByRole("row", { name: new RegExp(SEEDED.repositoryName) }).getByRole("link", {
+        name: /^F: 1 known exploited vulnerability with a fix \(pkg-1\)\. The latest scan failed/,
+      });
+      await expect(badge).toHaveText("F");
+      await badge.hover();
+      await expect(page.getByRole("tooltip")).toContainText(
+        "The latest scan failed. This is the grade of the last successful scan.",
+      );
+      await page.goto("/repositories/repo_e2eseeded000000001");
+      await expect(page.getByTestId("grade-summary")).toContainText("The latest scan failed.");
+      expect(problems).toEqual([]);
+    } finally {
+      await sql("delete from scan where id = 'scan_e2egrade00000001'");
+    }
+  });
+
+  test("the help explains the rules and that a grade is display only", async ({ page }) => {
+    await page.goto("/repositories");
+    await page.getByText("How grades work").click();
+    const help = page.locator("details").filter({ hasText: "How grades work" });
+    await expect(help).toContainText("A known exploited vulnerability (CISA KEV) with a fix");
+    await expect(help).toContainText("A critical vulnerability with a fix");
+    await expect(help).toContainText("No open vulnerabilities");
+    await expect(help).toContainText("display only");
+    await expect(help).toContainText("an expired acceptance counts again");
+  });
+
+  test("German labels", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
+    await page.goto("/repositories");
+    await expect(page.getByRole("columnheader", { name: /Note/ })).toBeVisible();
+    const row = page.getByRole("row", { name: new RegExp(SEEDED.repositoryName) });
+    await row
+      .getByRole("link", { name: /^F: 1 bekannt ausgenutzte Schwachstelle mit Fix \(pkg-1\)/ })
+      .hover();
+    await expect(page.getByRole("tooltip")).toContainText("Nur zur Anzeige");
+    await expect(page.getByRole("combobox", { name: "Note" })).toBeVisible();
+  });
+});
+
 test("search: Ctrl K finds repositories, vulnerabilities and packages", async ({ page }) => {
   const problems = watchForProblems(page);
   await page.goto("/");
@@ -439,10 +654,21 @@ test("sorting: every column pages through all rows exactly once, both directions
       sorts: ["vulnerability", "cvss", "epss", "published", "package", "repository", "firstSeen"],
     },
     { path: "/packages?", sorts: ["name", "type", "repository", "findings", "severity"] },
-    { path: "/repositories?", sorts: ["name", "critical", "high", "medium", "lastScan"] },
+    { path: "/repositories?", sorts: ["name", "grade", "critical", "high", "medium", "lastScan"] },
     {
       path: "/hosts?",
-      sorts: ["name", "address", "os", "packages", "critical", "high", "medium", "updates", "lastInventory"],
+      sorts: [
+        "name",
+        "grade",
+        "address",
+        "os",
+        "packages",
+        "critical",
+        "high",
+        "medium",
+        "updates",
+        "lastInventory",
+      ],
     },
   ];
   for (const { path, sorts } of lists) {
@@ -1161,6 +1387,95 @@ test.describe("servers", () => {
 
     await page.getByRole("link", { name: "All servers" }).click();
     await expect(page).toHaveURL(/\/servers$/);
+    expect(problems).toEqual([]);
+  });
+
+  test("grades: the list shows a letter per server, explains it, links to the findings behind it, sorts and filters", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    // web-01 has a known exploited vulnerability with a fix (libssl3): F.
+    const WEB = "F: 1 known exploited vulnerability with a fix (libssl3)";
+    await page.goto("/servers");
+    await expect(page.getByRole("columnheader", { name: /Grade/ })).toBeVisible();
+    const web = page.getByRole("row", { name: new RegExp(SERVERS.vulnerable.name) });
+    const badge = web.getByRole("link", { name: WEB });
+    await expect(badge).toHaveText("F");
+    await expect(badge.locator("span").first()).toHaveClass(/bg-destructive/);
+
+    // Nothing open is A: neutral, never green. mail-01 and db-01 were read once and failed since: the hint says so.
+    const hv = page.getByRole("row", { name: new RegExp(SERVERS.clean.name) });
+    const clean = hv.getByRole("button", { name: "A: No open vulnerabilities" });
+    await expect(clean).toHaveText("A");
+    await expect(hv.locator(".bg-success\\/16, .text-success-text")).toHaveCount(0);
+    await clean.hover();
+    await expect(page.getByRole("tooltip")).toContainText("A: No open vulnerabilities");
+    await expect(page.getByRole("tooltip")).not.toContainText("The latest inventory failed");
+    for (const name of ["mail-01", "db-01"]) {
+      const stale = page
+        .getByRole("row", { name: new RegExp(name) })
+        .getByRole("button", { name: /^A: No open vulnerabilities\. The latest inventory failed/ });
+      await stale.hover();
+      await expect(page.getByRole("tooltip")).toContainText(
+        "The latest inventory failed. This is the grade of the last successful inventory.",
+      );
+    }
+    // A server whose host key was never confirmed has not been read: no grade, not A.
+    const pending = page.getByRole("row", { name: new RegExp(SERVERS.pending.name) });
+    await expect(pending.getByRole("button", { name: /^Not read yet\./ })).toBeVisible();
+
+    // The note explains the grade and links to the server's page, filtered to what decided.
+    await badge.hover();
+    await expect(page.getByRole("tooltip")).toContainText(WEB);
+    await expect(page.getByRole("tooltip")).toContainText("Display only");
+    await page.getByRole("tooltip").getByRole("link", { name: "Show these vulnerabilities" }).click();
+    await expect(page).toHaveURL(new RegExp(`/servers/${SERVERS.vulnerable.id}\\?`));
+    await expect(page).toHaveURL(/findingKev=1/);
+    await expect(page).toHaveURL(/findingFixable=1/);
+    const findings = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Vulnerabilities" }) });
+    await expect(findings.locator("tbody tr")).toHaveCount(1);
+    await expect(findings.locator("tbody tr")).toContainText("libssl3");
+    await expect(findings.getByLabel("Known exploited only")).toBeChecked();
+    await expect(findings.getByLabel("Fix available only")).toBeChecked();
+    // The filters can be taken off again.
+    await findings.getByLabel("Known exploited only").uncheck();
+    await findings.getByLabel("Fix available only").uncheck();
+    await expect(findings.locator("tbody tr")).toHaveCount(4);
+    await findings.getByRole("combobox", { name: "Severity" }).selectOption("high");
+    await expect(findings.locator("tbody tr")).toHaveCount(2);
+
+    // The server page shows the grade under its title.
+    const summary = page.getByTestId("grade-summary");
+    await expect(summary).toContainText(WEB);
+    await expect(summary.getByRole("link", { name: "Show these vulnerabilities" })).toBeVisible();
+
+    // Sorting: worst first, servers without a grade last; and filtering.
+    await page.goto("/servers");
+    const gradeHeader = page.getByRole("columnheader", { name: /Grade/ });
+    await gradeHeader.getByRole("button").click();
+    await expect(page).toHaveURL(/sort=grade/);
+    await expect(gradeHeader).toHaveAttribute("aria-sort", "descending");
+    await expect(page.locator("tbody tr").first()).toContainText(SERVERS.vulnerable.name);
+    await expect(page.locator("tbody tr").last()).toContainText(SERVERS.pending.name);
+    await gradeHeader.getByRole("button").click();
+    await expect(gradeHeader).toHaveAttribute("aria-sort", "ascending");
+    await expect(page.locator("tbody tr").first()).toContainText(SERVERS.pending.name);
+    await expect(page.locator("tbody tr").last()).toContainText(SERVERS.vulnerable.name);
+
+    const filter = page.getByRole("combobox", { name: "Grade" });
+    await filter.selectOption("F");
+    await expect(page).toHaveURL(/grade=F/);
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page.locator("tbody tr")).toContainText(SERVERS.vulnerable.name);
+    await filter.selectOption("A");
+    await expect(page.locator("tbody tr")).toHaveCount(3);
+    await filter.selectOption("none");
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page.locator("tbody tr")).toContainText(SERVERS.pending.name);
+    await filter.selectOption("");
+    await expect(page.locator("tbody tr")).toHaveCount(SERVERS.total);
     expect(problems).toEqual([]);
   });
 

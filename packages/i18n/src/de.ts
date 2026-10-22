@@ -417,6 +417,59 @@ export const de: Messages = {
     dataSources: "Quellen",
     dataSourcesNone: "Noch keine",
   },
+  grades: {
+    column: "Note",
+    sortBy: "Nach Note sortieren",
+    notGradedShort: "Ohne Note",
+    notGradedRepository:
+      "Noch nicht gescannt. Ein Repository bekommt seine Note nach dem ersten erfolgreichen Scan.",
+    notGradedServer:
+      "Noch nicht gelesen. Ein Server bekommt seine Note nach der ersten erfolgreichen Bestandsaufnahme.",
+    reason: {
+      knownExploitedWithFix:
+        "{count, plural, one {# bekannt ausgenutzte Schwachstelle mit Fix} other {# bekannt ausgenutzte Schwachstellen mit Fix}}",
+      criticalWithFix:
+        "{count, plural, one {# kritische Schwachstelle mit Fix} other {# kritische Schwachstellen mit Fix}}",
+      highWithFix:
+        "{count, plural, one {# hohe Schwachstelle mit Fix} other {# hohe Schwachstellen mit Fix}}",
+      criticalWithoutFix:
+        "{count, plural, one {# kritische Schwachstelle ohne Fix} other {# kritische Schwachstellen ohne Fix}}",
+      mediumWithFix:
+        "{count, plural, one {# mittlere Schwachstelle mit Fix} other {# mittlere Schwachstellen mit Fix}}",
+      highWithoutFix:
+        "{count, plural, one {# hohe Schwachstelle ohne Fix} other {# hohe Schwachstellen ohne Fix}}",
+      otherOpen:
+        "{count, plural, one {# offene Schwachstelle, niedrig oder ohne Fix} other {# offene Schwachstellen, alle niedrig oder ohne Fix}}",
+      none: "Keine offenen Schwachstellen",
+    },
+    line: "{grade}: {reason}",
+    lineExample: "{grade}: {reason} ({example})",
+    staleRepository: "Der letzte Scan ist fehlgeschlagen. Das ist die Note des letzten erfolgreichen Scans.",
+    staleServer:
+      "Die letzte Bestandsaufnahme ist fehlgeschlagen. Das ist die Note der letzten erfolgreichen Bestandsaufnahme.",
+    show: "Diese Schwachstellen anzeigen",
+    displayOnly:
+      "Nur zur Anzeige. Eine Note ändert nie ein Gate-Ergebnis, eine Benachrichtigung oder einen Alarm.",
+    filterLabel: "Note",
+    filterAll: "Alle Noten",
+    filterOption: "Note {grade} ({count})",
+    filterNone: "Ohne Note ({count})",
+    helpSummary: "So entstehen die Noten",
+    helpIntro:
+      "Eine Note von A bis F zeigt die schlimmste offene Schwachstelle. Es entscheidet die schlimmste passende Regel. Eine Note ist kein Prozentwert.",
+    helpRule: {
+      F: "Eine bekannt ausgenutzte Schwachstelle (CISA KEV) mit Fix",
+      E: "Eine kritische Schwachstelle mit Fix",
+      D: "Eine hohe Schwachstelle mit Fix oder eine kritische ohne Fix",
+      C: "Eine mittlere Schwachstelle mit Fix oder eine hohe ohne Fix",
+      B: "Offene Schwachstellen, aber nur niedrige oder solche ohne Fix",
+      A: "Keine offenen Schwachstellen",
+    },
+    helpOutro:
+      "Akzeptierte Risiken zählen nicht, solange die Akzeptanz gilt; eine abgelaufene Akzeptanz zählt wieder. Ohne erfolgreichen Scan gibt es keine Note. Die Note dient nur der Anzeige: Sie ändert nie ein Gate-Ergebnis, eine Benachrichtigung oder einen Alarm.",
+    detailLabel: "Note",
+    detailStale: "Vom letzten erfolgreichen Lauf",
+  },
   repositories: {
     title: "Repositories",
     description: "Repositories, die GarnetOps auf verwundbare Abhängigkeiten prüft.",
@@ -1340,6 +1393,7 @@ export const de: Messages = {
     keyWaiting: "Der Host-Key wird vom Server gelesen …",
     keyCheck: "Prüfen und bestätigen …",
     findingsTitle: "Schwachstellen",
+    findingsAllSeverities: "Alle Schweregrade",
     findingsDescription: "Installierte Pakete, abgeglichen mit der lokalen Schwachstellendatenbank.",
     findingsEmpty: "Keine Schwachstellen in dieser Ansicht.",
     findingsNone: "Keine Schwachstellen gefunden.",

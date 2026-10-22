@@ -4,6 +4,7 @@
  * Invalid values fall back to the default instead of breaking the page.
  */
 import { DEFAULT_PAGE_SIZE, FINDING_STATES, PAGE_SIZES, SEVERITIES } from "@garnetops/core";
+import { GRADE_FILTER_VALUES } from "@garnetops/core/grades";
 import { z } from "zod";
 
 export { PAGE_SIZES };
@@ -40,7 +41,7 @@ export const FIX_SORTS = [
   "ecosystem",
   "status",
 ] as const;
-export const REPOSITORY_SORTS = ["name", "critical", "high", "medium", "lastScan"] as const;
+export const REPOSITORY_SORTS = ["name", "grade", "critical", "high", "medium", "lastScan"] as const;
 export const PACKAGE_SORTS = ["name", "type", "repository", "findings", "severity"] as const;
 
 /** Comma-separated severities, e.g. "critical,high". Unknown values are dropped. */
@@ -52,6 +53,9 @@ const severities = z
     return list.length ? list.join(",") : undefined;
   })
   .catch(undefined);
+
+/** One grade to filter a list by: "A" to "F", or "none" for what was never scanned (ADR 0018). */
+const grade = z.enum(GRADE_FILTER_VALUES).optional().catch(undefined);
 
 export const findingSearch = z.object({
   state: z
@@ -97,6 +101,7 @@ export type FixSearch = z.infer<typeof fixSearch>;
 
 export const repositorySearch = z.object({
   status: z.enum(["all", "blocked", "attention", "clean"]).optional().catch(undefined),
+  grade,
   q: text(100),
   cursor: text(512),
   pageSize,
@@ -129,6 +134,7 @@ export type PackageSearch = z.infer<typeof packageSearch>;
 
 export const HOST_SORTS = [
   "name",
+  "grade",
   "address",
   "os",
   "packages",
@@ -240,6 +246,7 @@ export type AttacksSearch = z.infer<typeof attacksSearch>;
 
 export const serverSearch = z.object({
   status: z.enum(["all", "vulnerable", "attention"]).optional().catch(undefined),
+  grade,
   q: text(100),
   cursor: text(512),
   pageSize,
@@ -286,6 +293,10 @@ export const serverDetailSearch = z.object({
   findings: text(512),
   findingsPageSize: pageSize,
   findingState: z.enum(["open", "resolved", "all"]).optional().catch(undefined),
+  /** Filters set by the grade link (ADR 0018): one severity, only those with a fix, only known exploited. */
+  findingSeverity: z.enum(["critical", "high", "medium", "low"]).optional().catch(undefined),
+  findingFixable: flag,
+  findingKev: flag,
   findingSort: sortOf(["vulnerability", "cvss", "epss", "package", "firstSeen"] as const),
   findingDir: dir,
   packages: text(512),

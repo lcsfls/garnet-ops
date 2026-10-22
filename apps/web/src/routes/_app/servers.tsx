@@ -16,6 +16,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AddServerWizard } from "../../components/add-server-wizard.tsx";
 import { SearchInput, Segmented } from "../../components/filters.tsx";
+import { GradeBadge, GradeFilter, GradeHelp } from "../../components/grade-badge.tsx";
 import { HostKeyDialog } from "../../components/host-key-dialog.tsx";
 import { ImportServersDialog } from "../../components/import-servers-dialog.tsx";
 import { Card, PageHeader } from "../../components/page-header.tsx";
@@ -36,7 +37,7 @@ import { useHostErrorText } from "../../lib/host-error.ts";
 import { rowClick } from "../../lib/row-link.ts";
 import { type ServerSearch, serverSearch, toQuery } from "../../lib/search.ts";
 import { serverIsBusy, serverState } from "../../lib/servers.ts";
-import type { HostRow, Page, Severity, XdrAgent, XdrConnectionResponse } from "../../lib/types.ts";
+import type { Grade, HostRow, Page, Severity, XdrAgent, XdrConnectionResponse } from "../../lib/types.ts";
 import { xdrStatusQuery } from "../../lib/xdr.ts";
 
 export const Route = createFileRoute("/_app/servers")({
@@ -102,6 +103,13 @@ function Servers() {
   const counts = useQuery({
     queryKey: ["host-counts", search.q ?? ""],
     queryFn: () => api<Record<(typeof STATUSES)[number], number>>(`/hosts/counts${toQuery({ q: search.q })}`),
+    placeholderData: keepPreviousData,
+    enabled: !proxmox && !wazuh,
+  });
+
+  const grades = useQuery({
+    queryKey: ["host-grades", search.q ?? ""],
+    queryFn: () => api<Record<Grade | "none", number>>(`/hosts/grades${toQuery({ q: search.q })}`),
     placeholderData: keepPreviousData,
     enabled: !proxmox && !wazuh,
   });
@@ -221,6 +229,11 @@ function Servers() {
               }))}
               onChange={(status) => setSearch({ status: status === "all" ? undefined : status })}
             />
+            <GradeFilter
+              value={search.grade}
+              counts={grades.data}
+              onChange={(grade) => setSearch({ grade })}
+            />
             <SearchInput
               className="ml-auto"
               label={t("servers.search")}
@@ -228,6 +241,8 @@ function Servers() {
               onChange={(q) => setSearch({ q: q || undefined }, true)}
             />
           </div>
+
+          <GradeHelp />
 
           <Card>
             <table className="w-full text-left">
@@ -238,6 +253,13 @@ function Servers() {
                     label={t("servers.columnServer")}
                     natural="asc"
                     className="px-5"
+                    {...sortProps}
+                  />
+                  <SortHeader
+                    column="grade"
+                    label={t("grades.column")}
+                    natural="desc"
+                    className="px-2"
                     {...sortProps}
                   />
                   <SortHeader
@@ -286,7 +308,7 @@ function Servers() {
                   />
                   <th className="px-3 py-2.5 font-medium">{t("servers.columnStatus")}</th>
                   {canEdit ? (
-                    <th className="w-14 px-5 py-2.5 text-right font-medium">
+                    <th className="w-14 px-3 py-2.5 text-right font-medium @wide:px-5">
                       <span className="sr-only">{t("servers.columnActions")}</span>
                     </th>
                   ) : null}
@@ -466,6 +488,9 @@ function ServerRowView({ host, canEdit, email }: { host: HostRow; canEdit: boole
           </div>
         </div>
       </td>
+      <td className="px-2 py-3">
+        <GradeBadge row={host} kind="server" id={host.id} />
+      </td>
       <td className="hidden px-3 py-3 @wide:table-cell">
         {host.os.name ?? <span className="text-muted-foreground">–</span>}
       </td>
@@ -537,7 +562,7 @@ function ServerRowView({ host, canEdit, email }: { host: HostRow; canEdit: boole
         ) : null}
       </td>
       {canEdit ? (
-        <td className="px-5 py-2 text-right">
+        <td className="px-3 py-2 text-right @wide:px-5">
           <ActionMenu label={t("servers.moreActions", { name: host.name })} actions={actions} />
           {inventory.isError || lookAgain.isError ? (
             <p role="alert" className="mt-1.5 text-right text-sm text-destructive-text">

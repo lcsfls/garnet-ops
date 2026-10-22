@@ -405,6 +405,55 @@ export const en = {
     dataSources: "Sources",
     dataSourcesNone: "None yet",
   },
+  grades: {
+    column: "Grade",
+    sortBy: "Sort by grade",
+    notGradedShort: "Not graded",
+    notGradedRepository: "Not scanned yet. A repository gets a grade after its first successful scan.",
+    notGradedServer: "Not read yet. A server gets a grade after its first successful inventory.",
+    reason: {
+      knownExploitedWithFix:
+        "{count, plural, one {# known exploited vulnerability with a fix} other {# known exploited vulnerabilities with a fix}}",
+      criticalWithFix:
+        "{count, plural, one {# critical vulnerability with a fix} other {# critical vulnerabilities with a fix}}",
+      highWithFix:
+        "{count, plural, one {# high vulnerability with a fix} other {# high vulnerabilities with a fix}}",
+      criticalWithoutFix:
+        "{count, plural, one {# critical vulnerability without a fix} other {# critical vulnerabilities without a fix}}",
+      mediumWithFix:
+        "{count, plural, one {# medium vulnerability with a fix} other {# medium vulnerabilities with a fix}}",
+      highWithoutFix:
+        "{count, plural, one {# high vulnerability without a fix} other {# high vulnerabilities without a fix}}",
+      otherOpen:
+        "{count, plural, one {# open vulnerability, low or without a fix} other {# open vulnerabilities, all low or without a fix}}",
+      none: "No open vulnerabilities",
+    },
+    line: "{grade}: {reason}",
+    lineExample: "{grade}: {reason} ({example})",
+    staleRepository: "The latest scan failed. This is the grade of the last successful scan.",
+    staleServer: "The latest inventory failed. This is the grade of the last successful inventory.",
+    show: "Show these vulnerabilities",
+    displayOnly: "Display only. A grade never changes a gate result, a notification or an alert.",
+    filterLabel: "Grade",
+    filterAll: "All grades",
+    filterOption: "Grade {grade} ({count})",
+    filterNone: "Not graded ({count})",
+    helpSummary: "How grades work",
+    helpIntro:
+      "A grade from A to F shows the worst open vulnerability. The worst matching rule decides. A grade is not a percentage.",
+    helpRule: {
+      F: "A known exploited vulnerability (CISA KEV) with a fix",
+      E: "A critical vulnerability with a fix",
+      D: "A high vulnerability with a fix, or a critical one without a fix",
+      C: "A medium vulnerability with a fix, or a high one without a fix",
+      B: "Open vulnerabilities, but only low ones or ones without a fix",
+      A: "No open vulnerabilities",
+    },
+    helpOutro:
+      "Accepted risks do not count while the acceptance lasts; an expired acceptance counts again. Without a successful scan there is no grade. The grade is display only: it never changes a gate result, a notification or an alert.",
+    detailLabel: "Grade",
+    detailStale: "From the last successful run",
+  },
   repositories: {
     title: "Repositories",
     description: "Repositories GarnetOps scans for vulnerable dependencies.",
@@ -1301,6 +1350,7 @@ export const en = {
     keyWaiting: "Reading the host key from the server …",
     keyCheck: "Check and confirm …",
     findingsTitle: "Vulnerabilities",
+    findingsAllSeverities: "All severities",
     findingsDescription: "Installed packages matched against the local vulnerability database.",
     findingsEmpty: "No vulnerabilities in this view.",
     findingsNone: "No vulnerabilities found.",

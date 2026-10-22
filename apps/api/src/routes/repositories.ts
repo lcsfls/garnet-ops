@@ -1,4 +1,5 @@
 import { isSshRepoUrl, newId, repoUrlSchema } from "@garnetops/core";
+import { parseGradeFilter } from "@garnetops/core/grades";
 import { pageSizeSchema } from "@garnetops/core/pagination";
 import { fingerprint, generateDeployKey, parseKnownHosts } from "@garnetops/core/ssh";
 import { seal } from "@garnetops/core/vault";
@@ -10,6 +11,13 @@ import { boss, db, QUEUES } from "../db.ts";
 import { vaultPublicKey } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
+import {
+  gradeDistribution,
+  gradeFieldsOf,
+  gradeFilterSql,
+  gradeRankSql,
+  REPOSITORY_FINDINGS,
+} from "../lib/grades.ts";
 import {
   type KeysetSpec,
   keysetQuery,
@@ -66,17 +74,35 @@ const listQuery = z.object({
   status: z.enum(["all", "blocked", "attention", "clean"]).default("all"),
   /** The viewer's zone, for the calendar days of the small trend line. */
   tz: z.string().refine(isTimeZone, "Unknown time zone").default("UTC"),
+  /** One or more grades, comma-separated: "F,E". "none" is a repository that was never scanned (ADR 0018). */
+  grade: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined || value === "") return undefined;
+      const parsed = parseGradeFilter(value);
+      if (!parsed) {
+        ctx.addIssue({ code: "custom", message: "Use grades A to F, or none, separated by commas" });
+        return z.NEVER;
+      }
+      return parsed;
+    }),
   /** Without a sort the list is by name. */
-  sort: z.enum(["name", "critical", "high", "medium", "lastScan"]).optional(),
+  sort: z.enum(["name", "grade", "critical", "high", "medium", "lastScan"]).optional(),
   dir: z.enum(["asc", "desc"]).optional(),
 });
 
 const openOf = (severity: string) =>
   sql`(select count(*)::int from ${schema.finding} f where f.repository_id = ${r.id} and f.state = 'open' and f.severity = ${severity})`;
 
+/** The grade rank of a repository (ADR 0018): 0 (A) to 5 (F), -1 when it was never scanned successfully. */
+const gradeRank = gradeRankSql(REPOSITORY_FINDINGS, sql`${r.id}`, sql`${r.lastScanId} is not null`);
+
 /** Columns the list can be sorted by (table headers). */
 const SORTS: Record<NonNullable<z.infer<typeof listQuery>["sort"]>, SortOption> = {
   name: { keys: [r.name], parse: [parseText], dir: "asc" },
+  // Worst first; repositories that were never scanned come last.
+  grade: { keys: [gradeRank], parse: [parseNumber], dir: "desc" },
   critical: { keys: [openOf("critical")], parse: [parseNumber], dir: "desc" },
   high: { keys: [openOf("high")], parse: [parseNumber], dir: "desc" },
   medium: { keys: [openOf("medium")], parse: [parseNumber], dir: "desc" },
@@ -194,6 +220,46 @@ function statusFilter(status: string) {
   return undefined;
 }
 
+/**
+ * The most recent scan of each repository in any state, so queued and running scans show up
+ * (repository.last_scan_id only moves on success). Uses scan_repo_created_idx.
+ */
+async function latestScans(repoIds: string[]) {
+  const scans = repoIds.length
+    ? await db
+        .selectDistinctOn([schema.scan.repositoryId], {
+          repositoryId: schema.scan.repositoryId,
+          id: schema.scan.id,
+          state: schema.scan.state,
+          finishedAt: schema.scan.finishedAt,
+          error: schema.scan.error,
+        })
+        .from(schema.scan)
+        // Checks of other refs (pull requests) are not the repository's state.
+        .where(and(inArray(schema.scan.repositoryId, repoIds), isNull(schema.scan.ref)))
+        .orderBy(schema.scan.repositoryId, desc(schema.scan.createdAt))
+    : [];
+  return new Map(scans.map(({ repositoryId, ...s }) => [repositoryId, s]));
+}
+
+/** Grade fields of the given repositories (ADR 0018). */
+async function gradesOf(
+  organizationId: string,
+  rows: { id: string; lastScanId: string | null }[],
+  latestScan: Awaited<ReturnType<typeof latestScans>>,
+) {
+  return gradeFieldsOf(
+    db,
+    REPOSITORY_FINDINGS,
+    organizationId,
+    rows.map((row) => ({
+      id: row.id,
+      scanned: row.lastScanId !== null,
+      failed: latestScan.get(row.id)?.state === "failed",
+    })),
+  );
+}
+
 export const repositoryRoutes = new Hono<AppEnv>()
   .get("/", async (c) => {
     const actor = c.get("actor");
@@ -202,6 +268,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
       eq(r.organizationId, actor.organizationId),
       input.q ? ilike(r.name, `%${input.q.replace(/[%_\\]/g, "\\$&")}%`) : undefined,
       statusFilter(input.status),
+      input.grade ? gradeFilterSql(gradeRank, input.grade) : undefined,
     );
     const sorted = input.sort ? sortSpec(SORTS[input.sort], input.dir, r.id) : null;
     const activeSpec = (sorted?.spec ?? spec) as KeysetSpec<
@@ -230,24 +297,8 @@ export const repositoryRoutes = new Hono<AppEnv>()
       actor.organizationId,
       page.items.map((x) => x.id),
     );
-    // The most recent scan of each repository in any state, so queued and running scans show up
-    // (repository.last_scan_id only moves on success). Uses scan_repo_created_idx.
     const repoIds = page.items.map((x) => x.id);
-    const scans = repoIds.length
-      ? await db
-          .selectDistinctOn([schema.scan.repositoryId], {
-            repositoryId: schema.scan.repositoryId,
-            id: schema.scan.id,
-            state: schema.scan.state,
-            finishedAt: schema.scan.finishedAt,
-            error: schema.scan.error,
-          })
-          .from(schema.scan)
-          // Checks of other refs (pull requests) are not the repository's state.
-          .where(and(inArray(schema.scan.repositoryId, repoIds), isNull(schema.scan.ref)))
-          .orderBy(schema.scan.repositoryId, desc(schema.scan.createdAt))
-      : [];
-    const latestScan = new Map(scans.map(({ repositoryId, ...s }) => [repositoryId, s]));
+    const latestScan = await latestScans(repoIds);
     // Scanners of the last successful scan, and open findings over the last 14 days.
     const lastScanIds = page.items.flatMap((x) => (x.lastScanId ? [x.lastScanId] : []));
     const [scanners, trends] = await Promise.all([
@@ -265,6 +316,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
       }),
     ]);
     const scannersOf = new Map(scanners.map((s) => [s.id, Object.keys(s.versions ?? {}).sort()]));
+    const grades = await gradesOf(actor.organizationId, page.items, latestScan);
     return c.json({
       ...page,
       items: page.items.map((row) => ({
@@ -280,6 +332,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
         open: counts.get(row.id) ?? {},
         scanners: (row.lastScanId && scannersOf.get(row.lastScanId)) || [],
         trend: trends.get(row.id) ?? [],
+        ...grades.get(row.id),
       })),
     });
   })
@@ -406,6 +459,16 @@ export const repositoryRoutes = new Hono<AppEnv>()
     );
     return c.json(Object.fromEntries(counts));
   })
+  /** How many repositories have each grade (ADR 0018), for the grade filter and the overview. */
+  .get("/grades", async (c) => {
+    const actor = c.get("actor");
+    const input = countsQuery.parse(c.req.query());
+    const where = and(
+      eq(r.organizationId, actor.organizationId),
+      input.q ? ilike(r.name, `%${input.q.replace(/[%_\\]/g, "\\$&")}%`) : undefined,
+    );
+    return c.json(await gradeDistribution(db, gradeRank, sql`${r}`, where ?? sql`true`));
+  })
   .post("/scan-all", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "member");
@@ -433,7 +496,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
       .where(and(eq(r.id, c.req.param("id")), eq(r.organizationId, actor.organizationId)))
       .limit(1);
     if (!row) throw notFound("Repository");
-    const [counts, states, [lastScan]] = await Promise.all([
+    const [counts, states, [lastScan], latestScan] = await Promise.all([
       openCounts(actor.organizationId, [row.id]),
       db
         .select({ state: schema.finding.state, n: count() })
@@ -451,7 +514,9 @@ export const repositoryRoutes = new Hono<AppEnv>()
         .where(eq(schema.scan.repositoryId, row.id))
         .orderBy(desc(schema.scan.createdAt), desc(schema.scan.id))
         .limit(1),
+      latestScans([row.id]),
     ]);
+    const grades = await gradesOf(actor.organizationId, [row], latestScan);
     return c.json({
       id: row.id,
       name: row.name,
@@ -467,6 +532,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
       open: counts.get(row.id) ?? {},
       states: Object.fromEntries(states.map((s) => [s.state, s.n])),
       writeAccess: await writeAccessSummary(row.id, row.url),
+      ...grades.get(row.id),
     });
   })
   /** Open findings of this repository per calendar day of the viewer (ADR 0005). */

@@ -15,6 +15,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SearchInput, Segmented } from "../../components/filters.tsx";
 import { GateBadge } from "../../components/gate-badge.tsx";
+import { GradeBadge, GradeFilter, GradeHelp } from "../../components/grade-badge.tsx";
 import { Card, PageHeader } from "../../components/page-header.tsx";
 import { Pagination } from "../../components/pagination.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
@@ -39,7 +40,7 @@ import { BULK_LIMIT, parseUrlList } from "../../lib/repo-urls.ts";
 import { rowClick } from "../../lib/row-link.ts";
 import { useScanErrorText } from "../../lib/scan-error.ts";
 import { type RepositorySearch, repositorySearch, toQuery } from "../../lib/search.ts";
-import type { GateResult, Page, RepositoryRow, Severity } from "../../lib/types.ts";
+import type { GateResult, Grade, Page, RepositoryRow, Severity } from "../../lib/types.ts";
 
 export const Route = createFileRoute("/_app/repositories")({
   validateSearch: repositorySearch,
@@ -96,6 +97,12 @@ function Repositories() {
     placeholderData: keepPreviousData,
   });
 
+  const grades = useQuery({
+    queryKey: ["repository-grades", search.q ?? ""],
+    queryFn: () => api<Record<Grade | "none", number>>(`/repositories/grades${toQuery({ q: search.q })}`),
+    placeholderData: keepPreviousData,
+  });
+
   const setSearch = (patch: Partial<RepositorySearch>, replace = false) =>
     navigate({ search: (prev) => ({ ...prev, cursor: undefined, ...patch }), replace });
   const sortProps = {
@@ -142,6 +149,7 @@ function Repositories() {
           }))}
           onChange={(status) => setSearch({ status: status === "all" ? undefined : status })}
         />
+        <GradeFilter value={search.grade} counts={grades.data} onChange={(grade) => setSearch({ grade })} />
         <SearchInput
           className="ml-auto"
           label={t("repositories.search")}
@@ -149,6 +157,8 @@ function Repositories() {
           onChange={(q) => setSearch({ q: q || undefined }, true)}
         />
       </div>
+
+      <GradeHelp />
 
       <Card>
         <table className="w-full text-left">
@@ -159,6 +169,13 @@ function Repositories() {
                 label={t("repositories.columnName")}
                 natural="asc"
                 className="px-5"
+                {...sortProps}
+              />
+              <SortHeader
+                column="grade"
+                label={t("grades.column")}
+                natural="desc"
+                className="px-2"
                 {...sortProps}
               />
               <th className="hidden px-3 py-2.5 font-medium @3xl:table-cell">
@@ -192,7 +209,7 @@ function Repositories() {
                 className="px-3"
                 {...sortProps}
               />
-              <th className="w-14 px-5 py-2.5 text-right font-medium">
+              <th className="w-14 px-3 py-2.5 text-right font-medium @wide:px-5">
                 <span className="sr-only">{t("repositories.columnActions")}</span>
               </th>
             </tr>
@@ -309,6 +326,9 @@ function RepositoryRowView({
           </div>
         </div>
       </td>
+      <td className="px-2 py-3">
+        <GradeBadge row={repo} kind="repository" id={repo.id} />
+      </td>
       <td className="hidden px-3 py-3 @3xl:table-cell">
         <div className="flex items-start gap-2.5">
           <SourceIcon aria-hidden="true" className="mt-1 size-4 flex-none text-muted-foreground" />
@@ -391,7 +411,7 @@ function RepositoryRowView({
           </div>
         ) : null}
       </td>
-      <td className="px-5 py-2 text-right">
+      <td className="px-3 py-2 text-right @wide:px-5">
         <ActionMenu label={t("repositories.moreActions", { name: repo.name })} actions={actions} />
         {scan.isError ? (
           <p role="alert" className="mt-1.5 text-right text-sm text-destructive-text">

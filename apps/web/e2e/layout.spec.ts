@@ -230,6 +230,55 @@ test.describe("signed in", () => {
     expect(problems).toEqual([]);
   });
 
+  test("grades: the column, the help and the open note fit at every width, in English and German", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    const inside = (box: { x: number; width: number } | null) => {
+      const width = page.viewportSize()?.width ?? 0;
+      return box !== null && box.x >= 0 && box.x + box.width <= width;
+    };
+    for (const { path, name } of [
+      { path: "/repositories", name: "repositories" },
+      { path: "/servers", name: "servers" },
+    ]) {
+      await page.goto(path);
+      await expect(page.getByRole("columnheader", { name: /Grade/ })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      await page.getByText("How grades work").click();
+      await expect(page.getByText("The grade is display only")).toBeVisible();
+      expect(await hasNoHorizontalScroll(page), `${name} with the help open`).toBe(true);
+      expect(await overflowingCards(page), `${name} with the help open`).toEqual([]);
+      await page.getByText("How grades work").click();
+
+      // The F badge of the first graded row, with its note open.
+      const badge = page.getByRole("link", { name: /^F: / }).first();
+      await badge.hover();
+      const tip = page.getByRole("tooltip");
+      await expect(tip).toBeVisible();
+      expect(inside(await tip.boundingBox()), `${name}: the note is inside the window`).toBe(true);
+      expect(await hasNoHorizontalScroll(page), `${name} with the note open`).toBe(true);
+      await page.screenshot({ path: info.outputPath(`grades-${name}.png`), fullPage: true });
+      await page.mouse.move(0, 0);
+    }
+
+    // German texts are longer; 1100 px is the smallest window the lists are made for.
+    await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
+    const height = page.viewportSize()?.height ?? 800;
+    for (const width of [1100, 1280]) {
+      await page.setViewportSize({ width, height });
+      for (const path of ["/repositories", "/servers", "/repositories/repo_e2eseeded000000001"]) {
+        await page.goto(path);
+        await expect(page.locator("html")).toHaveAttribute("lang", "de");
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await page.waitForLoadState("networkidle");
+        expect(await hasNoHorizontalScroll(page), `${width} ${path}`).toBe(true);
+        expect(await overflowingCards(page), `${width} ${path}`).toEqual([]);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
   test("the account dialogs fit the screen", async ({ page }, info) => {
     const problems = watchForProblems(page);
     const fits = (dialog: Locator) =>

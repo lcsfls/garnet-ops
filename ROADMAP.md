@@ -98,6 +98,8 @@ paginated findings, and every number on the overview leads to its details.
 - [x] Overview: 30-day trend chart, changes against last week, vulnerability data card
 - [x] Repository page: trend, scan history and patch history per repository
 - [x] Findings export (CSV, XLSX, PDF, text) with the active filters, per repository
+- [~] Grades A to F per repository and server, display only: Grade column, reason note with a link to the findings,
+      sorting and filter, detail pages (ADR 0018, `docs/grades.md`). Still open: a grade distribution on the overview
 - [~] Scan scheduling: on demand and nightly done (per organisation, local
       time in an explicit zone, one run per local date, DST-tested, ADR 0005),
       settings screen to change it. Still open: scans on push via webhook

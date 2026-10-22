@@ -5,6 +5,7 @@
  */
 import { createHash, randomBytes } from "node:crypto";
 import { newId, SEVERITIES } from "@garnetops/core";
+import { parseGradeFilter } from "@garnetops/core/grades";
 import { renderSetupScript, SETUP_LINK_MINUTES, setupOneLiner } from "@garnetops/core/host-setup";
 import {
   type HostInput,
@@ -24,6 +25,14 @@ import { boss, db, QUEUES } from "../db.ts";
 import { env } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
+import {
+  type GradeFields,
+  gradeDistribution,
+  gradeFieldsOf,
+  gradeFilterSql,
+  gradeRankSql,
+  HOST_FINDINGS,
+} from "../lib/grades.ts";
 import {
   type KeysetSpec,
   keysetQuery,
@@ -56,8 +65,13 @@ const escapeLike = (text: string) => `%${text.replace(/[%_\\]/g, "\\$&")}%`;
 const openOf = (severity: string) =>
   sql`(select count(*)::int from ${schema.hostFinding} f where f.host_id = ${h.id} and f.state = 'open' and f.severity = ${severity})`;
 
+/** The grade rank of a server (ADR 0018): 0 (A) to 5 (F), -1 when no inventory has succeeded yet. */
+const gradeRank = gradeRankSql(HOST_FINDINGS, sql`${h.id}`, sql`${h.lastInventoryAt} is not null`);
+
 const SORTS = {
   name: { keys: [h.name], parse: [parseText], dir: "asc" },
+  // Worst first; servers that were never inventoried come last.
+  grade: { keys: [gradeRank], parse: [parseNumber], dir: "desc" },
   address: { keys: [h.address], parse: [parseText], dir: "asc" },
   os: { keys: [sql`coalesce(${h.osName}, '')`], parse: [parseText], dir: "asc" },
   packages: { keys: [sql`coalesce(${h.packageCount}, -1)`], parse: [parseNumber], dir: "desc" },
@@ -88,6 +102,19 @@ const listQuery = z.object({
   q: z.string().trim().max(100).optional(),
   /** "vulnerable": open critical or high findings. "attention": host key not confirmed, or the last inventory failed. */
   status: z.enum(["all", "vulnerable", "attention"]).default("all"),
+  /** One or more grades, comma-separated: "F,E". "none" is a server that was never inventoried (ADR 0018). */
+  grade: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined || value === "") return undefined;
+      const parsed = parseGradeFilter(value);
+      if (!parsed) {
+        ctx.addIssue({ code: "custom", message: "Use grades A to F, or none, separated by commas" });
+        return z.NEVER;
+      }
+      return parsed;
+    }),
   sort: z.enum(sortNames).optional(),
   dir: z.enum(["asc", "desc"]).optional(),
 });
@@ -230,6 +257,7 @@ function present(
   run: LatestRun | null,
   proxmox: ProxmoxLink | null,
   wazuh: WazuhLink | null = null,
+  grade: GradeFields | undefined = undefined,
 ) {
   return {
     id: row.id,
@@ -264,7 +292,23 @@ function present(
     open,
     run,
     createdAt: row.createdAt,
+    // Additive (ADR 0018): the grade is display only.
+    ...grade,
   };
+}
+
+/** Grade fields of the given servers: no grade before the first successful inventory, stale when the latest run failed. */
+async function gradesOf(organizationId: string, rows: HostRow[], runs: Map<string, LatestRun>) {
+  return gradeFieldsOf(
+    db,
+    HOST_FINDINGS,
+    organizationId,
+    rows.map((row) => ({
+      id: row.id,
+      scanned: row.lastInventoryAt !== null,
+      failed: runs.get(row.id)?.state === "failed" || row.lastError !== null,
+    })),
+  );
 }
 
 async function ownHost(organizationId: string, id: string): Promise<HostRow> {
@@ -378,6 +422,7 @@ export const hostRoutes = new Hono<AppEnv>()
       eq(h.organizationId, actor.organizationId),
       searchFilter(input.q),
       statusFilter(input.status),
+      input.grade ? gradeFilterSql(gradeRank, input.grade) : undefined,
     );
     const sorted = input.sort ? sortSpec(SORTS[input.sort], input.dir, h.id) : null;
     const activeSpec = (sorted?.spec ?? defaultSpec) as KeysetSpec<ListRow>;
@@ -407,6 +452,7 @@ export const hostRoutes = new Hono<AppEnv>()
       proxmoxLinks(page.items),
       wazuhLinks(page.items),
     ]);
+    const grades = await gradesOf(actor.organizationId, page.items, runs);
     return c.json({
       ...page,
       items: page.items.map((row) =>
@@ -416,6 +462,7 @@ export const hostRoutes = new Hono<AppEnv>()
           runs.get(row.id) ?? null,
           (row.sourceRef && links.get(row.sourceRef)) || null,
           agentLinks.get(row.id) ?? null,
+          grades.get(row.id),
         ),
       ),
     });
@@ -434,6 +481,14 @@ export const hostRoutes = new Hono<AppEnv>()
       }),
     );
     return c.json(Object.fromEntries(counts));
+  })
+
+  /** How many servers have each grade (ADR 0018). */
+  .get("/grades", async (c) => {
+    const actor = c.get("actor");
+    const input = z.object({ q: z.string().trim().max(100).optional() }).parse(c.req.query());
+    const where = and(eq(h.organizationId, actor.organizationId), searchFilter(input.q));
+    return c.json(await gradeDistribution(db, gradeRank, sql`${h}`, where ?? sql`true`));
   })
 
   /* --------------------- access key and setup script ------------------ */
@@ -764,6 +819,7 @@ export const hostRoutes = new Hono<AppEnv>()
         .where(eq(schema.hostFinding.hostId, row.id))
         .groupBy(schema.hostFinding.state),
     ]);
+    const grades = await gradesOf(actor.organizationId, [row], runs);
     return c.json({
       ...present(
         row,
@@ -771,6 +827,7 @@ export const hostRoutes = new Hono<AppEnv>()
         runs.get(row.id) ?? null,
         (row.sourceRef && links.get(row.sourceRef)) || null,
         agentLinks.get(row.id) ?? null,
+        grades.get(row.id),
       ),
       states: Object.fromEntries(states.map((s) => [s.state, s.n])),
     });
@@ -971,6 +1028,9 @@ export const hostRoutes = new Hono<AppEnv>()
             s ? s.split(",").filter((x) => (SEVERITIES as readonly string[]).includes(x)) : [],
           ),
         q: z.string().trim().max(120).optional(),
+        /** Only findings with a known fixed version, or only known exploited ones (the grade links here, ADR 0018). */
+        fixable: z.enum(["1"]).optional(),
+        kev: z.enum(["1"]).optional(),
         sort: z.enum(["vulnerability", "cvss", "epss", "package", "firstSeen"]).optional(),
         dir: z.enum(["asc", "desc"]).optional(),
       })
@@ -1001,6 +1061,8 @@ export const hostRoutes = new Hono<AppEnv>()
       eq(f.hostId, row.id),
       input.state === "all" ? undefined : eq(f.state, input.state),
       input.severity.length ? inArray(f.severity, input.severity) : undefined,
+      input.fixable ? sql`jsonb_array_length(coalesce(${f.fixedIn}, '[]'::jsonb)) > 0` : undefined,
+      input.kev ? eq(v.knownExploited, true) : undefined,
       like ? or(ilike(f.packageName, like), ilike(f.vulnerabilityId, like)) : undefined,
     );
     const [rows, totalRow] = await Promise.all([
@@ -1028,7 +1090,7 @@ export const hostRoutes = new Hono<AppEnv>()
         .where(and(where, q.where))
         .orderBy(...q.orderBy)
         .limit(q.limit),
-      db.select({ n: count() }).from(f).where(where),
+      db.select({ n: count() }).from(f).innerJoin(v, eq(v.id, f.vulnerabilityId)).where(where),
     ]);
     return c.json(
       toPage(

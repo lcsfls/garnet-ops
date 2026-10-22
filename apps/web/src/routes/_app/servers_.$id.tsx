@@ -4,6 +4,7 @@ import { ArrowLeft, Fingerprint, Flame, Play, Server, ShieldAlert, Trash2 } from
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SearchInput, Segmented } from "../../components/filters.tsx";
+import { GradeSummary } from "../../components/grade-badge.tsx";
 import { HostKeyDialog } from "../../components/host-key-dialog.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
 import { Pagination } from "../../components/pagination.tsx";
@@ -14,6 +15,7 @@ import { Badge, SeverityBadge } from "../../components/ui/badge.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { Checkbox } from "../../components/ui/checkbox.tsx";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog.tsx";
+import { Select } from "../../components/ui/select.tsx";
 import { useStepUp } from "../../components/use-step-up.tsx";
 import { api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
@@ -99,6 +101,7 @@ function ServerPage() {
         icon={Server}
         title={data?.name ?? t("common.loading")}
         description={data ? `${data.address}:${data.port}` : ""}
+        meta={data ? <GradeSummary row={data} kind="server" id={id} /> : null}
         actions={
           data && canEdit ? (
             <>
@@ -366,6 +369,9 @@ function Findings({ id, data, search, setSearch }: Props & { data: HostDetail })
       search.findings,
       search.findingsPageSize,
       state,
+      search.findingSeverity,
+      search.findingFixable,
+      search.findingKev,
       search.findingSort,
       search.findingDir,
     ],
@@ -375,6 +381,9 @@ function Findings({ id, data, search, setSearch }: Props & { data: HostDetail })
           cursor: search.findings,
           pageSize: search.findingsPageSize,
           state,
+          severity: search.findingSeverity,
+          fixable: search.findingFixable,
+          kev: search.findingKev,
           sort: search.findingSort,
           dir: search.findingDir,
         })}`,
@@ -392,7 +401,8 @@ function Findings({ id, data, search, setSearch }: Props & { data: HostDetail })
       }),
   };
   return (
-    <Card>
+    // The grade links here (ADR 0018), so the card is an anchor target.
+    <Card className="scroll-mt-4" id="findings">
       <CardHeader
         title={t("servers.findingsTitle")}
         description={t("servers.findingsDescription")}
@@ -410,6 +420,44 @@ function Findings({ id, data, search, setSearch }: Props & { data: HostDetail })
           />
         }
       />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 pb-3">
+        <Select
+          aria-label={t("findings.severityFilter")}
+          value={search.findingSeverity ?? ""}
+          onChange={(e) =>
+            setSearch({
+              findingSeverity: (e.target.value || undefined) as ServerDetailSearch["findingSeverity"],
+              findings: undefined,
+            })
+          }
+          className="h-9 max-w-48"
+        >
+          <option value="">{t("servers.findingsAllSeverities")}</option>
+          {SEVERITIES.map((severity) => (
+            <option key={severity} value={severity}>
+              {t(`severity.${severity}`)}
+            </option>
+          ))}
+        </Select>
+        <label className="flex items-center gap-2 text-sm whitespace-nowrap">
+          <Checkbox
+            checked={search.findingKev === "1"}
+            onChange={(e) =>
+              setSearch({ findingKev: e.target.checked ? "1" : undefined, findings: undefined })
+            }
+          />
+          {t("findings.knownExploitedOnly")}
+        </label>
+        <label className="flex items-center gap-2 text-sm whitespace-nowrap">
+          <Checkbox
+            checked={search.findingFixable === "1"}
+            onChange={(e) =>
+              setSearch({ findingFixable: e.target.checked ? "1" : undefined, findings: undefined })
+            }
+          />
+          {t("findings.fixableOnly")}
+        </label>
+      </div>
       <table className="w-full text-left">
         <thead className="text-sm text-muted-foreground">
           <tr className="border-b">

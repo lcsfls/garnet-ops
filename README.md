@@ -26,7 +26,8 @@ fixed version, opened with a separate write token per repository and always left
 ([docs/fix-prs.md](docs/fix-prs.md)), a read-only XDR page for your own Wazuh with alerts,
 MITRE ATT&CK tactics, file integrity, agents and an enrollment helper
 ([docs/xdr.md](docs/xdr.md)), an attack overview with a world map from local GeoIP data you load yourself
-([docs/attacks.md](docs/attacks.md)), audit log, a Docker Compose stack and optional signed in-app updates.
+([docs/attacks.md](docs/attacks.md)), a grade from A to F per repository and server that shows
+what to look at first ([docs/grades.md](docs/grades.md)), audit log, a Docker Compose stack and optional signed in-app updates.
 
 ## What GarnetOps is built on
 
