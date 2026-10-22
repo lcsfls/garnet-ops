@@ -5,7 +5,7 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +13,7 @@ import { generateVaultKeyPair, loadVaultPublicKey, seal } from "@garnetops/core/
 import { createDb, schema } from "@garnetops/db";
 import { and, count, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { copyFixtureRepo } from "../test/fixture-repo.ts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const fixtures = fileURLToPath(new URL("../test/fixtures/", import.meta.url));
@@ -33,7 +34,7 @@ const COMMIT = "a".repeat(40);
 vi.mock("./git.ts", () => ({
   sshClient: async () => ({ bin: "ssh", kex: [] }),
   shallowClone: async (options: { dir: string; ref?: string | null }) => {
-    await cp(join(fixtures, "npm-vulnerable"), options.dir, { recursive: true });
+    await copyFixtureRepo("npm-vulnerable", options.dir);
     // A real commit, like the clone makes, so that the scan can read the manifests from its tree (ADR 0014).
     const { execFileSync } = await import("node:child_process");
     const git = (...args: string[]) =>

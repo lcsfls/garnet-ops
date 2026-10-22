@@ -63,14 +63,14 @@ npm packages, so its upstream repository still has to be checked.
 | @simplewebauthn/server | 13.3.3 | MIT | verified | https://github.com/MasterKale/SimpleWebAuthn | WebAuthn registration and sign-in verification, used by @better-auth/passkey | Pulls in @peculiar/x509, @peculiar/asn1-* (MIT), @peculiar/utils (MIT), @hexagon/base64 (MIT), @levischuck/tiny-cbor (MIT), asn1js (BSD-3-Clause), pvtsutils (MIT), pvutils (MIT), tslib (0BSD), tsyringe (MIT), reflect-metadata (Apache-2.0) |
 | @simplewebauthn/browser | 13.3.0 | MIT | verified | https://github.com/MasterKale/SimpleWebAuthn | WebAuthn ceremonies in the browser (passkey registration and sign-in) | No dependencies; bundled into the web app, no CDN |
 | drizzle-orm | 0.45.4 | Apache-2.0 | to verify | https://github.com/drizzle-team/drizzle-orm | ORM and migrations | License from package metadata only |
-| drizzle-kit | 0.31.11 | MIT | to verify | https://github.com/drizzle-team/drizzle-orm | Migration generator (dev) | License from package metadata only |
+| drizzle-kit | 0.31.11 | MIT | to verify | https://github.com/drizzle-team/drizzle-orm | Migration generator (dev) | License from package metadata only. Its deprecated `@esbuild-kit/core-utils` dependency is forced to esbuild 0.25.12 (MIT) by a pnpm override in `pnpm-workspace.yaml` (GHSA-67mh-4wv8-2f99); `pnpm db:generate` reports no schema changes |
 | pg (node-postgres) | 8.23.1 | MIT | verified | https://github.com/brianc/node-postgres | PostgreSQL driver | |
 | pg-boss | 12.38.0 | MIT | verified | https://github.com/timgit/pg-boss | Job queue in Postgres | |
 | PostgreSQL | 17 (embedded, dev only) | PostgreSQL License | to verify | https://www.postgresql.org | Database | Production version pinned with the Compose stack |
 | embedded-postgres | 17.10.0-beta.17 | MIT | verified | https://github.com/leinelissen/embedded-postgres | Local development database without Docker (dev only) | Ships PostgreSQL binaries; never part of a release |
 | tsx | 4.23.15 | MIT | verified | https://github.com/privatenumber/tsx | Runs TypeScript in development | |
 | Biome | 2.5.15 | MIT OR Apache-2.0 | verified | https://github.com/biomejs/biome | Lint and format (dev) | |
-| Vitest | 3.2.7 | MIT | verified | https://github.com/vitest-dev/vitest | Tests (dev) | |
+| Vitest | 4.1.12 | MIT | verified | https://github.com/vitest-dev/vitest | Tests (dev) | 4.1.12 fixes GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp in @vitest/mocker; 4.x no longer depends on tinypool. New transitive packages (obug, std-env 4, tinyrainbow 3, es-module-lexer 2, why-is-node-running, expect-type) are MIT or Apache-2.0 |
 | nodemailer | 10.1.7 | MIT-0 | verified | https://github.com/nodemailer/nodemailer | Mail via SMTP from the worker (ADR 0010) | No dependencies; MIT-0 needs no attribution |
 | @types/nodemailer | 8.0.2 | MIT | verified | https://github.com/DefinitelyTyped/DefinitelyTyped | nodemailer type definitions (dev) | |
 | ssh2 | 1.17.0 | MIT | verified | https://github.com/mscdex/ssh2 | Local SSH test server for the SSH clone and server inventory tests (dev only) | Pulls in asn1 (MIT), bcrypt-pbkdf (BSD-3-Clause), tweetnacl (Unlicense), safer-buffer (MIT); optional native add-ons (cpu-features, nan, buildcheck; MIT) are not built (`allowBuilds: false`) |

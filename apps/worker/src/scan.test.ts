@@ -6,7 +6,7 @@
  * the network. Skipped when the development environment is not set up.
  */
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,9 +16,9 @@ import { generateVaultKeyPair, loadVaultPublicKey, seal } from "@garnetops/core/
 import { createDb, schema } from "@garnetops/db";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { copyFixtureRepo } from "../test/fixture-repo.ts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const fixtures = fileURLToPath(new URL("../test/fixtures/", import.meta.url));
 const grypeBin = join(root, ".tools", "grype", process.platform === "win32" ? "grype.exe" : "grype");
 const grypeDb = join(root, ".tools", "grype-db");
 const syftBin = join(root, ".tools", "syft", process.platform === "win32" ? "syft.exe" : "syft");
@@ -69,7 +69,7 @@ vi.mock("./git.ts", () => ({
     if (options.ssh && !options.ssh.pinned)
       writeFileSync(options.ssh.knownHostsFile, `${clone.hostKeyLine}\n`);
     if (clone.fail) throw new Error(clone.fail);
-    await cp(join(fixtures, clone.fixture), options.dir, { recursive: true });
+    await copyFixtureRepo(clone.fixture, options.dir);
     return { commitSha: `fixture-${clone.fixture}`, branch: "main" };
   },
 }));

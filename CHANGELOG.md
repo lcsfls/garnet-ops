@@ -496,6 +496,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Security
 
+- Development dependencies: Vitest 3.2.7 to 4.1.12 (GHSA-82fw-gwwq-j7x9, GHSA-qxg6-89mg-rqv8, GHSA-xp26-3454-mjgp; it no longer pulls in tinypool 1.1.1 with its
+  two critical advisories), and the old esbuild 0.18.20 (GHSA-67mh-4wv8-2f99) that drizzle-kit 0.31 reaches through
+  the deprecated `@esbuild-kit` loader is replaced by esbuild 0.25.12 with a scoped pnpm override; no esbuild below
+  0.25 remains in the lockfile. None of these packages is part of the shipped images. The recorded test repositories
+  in `apps/worker/test/fixtures/` keep their manifests as `package.json.fixture` and `package-lock.json.fixture`, so
+  scanners and dependency bots no longer mistake the deliberately vulnerable lodash and minimist for real dependencies
+  of the product; the tests copy them under their real names into a temporary directory.
 - Accounts (ADR 0017): changing the password, replacing the authenticator app, renewing backup codes, adding or
   removing a passkey need a sign-in from the last ten minutes (and the password again for the authenticator app and
   the password change); the last second factor can never be removed (checked in one database transaction, so two requests

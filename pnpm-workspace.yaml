@@ -15,3 +15,9 @@ allowBuilds:
 # releases are usually caught within hours. No silent exclusions: an exception
 # needs a comment with the reason.
 minimumReleaseAge: 1440
+
+# drizzle-kit 0.31 (latest stable) still pulls the deprecated @esbuild-kit loader, which pins
+# esbuild 0.18.20 (GHSA-67mh-4wv8-2f99, fixed in 0.25.0). Only that path is overridden; drop
+# this when drizzle-kit no longer depends on @esbuild-kit.
+overrides:
+  '@esbuild-kit/core-utils>esbuild': 0.25.12

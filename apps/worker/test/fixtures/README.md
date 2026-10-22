@@ -3,6 +3,14 @@
 Repository contents the worker scans in tests. They are data only: nothing
 here is installed, built or executed.
 
+The manifests of the two repositories end in `.fixture`
+(`package.json.fixture`, `package-lock.json.fixture`) so that scanners and
+dependency bots that read this repository (GarnetOps, Dependabot, syft) do not
+mistake the deliberately vulnerable packages for real dependencies of the
+product. Tests copy a fixture with `copyFixtureRepo()` from
+`test/fixture-repo.ts`, which gives the files their real names in a temporary
+directory.
+
 - `npm-vulnerable/`: lodash 4.17.15 and minimist 1.2.0, releases with
   published GitHub advisories.
 - `npm-fixed/`: the same packages at releases that fix those advisories.
