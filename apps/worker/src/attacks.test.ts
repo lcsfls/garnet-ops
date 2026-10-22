@@ -915,7 +915,7 @@ describe.skipIf(!openssl || !adminUrl)("attack overview worker", () => {
         ]);
       }
       const swept = await attacks.retentionSweep(now);
-      expect(swept).toEqual({ sourceAddresses: 3, attackWindows: 2, osintResults: 2 });
+      expect(swept).toEqual({ sourceAddresses: 3, attackWindows: 2, osintResults: 2, attackEvents: 0 });
       const left = async (orgId: string) =>
         (
           await conn.db
@@ -939,6 +939,7 @@ describe.skipIf(!openssl || !adminUrl)("attack overview worker", () => {
         sourceAddresses: 0,
         attackWindows: 0,
         osintResults: 0,
+        attackEvents: 0,
       });
     });
 
@@ -950,6 +951,7 @@ describe.skipIf(!openssl || !adminUrl)("attack overview worker", () => {
         sourceAddresses: 0,
         attackWindows: 0,
         osintResults: 0,
+        attackEvents: 0,
       });
     });
   });

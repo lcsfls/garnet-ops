@@ -1,7 +1,9 @@
 /** Response shapes of /api/v1, as the API routes return them (apps/api/src/routes). */
 import type { FindingState, ScanState, Severity } from "@garnetops/core";
 import type { AiError, TriageResult } from "@garnetops/core/ai";
+import type { AttackEventView, LiveState, PausedReason } from "@garnetops/core/attack-live";
 import type { Grade, GradeRule } from "@garnetops/core/grades";
+import type { HomeLocation } from "@garnetops/core/home-location";
 
 export type { FindingState, Grade, GradeRule, ScanState, Severity };
 export type SeverityCounts = Partial<Record<Severity, number>>;
@@ -850,8 +852,32 @@ export interface AttackAgent {
   hostId: string | null;
 }
 
+/** The status of the live attack feed (ADR 0021), as `/attacks/events`, the stream and the overview give it. */
+export interface AttackLiveInfo {
+  enabled: boolean;
+  intervalSeconds: number;
+  minLevel: number;
+  state: LiveState;
+  reason: PausedReason | null;
+  error: string | null;
+  lastEventAt: string | null;
+  lastPollAt: string | null;
+}
+
+export type AttackEvent = AttackEventView;
+export type { HomeLocation };
+
+export interface AttackEventsAnswer {
+  items: AttackEvent[];
+  latestSeq: number;
+  live: AttackLiveInfo | null;
+}
+
 export interface AttackOverview {
   connected: boolean;
+  /** Where the globe ends its arcs; null if an admin has not set it. */
+  home: HomeLocation | null;
+  live: AttackLiveInfo | null;
   period: AttackWindow;
   syncedAt: string | null;
   attribution: { text: string; url: string; licenseUrl: string };
@@ -870,7 +896,7 @@ export interface AttackOverview {
     /** The addresses listed are the busiest ones; these say how much of the whole they cover. */
     listedAlerts: number;
     listedSources: number;
-    countries: { country: string; alerts: number; sources: number }[];
+    countries: { country: string; alerts: number; sources: number; topScore?: number }[];
     unlocated: { alerts: number; sources: number };
     internal: { alerts: number; sources: number };
     asns: { asn: number | null; org: string | null; alerts: number; sources: number }[];
@@ -900,6 +926,15 @@ export interface AttackSourceRow {
 
 export interface AttackSettings {
   wazuhConnected: boolean;
+  home: HomeLocation | null;
+  liveFeed:
+    | (AttackLiveInfo & {
+        limits: {
+          intervalSeconds: { min: number; max: number; default: number };
+          minLevel: { min: number; max: number; default: number };
+        };
+      })
+    | null;
   retentionDays: number;
   retention: { default: number; min: number; max: number };
   geoip: {

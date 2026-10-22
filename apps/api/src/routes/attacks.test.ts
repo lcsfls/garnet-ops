@@ -911,7 +911,7 @@ describe.skipIf(!adminUrl)("attack overview API", () => {
       await seedWindow(other, "24h", {}, OTHER);
       await seedSources(other, "24h", [{ ip: "198.51.100.9", count: 1 }], OTHER);
       const r = await call("DELETE", "/api/v1/attacks/data");
-      expect(r.json).toEqual({ sourceAddresses: 8, attackWindows: 1, osintResults: 0 });
+      expect(r.json).toEqual({ sourceAddresses: 8, attackWindows: 1, osintResults: 0, attackEvents: 0 });
       expect(
         await t.db.select().from(schema.wazuhSourceIp).where(eq(schema.wazuhSourceIp.organizationId, ORG)),
       ).toHaveLength(0);

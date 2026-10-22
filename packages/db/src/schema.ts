@@ -7,8 +7,10 @@ import {
   bigint,
   bigserial,
   boolean,
+  check,
   customType,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -1413,6 +1415,82 @@ export const wazuhAttackWindow = pgTable(
   (t) => [primaryKey({ columns: [t.connectionId, t.window] })],
 );
 
+/**
+ * The live attack feed of a connection (ADR 0021): its settings (on or off, how often to ask, from which rule level
+ * on) and where it stands (the cursor, when it asked last, when the newest event happened, the last problem as a
+ * short code). One row per connection, created by the worker or when an admin changes a setting. Nothing here is a
+ * credential and nothing is Wazuh text.
+ */
+export const wazuhLiveState = pgTable(
+  "wazuh_live_state",
+  {
+    connectionId: text("connection_id")
+      .primaryKey()
+      .references(() => wazuhConnection.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(true),
+    /** Seconds between two polls of the indexer, 15 to 300. */
+    intervalSeconds: integer("interval_seconds").notNull().default(30),
+    /** Only alerts of this rule level or higher, 3 to 15. */
+    minLevel: integer("min_level").notNull().default(7),
+    /** Time and indexer id of the newest alert seen. Null until the first poll, which starts five minutes back. */
+    cursorAt: timestamp("cursor_at", { withTimezone: true }),
+    cursorId: text("cursor_id"),
+    /** The earliest the next poll may start. Also the lease while a worker polls. */
+    nextPollAt: timestamp("next_poll_at", { withTimezone: true }).notNull().defaultNow(),
+    lastPollAt: timestamp("last_poll_at", { withTimezone: true }),
+    /** When the newest stored event happened (not when it was stored). */
+    lastEventAt: timestamp("last_event_at", { withTimezone: true }),
+    /** A `WazuhErrorCode` of the last poll; null if it worked. */
+    lastError: text("last_error"),
+    failures: integer("failures").notNull().default(0),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("wazuh_live_state_interval", sql`${t.intervalSeconds} between 15 and 300`),
+    check("wazuh_live_state_level", sql`${t.minLevel} between 3 and 15`),
+  ],
+);
+
+/**
+ * The latest attack alerts the live feed read (ADR 0021): at most 500 per connection, and gone after the retention
+ * period of the attack overview, because source addresses are personal data. Only the fields the page shows are kept;
+ * never the log line. Description and agent name are text written by whoever attacks: stored cut and cleaned, shown as
+ * plain text, never sent to a model. The sequence number orders the events and is the id of the event stream.
+ */
+export const wazuhAttackEvent = pgTable(
+  "wazuh_attack_event",
+  {
+    seq: bigserial("seq", { mode: "number" }).primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => wazuhConnection.id, { onDelete: "cascade" }),
+    /** The id of the alert document in the indexer: reading the same alert twice stores it once. */
+    docId: text("doc_id").notNull(),
+    /** When the alert happened (the alert's own time). */
+    at: timestamp("at", { withTimezone: true }).notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    ip: text("ip").notNull(),
+    ruleId: text("rule_id").notNull(),
+    ruleLevel: integer("rule_level").notNull(),
+    description: text("description").notNull(),
+    /** Rule groups from the fixed attack list. */
+    groups: jsonb("groups").$type<string[]>().notNull().default([]),
+    agentId: text("agent_id").notNull(),
+    agentName: text("agent_name").notNull(),
+  },
+  (t) => [
+    uniqueIndex("wazuh_attack_event_doc_uq").on(t.connectionId, t.docId),
+    index("wazuh_attack_event_org_idx").on(t.organizationId, t.seq),
+    index("wazuh_attack_event_at_idx").on(t.at),
+  ],
+);
+
 export const wazuhSyncRun = pgTable(
   "wazuh_sync_run",
   {
@@ -1546,40 +1624,60 @@ export const geoipAsnRange = pgTable(
  * out is off by default. The OSINT API key lives in the vault (`secret`, purpose `osint-api-key`);
  * the API seals it, only the worker opens it.
  */
-export const attackSettings = pgTable("attack_settings", {
-  organizationId: text("organization_id")
-    .primaryKey()
-    .references(() => organization.id, { onDelete: "cascade" }),
-  /** Stored source addresses and OSINT results older than this are deleted. */
-  retentionDays: integer("retention_days").notNull().default(90),
+export const attackSettings = pgTable(
+  "attack_settings",
+  {
+    organizationId: text("organization_id")
+      .primaryKey()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** Stored source addresses and OSINT results older than this are deleted. */
+    retentionDays: integer("retention_days").notNull().default(90),
 
-  geoipDownloadEnabled: boolean("geoip_download_enabled").notNull().default(false),
-  geoipDownloadEnabledBy: text("geoip_download_enabled_by").references(() => user.id, {
-    onDelete: "set null",
-  }),
-  geoipDownloadEnabledAt: timestamp("geoip_download_enabled_at", { withTimezone: true }),
-  geoipDownloadLastAttemptAt: timestamp("geoip_download_last_attempt_at", { withTimezone: true }),
-  /** A code from packages/core/src/geoip.ts or "unreachable" / "notFound"; null if the last attempt worked or none was made. */
-  geoipDownloadLastError: text("geoip_download_last_error"),
+    /**
+     * The organisation's home location (ADR 0021): where the globe ends the arcs of the attack sources. A country
+     * (ISO 3166-1 alpha-2) and, optionally, a city-level point with two decimals (about one kilometre). There is no
+     * default: without a home the globe shows sources as points and no arcs.
+     */
+    homeCountry: text("home_country"),
+    homeLat: doublePrecision("home_lat"),
+    homeLon: doublePrecision("home_lon"),
 
-  osintEnabled: boolean("osint_enabled").notNull().default(false),
-  osintProvider: text("osint_provider", { enum: ["abuseipdb"] }),
-  osintSecretId: text("osint_secret_id").references(() => secret.id, { onDelete: "set null" }),
-  /** At most this many addresses are looked up per sync, busiest first. */
-  osintTopN: integer("osint_top_n").notNull().default(20),
-  osintDailyBudget: integer("osint_daily_budget").notNull().default(300),
-  /** Who confirmed that addresses leave the network and that the provider's terms were checked, and when. */
-  osintAcknowledgedBy: text("osint_acknowledged_by").references(() => user.id, { onDelete: "set null" }),
-  osintAcknowledgedAt: timestamp("osint_acknowledged_at", { withTimezone: true }),
-  /** Requests made on `osintUsageDay` (a UTC date), for the daily budget. */
-  osintUsageDay: date("osint_usage_day"),
-  osintUsageCount: integer("osint_usage_count").notNull().default(0),
-  osintLastRunAt: timestamp("osint_last_run_at", { withTimezone: true }),
-  /** A code from packages/core/src/osint.ts (`OsintErrorCode`); null if the last run worked. */
-  osintLastError: text("osint_last_error"),
+    geoipDownloadEnabled: boolean("geoip_download_enabled").notNull().default(false),
+    geoipDownloadEnabledBy: text("geoip_download_enabled_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    geoipDownloadEnabledAt: timestamp("geoip_download_enabled_at", { withTimezone: true }),
+    geoipDownloadLastAttemptAt: timestamp("geoip_download_last_attempt_at", { withTimezone: true }),
+    /** A code from packages/core/src/geoip.ts or "unreachable" / "notFound"; null if the last attempt worked or none was made. */
+    geoipDownloadLastError: text("geoip_download_last_error"),
 
-  updatedAt: updatedAt(),
-});
+    osintEnabled: boolean("osint_enabled").notNull().default(false),
+    osintProvider: text("osint_provider", { enum: ["abuseipdb"] }),
+    osintSecretId: text("osint_secret_id").references(() => secret.id, { onDelete: "set null" }),
+    /** At most this many addresses are looked up per sync, busiest first. */
+    osintTopN: integer("osint_top_n").notNull().default(20),
+    osintDailyBudget: integer("osint_daily_budget").notNull().default(300),
+    /** Who confirmed that addresses leave the network and that the provider's terms were checked, and when. */
+    osintAcknowledgedBy: text("osint_acknowledged_by").references(() => user.id, { onDelete: "set null" }),
+    osintAcknowledgedAt: timestamp("osint_acknowledged_at", { withTimezone: true }),
+    /** Requests made on `osintUsageDay` (a UTC date), for the daily budget. */
+    osintUsageDay: date("osint_usage_day"),
+    osintUsageCount: integer("osint_usage_count").notNull().default(0),
+    osintLastRunAt: timestamp("osint_last_run_at", { withTimezone: true }),
+    /** A code from packages/core/src/osint.ts (`OsintErrorCode`); null if the last run worked. */
+    osintLastError: text("osint_last_error"),
+
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("attack_settings_home_country", sql`${t.homeCountry} is null or ${t.homeCountry} ~ '^[A-Z]{2}$'`),
+    check("attack_settings_home_point", sql`(${t.homeLat} is null) = (${t.homeLon} is null)`),
+    check(
+      "attack_settings_home_range",
+      sql`(${t.homeLat} is null or ${t.homeLat} between -90 and 90) and (${t.homeLon} is null or ${t.homeLon} between -180 and 180)`,
+    ),
+  ],
+);
 
 /** What a provider said about a public source address, kept for 24 hours and then looked up again; score, count and date only. */
 export const attackOsintResult = pgTable(

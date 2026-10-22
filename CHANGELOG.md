@@ -10,6 +10,27 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- **Globe view and live attack feed** (ADR 0021, `docs/attacks.md`, `docs/xdr.md`). **Attacks → Globe | Map**: an orthographic
+  **globe** (the default; the flat map stays, and the choice is remembered in this browser) drawn with `d3-geo` (ISC) from the
+  vendored Natural Earth shapes, countries filled on the same single-hue scale, with **lines from each source country to your
+  network**: three line widths by count, orange ("Observed") or vermilion above an OSINT abuse score of 80 (only with the
+  reputation lookup on), drawn in once within about a second. Drag it or use the arrow keys; it turns slowly by itself until
+  touched, never under `prefers-reduced-motion`, with a pause button, and requests no frames while the tab is hidden. Text
+  alternative that names the busiest countries; the tables stay. New **home location** (Settings → Attack overview: a country
+  and optionally a point with two decimals or the capital; no default, so without it the sources are points; owners and admins,
+  audited). **Live attack feed**: the worker polls the Wazuh indexer, read-only, every 30 seconds (15 to 300 and the lowest rule
+  level 3 to 15, per connection, audited) with one new fixed query template (at most 50 alerts, eight fields, never `full_log`),
+  only while the connection is healthy, with back-off, stores the newest 500 events per connection (subject to the attack
+  overview's retention period and to "Delete stored addresses now") and tells browsers over `NOTIFY` on a channel per
+  organisation. **Latest events** on the Attacks page and **Latest alerts** on the XDR page, fed by `GET /api/v1/attacks/events`
+  and the stream `GET /api/v1/attacks/live` (session auth, organisation scoped, resumes with the last event id, heartbeats, at
+  most four streams per person, polling every 30 seconds if the stream fails), each new event draws a live line on the globe,
+  and an honest status line ("Live — last event 12 s ago", "Waiting for Wazuh", "Paused: connection blocked", switched off).
+  Migration 0019 (additive: `wazuh_live_state`, `wazuh_attack_event`, home columns on `attack_settings`). New audit actions
+  `attacks.home_changed`, `attacks.home_removed`, `attacks.live_feed_changed`. New dependencies `d3-geo` 3.1.1, `d3-array`
+  3.2.4, `internmap` 2.0.3 (ISC) and `@types/d3-geo` 3.1.0 (MIT, dev), listed in `docs/COMPONENTS.md`. The live feed is on for an
+  existing Wazuh connection after the update (one small request every 30 seconds; switch it off in Settings). Not tested against
+  a real Wazuh indexer, only a local HTTPS server with synthetic answers.
 - In-app notifications, toasts and personal preferences (ADR 0019, `docs/notifications.md`, `docs/account.md`).
   **Bell** in the top bar (left of the account menu) with an unread number ("99+" from a hundred, no animation) and a
   panel of the latest notifications grouped by day in your time zone, relative times, mark one or all read, a link on
@@ -551,6 +572,16 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Security
 
+- Live attack feed (ADR 0021): read-only and outbound only (we poll, nothing calls us), one fixed query template whose only
+  inputs are a time we parsed ourselves and an integer rule level between fixed bounds, so no alert text ever reaches a
+  query; at most 50 alerts and 1 MiB per request, eight fields and never the log line, source port or user name tried;
+  polling only while the connection is healthy (confirmed, unchanged certificates, acknowledged privileges), with a pin
+  check before the first byte, back-off on errors and an atomic lease against double polling. Alert descriptions and
+  agent names are attacker-influenced: cleaned, cut, stored and shown as plain text, never a link, never HTML, never sent
+  to a model. Events are source addresses (personal data): the newest 500 per connection, deleted after the attack
+  overview's retention period and by "Delete stored addresses now". The browser stream is session-authenticated,
+  scoped to the organisation by channel and by query, limited to four per person, ten minutes long, and carries no
+  content in the database notices.
 - Directory sign-in (ADR 0020): the web-facing API never holds the service account's password or a key for it, only
   the worker opens it, and a typed password lives sealed in one row for about a second and is deleted by the worker
   the moment it takes the request. LDAP injection: user names are limited to a safe character set and escaped per

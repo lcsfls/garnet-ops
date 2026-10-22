@@ -41,6 +41,19 @@ export function useWazuhErrorText(): (message: string) => string {
   };
 }
 
+/**
+ * The text of a stored error code (the live feed keeps the code, not a sentence). The live feed talks to the indexer
+ * only; a code the app does not know is shown as an unexpected error.
+ */
+export function useWazuhCodeText(): (code: string) => string {
+  const { t, i18n } = useTranslation();
+  return (code) => {
+    const key = `wazuhError.${code}`;
+    if (!i18n.exists(key)) return t("wazuhError.unexpected");
+    return t(key as never, { endpoint: t("xdr.endpointName.indexer"), limit: 1, minutes: 5, version: "" });
+  };
+}
+
 /** How the number of alerts changed against the period before. */
 export type Change = { kind: "unknown" } | { kind: "same" } | { kind: "up" | "down"; by: number };
 

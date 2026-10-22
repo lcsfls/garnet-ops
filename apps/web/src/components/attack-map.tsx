@@ -44,7 +44,6 @@ export function AttackMap({
   const max = Math.max(1, ...countries.map((c) => c.alerts));
   const drawn = useMemo(() => new Set(world?.WORLD_COUNTRIES.map((c) => c.code) ?? []), [world]);
   const hidden = world ? countries.filter((c) => !drawn.has(c.country)).length : 0;
-  const legend = legendSteps(max);
 
   return (
     <div className="grid gap-3 px-5 pb-5">
@@ -87,24 +86,33 @@ export function AttackMap({
           </p>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{t("attacks.legendTitle")}</span>
-        <ul className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <li className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-3.5 rounded-sm border bg-border" />
-            {t("attacks.legendNone")}
-          </li>
-          {legend.map(({ step, upTo }) => (
-            <li key={step} className="flex items-center gap-1.5">
-              <span aria-hidden="true" className={cn("size-3.5 rounded-sm", MAP_SWATCH[step])} />
-              {t("attacks.legendUpTo", { count: formatNumber(upTo) })}
-            </li>
-          ))}
-        </ul>
-      </div>
+      <MapLegend max={max} />
       {hidden > 0 ? (
         <p className="text-sm text-muted-foreground">{t("attacks.mapNoShape", { count: hidden })}</p>
       ) : null}
+    </div>
+  );
+}
+
+/** The colour steps of the map and the globe: one hue, from few to many alerts per country. */
+export function MapLegend({ max }: { max: number }) {
+  const { t } = useTranslation();
+  const legend = legendSteps(max);
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+      <span className="font-medium text-foreground">{t("attacks.legendTitle")}</span>
+      <ul className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="size-3.5 rounded-sm border bg-border" />
+          {t("attacks.legendNone")}
+        </li>
+        {legend.map(({ step, upTo }) => (
+          <li key={step} className="flex items-center gap-1.5">
+            <span aria-hidden="true" className={cn("size-3.5 rounded-sm", MAP_SWATCH[step])} />
+            {t("attacks.legendUpTo", { count: formatNumber(upTo) })}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

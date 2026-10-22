@@ -521,7 +521,7 @@ test.describe("signed in", () => {
     try {
       await page.goto("/attacks");
       await expect(page.getByRole("heading", { name: "Attacks", level: 1 })).toBeVisible();
-      await expect(page.getByTestId("attack-map").locator("svg")).toBeVisible();
+      await expect(page.getByTestId("attack-globe").locator("svg[role='img']")).toBeVisible();
       await page.waitForLoadState("networkidle");
       // The content area is the main area without sidebar and page padding (AGENTS.md rule 5).
       const content = await contentWidth(page);
@@ -554,27 +554,40 @@ test.describe("signed in", () => {
       else await expect(figures.locator('[data-figure="internal"]')).toBeHidden();
       if (content >= 1900) await expect(figures.locator('[data-figure="unlocated"]')).toBeVisible();
       else await expect(figures.locator('[data-figure="unlocated"]')).toBeHidden();
-      // The map and the lists: stacked below wide, map left and two lists right from wide, three across from xwide.
+      // The globe, the latest events and the lists: stacked below wide; from wide the globe is left and the events and
+      // the countries are right of it; from xwide the globe, the events and the lists are three across.
       const box = async (name: string) =>
         page
           .locator("section")
           .filter({ has: page.getByRole("heading", { name, exact: true }) })
           .boundingBox();
-      const [map, countries, networks] = await Promise.all([
+      const [map, events, countries, networks] = await Promise.all([
         box("Origin of the alerts"),
+        box("Latest events"),
         box("Countries"),
         box("Networks"),
       ]);
-      expect(map && countries && networks).toBeTruthy();
+      expect(map && events && countries && networks).toBeTruthy();
+      const at = (b: { x: number; y: number } | null, axis: "x" | "y") => b?.[axis] ?? Number.NaN;
       if (content >= 1900) {
-        expect(Math.abs((map?.y ?? 0) - (countries?.y ?? 9999))).toBeLessThan(40);
-        expect(Math.abs((countries?.y ?? 0) - (networks?.y ?? 9999))).toBeLessThan(40);
+        expect(Math.abs(at(map, "y") - at(events, "y"))).toBeLessThan(40);
+        expect(Math.abs(at(events, "y") - at(countries, "y"))).toBeLessThan(40);
+        expect(at(events, "x")).toBeGreaterThan(at(map, "x") + 100);
+        expect(at(countries, "x")).toBeGreaterThan(at(events, "x") + 100);
+        expect(Math.abs(at(networks, "x") - at(countries, "x"))).toBeLessThan(40);
+        expect(at(networks, "y")).toBeGreaterThan(at(countries, "y") + 40);
       } else if (content >= 1450) {
-        expect(Math.abs((map?.y ?? 0) - (countries?.y ?? 9999))).toBeLessThan(40);
-        expect((networks?.y ?? 0) > (countries?.y ?? 0) + 40).toBe(true);
-        expect((networks?.x ?? 0) > (map?.x ?? 0) + 100).toBe(true);
+        expect(Math.abs(at(map, "y") - at(events, "y"))).toBeLessThan(40);
+        expect(at(events, "x")).toBeGreaterThan(at(map, "x") + 100);
+        expect(Math.abs(at(countries, "x") - at(events, "x"))).toBeLessThan(40);
+        expect(at(countries, "y")).toBeGreaterThan(at(events, "y") + 40);
+        expect(at(networks, "y")).toBeGreaterThan(at(map, "y") + 100);
       } else {
-        expect((countries?.y ?? 0) > (map?.y ?? 0) + 100).toBe(true);
+        // One column, in reading order: the globe first, then the events, the countries and the networks.
+        expect(at(events, "y")).toBeGreaterThan(at(map, "y") + 100);
+        expect(at(countries, "y")).toBeGreaterThan(at(events, "y") + 40);
+        expect(at(networks, "y")).toBeGreaterThan(at(countries, "y") + 40);
+        expect(Math.abs(at(events, "x") - at(map, "x"))).toBeLessThan(5);
       }
       expect(await hasNoHorizontalScroll(page)).toBe(true);
       expect(await overflowingCards(page)).toEqual([]);
@@ -585,6 +598,111 @@ test.describe("signed in", () => {
     }
     expect(problems).toEqual([]);
   });
+
+  for (const language of ["en", "de"] as const) {
+    test(`Attacks: the globe, the latest events and the lists fit at every width (${language})`, async ({
+      page,
+    }, info) => {
+      const problems = watchForProblems(page);
+      await page.addInitScript((lang) => localStorage.setItem("garnetops.language", lang), language);
+      // A home location, so the lines are part of the picture.
+      const [org] = await sql<{ id: string }>("select id from organization limit 1");
+      await sql(
+        "insert into attack_settings (organization_id, home_country, home_lat, home_lon) values ($1, 'DE', 50.94, 6.96) on conflict (organization_id) do update set home_country = 'DE', home_lat = 50.94, home_lon = 6.96",
+        [org?.id],
+      );
+      try {
+        await page.goto("/attacks");
+        await expect(page.locator("html")).toHaveAttribute("lang", language);
+        const globe = page.getByTestId("attack-globe");
+        const svg = globe.locator("svg[role='img']");
+        await expect(svg).toBeVisible();
+        await expect(svg.locator('[data-arc="DE"] path')).toHaveAttribute("d", /^M/, { timeout: 4000 });
+        await expect(page.getByTestId("attack-events").getByTestId("attack-event").first()).toBeVisible();
+        await page.waitForLoadState("networkidle");
+        const content = await contentWidth(page);
+        const viewport = page.viewportSize() ?? { width: 0, height: 0 };
+
+        // The picture is square, stays inside its card and the window, and is large enough to read.
+        const picture = await svg.boundingBox();
+        const card = await page
+          .locator("section")
+          .filter({
+            has: page.getByRole("heading", {
+              name: language === "en" ? "Origin of the alerts" : "Herkunft der Alarme",
+              exact: true,
+            }),
+          })
+          .boundingBox();
+        expect(picture && card).toBeTruthy();
+        if (picture && card) {
+          expect(Math.abs(picture.width - picture.height)).toBeLessThanOrEqual(1);
+          expect(picture.width).toBeGreaterThanOrEqual(240);
+          expect(picture.x).toBeGreaterThanOrEqual(card.x - 1);
+          expect(picture.x + picture.width).toBeLessThanOrEqual(card.x + card.width + 1);
+          expect(picture.x + picture.width).toBeLessThanOrEqual(viewport.width);
+          // From wide the globe shares the first screen with the events: at least a third of it is above the fold.
+          if (content >= 1450) expect(picture.y + picture.height / 3).toBeLessThan(viewport.height);
+        }
+        // The legend, the hint and the rotation button are inside the card, not cut off.
+        await expect(
+          globe.getByRole("button", { name: language === "en" ? "Pause rotation" : "Drehung anhalten" }),
+        ).toBeVisible();
+        await expect(
+          globe.getByRole("listitem").filter({ hasText: language === "en" ? "Your network" : "Ihr Netz" }),
+        ).toBeVisible();
+        // The events: every row inside its card, no text running out of it.
+        expect(await hasNoHorizontalScroll(page)).toBe(true);
+        expect(await overflowingCards(page)).toEqual([]);
+        const rowsFit = await page.evaluate(() => {
+          const list = document.querySelector("[data-testid='attack-events']");
+          if (!list) return false;
+          return Array.from(list.querySelectorAll("li")).every((li) => li.scrollWidth <= li.clientWidth + 1);
+        });
+        expect(rowsFit).toBe(true);
+        await page.screenshot({ path: info.outputPath(`attacks-globe-${language}.png`), fullPage: true });
+      } finally {
+        await sql("delete from attack_settings");
+      }
+      expect(problems).toEqual([]);
+    });
+
+    test(`XDR latest alerts and the Attacks settings fit at every width (${language})`, async ({
+      page,
+    }, info) => {
+      const problems = watchForProblems(page);
+      await page.addInitScript((lang) => localStorage.setItem("garnetops.language", lang), language);
+      await page.goto("/xdr");
+      await expect(page.locator("html")).toHaveAttribute("lang", language);
+      const card = page.getByTestId("xdr-latest-alerts");
+      await expect(card).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+      const content = await contentWidth(page);
+      // The address column appears from 36 rem of the card, the agent column from 48 rem; nothing is lost below.
+      await expect(page.getByTestId("xdr-latest-alert").first()).toContainText(ATTACKS.ips.internal);
+      if (content >= 1450) await expect(card.locator("th").nth(2)).toBeVisible();
+      await page.screenshot({ path: info.outputPath(`xdr-latest-${language}.png`), fullPage: true });
+
+      await page.goto("/settings?section=attacks");
+      await expect(
+        page.getByRole("heading", { name: language === "en" ? "Home location" : "Heimatstandort", level: 2 }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: language === "en" ? "Live feed" : "Live-Feed", level: 2 }),
+      ).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+      expect(await misalignedFormRows(page)).toEqual([]);
+      await page.screenshot({
+        path: info.outputPath(`settings-attacks-live-${language}.png`),
+        fullPage: true,
+      });
+      expect(problems).toEqual([]);
+    });
+  }
 
   test("the Attacks settings fit the screen with their dialogs", async ({ page }, info) => {
     const problems = watchForProblems(page);

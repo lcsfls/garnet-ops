@@ -1,0 +1,138 @@
+{
+  "took": 3,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 5,
+      "relation": "eq"
+    },
+    "max_score": null,
+    "hits": [
+      {
+        "_index": "wazuh-alerts-4.x-2026.10.21",
+        "_id": "live-a1",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2026-10-21T08:00:01.000Z",
+          "rule": {
+            "id": "5710",
+            "level": 10,
+            "description": "sshd: Attempt to login using a non-existent user",
+            "groups": ["syslog", "sshd", "invalid_login", "authentication_failed"]
+          },
+          "agent": {
+            "id": "001",
+            "name": "web-01"
+          },
+          "data": {
+            "srcip": "198.51.100.77",
+            "srcport": "40022",
+            "dstuser": "admin"
+          },
+          "full_log": "Oct 21 08:00:01 web-01 sshd[123]: Invalid user admin from 198.51.100.77 port 40022"
+        },
+        "sort": [0]
+      },
+      {
+        "_index": "wazuh-alerts-4.x-2026.10.21",
+        "_id": "live-a2",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2026-10-21T08:00:05.000Z",
+          "rule": {
+            "id": "5712",
+            "level": 12,
+            "description": "sshd: brute force trying to get access to the system. Authentication failed.",
+            "groups": ["syslog", "sshd", "authentication_failures"]
+          },
+          "agent": {
+            "id": "002",
+            "name": "db-01"
+          },
+          "data": {
+            "srcip": "203.0.113.9",
+            "srcport": "40022",
+            "dstuser": "admin"
+          },
+          "full_log": "Oct 21 08:00:05 db-01 sshd[456]: Failed password for root from 203.0.113.9 port 40023"
+        },
+        "sort": [0]
+      },
+      {
+        "_index": "wazuh-alerts-4.x-2026.10.21",
+        "_id": "live-a3",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2026-10-21T08:00:09.000Z",
+          "rule": {
+            "id": "31151",
+            "level": 8,
+            "description": "Web scan <img src=x onerror=\"document.title='pwned'\"> from client\u202e\u0007 with control characters",
+            "groups": ["web", "accesslog", "web_scan", "recon"]
+          },
+          "agent": {
+            "id": "001",
+            "name": "web-01"
+          },
+          "data": {
+            "srcip": "2001:db8::bad",
+            "srcport": "40022",
+            "dstuser": "admin"
+          },
+          "full_log": "GET /wp-login.php HTTP/1.1"
+        },
+        "sort": [0]
+      },
+      {
+        "_index": "wazuh-alerts-4.x-2026.10.21",
+        "_id": "live-a4",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2026-10-21T08:00:10.000Z",
+          "rule": {
+            "id": "5710",
+            "level": 9,
+            "description": "Source address is not an address",
+            "groups": ["authentication_failed"]
+          },
+          "agent": {
+            "id": "001",
+            "name": "web-01"
+          },
+          "data": {
+            "srcip": "not-an-ip",
+            "srcport": "40022",
+            "dstuser": "admin"
+          },
+          "full_log": "x"
+        },
+        "sort": [0]
+      },
+      {
+        "_index": "wazuh-alerts-4.x-2026.10.21",
+        "_id": "live-a5",
+        "_score": null,
+        "_source": {
+          "@timestamp": "2026-10-21T08:00:12.000Z",
+          "rule": {
+            "id": "5710",
+            "level": 7,
+            "description": "sshd: Attempt to login using a non-existent user",
+            "groups": ["authentication_failed"]
+          },
+          "agent": {
+            "id": "003",
+            "name": "<script>alert(1)</script>"
+          },
+          "data": {
+            "srcip": "10.20.30.40",
+            "srcport": "40022",
+            "dstuser": "admin"
+          },
+          "full_log": "x"
+        },
+        "sort": [0]
+      }
+    ]
+  }
+}

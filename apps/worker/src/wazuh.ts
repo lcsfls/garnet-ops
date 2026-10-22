@@ -76,8 +76,8 @@ export const WAZUH_TICK_QUEUE = "xdr.sync-tick";
 /** Same job options as syncs queued by the API (apps/api/src/routes/xdr.ts). One try: the next tick is the retry. */
 export const WAZUH_SYNC_JOB = { retryLimit: 0, expireInSeconds: (SYNC_BUDGET_MINUTES + 5) * 60 };
 
-type ConnectionRow = typeof schema.wazuhConnection.$inferSelect;
-type EndpointRow = typeof schema.wazuhEndpoint.$inferSelect;
+export type ConnectionRow = typeof schema.wazuhConnection.$inferSelect;
+export type EndpointRow = typeof schema.wazuhEndpoint.$inferSelect;
 type RunRow = typeof schema.wazuhSyncRun.$inferSelect;
 
 /** What a test can replace: name resolution (so a local test server can be used), its CA, limits and the pause between requests. */
@@ -116,7 +116,7 @@ const errorCodeOf = (error: unknown, fallback: WazuhErrorCode = "unexpected"): W
 const PURPOSE = { manager: "wazuh-api-password", indexer: "wazuh-indexer-password" } as const;
 
 /** Opens a sealed password. Only the worker holds the vault private key (ADR 0004). */
-async function openPassword(endpoint: EndpointRow): Promise<string> {
+export async function openPassword(endpoint: EndpointRow): Promise<string> {
   if (!endpoint.secretId) throw new WazuhError("credentialsMissing", { endpoint: endpoint.kind });
   const purpose = PURPOSE[endpoint.kind];
   const [secret] = await db
@@ -141,7 +141,7 @@ async function openPassword(endpoint: EndpointRow): Promise<string> {
   return value;
 }
 
-function trustOf(endpoint: EndpointRow): Trust | null {
+export function trustOf(endpoint: EndpointRow): Trust | null {
   if (endpoint.trustMode === "ca") return endpoint.caPem ? { mode: "ca", ca: endpoint.caPem } : null;
   return endpoint.certFingerprint ? { mode: "pin", fingerprint: endpoint.certFingerprint } : null;
 }

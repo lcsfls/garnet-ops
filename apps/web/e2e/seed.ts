@@ -170,6 +170,52 @@ export const ATTACKS = {
   ] as const,
 };
 
+/**
+ * The live attack feed (ADR 0021): events as the worker would have stored them, newest last. Descriptions are alert
+ * text: one tries to be markup. Documentation addresses only; the GeoIP data above maps them to countries.
+ */
+export const LIVE = {
+  hostileDescription: `Web scan <img src=x onerror="document.title='pwned'"> from client`,
+  events: [
+    {
+      doc: "e2e-live-1",
+      ip: ATTACKS.ips.de,
+      level: 12,
+      description: "sshd: brute force trying to get access to the system.",
+      agentId: "001",
+      agent: "web-01",
+      ago: 5,
+    },
+    {
+      doc: "e2e-live-2",
+      ip: ATTACKS.ips.fr,
+      level: 8,
+      description: `Web scan <img src=x onerror="document.title='pwned'"> from client`,
+      agentId: "002",
+      agent: "db-01",
+      ago: 4,
+    },
+    {
+      doc: "e2e-live-3",
+      ip: ATTACKS.ips.br,
+      level: 9,
+      description: "sshd: Attempt to login using a non-existent user",
+      agentId: "001",
+      agent: "web-01",
+      ago: 3,
+    },
+    {
+      doc: "e2e-live-4",
+      ip: ATTACKS.ips.internal,
+      level: 7,
+      description: "sshd: authentication failed from inside",
+      agentId: "002",
+      agent: "db-01",
+      ago: 2,
+    },
+  ],
+};
+
 /** A SHA-256 fingerprint of a made-up certificate, in the colon form Proxmox shows. */
 function fingerprintOfCertificate(label: string): string {
   return (
@@ -1091,6 +1137,21 @@ async function seedWazuhRows(client: Client, orgId: string, now: Date) {
   await fim(2, "002", "db-01", "/var/lib/app/new.sh", "added", 5);
   await fim(3, "006", WAZUH.agents.hostile.name, WAZUH.hostilePath, "deleted", 12);
 
+  // The live attack feed (ADR 0021): where it stands, and the latest events it stored.
+  await client.query(
+    `insert into wazuh_live_state (connection_id, organization_id, last_poll_at, last_event_at)
+     values ($1, $2, $3, $4)`,
+    [WAZUH.connection.id, orgId, new Date(now.getTime() - 10_000), minutes(2)],
+  );
+  for (const e of LIVE.events) {
+    await client.query(
+      `insert into wazuh_attack_event (organization_id, connection_id, doc_id, at, ip, rule_id, rule_level, description,
+         groups, agent_id, agent_name)
+       values ($1, $2, $3, $4, $5, '5710', $6, $7, '["authentication_failed"]', $8, $9)`,
+      [orgId, WAZUH.connection.id, e.doc, minutes(e.ago), e.ip, e.level, e.description, e.agentId, e.agent],
+    );
+  }
+
   // The attack overview (ADR 0016): aggregated source addresses, documentation ranges only.
   const sourceRow = (
     n: number,
@@ -1258,5 +1319,52 @@ export async function signedInAt(when: "now" | "an hour ago") {
     when === "now"
       ? "update session set created_at = now()"
       : "update session set created_at = now() - interval '1 hour'",
+  );
+}
+
+/**
+ * Stores one more event of the live attack feed and tells the browsers, as the worker does after a poll (ADR 0021).
+ * The channel name is the one `liveChannel` of packages/core/src/attack-live.ts makes; keep the two in step.
+ */
+export async function addLiveEvent(event: {
+  ip: string;
+  description: string;
+  level?: number;
+  agentId?: string;
+  agent?: string;
+}): Promise<number> {
+  const [org] = await sql<{ id: string }>("select id from organization limit 1");
+  if (!org) throw new Error("No organisation in the e2e database");
+  const doc = `e2e-live-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const [row] = await sql<{ seq: string }>(
+    `insert into wazuh_attack_event (organization_id, connection_id, doc_id, at, ip, rule_id, rule_level, description,
+       groups, agent_id, agent_name)
+     values ($1, $2, $3, now(), $4, '5712', $5, $6, '["authentication_failures"]', $7, $8) returning seq`,
+    [
+      org.id,
+      WAZUH.connection.id,
+      doc,
+      event.ip,
+      event.level ?? 10,
+      event.description,
+      event.agentId ?? "001",
+      event.agent ?? "web-01",
+    ],
+  );
+  const seq = Number(row?.seq);
+  const channel = `attack_live_${org.id.toLowerCase().replace(/[^a-z0-9]/g, "_")}`.slice(0, 63);
+  await sql("select pg_notify($1, $2)", [channel, JSON.stringify({ s: seq })]);
+  return seq;
+}
+
+/** Says that the live feed polled just now (the page then calls it live), or that it did so a while ago. */
+export async function setLivePoll(
+  ago: "now" | "long ago",
+  lastEventMinutesAgo: number | null = 2,
+): Promise<void> {
+  await sql(
+    `update wazuh_live_state set last_poll_at = ${ago === "now" ? "now()" : "now() - interval '1 hour'"},
+       last_error = null, failures = 0,
+       last_event_at = ${lastEventMinutesAgo === null ? "null" : `now() - interval '${lastEventMinutesAgo} minutes'`}`,
   );
 }

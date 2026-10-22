@@ -134,6 +134,13 @@
       "when": 1792676646887,
       "tag": "0018_directory_sign_in",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792686610469,
+      "tag": "0019_live_attack_feed",
+      "breakpoints": true
     }
   ]
 }

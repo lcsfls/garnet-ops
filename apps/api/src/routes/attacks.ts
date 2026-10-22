@@ -9,9 +9,13 @@
  * retention needs a recent sign-in (step-up); every change is audited without any secret. The API
  * only seals the OSINT key; the worker is the only process that opens it and that talks to DB-IP
  * and to the provider. Nothing here contacts the outside.
+ *
+ * ADR 0021 adds the home location (where the globe ends its arcs; owners and admins set it, everyone reads it) and
+ * the settings of the live attack feed; the feed itself is served by attacks-live.ts.
  */
 import { Readable } from "node:stream";
 import { newId } from "@garnetops/core";
+import { isLiveInterval, isLiveLevel, LIVE_INTERVAL_SECONDS, LIVE_LEVEL } from "@garnetops/core/attack-live";
 import {
   type AttackSource,
   asnTotals,
@@ -40,6 +44,7 @@ import {
   RETENTION,
   readDataset,
 } from "@garnetops/core/geoip";
+import { checkHomeLocation, type HomeLocation } from "@garnetops/core/home-location";
 import {
   OSINT_ACKNOWLEDGEMENTS,
   OSINT_LIMITS,
@@ -63,12 +68,14 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
 import { vaultPublicKey } from "../env.ts";
+import { liveInfo } from "../lib/attack-live.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
 import { pageInMemory } from "../lib/paginate-memory.ts";
 import { ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
 import { requireRecentSignIn } from "../lib/step-up.ts";
+import { attackLiveRoutes } from "./attacks-live.ts";
 
 const SUMMARY_JOB = { retryLimit: 0, expireInSeconds: 15 * 60 };
 /** AI requests share the budgets of AI triage (ADR 0013). */
@@ -105,6 +112,11 @@ type SettingsRow = typeof s.$inferSelect;
 async function loadSettings(organizationId: string): Promise<SettingsRow | null> {
   const [row] = await db.select().from(s).where(eq(s.organizationId, organizationId)).limit(1);
   return row ?? null;
+}
+
+/** The home location of an organisation as the API shows it; null if none is set. */
+function homeOf(row: SettingsRow | null): HomeLocation | null {
+  return row?.homeCountry ? { country: row.homeCountry, lat: row.homeLat, lon: row.homeLon } : null;
 }
 
 async function ensureSettings(organizationId: string): Promise<SettingsRow> {
@@ -292,6 +304,25 @@ const patchBody = z
   .object({
     retentionDays: z.number().int().min(RETENTION.minDays).max(RETENTION.maxDays).optional(),
     geoipDownloadEnabled: z.boolean().optional(),
+    /** The home location (ADR 0021); null removes it. Numbers are rounded to two decimals. */
+    home: z
+      .object({
+        country: z.string().max(10),
+        lat: z.number().nullable().optional(),
+        lon: z.number().nullable().optional(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    /** The settings of the live attack feed (ADR 0021). */
+    liveFeed: z
+      .object({
+        enabled: z.boolean().optional(),
+        intervalSeconds: z.number().optional(),
+        minLevel: z.number().optional(),
+      })
+      .strict()
+      .optional(),
     osint: z
       .object({
         enabled: z.boolean().optional(),
@@ -343,6 +374,8 @@ export const attackRoutes = new Hono<AppEnv>()
       retentionDays: settings?.retentionDays ?? DEFAULTS.retentionDays,
       ai: await aiAvailability(actor.organizationId),
       period,
+      home: homeOf(settings),
+      live: await liveInfo(actor.organizationId, now),
     };
     if (!connection) return c.json({ ...base, syncedAt: null, window: null });
 
@@ -356,7 +389,24 @@ export const attackRoutes = new Hono<AppEnv>()
 
     const sources = await loadAttackSources(db, connection.id, period);
     const located = countryTotals(sources);
-    const countries = located.filter((t) => t.country !== null && t.country !== "ZZ");
+    // The highest cached abuse score per country, for the colour of its arc on the globe (only while OSINT is on).
+    const scores = await osintFor(
+      actor.organizationId,
+      settings,
+      sources.map((x) => canonicalIp(x.ip) ?? x.ip),
+    );
+    const topScore = new Map<string, number>();
+    for (const x of sources) {
+      const score = scores.get(canonicalIp(x.ip) ?? x.ip)?.score;
+      if (x.country && score !== undefined)
+        topScore.set(x.country, Math.max(topScore.get(x.country) ?? 0, score));
+    }
+    const countries = located
+      .filter((t) => t.country !== null && t.country !== "ZZ")
+      .map((t) => {
+        const score = topScore.get(t.country as string);
+        return score === undefined ? t : { ...t, topScore: score };
+      });
     const unlocated = located
       .filter((t) => t.country === null || t.country === "ZZ")
       .reduce((n, t) => ({ alerts: n.alerts + t.alerts, sources: n.sources + t.sources }), {
@@ -590,6 +640,13 @@ export const attackRoutes = new Hono<AppEnv>()
     const today = now.toISOString().slice(0, 10);
     return c.json({
       wazuhConnected: connection !== null,
+      home: homeOf(row),
+      liveFeed: connection
+        ? {
+            ...(await liveInfo(actor.organizationId, now)),
+            limits: { intervalSeconds: LIVE_INTERVAL_SECONDS, minLevel: LIVE_LEVEL },
+          }
+        : null,
       retentionDays: row?.retentionDays ?? DEFAULTS.retentionDays,
       retention: { default: RETENTION.defaultDays, min: RETENTION.minDays, max: RETENTION.maxDays },
       geoip: {
@@ -672,6 +729,100 @@ export const attackRoutes = new Hono<AppEnv>()
           : "attacks.geoip_download_disabled",
         data: { host: DBIP_HOST },
       });
+    }
+
+    // The home location: where the globe ends the arcs. Not a credential and nothing leaves the network, so no
+    // recent sign-in; owners and admins only, and audited.
+    if (body.home !== undefined) {
+      if (body.home === null) {
+        if (row.homeCountry) {
+          changes.homeCountry = null;
+          changes.homeLat = null;
+          changes.homeLon = null;
+          events.push({ action: "attacks.home_removed", data: { previousCountry: row.homeCountry } });
+        }
+      } else {
+        const checked = checkHomeLocation(body.home);
+        if (!checked.ok) {
+          for (const problem of checked.problems) {
+            errors.push({
+              field:
+                problem === "country"
+                  ? "home.country"
+                  : problem === "pair"
+                    ? "home.lat"
+                    : `home.${problem === "latitude" ? "lat" : "lon"}`,
+              code: `home_${problem}`,
+            });
+          }
+        } else if (
+          checked.home.country !== row.homeCountry ||
+          checked.home.lat !== row.homeLat ||
+          checked.home.lon !== row.homeLon
+        ) {
+          changes.homeCountry = checked.home.country;
+          changes.homeLat = checked.home.lat;
+          changes.homeLon = checked.home.lon;
+          events.push({
+            action: "attacks.home_changed",
+            data: {
+              country: checked.home.country,
+              lat: checked.home.lat,
+              lon: checked.home.lon,
+              previousCountry: row.homeCountry,
+            },
+          });
+        }
+      }
+    }
+
+    // The live attack feed: how often the worker asks Wazuh and from which rule level on. It needs the connection.
+    const wazuh = body.liveFeed ? await wazuhConnection(actor.organizationId) : null;
+    let liveChanges: Partial<typeof schema.wazuhLiveState.$inferInsert> | null = null;
+    if (body.liveFeed) {
+      const live = body.liveFeed;
+      if (!wazuh) throw new ProblemError(409, "no-connection", "There is no Wazuh connection");
+      const [stored] = await db
+        .select()
+        .from(schema.wazuhLiveState)
+        .where(eq(schema.wazuhLiveState.connectionId, wazuh.id))
+        .limit(1);
+      const current = {
+        enabled: stored?.enabled ?? true,
+        intervalSeconds: stored?.intervalSeconds ?? LIVE_INTERVAL_SECONDS.default,
+        minLevel: stored?.minLevel ?? LIVE_LEVEL.default,
+      };
+      if (live.intervalSeconds !== undefined && !isLiveInterval(live.intervalSeconds)) {
+        errors.push({ field: "liveFeed.intervalSeconds", code: "interval_range" });
+      }
+      if (live.minLevel !== undefined && !isLiveLevel(live.minLevel)) {
+        errors.push({ field: "liveFeed.minLevel", code: "level_range" });
+      }
+      const next = {
+        enabled: live.enabled ?? current.enabled,
+        intervalSeconds: live.intervalSeconds ?? current.intervalSeconds,
+        minLevel: live.minLevel ?? current.minLevel,
+      };
+      if (errors.length === 0 && (!stored || JSON.stringify(next) !== JSON.stringify(current))) {
+        liveChanges = {
+          ...next,
+          // Switching it on starts the polling at once and forgets earlier trouble.
+          ...(next.enabled && !current.enabled
+            ? { nextPollAt: new Date(), failures: 0, lastError: null }
+            : {}),
+        };
+        if (JSON.stringify(next) !== JSON.stringify(current)) {
+          events.push({
+            action: "attacks.live_feed_changed",
+            data: {
+              enabled: next.enabled,
+              intervalSeconds: next.intervalSeconds,
+              minLevel: next.minLevel,
+              before: `${current.enabled ? "on" : "off"}, ${current.intervalSeconds} s, level ${current.minLevel}`,
+            },
+          });
+        }
+      }
     }
 
     let newKey: string | null = null;
@@ -791,6 +942,15 @@ export const attackRoutes = new Hono<AppEnv>()
         .set({ ...changes, updatedAt: new Date() })
         .where(eq(s.organizationId, actor.organizationId));
     }
+    if (liveChanges && wazuh) {
+      await db
+        .insert(schema.wazuhLiveState)
+        .values({ connectionId: wazuh.id, organizationId: actor.organizationId, ...liveChanges })
+        .onConflictDoUpdate({
+          target: schema.wazuhLiveState.connectionId,
+          set: { ...liveChanges, updatedAt: new Date() },
+        });
+    }
     if (purgeOsint) {
       // Switching off, changing the key or the provider: what the old provider said is not kept.
       await db
@@ -908,15 +1068,29 @@ export const attackRoutes = new Hono<AppEnv>()
       .delete(schema.attackOsintResult)
       .where(eq(schema.attackOsintResult.organizationId, actor.organizationId))
       .returning({ id: schema.attackOsintResult.id });
+    // The latest alerts of the live feed carry addresses too (ADR 0021). The cursor stays, so they do not come back.
+    const liveEvents = await db
+      .delete(schema.wazuhAttackEvent)
+      .where(eq(schema.wazuhAttackEvent.organizationId, actor.organizationId))
+      .returning({ id: schema.wazuhAttackEvent.seq });
     await audit(
       actor,
       "attacks.data_purged",
       { type: "attack_settings", id: actor.organizationId },
-      { sourceAddresses: addresses.length, attackWindows: windows.length, osintResults: osint.length },
+      {
+        sourceAddresses: addresses.length,
+        attackWindows: windows.length,
+        osintResults: osint.length,
+        attackEvents: liveEvents.length,
+      },
     );
     return c.json({
       sourceAddresses: addresses.length,
       attackWindows: windows.length,
       osintResults: osint.length,
+      attackEvents: liveEvents.length,
     });
-  });
+  })
+
+  /* ------------------------------ the live feed (ADR 0021) ------------------------------ */
+  .route("/", attackLiveRoutes);

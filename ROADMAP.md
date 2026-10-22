@@ -205,7 +205,7 @@ See ADR 0002 and ADR 0004.
 - [~] Alerts, MITRE ATT&CK tactics, file integrity, agents; AI summaries. Done: counts by
       severity for 24 hours, 7 and 30 days with the change, tactics, busiest agents, latest file
       integrity events, vulnerability counts per agent, "Summarise with AI" on numbers only.
-      Open: alert list and drill-down in GarnetOps, notifications for Wazuh alerts
+      Open: drill-down of single alerts in GarnetOps (the newest are listed, ADR 0021), notifications for Wazuh alerts
 - [ ] Read Wazuh's package inventory and vulnerability states into the same
       host inventory and watch list as agentless hosts
 - [~] Attack overview (Infrastructure → Attacks; ADR 0016, `docs/attacks.md`): world map and tables of the
@@ -215,6 +215,12 @@ See ADR 0002 and ADR 0004.
       provider interface), AI summary on numbers only. Open: tested with synthetic files and local test
       servers only, not with a real DB-IP file or the real AbuseIPDB service; AbuseIPDB's terms are not
       confirmed; a second OSINT provider; no history of attacks over time (by design)
+- [~] Globe view and live attack feed (ADR 0021, `docs/attacks.md`): a globe with lines from the source countries to a
+      home location the admin sets (no default), Globe | Map switch; a read-only poll of the Wazuh indexer every 30
+      seconds (15 to 300, per connection) with one fixed query template, a bounded table (500 per connection, subject to
+      the retention period), a stream to browsers over PostgreSQL NOTIFY, "Latest events" on Attacks and "Latest alerts" on
+      XDR, and an honest status line. Open: run against a real Wazuh indexer (a local HTTPS test server with synthetic
+      answers only), alerts that are indexed late can be missed, no history or drill-down of single events (by design)
 
 ## Phase 5: Breadth, teams and distribution
 

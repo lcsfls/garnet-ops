@@ -416,12 +416,14 @@ export interface SweepResult {
   sourceAddresses: number;
   attackWindows: number;
   osintResults: number;
+  /** Alerts of the live attack feed (ADR 0021). */
+  attackEvents: number;
 }
 
 /**
  * Deletes what is older than each organisation's retention period (default 90 days): source
- * addresses with their counts, the attack numbers that carry the previous period's addresses, and
- * OSINT results. The sync replaces these continuously, so in normal operation nothing gets old;
+ * addresses with their counts, the attack numbers that carry the previous period's addresses,
+ * OSINT results and the alerts of the live feed (ADR 0021). The sync replaces these continuously, so in normal operation nothing gets old;
  * this is the backstop for a stopped sync, a removed connection's leftovers and a shortened period.
  */
 export async function retentionSweep(now: Date = new Date()): Promise<SweepResult> {
@@ -432,6 +434,7 @@ export async function retentionSweep(now: Date = new Date()): Promise<SweepResul
   const s = schema.wazuhSourceIp;
   const w = schema.wazuhAttackWindow;
   const o = schema.attackOsintResult;
+  const ev = schema.wazuhAttackEvent;
   const a = await db
     .delete(s)
     .where(sql`${s.seenAt} < ${cutoff(s.organizationId)}`)
@@ -444,7 +447,16 @@ export async function retentionSweep(now: Date = new Date()): Promise<SweepResul
     .delete(o)
     .where(sql`${o.checkedAt} < ${cutoff(o.organizationId)}`)
     .returning({ id: o.id });
-  return { sourceAddresses: a.length, attackWindows: b.length, osintResults: c.length };
+  const d = await db
+    .delete(ev)
+    .where(sql`${ev.at} < ${cutoff(ev.organizationId)}`)
+    .returning({ id: ev.seq });
+  return {
+    sourceAddresses: a.length,
+    attackWindows: b.length,
+    osintResults: c.length,
+    attackEvents: d.length,
+  };
 }
 
 /** Whether the installed datasets are older than the stale limit; shown in the UI, computed there too. */

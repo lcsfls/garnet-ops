@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildAttackFacts, buildAttackMessages } from "./attack-summary.ts";
 import {
+  ARC_STEPS,
   type AttackSource,
   agentTotals,
+  arcStep,
+  arcTone,
   asnTotals,
   changeOf,
   countryCount,
@@ -200,5 +203,34 @@ describe("the AI summary sees numbers only", () => {
 
   it("asks for the answer in German on request", () => {
     expect(buildAttackMessages({ windows: {} }, "de")[1]?.content).toContain("German");
+  });
+});
+
+describe("arcs on the globe", () => {
+  it("has three stroke steps on the square-root scale, none for no alerts", () => {
+    expect(ARC_STEPS).toBe(3);
+    expect(arcStep(0, 100)).toBe(0);
+    expect(arcStep(1, 100)).toBe(1);
+    expect(arcStep(11, 100)).toBe(1);
+    expect(arcStep(12, 100)).toBe(2);
+    expect(arcStep(44, 100)).toBe(2);
+    expect(arcStep(45, 100)).toBe(3);
+    expect(arcStep(100, 100)).toBe(3);
+    // Never more than the highest step, and never a step for an empty maximum.
+    expect(arcStep(500, 100)).toBe(3);
+    expect(arcStep(5, 0)).toBe(0);
+  });
+  it("never invents precision: neighbouring counts share a step", () => {
+    const steps = new Set(Array.from({ length: 100 }, (_, i) => arcStep(i + 1, 100)));
+    expect([...steps].sort()).toEqual([1, 2, 3]);
+  });
+  it("calls an arc high only above an abuse score of 80, and only with OSINT on and a score", () => {
+    expect(arcTone(81, true)).toBe("high");
+    expect(arcTone(100, true)).toBe("high");
+    expect(arcTone(80, true)).toBe("observed");
+    expect(arcTone(10, true)).toBe("observed");
+    expect(arcTone(99, false)).toBe("observed");
+    expect(arcTone(null, true)).toBe("observed");
+    expect(arcTone(undefined, true)).toBe("observed");
   });
 });

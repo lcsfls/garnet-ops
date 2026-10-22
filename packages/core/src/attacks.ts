@@ -7,6 +7,7 @@
  * the 100 busiest addresses of a window. A country or AS total is therefore the share of those
  * addresses, not of every alert, and the page says so.
  */
+import { HIGH_ABUSE_SCORE } from "./attack-live.ts";
 import { WINDOWS, type Window } from "./wazuh.ts";
 
 export { WINDOWS, type Window };
@@ -121,6 +122,22 @@ export function agentTotals(sources: readonly AttackSource[], limit = 10): Targe
 export function shadeStep(count: number, max: number, steps = 5): number {
   if (count <= 0 || max <= 0) return 0;
   return Math.min(steps, Math.max(1, Math.ceil(Math.sqrt(count / max) * steps)));
+}
+
+/**
+ * The stroke step of an arc on the globe (ADR 0021): 1 to `steps` on the same square-root scale as the map, so a
+ * handful of discrete widths and no fake precision. 0 for no alerts.
+ */
+export const arcStep = (count: number, max: number, steps = ARC_STEPS): number =>
+  shadeStep(count, max, steps);
+export const ARC_STEPS = 3;
+
+/**
+ * The tone of an arc: "high" (vermilion) for an OSINT abuse score above 80, otherwise "observed" (orange). Only
+ * when OSINT is switched on and a score exists; without a score an arc is never called high.
+ */
+export function arcTone(score: number | null | undefined, osintEnabled: boolean): "high" | "observed" {
+  return osintEnabled && typeof score === "number" && score > HIGH_ABUSE_SCORE ? "high" : "observed";
 }
 
 /** How a count changed against the period before; null when there is nothing to compare. */

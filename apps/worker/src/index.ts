@@ -47,6 +47,7 @@ import {
   WAZUH_CERT_QUEUE,
   WAZUH_SYNC_QUEUE,
 } from "./wazuh.ts";
+import { startWazuhLivePoller } from "./wazuh-live.ts";
 import { runWazuhSummary, sweepWazuhSummaries, WAZUH_SUMMARY_QUEUE } from "./wazuh-summary.ts";
 
 const AI_CONCURRENCY = 4;
@@ -208,12 +209,15 @@ await startScheduler(boss);
 await startProxmoxScheduler(boss);
 await startWazuhScheduler(boss);
 await startAttacksScheduler(boss);
+// The live attack feed (ADR 0021): a light, read-only poll of the Wazuh indexer, every 30 seconds by default.
+const stopWazuhLive = startWazuhLivePoller();
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();
 const stopUserNotifications = startUserNotificationUpkeep();
 console.log(`worker: ready (${env.GARNETOPS_SCAN_CONCURRENCY} scan slots, nightly schedule active)`);
 
 async function shutdown() {
+  stopWazuhLive();
   stopDirectoryReconcile();
   stopVulnDbUpdates();
   stopUserNotifications();

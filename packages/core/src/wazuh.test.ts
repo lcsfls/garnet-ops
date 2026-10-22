@@ -22,11 +22,13 @@ import {
   extraManagerPrivileges,
   isIndexerRequestAllowed,
   isManagerRequestAllowed,
+  LIVE_PAGE_SIZE,
   parseAgents,
   parseAlertStats,
   parseApiInfo,
   parseFimEvents,
   parseIndexerInfo,
+  parseLiveAlerts,
   parseLoginToken,
   parsePreviousStats,
   parseVulnerabilityStats,
@@ -903,5 +905,201 @@ describe("source references", () => {
     ]) {
       expect(parseWazuhSourceRef(bad), bad).toBeNull();
     }
+  });
+});
+
+describe("live attack feed query (ADR 0021)", () => {
+  const adapter = ADAPTERS.wazuh4;
+  const since = new Date("2026-10-21T08:00:00.000Z");
+
+  it("is a fixed template on an allowed path: ascending, capped at 50, only the fields the page shows", () => {
+    for (const a of Object.values(ADAPTERS)) {
+      const r = buildIndexerRequest(a, { kind: "liveAlerts", since, minLevel: 7 });
+      expect(isIndexerRequestAllowed(r.method, r.path, {}), r.path).toBe(true);
+      expect(r.path).toBe(`/${a.alertIndex}/_search`);
+      expect(r.body.size).toBe(LIVE_PAGE_SIZE);
+      expect(LIVE_PAGE_SIZE).toBeLessThanOrEqual(50);
+      expect(r.body.track_total_hits).toBe(false);
+      expect(r.body.timeout).toBe("10s");
+      expect(r.body.sort).toEqual([{ "@timestamp": { order: "asc", unmapped_type: "date" } }]);
+      expect(r.body._source).toEqual([
+        "@timestamp",
+        "rule.id",
+        "rule.level",
+        "rule.description",
+        "rule.groups",
+        "agent.id",
+        "agent.name",
+        "data.srcip",
+      ]);
+    }
+  });
+
+  it("never asks for the log line or for fields that are not shown", () => {
+    const json = JSON.stringify(
+      buildIndexerRequest(adapter, { kind: "liveAlerts", since, minLevel: 7 }).body,
+    );
+    for (const field of [
+      "full_log",
+      "srcport",
+      "dstuser",
+      "mitre",
+      "location",
+      "decoder",
+      '"script"',
+      "aggs",
+    ]) {
+      expect(json, field).not.toContain(field);
+    }
+  });
+
+  it("filters by time from the cursor, by level, by the fixed attack groups and by a source address", () => {
+    const body = buildIndexerRequest(adapter, { kind: "liveAlerts", since, minLevel: 9 }).body as {
+      query: { bool: { filter: unknown[] } };
+    };
+    expect(body.query.bool.filter).toEqual([
+      { range: { "@timestamp": { gte: "2026-10-21T08:00:00.000Z", lt: "now" } } },
+      { range: { "rule.level": { gte: 9 } } },
+      { terms: { "rule.groups": [...ATTACK_GROUPS] } },
+      { exists: { field: "data.srcip" } },
+    ]);
+  });
+
+  it("takes no input that can carry query syntax: only a Date and a level between the bounds", () => {
+    for (const level of [2, 16, 7.5, Number.NaN, Number.POSITIVE_INFINITY, "7" as never, '7"}}' as never]) {
+      expect(
+        () => buildIndexerRequest(adapter, { kind: "liveAlerts", since, minLevel: level }),
+        String(level),
+      ).toThrow();
+    }
+    for (const forged of [
+      '2026-10-21"}},"script":{"source":"1"}' as never,
+      new Date("nonsense"),
+      null as never,
+    ]) {
+      expect(() =>
+        buildIndexerRequest(adapter, { kind: "liveAlerts", since: forged, minLevel: 7 }),
+      ).toThrow();
+    }
+    // The bounds themselves are fine.
+    expect(() => buildIndexerRequest(adapter, { kind: "liveAlerts", since, minLevel: 3 })).not.toThrow();
+    expect(() => buildIndexerRequest(adapter, { kind: "liveAlerts", since, minLevel: 15 })).not.toThrow();
+  });
+
+  it("writes the time in one fixed format, whatever the time zone of the process", () => {
+    const local = new Date(2026, 9, 21, 8, 0, 0, 123);
+    const body = buildIndexerRequest(adapter, { kind: "liveAlerts", since: local, minLevel: 7 }).body;
+    expect(JSON.stringify(body)).toContain(local.toISOString());
+  });
+});
+
+describe("live alert parser", () => {
+  for (const set of ["wazuh4", "wazuh5"] as const) {
+    it(`reads the fixture of ${set}: valid alerts kept, others dropped, text cleaned, no log line`, () => {
+      const parsed = parseLiveAlerts(load(set, "indexer-live-alerts"), ADAPTERS[set]);
+      expect(parsed).not.toBeNull();
+      expect(parsed?.alerts.map((a) => a.docId)).toEqual(["live-a1", "live-a2", "live-a3", "live-a5"]);
+      expect(parsed?.dropped).toBe(1);
+      expect(parsed?.fullPage).toBe(false);
+      expect(parsed?.latest?.toISOString()).toBe("2026-10-21T08:00:12.000Z");
+      const first = parsed?.alerts[0];
+      expect(first).toMatchObject({
+        ip: "198.51.100.77",
+        ruleId: "5710",
+        level: 10,
+        agentId: "001",
+        agentName: "web-01",
+        groups: ["invalid_login", "authentication_failed"],
+      });
+      expect(first?.at.toISOString()).toBe("2026-10-21T08:00:01.000Z");
+      // Only the fields of the query are read: nothing of the log line, the port or the user name is in the result.
+      const json = JSON.stringify(parsed);
+      for (const leaked of ["full_log", "Invalid user", "40022", "dstuser", "wp-login"]) {
+        expect(json, leaked).not.toContain(leaked);
+      }
+      // Hostile text stays text: control and bidirectional characters are gone, markup is untouched (it is escaped when shown).
+      const hostile = parsed?.alerts[2];
+      expect(hostile?.description).toContain("<img src=x");
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: the point is that none is left
+      expect(hostile?.description).not.toMatch(/[\u0000-\u0008\u000b-\u001f\u202a-\u202e]/);
+      expect(hostile?.groups).toEqual(["web_scan", "recon"]);
+      expect(parsed?.alerts[3]?.agentName).toBe("<script>alert(1)</script>");
+    });
+  }
+
+  it("returns null for an answer without a hits list, and never throws on garbage", () => {
+    for (const body of [null, "x", 5, [], {}, { hits: {} }, { hits: { hits: "no" } }]) {
+      expect(parseLiveAlerts(body, ADAPTERS.wazuh4), JSON.stringify(body)).toBeNull();
+    }
+    const garbage = {
+      hits: {
+        hits: [null, 1, "x", {}, { _id: 5 }, { _id: "ok", _source: null }, { _id: "ok", _source: {} }],
+      },
+    };
+    expect(parseLiveAlerts(garbage, ADAPTERS.wazuh4)).toMatchObject({ alerts: [], dropped: 7 });
+  });
+
+  it("drops an alert without a valid id, time, address or level, and cuts long text", () => {
+    const base = {
+      "@timestamp": "2026-10-21T08:00:00.000Z",
+      data: { srcip: "198.51.100.1" },
+      rule: { id: "5710", level: 8, description: "x".repeat(1000) },
+    };
+    const hits = [
+      { _id: "good", _source: base },
+      { _id: "bad id with spaces", _source: base },
+      { _id: "no-time", _source: { ...base, "@timestamp": "1999-01-01T00:00:00Z" } },
+      { _id: "bad-ip", _source: { ...base, data: { srcip: "198.51.100.1; drop table" } } },
+      { _id: "bad-level", _source: { ...base, rule: { ...base.rule, level: 99 } } },
+    ];
+    const parsed = parseLiveAlerts({ hits: { hits } }, ADAPTERS.wazuh4);
+    expect(parsed?.alerts.map((a) => a.docId)).toEqual(["good"]);
+    expect(parsed?.alerts[0]?.description).toHaveLength(200);
+    expect(parsed?.dropped).toBe(4);
+  });
+
+  it("says a page is full when the indexer returned as many hits as it may, and reads no more than that", () => {
+    const hits = Array.from({ length: LIVE_PAGE_SIZE + 5 }, (_, i) => ({
+      _id: `h${i}`,
+      _source: {
+        "@timestamp": new Date(Date.UTC(2026, 9, 21, 8, 0, i)).toISOString(),
+        data: { srcip: "198.51.100.2" },
+        rule: { level: 8 },
+      },
+    }));
+    const parsed = parseLiveAlerts({ hits: { hits } }, ADAPTERS.wazuh4);
+    expect(parsed?.fullPage).toBe(true);
+    expect(parsed?.alerts).toHaveLength(LIVE_PAGE_SIZE);
+    expect(parsed?.dropped).toBe(5);
+  });
+
+  it("reads flat field names as well as nested objects", () => {
+    const parsed = parseLiveAlerts(
+      {
+        hits: {
+          hits: [
+            {
+              _id: "flat",
+              _source: {
+                "@timestamp": "2026-10-21T08:00:00.000Z",
+                "data.srcip": "203.0.113.4",
+                "rule.level": 9,
+                "rule.id": "5712",
+                "agent.id": "007",
+                "agent.name": "bond",
+                "rule.groups": ["attack", "other"],
+              },
+            },
+          ],
+        },
+      },
+      ADAPTERS.wazuh4,
+    );
+    expect(parsed?.alerts[0]).toMatchObject({
+      ip: "203.0.113.4",
+      level: 9,
+      agentId: "007",
+      groups: ["attack"],
+    });
   });
 });

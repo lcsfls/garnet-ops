@@ -22,6 +22,7 @@ import { BADGE_TONE, Badge, SeverityBadge } from "../../components/ui/badge.tsx"
 import { Button } from "../../components/ui/button.tsx";
 import { EnrollmentDialog } from "../../components/wazuh-enrollment.tsx";
 import { type AgentListState, agentPrefill, XdrAgents } from "../../components/xdr-agents.tsx";
+import { XdrLatestAlerts } from "../../components/xdr-latest.tsx";
 import { XdrSummaryCard } from "../../components/xdr-summary.tsx";
 import { api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
@@ -278,6 +279,8 @@ function XdrPage() {
           </Card>
           <VulnerabilityCard vulnerabilities={data.vulnerabilities ?? null} />
         </div>
+
+        <XdrLatestAlerts canEdit={canEdit} />
 
         <FimCard events={data.fim ?? []} count={window?.fim ?? 0} />
 

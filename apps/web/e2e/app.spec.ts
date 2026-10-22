@@ -7,7 +7,9 @@ import { OWNER, STATE_FILE, totp, watchForProblems } from "./helpers.ts";
 import {
   AI,
   ATTACKS,
+  addLiveEvent,
   FIXES,
+  LIVE,
   PROXMOX,
   removeGeoip,
   removeWazuh,
@@ -16,6 +18,7 @@ import {
   SEEDED,
   SERVERS,
   seed,
+  setLivePoll,
   signedInAt,
   sql,
   WAZUH,
@@ -3154,7 +3157,7 @@ test.describe("xdr", () => {
     await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
     await page.goto("/xdr");
     await expect(page.getByRole("heading", { name: "XDR", level: 1 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Alarme", level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Alarme", level: 2, exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Dateiintegrität", level: 2 })).toBeVisible();
     await expect(page.getByRole("button", { name: "Agent einrichten" })).toBeVisible();
     await expect(page.getByRole("link", { name: "XDR", exact: true })).toBeVisible();
@@ -3220,6 +3223,8 @@ test.describe("attacks", () => {
     page,
   }) => {
     const problems = watchForProblems(page);
+    // The globe is the default view; this test looks at the flat map.
+    await page.addInitScript(() => localStorage.setItem("garnetops.attacks.view", "map"));
     await page.goto("/attacks");
     await expect(page.getByRole("heading", { name: "Attacks", level: 1 })).toBeVisible();
     const figures = page.getByTestId("attack-figures");
@@ -3762,7 +3767,9 @@ test.describe("attacks", () => {
         const dialog = page.getByRole("dialog", { name: "Delete all stored source addresses?" });
         await dialog.getByRole("button", { name: "Delete", exact: true }).click();
         await expect(
-          page.getByRole("status").filter({ hasText: "Deleted 9 addresses and 2 figure sets." }),
+          page
+            .getByRole("status")
+            .filter({ hasText: "Deleted 9 addresses, 2 figure sets and 4 live events." }),
         ).toBeVisible();
         expect(await sql("select 1 from wazuh_source_ip")).toHaveLength(0);
         await page.goto("/attacks");
@@ -3875,6 +3882,583 @@ test.describe("attacks", () => {
       }
       expect(problems).toEqual([]);
     });
+  });
+});
+
+/**
+ * The globe and the live attack feed (ADR 0021). No worker polls Wazuh here: its part is played by database rows and
+ * NOTIFY, which is exactly what the worker does after a poll.
+ */
+test.describe("attacks: globe and live feed", () => {
+  const view = (page: Page) => page.getByRole("group", { name: "View" });
+  const globe = (page: Page) => page.getByTestId("attack-globe");
+  const picture = (page: Page) => globe(page).locator("svg[role='img']");
+  const legendItem = (page: Page, text: string) =>
+    globe(page).getByRole("listitem").filter({ hasText: text });
+  const rotationOf = async (page: Page) =>
+    ((await picture(page).getAttribute("data-rotation")) ?? "").split(",").map(Number) as [number, number];
+  const section = (page: Page, heading: string | RegExp) =>
+    page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: heading, exact: typeof heading === "string" }) });
+
+  test.beforeEach(async () => {
+    await setLivePoll("now");
+  });
+
+  test("the globe is the default view: countries filled by alerts, points without a home, a text alternative", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await sql("update attack_settings set home_country = null, home_lat = null, home_lon = null");
+    await page.goto("/attacks");
+    await expect(page.getByRole("heading", { name: "Attacks", level: 1 })).toBeVisible();
+    await expect(globe(page)).toBeVisible();
+    await expect(page.getByTestId("attack-map")).toHaveCount(0);
+    await expect(view(page).getByRole("button", { name: "Globe" })).toHaveAttribute("aria-pressed", "true");
+
+    // The picture is a labelled image that names the busiest countries; the lists beside it have the same numbers.
+    const svg = picture(page);
+    await expect(svg).toBeVisible();
+    await expect(svg).toHaveAttribute(
+      "aria-label",
+      /^Globe: alerts per country\. Most alerts come from Germany \(67\)/,
+    );
+    await expect(svg).toHaveAttribute("aria-label", /France \(22\)/);
+
+    // The shapes are drawn (SVG paths with data), coloured on the map scale, and the others stay neutral.
+    const germany = svg.locator('path[data-country="DE"]');
+    await expect(germany).toHaveAttribute("d", /^M/);
+    await expect(germany).toHaveAttribute("data-step", "5");
+    await expect(svg.locator('path[data-country="FR"]')).not.toHaveAttribute("data-step", "0");
+    await expect(svg.locator('path[data-country="JP"]')).toHaveAttribute("data-step", "0");
+    await expect(germany.locator("title")).toHaveText(/Germany: 67 alerts from 2 addresses/);
+    expect(await svg.locator("path[data-country]").count()).toBeGreaterThan(170);
+
+    // No home location is set: the sources are points, there are no lines, and a hint leads to the setting.
+    await expect(svg).toHaveAttribute("data-arcs", "3");
+    await expect(svg.locator("[data-arc] path")).toHaveCount(0);
+    await expect(svg.locator("[data-arc] circle")).toHaveCount(3);
+    await expect(svg.locator("[data-home]")).toHaveAttribute("visibility", "hidden");
+    const hint = page.getByTestId("attack-no-home");
+    await expect(hint).toContainText("No home location is set");
+    await expect(hint.getByRole("link", { name: "Set home location" })).toHaveAttribute(
+      "href",
+      /section=attacks/,
+    );
+    await expect(legendItem(page, "Your network")).toHaveCount(0);
+    await expect(legendItem(page, "Observed")).toBeVisible();
+    // OSINT is off: no "High abuse score" in the legend.
+    await expect(legendItem(page, "High abuse score")).toHaveCount(0);
+
+    // The tables stay as the accessible alternative.
+    await expect(page.getByTestId("attack-countries").getByTestId("country-DE")).toContainText("67");
+    await expect(page.getByTestId("attack-table").locator("tbody tr")).toHaveCount(6);
+    expect(problems).toEqual([]);
+  });
+
+  test("Globe | Map: the choice is remembered in this browser, and the flat map is still there", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/attacks");
+    await expect(globe(page)).toBeVisible();
+    await view(page).getByRole("button", { name: "Map" }).click();
+    await expect(page.getByTestId("attack-map").locator("svg")).toBeVisible();
+    await expect(globe(page)).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem("garnetops.attacks.view"))).toBe("map");
+    await page.reload();
+    await expect(page.getByTestId("attack-map").locator("svg")).toBeVisible();
+    await expect(view(page).getByRole("button", { name: "Map" })).toHaveAttribute("aria-pressed", "true");
+    await view(page).getByRole("button", { name: "Globe" }).click();
+    await expect(picture(page)).toBeVisible();
+    await page.reload();
+    await expect(picture(page)).toBeVisible();
+    await expect(page.getByTestId("attack-map")).toHaveCount(0);
+    expect(problems).toEqual([]);
+  });
+
+  test("the globe works without storage: it is the default and the choice lasts for the page", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const blocked = () => {
+        throw new DOMException("blocked", "SecurityError");
+      };
+      Object.defineProperty(window, "localStorage", { get: blocked, configurable: true });
+    });
+    const problems = watchForProblems(page);
+    await page.goto("/attacks");
+    await expect(picture(page)).toBeVisible();
+    await view(page).getByRole("button", { name: "Map" }).click();
+    await expect(page.getByTestId("attack-map").locator("svg")).toBeVisible();
+    expect(problems).toEqual([]);
+  });
+
+  test("dragging turns the globe, the arrow keys turn it when it has focus, and a button stops the slow turn", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/attacks");
+    await expect(picture(page)).toHaveAttribute("data-rotation", /\d/);
+    const turning = globe(page).getByRole("button", { name: "Pause rotation" });
+    await expect(turning).toBeVisible();
+
+    // It turns slowly by itself.
+    const start = await rotationOf(page);
+    await expect.poll(async () => (await rotationOf(page))[0], { timeout: 5000 }).not.toBe(start[0]);
+    const country = picture(page).locator('path[data-country="DE"]');
+    const shapeBefore = await country.getAttribute("d");
+
+    // The button stops it, and it stays still.
+    await turning.click();
+    await expect(globe(page).getByRole("button", { name: "Turn slowly" })).toBeVisible();
+    const still = await rotationOf(page);
+    await page.waitForTimeout(900);
+    expect(await rotationOf(page)).toEqual(still);
+
+    // Dragging with the pointer turns the surface with it.
+    const frame = globe(page).getByRole("button", { name: /^Globe: / });
+    const box = await frame.boundingBox();
+    if (!box) throw new Error("no box");
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx + 120, cy + 20, { steps: 8 });
+    await page.mouse.up();
+    const dragged = await rotationOf(page);
+    expect(dragged[0]).toBeLessThan(still[0] - 5); // the surface moved right, the view moved west
+    expect(dragged[1]).not.toBe(still[1]);
+    await expect(country).not.toHaveAttribute("d", shapeBefore ?? "");
+
+    // Arrow keys turn it when it has focus.
+    await frame.focus();
+    await expect(frame).toBeFocused();
+    const before = await rotationOf(page);
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(async () => (await rotationOf(page))[0]).toBeCloseTo(before[0] + 10, 0);
+    await page.keyboard.press("ArrowUp");
+    await expect.poll(async () => (await rotationOf(page))[1]).toBeGreaterThan(before[1] + 5);
+    // A visible focus ring.
+    const ring = await frame.evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(ring).not.toBe("none");
+    expect(problems).toEqual([]);
+  });
+
+  test("the globe stops turning while the tab is hidden", async ({ page }) => {
+    await page.goto("/attacks");
+    await expect(picture(page)).toHaveAttribute("data-rotation", /\d/);
+    const frames = await page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          // Count the frames the page asks for while it is hidden.
+          let count = 0;
+          const original = window.requestAnimationFrame.bind(window);
+          window.requestAnimationFrame = (callback) => {
+            count++;
+            return original(callback);
+          };
+          Object.defineProperty(document, "hidden", { value: true, configurable: true });
+          document.dispatchEvent(new Event("visibilitychange"));
+          setTimeout(() => {
+            window.requestAnimationFrame = original;
+            Object.defineProperty(document, "hidden", { value: false, configurable: true });
+            document.dispatchEvent(new Event("visibilitychange"));
+            resolve(count);
+          }, 800);
+        }),
+    );
+    // The loop that was running ends with at most one more frame already in flight; nothing new is requested.
+    expect(frames).toBeLessThanOrEqual(1);
+    // Back in view, it turns again.
+    const resumed = await rotationOf(page);
+    await expect.poll(async () => (await rotationOf(page))[0], { timeout: 5000 }).not.toBe(resumed[0]);
+  });
+
+  test.describe("with less motion", () => {
+    test.use({ reducedMotion: "reduce" });
+
+    test("the globe does not turn by itself and offers no rotation button; dragging still works", async ({
+      page,
+    }) => {
+      const problems = watchForProblems(page);
+      await page.goto("/attacks");
+      await expect(picture(page)).toHaveAttribute("data-rotation", /\d/);
+      await expect(picture(page)).toHaveAttribute("data-turning", "off");
+      const first = await rotationOf(page);
+      await page.waitForTimeout(1500);
+      expect(await rotationOf(page)).toEqual(first);
+      await expect(globe(page).getByRole("button", { name: /rotation|Turn slowly/ })).toHaveCount(0);
+      const frame = globe(page).getByRole("button", { name: /^Globe: / });
+      await frame.focus();
+      await page.keyboard.press("ArrowLeft");
+      await expect.poll(async () => (await rotationOf(page))[0]).toBeCloseTo(first[0] - 10, 0);
+      expect(problems).toEqual([]);
+    });
+  });
+
+  test("home location: pick a country, use its capital, and the lines appear in three widths", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    await sql("update attack_settings set home_country = null, home_lat = null, home_lon = null");
+    try {
+      await page.goto("/settings?section=attacks");
+      const card = section(page, "Home location");
+      await expect(card).toContainText("Two decimals are about one kilometre");
+      await expect(card.getByRole("button", { name: "Save home location" })).toBeDisabled();
+      await card.getByLabel("Country").selectOption({ label: "Germany" });
+      await expect(card.getByRole("button", { name: "Use the capital: Berlin" })).toBeVisible();
+      await card.getByRole("button", { name: "Use the capital: Berlin" }).click();
+      await expect(card.getByLabel("Latitude")).toHaveValue("52.52");
+      await expect(card.getByLabel("Longitude")).toHaveValue("13.4");
+
+      // Bad input is explained and cannot be saved.
+      await card.getByLabel("Latitude").fill("91");
+      await expect(card).toContainText("Latitude is a number from -90 to 90.");
+      await expect(card.getByRole("button", { name: "Save home location" })).toBeDisabled();
+      await card.getByLabel("Latitude").fill("");
+      await expect(card).toContainText("Enter both latitude and longitude, or neither.");
+      await card.getByLabel("Latitude").fill("50,9375");
+      await card.getByLabel("Longitude").fill("6.9603");
+      await card.getByRole("button", { name: "Save home location" }).click();
+      await expect(page.getByRole("status").filter({ hasText: "Home location saved." })).toBeVisible();
+      const [stored] = await sql<{ home_country: string; home_lat: number; home_lon: number }>(
+        "select home_country, home_lat, home_lon from attack_settings",
+      );
+      // Two decimals are stored, whatever was typed.
+      expect(stored).toEqual({ home_country: "DE", home_lat: 50.94, home_lon: 6.96 });
+      await expect(card.getByTestId("home-current")).toContainText("Lines end at 50.94, 6.96.");
+
+      await page.goto("/audit-log?group=attacks");
+      await expect(
+        page.locator("tbody tr").filter({ hasText: "Home location of the attack overview set" }),
+      ).toHaveCount(1);
+
+      // The globe now ends its lines at the home point: no hint, the marker, three line widths by count.
+      await page.goto("/attacks");
+      const svg = picture(page);
+      await expect(svg).toBeVisible();
+      await expect(page.getByTestId("attack-no-home")).toHaveCount(0);
+      await expect(svg).toHaveAttribute("aria-label", /with lines to your network/);
+      await expect(legendItem(page, "Your network")).toBeVisible();
+      await expect(svg.locator("[data-arc] path")).toHaveCount(3);
+      // 67, 22 and 3 alerts: the busiest country gets the widest line, the smallest the thinnest.
+      await expect(svg.locator('[data-arc="DE"]')).toHaveAttribute("data-width", "3");
+      await expect(svg.locator('[data-arc="FR"]')).toHaveAttribute("data-width", "2");
+      await expect(svg.locator('[data-arc="BR"]')).toHaveAttribute("data-width", "1.25");
+      // The lines draw in once (in about a second) and are orange: nothing says an address is high-risk.
+      for (const code of ["DE", "FR", "BR"]) {
+        await expect(svg.locator(`[data-arc="${code}"]`)).toHaveAttribute("data-tone", "observed");
+      }
+      await expect(svg.locator('[data-arc="DE"] path')).toHaveAttribute("d", /^M/, { timeout: 3000 });
+      await expect(svg.locator('[data-arc="DE"] path')).toHaveClass(/stroke-chart-high/);
+
+      // Removing it brings the points back.
+      await page.goto("/settings?section=attacks");
+      await section(page, "Home location").getByRole("button", { name: "Remove" }).click();
+      await expect(page.getByRole("status").filter({ hasText: "Home location removed." })).toBeVisible();
+      expect(await sql("select 1 from attack_settings where home_country is not null")).toHaveLength(0);
+    } finally {
+      await sql("update attack_settings set home_country = null, home_lat = null, home_lon = null");
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("a line is vermilion above an abuse score of 80, only while reputation lookup is on", async ({
+    page,
+  }) => {
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    await sql(
+      `insert into attack_settings (organization_id, home_country, home_lat, home_lon, osint_enabled, osint_provider, osint_acknowledged_at)
+       values ($1, 'AT', null, null, true, 'abuseipdb', now())
+       on conflict (organization_id) do update set home_country = 'AT', home_lat = null, home_lon = null,
+         osint_enabled = true, osint_provider = 'abuseipdb', osint_acknowledged_at = now()`,
+      [org?.id],
+    );
+    await sql(
+      `insert into attack_osint_result (id, organization_id, provider, ip, score, reports, last_reported_at, checked_at)
+       values ('osr_e2eglobe00000000001', $1, 'abuseipdb', $2, 93, 12, now(), now()),
+              ('osr_e2eglobe00000000002', $1, 'abuseipdb', $3, 12, 1, now(), now())`,
+      [org?.id, ATTACKS.ips.de, ATTACKS.ips.fr],
+    );
+    try {
+      await page.goto("/attacks");
+      const svg = picture(page);
+      await expect(svg.locator("[data-arc]")).toHaveCount(3);
+      await expect(svg.locator('[data-arc="DE"]')).toHaveAttribute("data-tone", "high");
+      await expect(svg.locator('[data-arc="FR"]')).toHaveAttribute("data-tone", "observed");
+      await expect(svg.locator('[data-arc="BR"]')).toHaveAttribute("data-tone", "observed");
+      await expect(svg.locator('[data-arc="DE"] path')).toHaveClass(/stroke-chart-critical/);
+      await expect(legendItem(page, "High abuse score")).toBeVisible();
+      // Only the capital was chosen: the marker sits at Vienna.
+      await expect(svg.locator("[data-home]")).toHaveAttribute("transform", /translate\(/);
+      // Switch it off: the same score no longer colours anything.
+      await sql("update attack_settings set osint_enabled = false");
+      await page.reload();
+      await expect(svg.locator('[data-arc="DE"]')).toHaveAttribute("data-tone", "observed");
+      await expect(legendItem(page, "High abuse score")).toHaveCount(0);
+    } finally {
+      await sql("delete from attack_osint_result");
+      await sql("delete from attack_settings");
+    }
+  });
+
+  test("latest events: newest first, plain text, honest freshness, nothing from another organisation's view", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/attacks");
+    const events = page.getByTestId("attack-events");
+    await expect(events.getByTestId("attack-event")).toHaveCount(4);
+    // Newest first.
+    await expect(events.getByTestId("attack-event-description")).toHaveText([
+      "sshd: authentication failed from inside",
+      "sshd: Attempt to login using a non-existent user",
+      LIVE.hostileDescription,
+      "sshd: brute force trying to get access to the system.",
+    ]);
+    const rows = events.getByTestId("attack-event");
+    await expect(rows.nth(0).getByTestId("attack-event-country")).toHaveText("LAN");
+    await expect(rows.nth(0)).toContainText("internal");
+    await expect(rows.nth(1).getByTestId("attack-event-country")).toHaveText("BR");
+    await expect(rows.nth(3).getByTestId("attack-event-country")).toHaveText("DE");
+    await expect(rows.nth(3)).toContainText("Germany");
+    await expect(rows.nth(3).getByTestId("attack-event-ip")).toHaveText(ATTACKS.ips.de);
+    await expect(rows.nth(3)).toContainText("observed");
+    await expect(rows.nth(3)).toContainText("on web-01");
+    await expect(rows.nth(3)).toContainText("Level 12");
+    // No score without reputation lookup; hostile text is text; addresses are not links.
+    await expect(events.getByTestId("attack-event-score")).toHaveCount(0);
+    await expect(events.locator("img")).toHaveCount(0);
+    await expect(events).toContainText("<img src=x");
+    await expect(events.locator("a")).toHaveCount(0);
+    expect(await page.title()).not.toBe("pwned");
+    // The status says what is true: live, with the age of the last event.
+    const status = page.getByTestId("live-status").first();
+    await expect(status).toHaveAttribute("data-state", "live");
+    await expect(status).toContainText(/Live — last event 2 min\. ago/);
+    // The totals keep their own "updated" time.
+    await expect(page.getByText(/Wazuh data from/)).toBeVisible();
+    expect(problems).toEqual([]);
+  });
+
+  test("a new event arrives over the stream: it tops the list and draws a line on the globe, which fades", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    await sql(
+      `insert into attack_settings (organization_id, home_country) values ($1, 'DE')
+       on conflict (organization_id) do update set home_country = 'DE', home_lat = null, home_lon = null`,
+      [org?.id],
+    );
+    try {
+      await page.goto("/attacks");
+      const events = page.getByTestId("attack-events");
+      await expect(events.getByTestId("attack-event")).toHaveCount(4);
+      await expect(page.getByTestId("live-polling")).toHaveCount(0);
+      const svg = picture(page);
+      await expect(svg.locator("[data-live-arc]")).toHaveCount(0);
+
+      await addLiveEvent({ ip: ATTACKS.ips.de2, description: "sshd: a new brute force wave", level: 11 });
+      await expect(events.getByTestId("attack-event")).toHaveCount(5, { timeout: 10_000 });
+      await expect(events.getByTestId("attack-event-description").first()).toHaveText(
+        "sshd: a new brute force wave",
+      );
+      await expect(events.getByTestId("attack-event").first()).toContainText("Germany");
+      // A live line starts at the source country and ends at the home point ...
+      const live = svg.locator("[data-live-arc]");
+      await expect(live).toHaveCount(1);
+      await expect(live.locator("path")).toHaveAttribute("d", /^M/, { timeout: 3000 });
+      await expect(live).toHaveAttribute("data-tone", "observed");
+      // ... and goes away again after a few seconds.
+      await expect(live).toHaveCount(0, { timeout: 12_000 });
+
+      // An internal address is listed but draws nothing: there is no place to draw it from.
+      await addLiveEvent({ ip: ATTACKS.ips.internal, description: "sshd: from inside again" });
+      await expect(events.getByTestId("attack-event")).toHaveCount(6, { timeout: 10_000 });
+      await expect(svg.locator("[data-live-arc]")).toHaveCount(0);
+      // The status moves with the stored state.
+      await expect(page.getByTestId("live-status").first()).toContainText("Live —");
+    } finally {
+      await sql("delete from attack_settings");
+      await restoreWazuh();
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("the list keeps at most 50 events", async ({ page }) => {
+    try {
+      await sql(
+        `insert into wazuh_attack_event (organization_id, connection_id, doc_id, at, ip, rule_id, rule_level, description, agent_id, agent_name)
+         select organization_id, id, 'e2e-bulk-' || i, now() - make_interval(secs => i), '198.51.100.9', '1', 8, 'bulk event ' || i, '001', 'web-01'
+           from wazuh_connection, generate_series(1, 70) as i`,
+      );
+      await page.goto("/attacks");
+      await expect(page.getByTestId("attack-events").getByTestId("attack-event")).toHaveCount(50);
+    } finally {
+      await restoreWazuh();
+    }
+  });
+
+  test("reputation lookup on: the cached score is listed, and only for events that have one", async ({
+    page,
+  }) => {
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    await sql(
+      `insert into attack_settings (organization_id, osint_enabled, osint_provider, osint_acknowledged_at)
+       values ($1, true, 'abuseipdb', now())
+       on conflict (organization_id) do update set osint_enabled = true, osint_provider = 'abuseipdb', osint_acknowledged_at = now()`,
+      [org?.id],
+    );
+    await sql(
+      `insert into attack_osint_result (id, organization_id, provider, ip, score, reports, last_reported_at, checked_at)
+       values ('osr_e2elive000000000001', $1, 'abuseipdb', $2, 93, 12, now(), now())`,
+      [org?.id, ATTACKS.ips.de],
+    );
+    try {
+      await page.goto("/attacks");
+      const events = page.getByTestId("attack-events");
+      await expect(events.getByTestId("attack-event")).toHaveCount(4);
+      await expect(events.getByTestId("attack-event-score")).toHaveCount(1);
+      await expect(events.getByTestId("attack-event-score")).toContainText("93");
+      await expect(events.getByTestId("attack-event").nth(3).getByTestId("attack-event-score")).toBeVisible();
+    } finally {
+      await sql("delete from attack_osint_result");
+      await sql("delete from attack_settings");
+    }
+  });
+
+  test("if the stream fails, the list is polled every 30 seconds", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.route("**/api/v1/attacks/live", (route) => route.abort());
+    await page.goto("/attacks");
+    const events = page.getByTestId("attack-events");
+    await expect(events.getByTestId("attack-event")).toHaveCount(4);
+    await expect(page.getByTestId("live-polling")).toBeVisible();
+    await expect(page.getByTestId("live-polling")).toContainText("refreshes every 30 seconds");
+    await addLiveEvent({ ip: ATTACKS.ips.fr, description: "found by polling" });
+    // No notice reaches this page; the next poll finds it.
+    await expect(events.getByTestId("attack-event")).toHaveCount(5, { timeout: 45_000 });
+    await expect(events.getByTestId("attack-event-description").first()).toHaveText("found by polling");
+    await restoreWazuh();
+  });
+
+  test("the status says Waiting, Paused and switched off in plain words", async ({ page }) => {
+    try {
+      const status = page.getByTestId("live-status").first();
+      await setLivePoll("long ago", null);
+      await page.goto("/attacks");
+      await expect(status).toHaveAttribute("data-state", "waiting");
+      await expect(status).toContainText("Waiting for Wazuh");
+
+      await sql("update wazuh_live_state set last_poll_at = now(), last_error = 'unreachable'");
+      await page.reload();
+      await expect(status).toContainText("Waiting for Wazuh (The Wazuh indexer could not be reached.)");
+
+      await setLivePoll("now");
+      await sql("update wazuh_endpoint set cert_status = 'changed' where kind = 'indexer'");
+      await page.reload();
+      await expect(status).toHaveAttribute("data-state", "paused");
+      await expect(status).toContainText("Paused: connection blocked");
+      await expect(status).toContainText("A certificate needs to be confirmed in Settings.");
+      await sql("update wazuh_endpoint set cert_status = 'confirmed'");
+
+      await sql("update wazuh_live_state set enabled = false");
+      await page.reload();
+      await expect(status).toHaveAttribute("data-state", "off");
+      await expect(status).toContainText("The live feed is switched off");
+    } finally {
+      await restoreWazuh();
+    }
+  });
+
+  test("live feed settings: interval and level within their bounds, switch, audit", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    try {
+      await page.goto("/settings?section=attacks");
+      const card = section(page, "Live feed");
+      await expect(card.getByLabel("Ask every (seconds)")).toHaveValue("30");
+      await expect(card.getByLabel("Lowest rule level")).toHaveValue("7");
+      await expect(
+        card.getByRole("checkbox", { name: "Read the latest attack alerts from Wazuh" }),
+      ).toBeChecked();
+      await expect(card.getByTestId("live-status")).toContainText("Live —");
+      for (const bad of ["14", "301", "0"]) {
+        await card.getByLabel("Ask every (seconds)").fill(bad);
+        await expect(card).toContainText("Choose a whole number of seconds in the range shown.");
+        await expect(card.getByRole("button", { name: "Save live feed" })).toBeDisabled();
+      }
+      await card.getByLabel("Ask every (seconds)").fill("60");
+      await card.getByLabel("Lowest rule level").fill("2");
+      await expect(card).toContainText("Choose a whole rule level in the range shown.");
+      await card.getByLabel("Lowest rule level").fill("10");
+      await card.getByRole("button", { name: "Save live feed" }).click();
+      await expect(page.getByRole("status").filter({ hasText: "Live feed settings saved." })).toBeVisible();
+      const [stored] = await sql<{ interval_seconds: number; min_level: number; enabled: boolean }>(
+        "select interval_seconds, min_level, enabled from wazuh_live_state",
+      );
+      expect(stored).toEqual({ interval_seconds: 60, min_level: 10, enabled: true });
+
+      await card.getByRole("checkbox", { name: "Read the latest attack alerts from Wazuh" }).uncheck();
+      await card.getByRole("button", { name: "Save live feed" }).click();
+      await expect(card.getByTestId("live-status")).toContainText("The live feed is switched off");
+      await page.goto("/audit-log?group=attacks");
+      await expect(
+        page.locator("tbody tr").filter({ hasText: "Live attack feed settings changed" }),
+      ).toHaveCount(2);
+    } finally {
+      await sql("update wazuh_live_state set enabled = true, interval_seconds = 30, min_level = 7");
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("XDR shows the latest alerts from the same feed", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/xdr");
+    const card = section(page, "Latest alerts");
+    await expect(card.getByTestId("xdr-latest-alert")).toHaveCount(4);
+    await expect(card.getByTestId("live-status")).toContainText("Live —");
+    await expect(card.getByTestId("xdr-latest-alert").first()).toContainText(
+      "sshd: authentication failed from inside",
+    );
+    // Hostile text is text.
+    await expect(card).toContainText("<img src=x");
+    await expect(card.locator("img")).toHaveCount(0);
+    expect(await page.title()).not.toBe("pwned");
+    await addLiveEvent({ ip: ATTACKS.ips.de, description: "sshd: seen on the XDR page" });
+    await expect(card.getByTestId("xdr-latest-alert")).toHaveCount(5, { timeout: 10_000 });
+    await expect(card.getByTestId("xdr-latest-alert").first()).toContainText("sshd: seen on the XDR page");
+    await card.getByRole("link", { name: "Open the attack overview" }).click();
+    await expect(page).toHaveURL(/\/attacks$/);
+    await restoreWazuh();
+    expect(problems).toEqual([]);
+  });
+
+  test("German labels", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
+    await page.goto("/attacks");
+    await expect(page.getByRole("heading", { name: "Angriffe", level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole("group", { name: "Ansicht" }).getByRole("button", { name: "Globus" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("group", { name: "Ansicht" }).getByRole("button", { name: "Karte" }),
+    ).toBeVisible();
+    await expect(picture(page)).toHaveAttribute("aria-label", /^Globus: Alarme pro Land/);
+    await expect(page.getByRole("heading", { name: "Neueste Ereignisse", level: 2 })).toBeVisible();
+    await expect(page.getByTestId("live-status").first()).toContainText("Live — letztes Ereignis");
+    await expect(page.getByTestId("attack-event").first()).toContainText("beobachtet");
+    await expect(page.getByTestId("attack-no-home")).toContainText("Es ist kein Standort festgelegt");
+    await page.goto("/settings?section=attacks");
+    await expect(page.getByRole("heading", { name: "Heimatstandort", level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Live-Feed", level: 2 })).toBeVisible();
+    await page.goto("/xdr");
+    await expect(page.getByRole("heading", { name: "Neueste Alarme", level: 2 })).toBeVisible();
   });
 });
 

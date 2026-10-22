@@ -1,9 +1,10 @@
 # Attack overview (Infrastructure, Attacks)
 
 Where do failed logins and attacks on your servers come from? The Attacks page answers that from the
-alerts your own Wazuh reports ([xdr.md](xdr.md)), with a world map, tables and, if you switch it on, a
-reputation score per address. Decisions and the threat model are in
-[ADR 0016](adr/0016-attack-overview-local-geoip-and-optional-osint.md).
+alerts your own Wazuh reports ([xdr.md](xdr.md)), with a globe or a flat world map, a live list of the newest
+alerts, tables and, if you switch it on, a reputation score per address. Decisions and the threat model are in
+[ADR 0016](adr/0016-attack-overview-local-geoip-and-optional-osint.md) and, for the globe and the live feed, in
+[ADR 0021](adr/0021-globe-view-and-live-attack-feed.md).
 
 **What stays local.** Countries and networks are looked up in tables on your own server. Nothing is
 sent anywhere for that. Two things can contact the outside, **both off by default**, both switched on by
@@ -71,9 +72,11 @@ If DB-IP ever answered with a redirect, the download would fail and say so; the 
 - **Key figures** with the change against the period before: attack alerts, source addresses (approximate),
   countries, the most targeted machines; more figures (alerts from inside, location unknown) on wide
   screens.
-- **Map**: country shapes from Natural Earth (public domain), plain SVG shipped with GarnetOps (no tiles, no
-  map library, nothing loaded from outside). Countries are filled by their alerts in five steps of one colour
-  (blue; never a severity colour). Hover for numbers. **Countries, Networks and Machines** lists beside it
+- **Globe | Map**: a switch above the picture chooses between the **globe** (the default) and the flat world
+  map; your choice is remembered in this browser only. Both use country shapes from Natural Earth (public domain),
+  shipped with GarnetOps (no tiles, no map service, nothing loaded from outside; the globe is drawn with the
+  small library d3-geo). Countries are filled by their alerts in five steps of one colour (blue; never a severity
+  colour). Hover for numbers. See sections 3a and 3b for the globe and the home location. **Countries, Networks and Machines** lists beside it
   hold the same numbers as a table, are complete (a few small countries have no shape on the map) and are the
   keyboard and screen reader route; choosing one filters the address table.
 - **Address table**: address (plain text with a copy button, never a link), country, network (AS number and
@@ -91,7 +94,61 @@ If DB-IP ever answered with a redirect, the download would fail and say so; the 
   per AS number, never an address, organisation, machine name or rule text. The answer is labelled "AI
   suggestion" and is never acted on.
 
-## 4. Keeping source addresses (privacy)
+## 3a. The globe
+
+The globe shows the same numbers as the flat map and adds **lines from each source country to your network**.
+
+- **Reading it.** A line starts at the middle of the country (its capital for a country too small for the map)
+  and ends at your **home location** (section 3b). A thicker line means more alerts, in three steps; the steps
+  are only a hint, the tables have the numbers. A line is **orange** ("Observed"). It is **vermilion** ("High
+  abuse score") when the reputation lookup is on and an address of that country has a cached abuse score above 80.
+  The ring in the neutral colour is your network. Lines draw in once when the page opens (about a second).
+  Without a home location the sources are shown as points and a hint links to the setting.
+- **Moving it.** Drag the globe with the mouse or a finger, or focus it (Tab) and use the arrow keys. It turns
+  slowly by itself until you touch it, while it has focus, and while the tab is hidden; the button "Pause rotation"
+  stops it. If your system asks for **less motion**, the globe does not turn by itself, and lines appear at once.
+- **Without a mouse or sight.** The picture has a text alternative that names the busiest countries; the
+  Countries, Networks and Machines lists beside it hold the same numbers as tables.
+- **Layout.** On a narrow window the globe is above the lists; from 1450 px of content width it is on the left with
+  the latest events and the countries beside it; from 1900 px the globe, the events and the lists are three across.
+
+## 3b. Home location (Settings, Attack overview)
+
+Choose the **country** your network is in and, if you like, a **latitude and longitude** (two decimals, about a
+kilometre; typed by hand, or "Use the capital"). With a country only, lines end in its capital. There are **no
+default coordinates**: until someone sets a home location, the globe shows points and no lines. Owners and admins
+set or remove it; everybody in the organisation sees the result. It is audited (`attacks.home_changed`,
+`attacks.home_removed`) and nothing is sent anywhere.
+
+## 4. Latest events (live feed)
+
+"Latest events" lists the newest alerts as Wazuh reports them, newest first, at most 50: country code, the rule
+description, the source address as plain text, the country, "observed", the machine, the rule level, how long
+ago, and the abuse score when the reputation lookup is on and a score is cached (the feed never triggers a
+lookup by itself). Every new event also draws a line on the globe, which fades after a few seconds. The same list
+is on the XDR page as "Latest alerts".
+
+- **How it works.** The worker asks your Wazuh indexer, read-only, every **30 seconds** (Settings, Attack
+  overview, Live feed: 15 to 300 seconds, and the lowest rule level, 3 to 15, default 7). One request reads at
+  most 50 alerts and only the fields the list shows: time, rule, level, description, groups, machine, and source
+  address; **never the log line**, the source port or the user name that was tried. GarnetOps polls; Wazuh
+  never calls GarnetOps, and nothing is written to Wazuh. Details and limits: [xdr.md](xdr.md) and
+  [ADR 0021](adr/0021-globe-view-and-live-attack-feed.md).
+- **Browsers** are told through a server-sent event stream that resumes after a break. If the stream cannot be
+  opened, the page says so and refreshes the list every 30 seconds.
+- **The line above the list** says what is true: "Live — last event 12 s ago", "Live — no events yet",
+  "Waiting for Wazuh" (no sync or poll yet, the last poll failed, with the reason, or the worker has gone quiet),
+  "Paused: connection blocked" (the Wazuh connection is switched off, a certificate has to be confirmed again, or
+  privileges have to be acknowledged: it says which) or "The live feed is switched off". The totals above keep
+  their own time, "Wazuh data from …", because they come from the 15-minute sync.
+- **A window, not a log.** Alerts that Wazuh makes searchable late can be missed, and nothing is kept as history:
+  the newest 500 events per connection are stored, and none for longer than the retention period (section 5).
+  The numbers, tables and the AI summary come from the aggregates, never from this list.
+- **Hostile text.** The rule description and the machine name come from alerts that someone else may have
+  written. They are cleaned, cut to 200 and 128 characters, shown as plain text, never as a link or markup and
+  never sent to an AI model.
+
+## 5. Keeping source addresses (privacy)
 
 Source addresses can be personal data. GarnetOps keeps only the **latest aggregate of each period**,
 replaced at every sync, and builds no history. As a backstop, an hourly job deletes source addresses, attack
@@ -99,9 +156,11 @@ figures and reputation results older than the **retention period** (default **90
 Settings; raising it needs a recent sign-in). Normally nothing gets that old; it matters when the sync stops
 or you shorten the period. "Delete stored addresses now" (recent sign-in, audited) erases them at once for an
 erasure request, and removing the Wazuh connection deletes them too. The audit log holds counts, never
-addresses. Describe this processing in your own records of processing if GDPR applies to you.
+addresses. The **latest events** of the live feed are source addresses too: they follow the same retention period,
+"Delete stored addresses now" deletes them, and removing the Wazuh connection deletes them with it. Describe this
+processing in your own records of processing if GDPR applies to you.
 
-## 5. Reputation lookup (optional, off by default)
+## 6. Reputation lookup (optional, off by default)
 
 Shows an abuse score next to the busiest public addresses, from **AbuseIPDB** (check API), with **your own API
 key**. **When it is on, public source addresses leave your network**: the busiest ones, at most N per sync
@@ -122,7 +181,7 @@ your own agreement, and use a paid plan if you are a business). That is why the 
 give and the page links to the terms. The feature is built around a small provider interface
 (`packages/core/src/osint.ts`); a provider whose terms are unclear can be added and left switched off.
 
-## 6. Roles
+## 7. Roles
 
 | Action | Roles | Recent sign-in |
 | --- | --- | --- |
@@ -131,16 +190,19 @@ give and the page links to the terms. The feature is built around a small provid
 | Settings, import or remove location data | owner, admin | yes |
 | Monthly download on | owner, admin | yes (off: no) |
 | Retention longer | owner, admin | yes (shorter: no) |
-| Delete stored addresses | owner, admin | yes |
+| Delete stored addresses (also the latest events) | owner, admin | yes |
 | Reputation lookup on, key, provider | owner, admin | yes (off: no) |
+| Home location | owner, admin | no |
+| Live feed on or off, interval, lowest rule level | owner, admin | no |
+| Read the latest events and the stream | everyone in the organisation | no |
 
 All changes are in the audit log (filter "Attacks"): `attacks.geoip_imported`, `attacks.geoip_import_failed`,
 `attacks.geoip_removed`, `attacks.geoip_downloaded`, `attacks.geoip_download_failed`,
 `attacks.geoip_download_enabled`, `attacks.geoip_download_disabled`, `attacks.settings_changed`,
 `attacks.osint_enabled`, `attacks.osint_disabled`, `attacks.osint_key_changed`, `attacks.osint_key_removed`,
-`attacks.data_purged`.
+`attacks.data_purged`, `attacks.home_changed`, `attacks.home_removed`, `attacks.live_feed_changed`.
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 | What you see | What to do |
 | --- | --- |
@@ -148,6 +210,11 @@ All changes are in the audit log (filter "Attacks"): `attacks.geoip_imported`, `
 | "No attack data yet" | Wait for the next Wazuh sync, or run one from the XDR page. |
 | Every country is "Unknown" | No location data is loaded: Settings, Attack overview. |
 | "The location data is old" | Load this month's files, or switch on the monthly download. |
+| The globe shows points but no lines | No home location is set: Settings, Attack overview, Home location. |
+| "Waiting for Wazuh" under Latest events | The sync has not run yet, or the last request failed (the reason is shown); check the connection on the XDR page. |
+| "Paused: connection blocked" | Confirm the changed certificate or acknowledge the privileges: Settings, XDR / Wazuh. |
+| "The live feed is switched off" | Switch it on: Settings, Attack overview, Live feed. |
+| The globe does not turn | Your system asks for less motion, you moved it, or it has focus. "Turn slowly" starts it again (not under less motion). |
 | Import refused: "not a gzip file" | Choose the `.csv.gz` file as downloaded, not an unpacked or renamed one. |
 | Import refused: "other kind of file" | The country file belongs in Country, the ASN file in Network. |
 | Download failed: "not found" | DB-IP has not published this month's file yet; GarnetOps tries again. |

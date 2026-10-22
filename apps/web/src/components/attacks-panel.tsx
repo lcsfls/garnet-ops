@@ -1,15 +1,18 @@
+import { COUNTRY_CODES, capitalOf } from "@garnetops/core/countries";
+import { parseCoordinate, resolveHomePoint } from "@garnetops/core/home-location";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink, Trash2, Upload } from "lucide-react";
-import { type FormEvent, useId, useRef, useState } from "react";
+import { type FormEvent, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, api } from "../lib/api.ts";
-import { geoipReasonKey, osintReasonKey, uploadReason } from "../lib/attacks.ts";
+import { countryName, geoipReasonKey, osintReasonKey, uploadReason } from "../lib/attacks.ts";
 import { formatBytes, formatDateTime, formatRelative } from "../lib/format.ts";
 import type { MessageKey } from "../lib/i18n.ts";
 import type { Me } from "../lib/session.ts";
 import { toast } from "../lib/toast.ts";
 import type { AttackSettings, GeoipDatasetView, GeoipKind } from "../lib/types.ts";
+import { LiveStatusLine } from "./attack-events.tsx";
 import { Card, CardHeader } from "./page-header.tsx";
 import { QueryStatus } from "./query-state.tsx";
 import { Alert } from "./ui/alert.tsx";
@@ -17,7 +20,7 @@ import { Badge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
 import { Checkbox } from "./ui/checkbox.tsx";
 import { ConfirmDialog } from "./ui/confirm-dialog.tsx";
-import { Field, FormRow } from "./ui/field.tsx";
+import { Field, FormField, FormRow } from "./ui/field.tsx";
 import { Select } from "./ui/select.tsx";
 import { useStepUp } from "./use-step-up.tsx";
 
@@ -91,6 +94,8 @@ export function AttacksPanel({ me }: { me: Me }) {
         </Card>
       ) : (
         <>
+          <HomeCard data={data} onChanged={refresh} />
+          <LiveFeedCard data={data} onChanged={refresh} />
           <GeoipCard data={data} stepUp={stepUp} onChanged={refresh} />
           <DownloadCard data={data} stepUp={stepUp} onChanged={refresh} />
           <RetentionCard data={data} stepUp={stepUp} onChanged={refresh} />
@@ -107,6 +112,293 @@ interface CardProps {
   data: AttackSettings;
   stepUp: StepUp;
   onChanged: () => Promise<unknown>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Home location                                                               */
+/* -------------------------------------------------------------------------- */
+
+/** The error codes of a validation problem (`home_country`, `interval_range`, ...), or an empty list. */
+function fieldCodes(error: unknown): string[] {
+  if (!(error instanceof ApiError) || error.status !== 422) return [];
+  return (error.problem?.errors ?? []).map((e) => e.message);
+}
+
+/**
+ * Where the globe ends its arcs (ADR 0021): a country and, optionally, a point with two decimals. Not a credential and
+ * nothing leaves the network, so there is no step-up; owners and admins only, and audited by the server.
+ */
+function HomeCard({ data, onChanged }: Pick<CardProps, "data" | "onChanged">) {
+  const { t, i18n } = useTranslation();
+  const home = data.home;
+  const [country, setCountry] = useState(home?.country ?? "");
+  const [lat, setLat] = useState(home?.lat !== null && home?.lat !== undefined ? String(home.lat) : "");
+  const [lon, setLon] = useState(home?.lon !== null && home?.lon !== undefined ? String(home.lon) : "");
+  const [serverCodes, setServerCodes] = useState<string[]>([]);
+  const countries = useMemo(
+    () =>
+      COUNTRY_CODES.map((code) => ({ code, name: countryName(code, i18n.language) })).sort((a, b) =>
+        a.name.localeCompare(b.name, i18n.language),
+      ),
+    [i18n.language],
+  );
+  const capital = country ? capitalOf(country) : null;
+
+  const latValue = lat.trim() === "" ? null : parseCoordinate(lat);
+  const lonValue = lon.trim() === "" ? null : parseCoordinate(lon);
+  const problems: Record<"country" | "latitude" | "longitude" | "pair", boolean> = {
+    country: country === "",
+    latitude: lat.trim() !== "" && (latValue === null || Math.abs(latValue) > 90),
+    longitude: lon.trim() !== "" && (lonValue === null || Math.abs(lonValue) > 180),
+    pair: (lat.trim() === "") !== (lon.trim() === ""),
+  };
+  const valid = !Object.values(problems).some(Boolean);
+  const unchanged =
+    home !== null &&
+    home.country === country &&
+    (home.lat === null ? lat.trim() === "" : parseCoordinate(lat) === home.lat) &&
+    (home.lon === null ? lon.trim() === "" : parseCoordinate(lon) === home.lon);
+
+  const save = useMutation({
+    mutationFn: () =>
+      api("/attacks/settings", {
+        method: "PATCH",
+        body: { home: { country, lat: latValue, lon: lonValue } },
+      }),
+    onMutate: () => setServerCodes([]),
+    onSuccess: async () => {
+      toast.success(t("attacks.settings.homeSaved"));
+      await onChanged();
+    },
+    onError: (e) => setServerCodes(fieldCodes(e)),
+  });
+  const remove = useMutation({
+    mutationFn: () => api("/attacks/settings", { method: "PATCH", body: { home: null } }),
+    onSuccess: async () => {
+      setCountry("");
+      setLat("");
+      setLon("");
+      toast.success(t("attacks.settings.homeRemoved"));
+      await onChanged();
+    },
+  });
+  const shown = (key: "country" | "latitude" | "longitude" | "pair") =>
+    (problems[key] && key !== "country" && key !== "pair") || serverCodes.includes(`home_${key}`)
+      ? t(`attacks.settings.homeErrors.${key}`)
+      : null;
+  const point = resolveHomePoint(home);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (valid) save.mutate();
+  };
+  return (
+    <Card>
+      <CardHeader
+        title={t("attacks.settings.homeTitle")}
+        description={t("attacks.settings.homeDescription")}
+      />
+      <form onSubmit={submit} className="grid max-w-[40rem] gap-3 px-5 pb-5" data-testid="home-form">
+        <FormField label={t("attacks.settings.homeCountry")} error={shown("country")}>
+          {(control) => (
+            <Select
+              {...control}
+              className="w-full"
+              value={country}
+              onChange={(e) => {
+                setCountry(e.currentTarget.value);
+                setLat("");
+                setLon("");
+                setServerCodes([]);
+              }}
+            >
+              <option value="">{t("attacks.settings.homeCountryNone")}</option>
+              {countries.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </FormField>
+        <FormRow columns={2} from="sm">
+          <Field
+            label={t("attacks.settings.homeLat")}
+            inputMode="decimal"
+            autoComplete="off"
+            value={lat}
+            onChange={(e) => setLat(e.currentTarget.value)}
+            error={shown("latitude") ?? (problems.pair ? t("attacks.settings.homeErrors.pair") : null)}
+          />
+          <Field
+            label={t("attacks.settings.homeLon")}
+            inputMode="decimal"
+            autoComplete="off"
+            value={lon}
+            onChange={(e) => setLon(e.currentTarget.value)}
+            error={shown("longitude")}
+          />
+        </FormRow>
+        <p className="text-sm text-muted-foreground">{t("attacks.settings.homePointHint")}</p>
+        {capital ? (
+          <div>
+            <Button
+              variant="outline"
+              className="h-9 px-3 text-sm"
+              onClick={() => {
+                setLat(String(capital.lat));
+                setLon(String(capital.lon));
+              }}
+            >
+              {t("attacks.settings.homeUseCapital", { capital: capital.name })}
+            </Button>
+          </div>
+        ) : null}
+        {point ? (
+          <p className="text-sm text-muted-foreground" data-testid="home-current">
+            {point.source === "set"
+              ? t("attacks.settings.homeEndsPoint", { lat: point.lat, lon: point.lon })
+              : t("attacks.settings.homeEndsCapital", {
+                  capital: capitalOf(home?.country ?? "")?.name ?? "",
+                })}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" disabled={!valid || save.isPending || unchanged}>
+            {t("attacks.settings.homeSave")}
+          </Button>
+          {home ? (
+            <Button variant="outline" disabled={remove.isPending} onClick={() => remove.mutate()}>
+              {t("attacks.settings.homeRemove")}
+            </Button>
+          ) : null}
+        </div>
+        {(save.isError && serverCodes.length === 0) || remove.isError ? (
+          <Alert tone="error">{t("errors.actionFailed")}</Alert>
+        ) : null}
+      </form>
+    </Card>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Live feed                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/** How often the worker asks the Wazuh indexer for the newest attack alerts, and from which rule level on. */
+function LiveFeedCard({ data, onChanged }: Pick<CardProps, "data" | "onChanged">) {
+  const { t } = useTranslation();
+  const feed = data.liveFeed;
+  const [enabled, setEnabled] = useState(feed?.enabled ?? true);
+  const [interval, setInterval] = useState(String(feed?.intervalSeconds ?? 30));
+  const [level, setLevel] = useState(String(feed?.minLevel ?? 7));
+  const [serverCodes, setServerCodes] = useState<string[]>([]);
+  const limits = feed?.limits;
+  const intervalOk =
+    !!limits &&
+    /^\d{1,3}$/.test(interval) &&
+    Number(interval) >= limits.intervalSeconds.min &&
+    Number(interval) <= limits.intervalSeconds.max;
+  const levelOk =
+    !!limits &&
+    /^\d{1,2}$/.test(level) &&
+    Number(level) >= limits.minLevel.min &&
+    Number(level) <= limits.minLevel.max;
+  const unchanged =
+    !!feed &&
+    feed.enabled === enabled &&
+    feed.intervalSeconds === Number(interval) &&
+    feed.minLevel === Number(level);
+  const save = useMutation({
+    mutationFn: () =>
+      api("/attacks/settings", {
+        method: "PATCH",
+        body: { liveFeed: { enabled, intervalSeconds: Number(interval), minLevel: Number(level) } },
+      }),
+    onMutate: () => setServerCodes([]),
+    onSuccess: async () => {
+      toast.success(t("attacks.settings.liveSaved"));
+      await onChanged();
+    },
+    onError: (e) => setServerCodes(fieldCodes(e)),
+  });
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (intervalOk && levelOk) save.mutate();
+  };
+  return (
+    <Card>
+      <CardHeader
+        title={t("attacks.settings.liveTitle")}
+        description={t("attacks.settings.liveDescription")}
+      />
+      {!feed || !limits ? (
+        <p className="px-5 pb-5 text-muted-foreground">{t("attacks.settings.liveNoConnection")}</p>
+      ) : (
+        <form onSubmit={submit} className="grid max-w-[40rem] gap-3 px-5 pb-5" data-testid="live-form">
+          <label className="flex items-start gap-2.5">
+            <Checkbox
+              className="mt-1"
+              checked={enabled}
+              onChange={(e) => setEnabled(e.currentTarget.checked)}
+            />
+            <span className="font-medium">{t("attacks.settings.liveEnable")}</span>
+          </label>
+          <FormRow columns={2} from="sm">
+            <Field
+              label={t("attacks.settings.liveInterval")}
+              hint={t("attacks.settings.liveIntervalHint", {
+                min: limits.intervalSeconds.min,
+                max: limits.intervalSeconds.max,
+              })}
+              type="number"
+              inputMode="numeric"
+              min={limits.intervalSeconds.min}
+              max={limits.intervalSeconds.max}
+              value={interval}
+              onChange={(e) => setInterval(e.currentTarget.value)}
+              error={
+                !intervalOk || serverCodes.includes("interval_range")
+                  ? t("attacks.settings.liveErrors.interval")
+                  : null
+              }
+            />
+            <Field
+              label={t("attacks.settings.liveLevel")}
+              hint={t("attacks.settings.liveLevelHint", {
+                min: limits.minLevel.min,
+                max: limits.minLevel.max,
+              })}
+              type="number"
+              inputMode="numeric"
+              min={limits.minLevel.min}
+              max={limits.minLevel.max}
+              value={level}
+              onChange={(e) => setLevel(e.currentTarget.value)}
+              error={
+                !levelOk || serverCodes.includes("level_range")
+                  ? t("attacks.settings.liveErrors.level")
+                  : null
+              }
+            />
+          </FormRow>
+          <LiveStatusLine live={feed} canEdit={false} hideActions />
+          {feed.lastPollAt ? (
+            <p className="text-sm text-muted-foreground">
+              {t("attacks.settings.liveLastPoll", { when: formatRelative(feed.lastPollAt) })}
+            </p>
+          ) : null}
+          <div>
+            <Button type="submit" disabled={!intervalOk || !levelOk || save.isPending || unchanged}>
+              {t("attacks.settings.liveSave")}
+            </Button>
+          </div>
+          {save.isError && serverCodes.length === 0 ? (
+            <Alert tone="error">{t("errors.actionFailed")}</Alert>
+          ) : null}
+        </form>
+      )}
+    </Card>
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -411,11 +703,17 @@ function RetentionCard({ data, stepUp, onChanged }: CardProps) {
   });
   const purge = useMutation({
     mutationFn: () =>
-      api<{ sourceAddresses: number; attackWindows: number }>("/attacks/data", { method: "DELETE" }),
+      api<{ sourceAddresses: number; attackWindows: number; attackEvents: number }>("/attacks/data", {
+        method: "DELETE",
+      }),
     onSuccess: async (result) => {
       setPurging(false);
       toast.success(
-        t("attacks.settings.purged", { sources: result.sourceAddresses, windows: result.attackWindows }),
+        t("attacks.settings.purged", {
+          sources: result.sourceAddresses,
+          windows: result.attackWindows,
+          events: result.attackEvents,
+        }),
       );
       await onChanged();
     },

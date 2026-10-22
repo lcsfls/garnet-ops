@@ -25,8 +25,8 @@ read-only Proxmox VE view of nodes, VMs and containers with a pinned API certifi
 fixed version, opened with a separate write token per repository and always left to your review
 ([docs/fix-prs.md](docs/fix-prs.md)), a read-only XDR page for your own Wazuh with alerts,
 MITRE ATT&CK tactics, file integrity, agents and an enrollment helper
-([docs/xdr.md](docs/xdr.md)), an attack overview with a world map from local GeoIP data you load yourself
-([docs/attacks.md](docs/attacks.md)), a grade from A to F per repository and server that shows
+([docs/xdr.md](docs/xdr.md)), an attack overview with a globe or world map from local GeoIP data you load yourself and a live
+list of the newest Wazuh attack alerts ([docs/attacks.md](docs/attacks.md)), a grade from A to F per repository and server that shows
 what to look at first ([docs/grades.md](docs/grades.md)), a bell with your own notifications, toast messages and a
 matrix of what you receive in the app and by email ([docs/notifications.md](docs/notifications.md)), sign-in with your
 LDAP or Active Directory account, roles from directory groups and a second factor for everyone
@@ -48,7 +48,7 @@ linked into GarnetOps; the full list with versions and licences is in
 | API | [Node.js 24](https://nodejs.org), [Hono](https://hono.dev), [Drizzle ORM](https://orm.drizzle.team) | MIT, MIT, Apache-2.0 | REST API under `/api/v1`, migrations |
 | Sign-in | [better-auth](https://www.better-auth.com) | MIT | Accounts, sessions, mandatory TOTP; passwords hashed with Argon2id (`node:crypto`) |
 | Web app | [React 19](https://react.dev), [TanStack Router and Query](https://tanstack.com), [Tailwind CSS](https://tailwindcss.com), [Lucide](https://lucide.dev), [i18next](https://www.i18next.com) | MIT, MIT, MIT, ISC, MIT | The interface in English and German, fonts and icons served by GarnetOps itself |
-| Attack overview | [DB-IP Lite](https://db-ip.com) (country and ASN), [Natural Earth](https://www.naturalearthdata.com) | CC BY 4.0, public domain | Location of attacking addresses from tables you load yourself (never shipped), and the country shapes of the map. IP geolocation by DB-IP (db-ip.com), CC BY 4.0 |
+| Attack overview | [DB-IP Lite](https://db-ip.com) (country and ASN), [Natural Earth](https://www.naturalearthdata.com), [d3-geo](https://github.com/d3/d3-geo) | CC BY 4.0, public domain, ISC | Location of attacking addresses from tables you load yourself (never shipped), the country shapes of the map and the globe (drawn by d3-geo). IP geolocation by DB-IP (db-ip.com), CC BY 4.0 |
 | Updates (optional) | [cicd-updater](https://github.com/restow-backup/cicd-updater) | Apache-2.0 | Installs signed releases with a backup first, once releases exist |
 
 Secrets you store (access tokens, deploy keys) are sealed with a post-quantum hybrid

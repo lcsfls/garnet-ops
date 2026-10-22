@@ -8,7 +8,8 @@
  * parsers read only the fields they know, check each against a pattern or a range, cap sizes and
  * counts, and drop what does not fit instead of failing the whole sync. Nothing here executes,
  * evaluates or interpolates what Wazuh sent, and no query is ever built from outside input: the
- * indexer queries are fixed templates that take an enumerated window and nothing else.
+ * indexer queries are fixed templates that take an enumerated window, or (the live feed) a time we parsed
+ * ourselves and a rule level between fixed bounds, and nothing else.
  *
  * Field names and index patterns of Wazuh are an external contract we do not control. They live
  * in the adapters below, one per major version, so a change in a release touches one place.
@@ -49,6 +50,11 @@ export const MAX_GROUPS_PER_AGENT = 20;
 export const MAX_GROUPS_PER_SOURCE = 5;
 /** Agents named per source address on the attack overview (ADR 0016). */
 export const MAX_AGENTS_PER_SOURCE = 5;
+/** The live attack feed (ADR 0021): alerts per request, and the bounds of the rule level an admin can choose. */
+export const LIVE_PAGE_SIZE = 50;
+export const LIVE_LEVEL_MIN = 3;
+export const LIVE_LEVEL_MAX = 15;
+export const LIVE_SEARCH_TIMEOUT = "10s";
 
 /* -------------------------------------------------------------------------- */
 /* What an admin types                                                         */
@@ -226,6 +232,8 @@ export interface WazuhAdapter {
     agentId: string;
     agentName: string;
     sourceIp: string;
+    ruleId: string;
+    ruleDescription: string;
     fimPath: string;
     fimEvent: string;
   };
@@ -241,6 +249,8 @@ const SHARED_FIELDS: WazuhAdapter["fields"] = {
   agentId: "agent.id",
   agentName: "agent.name",
   sourceIp: "data.srcip",
+  ruleId: "rule.id",
+  ruleDescription: "rule.description",
   fimPath: "syscheck.path",
   fimEvent: "syscheck.event",
 };
@@ -386,7 +396,8 @@ export type IndexerQuery =
   | { kind: "alertStats"; window: Window }
   | { kind: "alertStatsPrevious"; window: Window }
   | { kind: "fimLatest" }
-  | { kind: "vulnerabilityStats" };
+  | { kind: "vulnerabilityStats" }
+  | { kind: "liveAlerts"; since: Date; minLevel: number };
 
 export interface IndexerRequest {
   method: "POST";
@@ -499,6 +510,48 @@ export function buildIndexerRequest(adapter: WazuhAdapter, query: IndexerQuery):
           query: { bool: { filter: [range(f.timestamp, "now-7d"), { term: { [f.groups]: "syscheck" } }] } },
         },
       };
+    case "liveAlerts": {
+      // The live attack feed (ADR 0021). The only inputs are a time we parsed ourselves (a Date, written out in
+      // one fixed format) and a whole number between the bounds; neither can carry query syntax. The fields asked
+      // for are the ones the page shows: never `full_log`, never the data of the alert beyond its source address.
+      const { since, minLevel } = query;
+      if (!(since instanceof Date) || !Number.isFinite(since.getTime())) throw new Error("Invalid time");
+      if (!Number.isInteger(minLevel) || minLevel < LIVE_LEVEL_MIN || minLevel > LIVE_LEVEL_MAX) {
+        throw new Error("Invalid rule level");
+      }
+      return {
+        method: "POST",
+        path: `${alerts}/_search`,
+        body: {
+          size: LIVE_PAGE_SIZE,
+          timeout: LIVE_SEARCH_TIMEOUT,
+          track_total_hits: false,
+          // Oldest first, so the cursor can follow the newest alert read. Alerts with the same time are read
+          // again at the next poll (the lower bound includes the cursor) and stored once.
+          sort: [{ [f.timestamp]: { order: "asc", unmapped_type: "date" } }],
+          _source: [
+            f.timestamp,
+            f.ruleId,
+            f.level,
+            f.ruleDescription,
+            f.groups,
+            f.agentId,
+            f.agentName,
+            f.sourceIp,
+          ],
+          query: {
+            bool: {
+              filter: [
+                range(f.timestamp, since.toISOString(), "now"),
+                { range: { [f.level]: { gte: minLevel } } },
+                { terms: { [f.groups]: [...ATTACK_GROUPS] } },
+                { exists: { field: f.sourceIp } },
+              ],
+            },
+          },
+        },
+      };
+    }
     case "vulnerabilityStats": {
       const v = adapter.vulnerabilityFields;
       return {
@@ -971,6 +1024,87 @@ export function parseFimEvents(body: unknown, adapter: WazuhAdapter): FimEvent[]
     });
   }
   return out;
+}
+
+/** One alert of the live attack feed (ADR 0021). Description and agent name are attacker-influenced text. */
+export interface LiveAlert {
+  /** The id of the document in the indexer. */
+  docId: string;
+  at: Date;
+  ip: string;
+  ruleId: string;
+  level: number;
+  /** Plain text. Attacker controlled: never a link, never HTML, never sent to the model. */
+  description: string;
+  groups: string[];
+  agentId: string;
+  agentName: string;
+}
+
+export const LIVE_DESCRIPTION_MAX = 200;
+const DOC_ID = /^[A-Za-z0-9_.:-]{1,100}$/;
+
+/**
+ * The alerts of a live poll. Every hit is read on its own and dropped if it lacks an id, a valid time or a valid
+ * source address; the fields are the ones the query asked for and nothing else is read (a `full_log` in the
+ * answer is ignored, never stored). `fullPage` says that the indexer returned as many hits as it may, so more
+ * may be waiting; `latest` is the newest valid time of any hit, even one that was dropped for another reason, so
+ * the cursor can always move on. Null when the answer has no hits list at all.
+ */
+export function parseLiveAlerts(
+  body: unknown,
+  adapter: WazuhAdapter,
+): { alerts: LiveAlert[]; dropped: number; fullPage: boolean; latest: Date | null } | null {
+  const hits = asRecord(asRecord(body)?.hits)?.hits;
+  if (!Array.isArray(hits)) return null;
+  const f = adapter.fields;
+  const alerts: LiveAlert[] = [];
+  let dropped = Math.max(0, hits.length - LIVE_PAGE_SIZE);
+  let latest: Date | null = null;
+  for (const hit of hits.slice(0, LIVE_PAGE_SIZE)) {
+    const record = asRecord(hit);
+    const source = asRecord(record?._source);
+    const docId = record?._id;
+    if (!source) {
+      dropped++;
+      continue;
+    }
+    const pick = (field: string) => (field in source ? source[field] : nested(source, field));
+    const at = plausibleDate(pick(f.timestamp));
+    if (at && (!latest || at > latest)) latest = at;
+    const rawIp = pick(f.sourceIp);
+    const ip = typeof rawIp === "string" ? rawIp.trim() : "";
+    if (!at || typeof docId !== "string" || !DOC_ID.test(docId) || !isIP(ip)) {
+      dropped++;
+      continue;
+    }
+    const level = Number(pick(f.level));
+    if (!Number.isInteger(level) || level < 0 || level > 15) {
+      dropped++;
+      continue;
+    }
+    const rawRule = pick(f.ruleId);
+    const ruleId = typeof rawRule === "string" || typeof rawRule === "number" ? String(rawRule) : "";
+    const description = pick(f.ruleDescription);
+    const rawGroups = pick(f.groups);
+    const groups = (Array.isArray(rawGroups) ? rawGroups : [])
+      .filter((g): g is string => typeof g === "string" && (ATTACK_GROUPS as readonly string[]).includes(g))
+      .slice(0, MAX_GROUPS_PER_SOURCE);
+    const agentId = String(pick(f.agentId) ?? "");
+    const agentName = pick(f.agentName);
+    alerts.push({
+      docId,
+      at,
+      ip,
+      ruleId: /^\d{1,10}$/.test(ruleId) ? ruleId : "",
+      level,
+      description: typeof description === "string" ? clean(description, LIVE_DESCRIPTION_MAX) : "",
+      groups,
+      agentId: /^\d{1,8}$/.test(agentId) ? agentId : "",
+      agentName: typeof agentName === "string" ? clean(agentName, 128) : "",
+    });
+  }
+  return { alerts, dropped, fullPage: hits.length >= LIVE_PAGE_SIZE, latest };
 }
 
 /** Vulnerability states per agent id, by severity. Null when the answer has no aggregation. */

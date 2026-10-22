@@ -160,6 +160,10 @@ role above is spelled out.
 - **Vulnerabilities on agents**: how many agents the indexer reports vulnerability states for, and
   the counts by severity.
 - **MITRE ATT&CK tactics** in a table, top 20, and the **ten busiest agents**.
+- **Latest alerts**: the newest attack and authentication-failure alerts as they arrive, a compact list of
+  eight from the live feed ([attacks.md](attacks.md), section 4), with a line that says honestly whether it is live
+  ("Live — last event 12 s ago"), waiting, paused or switched off. Description and agent name are text from the alert
+  and are shown as plain text.
 - **File integrity**: the latest 25 events (time, agent, event and path). The path is **text**,
   never a link, and control and direction-changing characters are removed.
 - **Agents**: sortable, filterable (status, linked server) and searchable; on wider screens more
@@ -198,6 +202,16 @@ Indexer:
   with queries built from fixed templates. The only input is the period (24h, 7d, 30d). They ask
   for counts by level, by MITRE tactic, by agent and by source address, 25 file integrity events
   and vulnerability counts per agent.
+
+Every 30 seconds by default (15 to 300, per connection) the worker also asks the indexer for the **newest attack
+alerts** with one more fixed template (the live feed, [ADR 0021](adr/0021-globe-view-and-live-attack-feed.md)):
+one `POST …/wazuh-alerts-*/_search`, at most 50 alerts, oldest first, from the last alert it saw, at the rule level
+you chose (7 and up by default), and only these fields: time, rule id, level, description and groups, agent id and
+name, and the source address. It never reads `full_log`, the source port, the user name that was tried or any other
+field. It runs only while the connection is switched on and healthy (both certificates confirmed and unchanged, extra
+privileges acknowledged, one sync done), backs off on errors (up to ten minutes), and can be switched off under
+Settings, Attack overview, Live feed. It needs no new permission: the indexer role in section 2 already reads
+`wazuh-alerts-*`.
 
 Any other method or path is refused inside GarnetOps **before** a connection is opened. Limits per
 sync: 8 MB per answer, 200 requests, 5 minutes. A sync that cannot read one part (a role without
@@ -277,14 +291,17 @@ Wazuh hosts.
 Everything security-relevant is in the audit log under **XDR**: connection created, changed or
 removed, user or password changed (never the password), certificate authority uploaded or removed,
 certificate check requested, confirmed or found changed, extra privileges detected or
-acknowledged, agent linked or unlinked, sync started by hand, AI summary requested. The log never contains a password, a token or a certificate.
+acknowledged, agent linked or unlinked, sync started by hand, AI summary requested. Changes to the live feed
+(on or off, interval, lowest rule level) and to the home location of the attack overview are under **Attacks**. The log never contains a password, a token or a certificate.
 
 ## Limits and what is not done yet
 
 - One Wazuh connection per organisation in this version.
 - Not tested against a real Wazuh installation; the 5.x field and index names are assumptions
   until 5.0 is generally available.
-- No alert list and no drill-down: use the link to your Wazuh dashboard.
+- No alert drill-down and no history of single alerts: the latest alerts are a window on the newest 50 (kept as
+  the newest 500 per connection, and only as long as the retention period of the attack overview). Use the link
+  to your Wazuh dashboard for everything deeper.
 - Wazuh's package inventory in the host inventory is on the roadmap. The attack overview is
   described in [attacks.md](attacks.md).
 - Windows and macOS command templates follow the Wazuh documentation but are not tested on those

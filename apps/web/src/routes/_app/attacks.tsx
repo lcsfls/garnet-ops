@@ -1,8 +1,10 @@
+import { resolveHomePoint } from "@garnetops/core/home-location";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp, Globe, Minus, Server, Settings } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AttackEventsCard } from "../../components/attack-events.tsx";
 import { AttackMap } from "../../components/attack-map.tsx";
 import { AttackSources } from "../../components/attack-sources.tsx";
 import { AttackSummaryCard } from "../../components/attack-summary.tsx";
@@ -13,9 +15,11 @@ import { Banner } from "../../components/ui/alert.tsx";
 import { Badge } from "../../components/ui/badge.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { api } from "../../lib/api.ts";
+import { useAttackFeed } from "../../lib/attack-feed.ts";
 import { countryName } from "../../lib/attacks.ts";
 import { cn } from "../../lib/cn.ts";
 import { formatDateTime, formatNumber, formatRelative } from "../../lib/format.ts";
+import { type MapView, readMapView, writeMapView } from "../../lib/globe.ts";
 import { type AttacksSearch, attacksSearch } from "../../lib/search.ts";
 import type { AttackOverview } from "../../lib/types.ts";
 import { changeOf, PERIOD_KEY } from "../../lib/xdr.ts";
@@ -27,6 +31,9 @@ export const Route = createFileRoute("/_app/attacks")({
 
 const PERIODS = ["24h", "7d", "30d"] as const;
 const SHOWN = 10;
+
+/** The globe and d3-geo are a chunk of their own, loaded when the globe is shown (not for the flat map). */
+const AttackGlobe = lazy(() => import("../../components/attack-globe.tsx"));
 
 /** Infrastructure, Attacks (ADR 0016): where the attacks that Wazuh reports come from. Read-only. */
 function AttacksPage() {
@@ -44,6 +51,14 @@ function AttacksPage() {
   });
   const setSearch = (patch: Partial<AttacksSearch>, replace = false) =>
     navigate({ search: (prev) => ({ ...prev, ...patch }), replace });
+  // Globe or flat map: remembered in this browser only (try/catch inside; the globe if storage is unavailable).
+  const [mapView, setMapView] = useState<MapView>(readMapView);
+  const chooseView = (view: MapView) => {
+    setMapView(view);
+    writeMapView(view);
+  };
+  // The latest events (ADR 0021): a stream, with polling as the fallback.
+  const feed = useAttackFeed({ enabled: overview.data?.connected === true });
   const header = (
     <PageHeader icon={Globe} title={t("attacks.title")} description={t("attacks.description")} />
   );
@@ -86,6 +101,7 @@ function AttacksPage() {
   const staleDataset =
     data.geoip.datasets.find((d) => d.kind === "country" && d.active?.stale)?.active ?? null;
   const w = data.window;
+  const home = resolveHomePoint(data.home);
   const periodChoice = (
     <Segmented
       label={t("xdr.periodLabel")}
@@ -165,12 +181,63 @@ function AttacksPage() {
         <div className="grid gap-4">
           <Figures data={data} />
           <div className="grid items-start gap-4 @wide:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] @xwide:grid-cols-[minmax(0,5fr)_minmax(0,3fr)_minmax(0,3fr)]">
-            <Card className="@wide:row-span-3 @xwide:row-span-2">
+            <Card className="@wide:col-start-1 @wide:row-span-2 @wide:row-start-1">
               <CardHeader
                 title={t("attacks.mapTitle")}
                 description={t("attacks.mapDescription", { count: w.listedSources })}
+                actions={
+                  <Segmented
+                    label={t("attacks.globe.viewLabel")}
+                    value={mapView}
+                    options={[
+                      { value: "globe", label: t("attacks.globe.viewGlobe") },
+                      { value: "map", label: t("attacks.globe.viewMap") },
+                    ]}
+                    onChange={chooseView}
+                  />
+                }
               />
-              <AttackMap countries={w.countries} selected={search.country} />
+              {mapView === "globe" ? (
+                <Suspense
+                  fallback={
+                    <p
+                      role="status"
+                      className="grid min-h-72 place-items-center px-5 pb-5 text-muted-foreground"
+                    >
+                      {t("attacks.globe.loading")}
+                    </p>
+                  }
+                >
+                  <AttackGlobe
+                    countries={w.countries}
+                    home={home}
+                    osintEnabled={data.osint.enabled}
+                    events={feed.events}
+                    selected={search.country}
+                  />
+                </Suspense>
+              ) : (
+                <AttackMap countries={w.countries} selected={search.country} />
+              )}
+              {mapView === "globe" && !home ? (
+                <div
+                  className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t px-5 py-2.5 text-sm text-muted-foreground"
+                  data-testid="attack-no-home"
+                >
+                  <span className="min-w-0 flex-[1_1_20rem]">
+                    {canEdit ? t("attacks.globe.noHomeText") : t("attacks.globe.noHomeMember")}
+                  </span>
+                  {canEdit ? (
+                    <Link
+                      to="/settings"
+                      search={{ section: "attacks" }}
+                      className="inline-flex h-8 items-center rounded-md border border-input bg-card px-3 font-medium text-foreground shadow-xs hover:bg-accent"
+                    >
+                      {t("attacks.globe.noHomeLink")}
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
               <p className="border-t px-5 py-2.5 text-sm text-muted-foreground">
                 {t("attacks.coverage", {
                   listed: formatNumber(w.listedSources),
@@ -187,18 +254,30 @@ function AttacksPage() {
                 ) : null}
               </p>
             </Card>
+            <AttackEventsCard
+              className="@wide:col-start-2 @wide:row-start-1 @xwide:row-span-2"
+              scrollClassName="@wide:max-h-[26rem] @xwide:max-h-[min(64vh,46rem)]"
+              events={feed.events}
+              live={feed.live ?? data.live}
+              connected={feed.connected}
+              query={feed.query}
+              osintEnabled={data.osint.enabled}
+              canEdit={canEdit}
+            />
             <CountriesCard
+              className="@wide:col-start-2 @wide:row-start-2 @xwide:col-start-3 @xwide:row-start-1"
               data={data}
               selected={search.country}
               onSelect={(country) => setSearch({ country, cursor: undefined })}
             />
             <NetworksCard
+              className="@wide:col-start-1 @wide:row-start-3 @xwide:col-start-3 @xwide:row-start-2"
               data={data}
               selected={search.asn}
               onSelect={(asn) => setSearch({ asn, cursor: undefined })}
             />
             <AgentsCard
-              className="@xwide:col-span-2"
+              className="@wide:col-start-2 @wide:row-start-3 @xwide:col-span-3 @xwide:col-start-1"
               data={data}
               selected={search.agent}
               onSelect={(agent, name) => setSearch({ agent, agentName: name, cursor: undefined })}
@@ -368,7 +447,9 @@ function CountriesCard({
   data,
   selected,
   onSelect,
+  className,
 }: {
+  className?: string;
   data: AttackOverview;
   selected: string | undefined;
   onSelect: (country: string | undefined) => void;
@@ -382,7 +463,7 @@ function CountriesCard({
   const pick = (code: string) => onSelect(selected === code ? undefined : code);
   const button = "text-left hover:underline aria-pressed:font-semibold";
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader title={t("attacks.countriesTitle")} description={t("attacks.countriesDescription")} />
       <table className="w-full text-left" data-testid="attack-countries">
         <thead className="text-sm text-muted-foreground">
@@ -471,7 +552,9 @@ function NetworksCard({
   data,
   selected,
   onSelect,
+  className,
 }: {
+  className?: string;
   data: AttackOverview;
   selected: string | undefined;
   onSelect: (asn: string | undefined) => void;
@@ -483,7 +566,7 @@ function NetworksCard({
   const rows = open ? w.asns : w.asns.slice(0, SHOWN);
   const max = Math.max(1, ...w.asns.map((a) => a.alerts));
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader title={t("attacks.networksTitle")} description={t("attacks.networksDescription")} />
       {w.asns.length === 0 ? (
         <p className="px-5 pb-5 text-muted-foreground">
