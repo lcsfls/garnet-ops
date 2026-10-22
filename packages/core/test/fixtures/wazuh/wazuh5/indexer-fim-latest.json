@@ -1,0 +1,122 @@
+{
+  "took": 12,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 18,
+      "relation": "eq"
+    },
+    "hits": [
+      {
+        "_index": "wazuh-alerts-4.x-2026.10.21",
+        "_id": "a1",
+        "_source": {
+          "@timestamp": "2026-10-21T07:55:00.000Z",
+          "agent": {
+            "id": "001",
+            "name": "web-01"
+          },
+          "syscheck": {
+            "path": "/etc/passwd",
+            "event": "modified"
+          },
+          "rule": {
+            "level": 7,
+            "id": "550"
+          }
+        }
+      },
+      {
+        "_id": "a2",
+        "_source": {
+          "@timestamp": "2026-10-21T07:40:00.000Z",
+          "agent": {
+            "id": "002",
+            "name": "db-01"
+          },
+          "syscheck": {
+            "path": "/var/lib/app/new.sh",
+            "event": "added"
+          },
+          "rule": {
+            "level": 5
+          }
+        }
+      },
+      {
+        "_id": "a3",
+        "_source": {
+          "@timestamp": "2026-10-21T07:30:00.000Z",
+          "agent": {
+            "id": "004",
+            "name": "win-fs01"
+          },
+          "syscheck": {
+            "path": "C:\\Windows\\System32\\drivers\\etc\\hosts",
+            "event": "modified"
+          },
+          "rule": {
+            "level": 7
+          }
+        }
+      },
+      {
+        "_id": "a4",
+        "_source": {
+          "@timestamp": "2026-10-21T07:20:00.000Z",
+          "agent": {
+            "id": "001",
+            "name": "web-01"
+          },
+          "syscheck": {
+            "path": "/tmp/\u202eevil\u0000.txt https://evil.example/<img src=x onerror=alert(1)>",
+            "event": "deleted"
+          },
+          "rule": {
+            "level": 12
+          }
+        }
+      },
+      {
+        "_id": "a5",
+        "_source": {
+          "@timestamp": "2026-10-21T07:10:00.000Z",
+          "agent": {
+            "id": "001",
+            "name": "web-01"
+          },
+          "syscheck": {
+            "event": "modified"
+          },
+          "rule": {
+            "level": 7
+          }
+        }
+      },
+      {
+        "_id": "a6",
+        "_source": {
+          "@timestamp": "not a date",
+          "agent": {
+            "id": "001"
+          },
+          "syscheck": {
+            "path": "/etc/shadow",
+            "event": "modified"
+          }
+        }
+      },
+      {
+        "_id": "a7",
+        "_source": {
+          "@timestamp": "2026-10-21T07:00:00.000Z",
+          "agent.id": "003",
+          "agent.name": "app-02.example.lan",
+          "syscheck.path": "/etc/hosts",
+          "syscheck.event": "something-new",
+          "rule.level": 99
+        }
+      }
+    ]
+  }
+}

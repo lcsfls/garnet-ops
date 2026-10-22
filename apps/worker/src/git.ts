@@ -105,17 +105,22 @@ export function sshCommand(ssh: SshOptions): string {
   ].join(" ");
 }
 
-/** Finds the ssh client on PATH (absolute path), or null. */
-export function findSsh(path = process.env.PATH ?? ""): string | null {
-  const names = platform() === "win32" ? ["ssh.exe"] : ["ssh"];
+/** Finds a program on PATH (absolute path), or null. Relative PATH entries are ignored. */
+export function findOnPath(name: string, path = process.env.PATH ?? ""): string | null {
+  const names = platform() === "win32" ? [`${name}.exe`] : [name];
   for (const dir of path.split(delimiter)) {
     if (!dir || !isAbsolute(dir)) continue;
-    for (const name of names) {
-      const candidate = join(dir, name);
-      if (existsSync(candidate)) return candidate;
+    for (const candidate of names) {
+      const full = join(dir, candidate);
+      if (existsSync(full)) return full;
     }
   }
   return null;
+}
+
+/** Finds the ssh client on PATH (absolute path), or null. */
+export function findSsh(path = process.env.PATH ?? ""): string | null {
+  return findOnPath("ssh", path);
 }
 
 let kexCache: { bin: string; kex: string[] } | null = null;

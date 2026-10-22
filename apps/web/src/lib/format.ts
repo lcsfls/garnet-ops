@@ -1,5 +1,6 @@
 import { relativeTime } from "./dates.ts";
 import { i18n } from "./i18n.ts";
+import { formatBytesIn } from "./units.ts";
 
 /** Absolute date and time in the UI language and the browser's time zone. */
 export function formatDateTime(value: string | Date): string {
@@ -49,3 +50,8 @@ export function formatPercent(share: number): string {
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat(i18n.language).format(value);
 }
+
+/** A size in bytes with binary units, e.g. 3221225472 -> "3 GiB"; one decimal below 10. */
+export const formatBytes = (bytes: number): string => formatBytesIn(bytes, i18n.language);
+
+export { formatDuration } from "./units.ts";

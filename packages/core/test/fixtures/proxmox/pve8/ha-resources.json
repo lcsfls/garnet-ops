@@ -1,0 +1,13 @@
+{
+  "data": [
+    {
+      "sid": "vm:100",
+      "state": "started",
+      "type": "vm",
+      "group": "prefer-pve1",
+      "max_relocate": 1,
+      "max_restart": 1,
+      "digest": "x"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "data": [
+    {
+      "name": "keep",
+      "snaptime": 1767600000
+    },
+    {
+      "name": "current",
+      "description": "You are here!",
+      "parent": "keep"
+    }
+  ]
+}

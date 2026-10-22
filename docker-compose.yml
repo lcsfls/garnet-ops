@@ -93,6 +93,8 @@ services:
       # "auto": daily vulnerability database updates from Anchore; "off" for air-gapped hosts.
       GARNETOPS_GRYPE_DB_UPDATE: ${GARNETOPS_GRYPE_DB_UPDATE:-auto}
       GARNETOPS_SCAN_CONCURRENCY: ${GARNETOPS_SCAN_CONCURRENCY:-2}
+      # Links in notifications point here (ADR 0010).
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
     tmpfs:
       # Clones live here and are deleted after each scan (scanned content never touches a volume).
       - /tmp:size=${GARNETOPS_WORK_TMPFS:-4g},mode=1777

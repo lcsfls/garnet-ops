@@ -1,0 +1,8 @@
+{
+  "data": {
+    "hostname": "cache-01",
+    "ostype": "debian",
+    "net0": "name=eth0,bridge=vmbr0,hwaddr=BC:24:11:00:00:02,ip=192.0.2.60/24,gw=192.0.2.1,type=veth",
+    "description": "cache"
+  }
+}

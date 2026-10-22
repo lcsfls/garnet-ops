@@ -10,7 +10,9 @@ import { db } from "./db.ts";
 import { env, vaultPrivateKey } from "./env.ts";
 import { type SshOptions, shallowClone, sshClient } from "./git.ts";
 import { addAdvisoryDates, type ParsedReport, parseReport, scanTarget } from "./grype.ts";
+import { type CollectedManifest, collectManifests } from "./manifests.ts";
 import { buildSbom, type Inventory, readSbom } from "./syft.ts";
+import { type Tx, upsertVulnerabilities } from "./vulnerability-store.ts";
 
 const f = schema.finding;
 
@@ -147,7 +149,15 @@ export async function runScan(scanId: string): Promise<void> {
     // A check of another ref (a pull request) must not change the repository's findings or
     // inventory, which describe its configured branch; it only records its gate result.
     if (scan.ref) await persistCheck(scan.id, repo, parsed, cloned, inventory);
-    else await persist(scan.id, repo, parsed, cloned, inventory);
+    else {
+      // The manifests feed the Fix proposals page (ADR 0014). They are read as data from the commit
+      // that was scanned; failing to read them never fails the scan (the page then has no proposals).
+      const manifests = await collectManifests(src, home).catch((error: Error) => {
+        console.error(`scan ${scanId}: manifests:`, error.message);
+        return null;
+      });
+      await persist(scan.id, repo, parsed, cloned, inventory, manifests);
+    }
   } catch (error) {
     if (error instanceof UserFacingError) await fail(scanId, error.message);
     else {
@@ -207,6 +217,7 @@ async function persist(
   parsed: ParsedReport,
   cloned: { commitSha: string; branch: string },
   inventory: Inventory | null,
+  manifests: CollectedManifest[] | null = null,
 ) {
   const now = new Date();
   const counts: Record<string, number> = {};
@@ -215,29 +226,7 @@ async function persist(
 
   await db.transaction(async (tx) => {
     const gate = await evaluateScanGate(tx, repo, parsed, inventory);
-    const vulns = [...parsed.vulnerabilities.values()];
-    for (let i = 0; i < vulns.length; i += 500) {
-      await tx
-        .insert(schema.vulnerability)
-        .values(vulns.slice(i, i + 500).map((v) => ({ ...v, updatedAt: now })))
-        .onConflictDoUpdate({
-          target: schema.vulnerability.id,
-          set: {
-            namespace: sql`excluded.namespace`,
-            severity: sql`excluded.severity`,
-            cvssScore: sql`excluded.cvss_score`,
-            cvssVector: sql`excluded.cvss_vector`,
-            description: sql`excluded.description`,
-            urls: sql`excluded.urls`,
-            aliases: sql`excluded.aliases`,
-            knownExploited: sql`excluded.known_exploited`,
-            epss: sql`excluded.epss`,
-            publishedAt: sql`excluded.published_at`,
-            modifiedAt: sql`excluded.modified_at`,
-            updatedAt: now,
-          },
-        });
-    }
+    await upsertVulnerabilities(tx, parsed.vulnerabilities.values(), now);
 
     const existing = await tx
       .select({ id: f.id, dedupKey: f.dedupKey, state: f.state, acceptedUntil: f.acceptedUntil })
@@ -337,6 +326,24 @@ async function persist(
         );
       }
     }
+    if (manifests) {
+      await tx.delete(schema.repositoryManifest).where(eq(schema.repositoryManifest.repositoryId, repo.id));
+      if (manifests.length > 0) {
+        await tx.insert(schema.repositoryManifest).values(
+          manifests.map((m) => ({
+            id: newId("mf"),
+            organizationId: repo.organizationId,
+            repositoryId: repo.id,
+            scanId,
+            path: m.path,
+            kind: m.kind,
+            blobSha: m.blobSha,
+            size: m.size,
+            dependencies: m.dependencies,
+          })),
+        );
+      }
+    }
     await tx
       .update(schema.repository)
       .set({ lastScanId: scanId, lastScanAt: now, updatedAt: now })
@@ -344,8 +351,6 @@ async function persist(
     await insertGateRun(tx, scanId, repo, gate);
   });
 }
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * The gate result of a scan (ADR 0008): its findings minus the repository's accepted risks,

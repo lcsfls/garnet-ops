@@ -1,0 +1,82 @@
+{
+  "took": 8,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 0,
+      "relation": "eq"
+    },
+    "hits": []
+  },
+  "aggregations": {
+    "agents": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "001",
+          "doc_count": 35,
+          "severity": {
+            "buckets": [
+              {
+                "key": "Medium",
+                "doc_count": 20
+              },
+              {
+                "key": "High",
+                "doc_count": 9
+              },
+              {
+                "key": "Low",
+                "doc_count": 4
+              },
+              {
+                "key": "Critical",
+                "doc_count": 2
+              }
+            ]
+          }
+        },
+        {
+          "key": "002",
+          "doc_count": 3,
+          "severity": {
+            "buckets": [
+              {
+                "key": "High",
+                "doc_count": 1
+              },
+              {
+                "key": "Medium",
+                "doc_count": 1
+              },
+              {
+                "key": "Untriaged",
+                "doc_count": 1
+              }
+            ]
+          }
+        },
+        {
+          "key": "003",
+          "doc_count": 12,
+          "severity": {
+            "buckets": [
+              {
+                "key": "Low",
+                "doc_count": 12
+              }
+            ]
+          }
+        },
+        {
+          "key": "004",
+          "doc_count": 0,
+          "severity": {
+            "buckets": []
+          }
+        }
+      ]
+    }
+  }
+}

@@ -152,7 +152,7 @@ The product must be sellable as on-premise software **and** offerable as a
 hosted service without license conflicts. This applies to every tool, library,
 dataset, font, icon and image.
 
-**Allowed without discussion:** MIT, BSD-2/3-Clause, ISC, Apache-2.0, 0BSD,
+**Allowed without discussion:** MIT, MIT-0, BSD-2/3-Clause, ISC, Apache-2.0, 0BSD,
 Zlib, Unlicense, CC0, SIL OFL 1.1 (fonts), CC BY 4.0 (data, with attribution).
 
 **Allowed with conditions:**

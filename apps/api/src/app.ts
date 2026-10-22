@@ -1,22 +1,29 @@
 import { createTokenVerifier } from "@restow-backup/cicd-updater/auth";
 import { Hono } from "hono";
-import { bodyLimit } from "hono/body-limit";
 import { createMiddleware } from "hono/factory";
 import { secureHeaders } from "hono/secure-headers";
 import { auth } from "./auth.ts";
 import { pool } from "./db.ts";
 import { env } from "./env.ts";
+import { requestBodyLimit } from "./lib/body-limit.ts";
 import { type AppEnv, requireActor } from "./lib/context.ts";
 import { handleError, ProblemError } from "./lib/problem.ts";
+import { aiRoutes } from "./routes/ai.ts";
+import { attackRoutes } from "./routes/attacks.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { findingRoutes } from "./routes/findings.ts";
+import { fixRoutes } from "./routes/fixes.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
 import { gateRoutes } from "./routes/gates.ts";
+import { hostSetupPublicRoutes } from "./routes/host-setup.ts";
+import { hostRoutes } from "./routes/hosts.ts";
 import { invitationRoutes } from "./routes/invitations.ts";
 import { meRoutes } from "./routes/me.ts";
+import { notificationRoutes } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
 import { overviewRoutes } from "./routes/overview.ts";
 import { packageRoutes } from "./routes/packages.ts";
+import { proxmoxRoutes } from "./routes/proxmox.ts";
 import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
 import { searchRoutes } from "./routes/search.ts";
@@ -24,6 +31,7 @@ import { setupRoutes } from "./routes/setup.ts";
 import { systemRoutes } from "./routes/system.ts";
 import { teamRoutes } from "./routes/team.ts";
 import { maintenanceRoutes, updateRoutes } from "./routes/updates.ts";
+import { xdrRoutes } from "./routes/xdr.ts";
 import { APP_VERSION } from "./version.ts";
 
 const publicOrigin = new URL(env.PUBLIC_URL).origin;
@@ -54,7 +62,7 @@ export const app = new Hono()
       strictTransportSecurity: "max-age=63072000; includeSubDomains",
     }),
   )
-  .use("*", bodyLimit({ maxSize: 1024 * 1024 }))
+  .use("*", requestBodyLimit)
   .get("/api/health", (c) => c.json({ ok: true }))
   /**
    * Readiness for the container health check and the update sidecar: 200 once the
@@ -83,6 +91,8 @@ export const app = new Hono()
   .route("/api/v1/gate", gateCiRoutes)
   .use("/api/v1/*", sameOrigin)
   .route("/api/v1/setup", setupRoutes)
+  // The host setup script is downloaded by a server, which has no session (ADR 0011).
+  .route("/api/v1/host-setup", hostSetupPublicRoutes)
   // Accepting an invitation happens before the person has an account (ADR 0009).
   .route("/api/v1/invitations", invitationRoutes);
 
@@ -94,12 +104,19 @@ const v1 = new Hono<AppEnv>()
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)
+  .route("/fixes", fixRoutes)
+  .route("/ai", aiRoutes)
   .route("/gates", gateRoutes)
   .route("/packages", packageRoutes)
   .route("/organization", organizationRoutes)
   .route("/audit-log", auditRoutes)
   .route("/system", systemRoutes)
   .route("/team", teamRoutes)
+  .route("/notifications", notificationRoutes)
+  .route("/hosts", hostRoutes)
+  .route("/proxmox", proxmoxRoutes)
+  .route("/xdr", xdrRoutes)
+  .route("/attacks", attackRoutes)
   .route("/maintenance", maintenanceRoutes)
   .route("/updates", updateRoutes);
 

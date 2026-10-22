@@ -1,0 +1,7 @@
+{
+  "data": {
+    "hostname": "build-ct",
+    "ostype": "alpine",
+    "net0": "name=eth0,bridge=vmbr0,ip=dhcp"
+  }
+}

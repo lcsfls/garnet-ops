@@ -1,0 +1,30 @@
+{
+  "data": [
+    {
+      "id": "backup-nightly",
+      "enabled": 1,
+      "type": "vzdump",
+      "schedule": "02:00",
+      "storage": "nas-backup",
+      "vmid": "100,101,200",
+      "mode": "snapshot",
+      "compress": "zstd"
+    },
+    {
+      "id": "backup-pool",
+      "enabled": 1,
+      "type": "vzdump",
+      "schedule": "sun 03:00",
+      "storage": "nas-backup",
+      "pool": "production"
+    },
+    {
+      "id": "backup-disabled",
+      "enabled": 0,
+      "type": "vzdump",
+      "schedule": "04:00",
+      "storage": "nas-backup",
+      "all": 1
+    }
+  ]
+}

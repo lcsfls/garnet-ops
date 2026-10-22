@@ -1,12 +1,24 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Bug, GitBranch, type LucideIcon, Package, Search } from "lucide-react";
+import {
+  Boxes,
+  Bug,
+  GitBranch,
+  Globe,
+  type LucideIcon,
+  Package,
+  Radar,
+  Search,
+  Server,
+  Sparkles,
+} from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api.ts";
 import { cn } from "../lib/cn.ts";
 import type { Me } from "../lib/session.ts";
-import { navFor } from "./nav.ts";
+import { xdrStatusQuery } from "../lib/xdr.ts";
+import { isAdmin, navFor } from "./nav.ts";
 import { Dialog } from "./ui/dialog.tsx";
 
 interface Option {
@@ -20,6 +32,8 @@ interface Option {
 
 interface Hits {
   repositories: { id: string; name: string }[];
+  servers: { id: string; name: string }[];
+  guests: { id: string; name: string; vmid: number }[];
   vulnerabilities: { id: string }[];
   packages: { name: string; type: string }[];
 }
@@ -62,6 +76,7 @@ export function CommandSearch({ me }: { me: Me }) {
     const timer = setTimeout(() => setDebounced(text.trim()), 200);
     return () => clearTimeout(timer);
   }, [text]);
+  const xdr = useQuery(xdrStatusQuery);
   const hits = useQuery({
     queryKey: ["search", debounced],
     queryFn: () => api<Hits>(`/search?q=${encodeURIComponent(debounced)}`),
@@ -81,6 +96,20 @@ export function CommandSearch({ me }: { me: Me }) {
               icon: GitBranch,
               go: () => navigate({ to: "/repositories/$id", params: { id: r.id } }),
             })),
+            ...hits.data.servers.map((s) => ({
+              id: `server:${s.id}`,
+              label: s.name,
+              hint: t("shell.searchKindServer"),
+              icon: Server,
+              go: () => navigate({ to: "/servers/$id", params: { id: s.id } }),
+            })),
+            ...hits.data.guests.map((g) => ({
+              id: `guest:${g.id}`,
+              label: g.name,
+              hint: `${t("shell.searchKindGuest")} ${g.vmid}`,
+              icon: Boxes,
+              go: () => navigate({ to: "/servers", search: { view: "proxmox", guest: g.id } }),
+            })),
             ...hits.data.vulnerabilities.map((v) => ({
               id: `vuln:${v.id}`,
               label: v.id,
@@ -97,7 +126,7 @@ export function CommandSearch({ me }: { me: Me }) {
             })),
           ]
         : [];
-    const pages: Option[] = navFor(me)
+    const pages: Option[] = navFor(me, { xdr: xdr.data?.connected === true })
       .flatMap((group) => group.items)
       .filter((item) => !q || t(item.label).toLowerCase().includes(q.toLowerCase()))
       .map((item) => ({
@@ -106,6 +135,46 @@ export function CommandSearch({ me }: { me: Me }) {
         icon: item.icon,
         go: () => navigate({ to: item.to }),
       }));
+    // Proxmox is a view of the Servers page, not a page of its own, so it is offered here by name.
+    const proxmoxName = t("proxmox.viewProxmox");
+    if (!q || proxmoxName.toLowerCase().includes(q.toLowerCase())) {
+      pages.push({
+        id: "page:proxmox",
+        label: t("shell.searchGoTo", { page: proxmoxName }),
+        icon: Boxes,
+        go: () => navigate({ to: "/servers", search: { view: "proxmox" } }),
+      });
+    }
+    // Settings, AI is a section of the settings page, so it is offered here by name (owners and admins).
+    const aiName = t("ai.settingsPageName");
+    if (isAdmin(me) && (!q || aiName.toLowerCase().includes(q.toLowerCase()))) {
+      pages.push({
+        id: "page:settings-ai",
+        label: t("shell.searchGoTo", { page: aiName }),
+        icon: Sparkles,
+        go: () => navigate({ to: "/settings", search: { section: "ai" } }),
+      });
+    }
+    // Settings, XDR / Wazuh is a section of the settings page (owners and admins).
+    const xdrName = t("xdr.settingsPageName");
+    if (isAdmin(me) && (!q || xdrName.toLowerCase().includes(q.toLowerCase()))) {
+      pages.push({
+        id: "page:settings-xdr",
+        label: t("shell.searchGoTo", { page: xdrName }),
+        icon: Radar,
+        go: () => navigate({ to: "/settings", search: { section: "xdr" } }),
+      });
+    }
+    // Settings, Attack overview is a section of the settings page (owners and admins).
+    const attacksName = t("attacks.settingsPageName");
+    if (isAdmin(me) && (!q || attacksName.toLowerCase().includes(q.toLowerCase()))) {
+      pages.push({
+        id: "page:settings-attacks",
+        label: t("shell.searchGoTo", { page: attacksName }),
+        icon: Globe,
+        go: () => navigate({ to: "/settings", search: { section: "attacks" } }),
+      });
+    }
     if (!q) return pages;
     return [
       ...found,
@@ -127,9 +196,21 @@ export function CommandSearch({ me }: { me: Me }) {
         icon: GitBranch,
         go: () => navigate({ to: "/repositories", search: { q } }),
       },
+      {
+        id: "servers",
+        label: t("shell.searchServers", { text: q }),
+        icon: Server,
+        go: () => navigate({ to: "/servers", search: { q } }),
+      },
+      {
+        id: "proxmox",
+        label: t("shell.searchProxmox", { text: q }),
+        icon: Boxes,
+        go: () => navigate({ to: "/servers", search: { view: "proxmox", pxQ: q } }),
+      },
       ...pages,
     ];
-  }, [text, hits.data, me, t, navigate]);
+  }, [text, hits.data, me, t, navigate, xdr.data?.connected]);
 
   const choose = (option: Option | undefined) => {
     if (!option) return;

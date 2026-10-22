@@ -17,8 +17,8 @@ every installation runs images built from this repository, and you update the sa
 cd /opt/garnetops
 docker compose exec db pg_dump -U garnetops -Fc garnetops > garnetops-$(date +%F).dump
 git pull
-docker build --target app -t garnetops:local     --build-arg VERSION=0.1.0-dev .
-docker build --target web -t garnetops-web:local --build-arg VERSION=0.1.0-dev .
+docker build --target app -t garnetops:local     --build-arg VERSION=0.0.1 .
+docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.1 .
 docker compose up -d
 docker compose ps
 ```

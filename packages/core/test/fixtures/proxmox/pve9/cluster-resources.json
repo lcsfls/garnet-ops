@@ -1,0 +1,59 @@
+{
+  "data": [
+    {
+      "id": "node/pve1",
+      "type": "node",
+      "node": "pve1",
+      "status": "online",
+      "cpu": "0.05",
+      "maxcpu": "16",
+      "mem": "4294967296",
+      "maxmem": "68719476736",
+      "disk": "1073741824",
+      "maxdisk": "107374182400",
+      "uptime": "100000",
+      "future-field": [1, 2, 3]
+    },
+    {
+      "id": "qemu/100",
+      "type": "qemu",
+      "vmid": "100",
+      "node": "pve1",
+      "name": "app-01",
+      "status": "running",
+      "cpu": 0.5,
+      "maxcpu": 4,
+      "mem": 1073741824,
+      "maxmem": 4294967296,
+      "disk": 0,
+      "maxdisk": 53687091200,
+      "uptime": 5,
+      "template": "0",
+      "tags": "a,b,c",
+      "lock": "backup"
+    },
+    {
+      "id": "lxc/101",
+      "type": "lxc",
+      "vmid": 101,
+      "node": "pve1",
+      "name": "dns-01",
+      "status": "paused",
+      "maxcpu": 1,
+      "maxmem": 536870912,
+      "template": true
+    },
+    {
+      "id": "storage/pve1/local",
+      "type": "storage",
+      "storage": "local",
+      "node": "pve1",
+      "plugintype": "dir",
+      "content": "backup,iso",
+      "shared": 0,
+      "status": "available",
+      "disk": 1000,
+      "maxdisk": 2000
+    }
+  ]
+}

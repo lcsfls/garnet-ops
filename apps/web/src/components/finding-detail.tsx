@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, ShieldAlert, X } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ExternalLink, ShieldAlert, Sparkles, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, api } from "../lib/api.ts";
 import { addLocalDays, endOfLocalDay, localDateInput } from "../lib/dates.ts";
 import { formatDate, formatDateTime, formatPercent, formatRelative } from "../lib/format.ts";
-import type { FindingDetail as Detail } from "../lib/types.ts";
+import type { FindingDetail as Detail, FindingNote } from "../lib/types.ts";
 import { Card } from "./page-header.tsx";
 import { Alert } from "./ui/alert.tsx";
 import { Badge, SeverityBadge } from "./ui/badge.tsx";
@@ -22,11 +23,14 @@ export function FindingDetail({
   id,
   canEdit,
   onClose,
+  onAskAi,
 }: {
   id: string;
   canEdit: boolean;
   /** Absent when the pane shows the first finding by itself (xwide); then there is nothing to close. */
   onClose?: () => void;
+  /** Opens the AI panel. Absent when the panel is already a pane of its own (xwide). */
+  onAskAi?: () => void;
 }) {
   const { t } = useTranslation();
   const { data, isError } = useQuery({
@@ -81,6 +85,12 @@ export function FindingDetail({
               <p className="text-muted-foreground">{isError ? t("errors.generic") : t("common.loading")}</p>
             )}
           </div>
+          {onAskAi ? (
+            <Button variant="outline" className="h-8 flex-none px-3 text-sm" onClick={onAskAi}>
+              <Sparkles aria-hidden="true" className="size-3.5" />
+              {t("ai.askAi")}
+            </Button>
+          ) : null}
           {onClose ? (
             <button
               type="button"
@@ -134,6 +144,16 @@ function DetailBody({ data, canEdit }: { data: Detail; canEdit: boolean }) {
         {v.description ? <p className="whitespace-pre-line">{v.description}</p> : null}
 
         {v.knownExploited ? <Alert tone="error">{t("findings.kevHint")}</Alert> : null}
+
+        {data.state === "open" && data.fixedIn?.length ? (
+          <Link
+            to="/fixes"
+            search={{ repositoryId: data.repository.id, q: data.packageName }}
+            className="text-sm font-medium text-primary-text hover:underline"
+          >
+            {t("findings.fixProposal")}
+          </Link>
+        ) : null}
 
         {data.locations?.length ? (
           <div>
@@ -203,9 +223,38 @@ function DetailBody({ data, canEdit }: { data: Detail; canEdit: boolean }) {
           </div>
         ) : null}
 
+        <Notes findingId={data.id} />
+
         {canEdit ? <StateActions data={data} /> : null}
       </div>
     </>
+  );
+}
+
+/** Notes on the finding. Today they are AI suggestions that a person took over (ADR 0013). */
+function Notes({ findingId }: { findingId: string }) {
+  const { t } = useTranslation();
+  const notes = useQuery({
+    queryKey: ["finding-notes", findingId],
+    queryFn: () => api<FindingNote[]>(`/findings/${findingId}/notes`),
+  });
+  if (!notes.data?.length) return null;
+  return (
+    <div>
+      <h3 className="mb-1 text-sm font-medium">{t("ai.notesTitle")}</h3>
+      <ul className="grid gap-2">
+        {notes.data.map((note) => (
+          <li key={note.id} className="rounded-md border px-3 py-2 text-sm">
+            <p className="break-words whitespace-pre-line">{note.body}</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              {note.source === "ai" ? t("ai.noteFromAi", { name: note.author ?? "?" }) : (note.author ?? "")}
+              {" · "}
+              <time dateTime={note.createdAt}>{formatRelative(note.createdAt)}</time>
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

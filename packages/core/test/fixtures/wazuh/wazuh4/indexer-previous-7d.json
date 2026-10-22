@@ -1,0 +1,70 @@
+{
+  "took": 30,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 11309,
+      "relation": "eq"
+    },
+    "max_score": null,
+    "hits": []
+  },
+  "aggregations": {
+    "levels": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": 3,
+          "doc_count": 8250
+        },
+        {
+          "key": 5,
+          "doc_count": 2200
+        },
+        {
+          "key": 7,
+          "doc_count": 660
+        },
+        {
+          "key": 10,
+          "doc_count": 165
+        },
+        {
+          "key": 12,
+          "doc_count": 28
+        },
+        {
+          "key": 15,
+          "doc_count": 6
+        }
+      ]
+    },
+    "attacks": {
+      "doc_count": 360,
+      "distinct": {
+        "value": 8
+      },
+      "ips": {
+        "buckets": [
+          {
+            "key": "198.51.100.77",
+            "doc_count": 240
+          },
+          {
+            "key": "203.0.113.9",
+            "doc_count": 90
+          },
+          {
+            "key": "192.0.2.200",
+            "doc_count": 30
+          },
+          {
+            "key": "not an ip",
+            "doc_count": 2
+          }
+        ]
+      }
+    }
+  }
+}

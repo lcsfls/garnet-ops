@@ -1,0 +1,11 @@
+{
+  "data": [
+    {
+      "id": "b",
+      "enabled": "1",
+      "all": "1",
+      "exclude": "101",
+      "storage": "local"
+    }
+  ]
+}

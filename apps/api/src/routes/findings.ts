@@ -323,6 +323,33 @@ export const findingRoutes = new Hono<AppEnv>()
     const { dedupKey: _internal, ...finding } = row.finding;
     return c.json({ ...finding, vulnerability: row.vulnerability, repository: row.repository });
   })
+  /** Notes on a finding, newest first. Today they come from people taking over an AI suggestion (ADR 0013). */
+  .get("/:id/notes", async (c) => {
+    const actor = c.get("actor");
+    const id = c.req.param("id");
+    const [finding] = await db
+      .select({ id: f.id })
+      .from(f)
+      .where(and(eq(f.id, id), eq(f.organizationId, actor.organizationId)))
+      .limit(1);
+    if (!finding) throw notFound("Finding");
+    const n = schema.findingNote;
+    const rows = await db
+      .select({
+        id: n.id,
+        body: n.body,
+        source: n.source,
+        meta: n.meta,
+        createdAt: n.createdAt,
+        author: schema.user.name,
+      })
+      .from(n)
+      .leftJoin(schema.user, eq(schema.user.id, n.authorUserId))
+      .where(and(eq(n.findingId, id), eq(n.organizationId, actor.organizationId)))
+      .orderBy(desc(n.createdAt), desc(n.id))
+      .limit(50);
+    return c.json(rows);
+  })
   .post("/:id/accept", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "member");

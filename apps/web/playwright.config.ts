@@ -52,11 +52,13 @@ export default defineConfig({
         timezoneId: "Europe/Berlin",
       },
     },
-    // Layout baseline (AGENTS.md rule 5): 1080p at 100 %, 125 % and 150 % Windows scaling.
+    // Layout baseline (AGENTS.md rule 5): 1080p at 100 %, 125 % and 150 % Windows scaling,
+    // and 1440p, where the xwide step (more columns and panes) starts.
     ...[
       { width: 1920, height: 1080 },
       { width: 1536, height: 864 },
       { width: 1280, height: 720 },
+      { width: 2560, height: 1440 },
     ].map((viewport) => ({
       name: `layout-${viewport.width}x${viewport.height}`,
       testMatch: /layout\.spec\.ts/,
@@ -86,6 +88,34 @@ export default defineConfig({
         GARNETOPS_SETUP_TOKEN: E2E.setupToken,
         UPDATER_URL: `http://127.0.0.1:${E2E.updaterPort}`,
         UPDATER_TOKEN_FILE: E2E.updaterTokenFile,
+      },
+    },
+    // The AI part of the worker with a fake model server (ADR 0013). The real worker stays off: it
+    // would also pick up the scans the other tests queue.
+    {
+      command: "corepack pnpm --filter @garnetops/worker exec tsx test/e2e-ai-worker.ts",
+      url: `http://127.0.0.1:${E2E.modelPort}/v1/models`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        ...E2E.dev,
+        NODE_ENV: "test",
+        DATABASE_URL: E2E.databaseUrl,
+        E2E_MODEL_PORT: String(E2E.modelPort),
+      },
+    },
+    // The fix pull request part of the worker with a fake forge (ADR 0014).
+    {
+      command: "corepack pnpm --filter @garnetops/worker exec tsx test/e2e-forge-worker.ts",
+      url: `http://127.0.0.1:${E2E.forgeControlPort}/state`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        ...E2E.dev,
+        NODE_ENV: "test",
+        DATABASE_URL: E2E.databaseUrl,
+        E2E_FORGE_PORT: String(E2E.forgePort),
+        E2E_FORGE_CONTROL_PORT: String(E2E.forgeControlPort),
       },
     },
     {

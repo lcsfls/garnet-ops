@@ -1,6 +1,13 @@
 import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { generateVaultKeyPair, loadVaultPrivateKey, loadVaultPublicKey, open, seal } from "./vault.ts";
+import {
+  generateVaultKeyPair,
+  loadVaultPrivateKey,
+  loadVaultPublicKey,
+  open,
+  seal,
+  vaultPublicKeyOf,
+} from "./vault.ts";
 
 const pair = generateVaultKeyPair();
 const pub = loadVaultPublicKey(pair.publicKeyPem);
@@ -11,6 +18,15 @@ describe("vault", () => {
   it("round-trips a secret", () => {
     const sealed = seal("ghp_example-token", binding, pub);
     expect(open(sealed, binding, priv).toString("utf8")).toBe("ghp_example-token");
+  });
+
+  it("lets the holder of the private key seal for itself", () => {
+    const own = vaultPublicKeyOf(priv);
+    expect(own.id).toBe(priv.id);
+    const sealed = seal("worker-generated-secret", { ...binding, purpose: "host-ssh-key" }, own);
+    expect(open(sealed, { ...binding, purpose: "host-ssh-key" }, priv).toString("utf8")).toBe(
+      "worker-generated-secret",
+    );
   });
 
   it("uses the same key ID on both halves", () => {

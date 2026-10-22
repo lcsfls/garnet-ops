@@ -8,6 +8,8 @@ import { cn } from "../lib/cn.ts";
 import { formatNumber } from "../lib/format.ts";
 import type { Me } from "../lib/session.ts";
 import { resolvedTheme, setTheme, useTheme } from "../lib/theme.ts";
+import { displayVersion } from "../lib/version.ts";
+import { xdrStatusQuery } from "../lib/xdr.ts";
 import { Mark, Wordmark } from "./brand.tsx";
 import { CommandSearch } from "./command-search.tsx";
 import { MaintenanceBanner } from "./maintenance-banner.tsx";
@@ -49,6 +51,8 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
   const { resolved } = useTheme();
   const counts = useQuery({ ...findingCountsQuery(), refetchInterval: 60_000 });
   const system = useQuery(systemQuery);
+  const xdr = useQuery(xdrStatusQuery);
+  const features = { xdr: xdr.data?.connected === true };
   const criticalOpen = counts.data?.open.critical ?? 0;
   const trail = navTrail(pathname);
 
@@ -86,7 +90,7 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
           )}
         </div>
         <nav aria-label={t("shell.mainNavigation")}>
-          {navFor(me).map((group) => (
+          {navFor(me, features).map((group) => (
             <div
               key={group.label}
               className={cn("pb-1", collapsed ? "border-t pt-2 first:border-t-0" : "pt-3")}
@@ -159,9 +163,7 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
           </span>
           {collapsed || !system.data ? null : (
             <span>
-              {system.data.version === "0.0.0-dev"
-                ? t("shell.devBuild")
-                : t("shell.version", { version: system.data.version })}
+              {t("shell.version", { version: displayVersion(system.data.version, t("shell.alpha")) })}
             </span>
           )}
         </div>

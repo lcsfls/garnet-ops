@@ -44,7 +44,18 @@ export type SecretPurpose =
   | "ssh-private-key"
   | "ai-api-key"
   | "netbird-token"
-  | "smtp-password";
+  | "smtp-password"
+  | "webhook-url"
+  | "graph-client-secret"
+  | "host-ssh-key"
+  | "proxmox-token"
+  /** The token for opening fix pull requests: separate from the read credential, one repository (ADR 0014). */
+  | "forge-write-token"
+  /** Wazuh (ADR 0015): the password of the read-only manager API user and of the read-only indexer user. */
+  | "wazuh-api-password"
+  | "wazuh-indexer-password"
+  /** The customer's own API key for an OSINT provider such as AbuseIPDB (ADR 0016); opened by the worker only. */
+  | "osint-api-key";
 
 export interface SecretBinding {
   organizationId: string;
@@ -251,4 +262,18 @@ export function loadVaultPrivateKey(pem: string): VaultPrivateKey {
   );
   const recipient = recipientOf(createPublicKey(x25519), createPublicKey(mlkem));
   return { id: keyIdOf(recipient), recipient, x25519, mlkem };
+}
+
+/**
+ * The public half of a vault private key. The worker holds the private key and uses this to
+ * seal secrets it generates itself, such as the SSH access key for servers (ADR 0011), without
+ * a second key file. Sealing needs no secret material beyond what the worker already holds.
+ */
+export function vaultPublicKeyOf(vault: VaultPrivateKey): VaultPublicKey {
+  return {
+    id: vault.id,
+    recipient: vault.recipient,
+    x25519: createPublicKey(vault.x25519),
+    mlkem: createPublicKey(vault.mlkem),
+  };
 }

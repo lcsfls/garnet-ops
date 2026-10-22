@@ -51,6 +51,14 @@ http://:8080 {
 		reverse_proxy updater:8090
 	}
 
+	# AI answers stream as server-sent events (ADR 0013): forward every write at once.
+	handle /api/v1/ai/threads/*/stream {
+		reverse_proxy api:3000 {
+			header_up X-Real-IP {remote_host}
+			flush_interval -1
+		}
+	}
+
 	handle /api/* {
 		reverse_proxy api:3000 {
 			header_up X-Real-IP {remote_host}

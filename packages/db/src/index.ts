@@ -4,6 +4,8 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import * as schema from "./schema.ts";
 
+export * from "./attacks.ts";
+export * from "./geoip.ts";
 export * from "./schedule.ts";
 export * from "./trend.ts";
 export { schema };

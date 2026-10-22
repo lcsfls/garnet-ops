@@ -1,0 +1,25 @@
+{
+  "data": {
+    "agent:read": {
+      "agent:id:*": "allow",
+      "agent:group:*": "allow"
+    },
+    "group:read": {
+      "group:id:*": "allow"
+    },
+    "cluster:status": {
+      "*:*:*": "allow"
+    },
+    "agent:delete": {
+      "agent:id:*": "deny"
+    },
+    "agent:restart": {
+      "agent:id:*": "allow"
+    },
+    "security:create": {
+      "*:*:*": "allow"
+    }
+  },
+  "message": "Current user processed policies information was returned",
+  "error": 0
+}

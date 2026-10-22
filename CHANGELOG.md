@@ -10,7 +10,179 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- XDR page for your own Wazuh 4.x or 5.x (Infrastructure → XDR, ADR 0015, `docs/xdr.md`),
+  shown only once a connection exists: alerts by severity for 24 hours, 7 and 30 days with the
+  change against the period before, MITRE ATT&CK tactics, the ten busiest agents, the latest file
+  integrity events (paths as plain text), vulnerability counts per agent, a sortable and
+  filterable agents table with more columns on wide screens, and a link to your Wazuh dashboard.
+  Adapters `wazuh4` and `wazuh5` are chosen by the detected version; 5.x is marked **preview**.
+  A worker sync runs every 15 minutes and on demand. GarnetOps only reads: it builds no agent
+  and no SIEM, and Wazuh (GPL-2.0) stays a separate program.
+- Settings → XDR / Wazuh (owners and admins, with a recent sign-in, audited): the manager API
+  (port 55000) and the indexer (port 9200), each with its own read-only user whose password is
+  sealed in the vault. Each endpoint is trusted by a **pinned certificate** (read without
+  credentials, confirmed by an admin; a changed certificate blocks the sync) or by your own
+  **certificate authority**. If a user can do more than read, the sync waits until an admin
+  acknowledges it.
+- Wazuh agents on Servers: every agent is a read-only row (Servers → Wazuh), can be added as a
+  server (`source: "wazuh"`) or linked to an existing server after a suggestion (same address,
+  name or short host name) that an admin confirms and that is audited.
+- Agent enrollment helper (XDR page, and "Monitor with Wazuh instead" when adding a server): the
+  official Wazuh install commands for Debian, RHEL, SUSE, Windows and macOS with your manager
+  address, group and name, strictly validated and quoted; a password only as a placeholder.
+- "Summarise with AI" on the XDR page (only with AI switched on): the model gets numbers only,
+  the answer is labelled **AI suggestion**, rendered without HTML and audited.
+- Migration 0014 (additive: `wazuh_connection`, `wazuh_endpoint`, `wazuh_agent`, `wazuh_snapshot`,
+  `wazuh_fim_event`, `wazuh_source_ip`, `wazuh_sync_run`, `wazuh_summary`; secret purposes
+  `wazuh-api-password` and `wazuh-indexer-password`; queues `xdr.certificate`, `xdr.sync`,
+  `xdr.sync-tick`, `xdr.summary`). API: `/api/v1/xdr`; `POST /api/v1/hosts` accepts
+  `source: "wazuh"` with `sourceRef`. New audit actions `xdr.*` and an audit filter "XDR".
+  Source addresses of alerts are collected (top 100 per period) for a later attack overview. No
+  new dependency. Not yet run against a real Wazuh installation.
+- Attack overview (Infrastructure → Attacks, ADR 0016, `docs/attacks.md`), listed only while a Wazuh
+  connection exists: where failed logins and attacks come from, for 24 hours, 7 and 30 days. Key
+  figures with the change against the period before (attack alerts, source addresses, countries, the
+  most targeted machines), a **world map** (Natural Earth, public domain; plain SVG shipped with the
+  app, no tiles, no map library) filled on a single-hue scale, complete **countries, networks and
+  machines lists** as its table alternative, and a sortable, filterable, searchable address table with
+  cursor pagination, more columns on wide screens, first and last seen, the machines attacked (linked
+  to Servers or XDR) and rule groups. Addresses are plain text with a copy button; private and
+  reserved addresses are labelled "Internal" and never looked up.
+- **Local GeoIP from DB-IP Lite** (IP to Country Lite and IP to ASN Lite, CC BY 4.0, never bundled;
+  attribution on the page): **manual import** of the `.csv.gz` files in Settings → Attack overview
+  (streamed, size-capped, validated line by line, replaces the data only when the whole file is valid,
+  the last good data stays, release month recorded; owners and admins, recent sign-in, audited) and an
+  **opt-in monthly download** by the worker from `download.db-ip.com` (off by default, the exact
+  addresses shown, public addresses only, no redirects, size and time limits).
+- **Optional reputation lookup** (off by default; AbuseIPDB with your own API key, sealed in the vault
+  and opened only by the worker): an explicit warning that public source addresses leave the network,
+  two confirmations, a recent sign-in, at most the top N addresses per sync within a daily budget below
+  the provider's free tier, results cached 24 hours, only public addresses. Built as a provider
+  interface; AbuseIPDB's terms could not be confirmed, so the confirmation is the customer's.
+- Retention of source addresses (default 90 days, 1 to 365, configurable): only the latest aggregate
+  of each period is kept, an hourly job deletes older rows, and "Delete stored addresses now" erases
+  them at once.
+- "Summarise with AI" on the Attacks page (only with AI switched on): numbers per country code and AS
+  number, never an address, name or organisation; the answer is labelled **AI suggestion**.
+- Migration 0015 (additive: `geoip_dataset`, `geoip_country_range`, `geoip_asn_range`,
+  `attack_settings`, `attack_osint_result`, `attack_summary`, `wazuh_attack_window`, three columns on
+  `wazuh_source_ip`; secret purpose `osint-api-key`; queues `attacks.summary` and `attacks.maintenance`).
+  API: `/api/v1/attacks` (`/overview`, `/sources`, `/settings`, `PUT /geoip/{country|asn}`, `/data`,
+  `/summary`). New audit actions `attacks.*` and an audit filter "Attacks". The Wazuh sync asks the
+  indexer for a few more fixed aggregations. No new dependency.
+- Fix proposals and fix pull requests (Code → Fix proposals, ADR 0014, `docs/fix-prs.md`): for
+  every open finding with a fixed version, one proposal per package and manifest with the
+  lowest version that fixes all its open vulnerabilities (a **major upgrade** is marked),
+  severity, vulnerabilities fixed, ecosystem, file and direct or transitive. Transitive and
+  unsupported cases say why they are left to you. Sortable, filterable, searchable, extra
+  columns and a detail pane on wide screens, a labelled read-only AI suggestion, the pull
+  request status, and a history of all pull requests. The version always comes from the
+  vulnerability data, never from the AI.
+- **Create PR** (members and above, with a recent sign-in; rate limited; audited): the worker
+  creates the branch `garnetops/fix-<package>-<version>` through the forge's REST API, changes
+  **one version string** in the manifest (npm `package.json`, Python `requirements*.txt`,
+  Composer, Go `go.mod`, Cargo; formatting, comments and line endings untouched), and opens a
+  pull request with a fixed text. Nothing is cloned or executed, lockfiles are not edited (the
+  pull request says so), nothing is merged, approved or pushed to the default branch. A manifest
+  that changed since the scan is refused. GitHub (including Enterprise Server), Gitea and Forgejo.
+- Write access is an **opt-in per repository** by owners and admins with a recent sign-in (repository
+  page, "Fix pull requests"): a separate write token, stored encrypted and opened only by the
+  worker, never the read credential. The page shows off or on, by whom and since when, the check
+  of the token, and a warning for tokens broader than one repository. Turning it off deletes the
+  token. Pull request status (open, merged, closed, failed with a safe reason) is refreshed every 15
+  minutes and on demand.
+- Renovate configuration: a button on the repository page generates a `renovate.json` (vulnerability
+  alerts on, a rule per vulnerable package with the proposed version) for teams that run their own
+  Renovate. GarnetOps never runs or bundles Renovate.
+- Scans record the dependency manifests of the scanned commit (migration 0013, additive:
+  `repository_manifest`, `repository_write_access`, `fix_pr`; secret purpose `forge-write-token`;
+  queues `fix-pr.create`, `fix-pr.check`, `fix-pr.refresh`). Repositories scanned before this version
+  need one scan before their proposals can be applied. New audit actions `fix_pr.*` and an audit
+  filter "Fix PRs". API: `/api/v1/fixes`, `/fixes/prs`, `/fixes/refresh`,
+  `/repositories/:id/write-access`, `/repositories/:id/renovate-config`. No new dependency.
+- AI triage with your own model (Settings → AI and a panel in every finding, ADR 0013,
+  `docs/ai.md`): connect vLLM, Ollama, LiteLLM, LM Studio or anything that speaks the
+  OpenAI API. Open a finding and press **Ask AI**: the first answer is a structured triage
+  (exploitable, reachable, confidence, summary, recommendation, an upgrade hint and
+  references taken from your vulnerability data), then you ask follow-up questions. Answers
+  stream as they are written, with Stop, Regenerate, Copy and "What the model saw". From the
+  xwide layout step the conversation is a third pane beside list and details; below it, a
+  drawer. The conversation belongs to the finding and is shared by the organisation; **Take
+  over as note** keeps a suggestion on the finding (author: the person, audited). Off until an
+  owner or admin switches it on; "Load models" and "Test connection" included.
+- Everything the model writes is an **AI suggestion**: it never changes a severity, a state, a
+  gate result or a setting. Markdown is rendered without any HTML path (text is escaped, only
+  `http(s)` links, each shown with its host). The model receives metadata of the finding in a
+  delimited data block, never credentials, user data, clone URLs or source code.
+- Endpoint rules: plain http only works for a model on the same host or Docker network as the
+  worker (an address inside a subnet of the worker's own network interfaces, for example a
+  Compose service) and inside a VPN overlay (100.64.0.0/10, NetBird and Tailscale); other
+  addresses on your network (RFC 1918, IPv6 unique local) need https, because cleartext on a LAN
+  exposes the vulnerability list to anyone who can sniff or spoof traffic (error "insecure-private").
+  An address outside the network needs https and a per-host confirmation and shows a permanent
+  warning; loopback, link-local (cloud metadata), unspecified and multicast addresses are always
+  refused. The worker decides on every connection from its own interfaces.
+- Limits: 12 requests a minute per person, 40 per organisation, answers at the same time per
+  organisation (default 2), question, input and output budgets. Command search finds
+  Settings, AI; the audit log has an AI filter (`ai.request` records finding and model, never
+  the prompt).
+- API: `/api/v1/ai/…` (settings, probes, per-finding thread, triage, questions, stop,
+  regenerate, "what the model saw", accept as note, `GET /ai/threads/:id/stream` as
+  server-sent events) and `GET /api/v1/findings/:id/notes`.
+- Migration 0012 (additive): `ai_settings`, `chat_thread` and `chat_message` (unused until now)
+  gain columns and a unique index per finding; new tables `ai_probe` and `finding_note`; queues
+  `ai.generate` and `ai.probe`. No new dependency.
+- Proxmox VE (Infrastructure → Servers → Proxmox and Settings → Proxmox, ADR 0012,
+  `docs/proxmox.md`): connect clusters with a **read-only API token** and see every node,
+  virtual machine and container with status, CPU, memory, disk, uptime, OS type, tags, HA
+  state, last backup, snapshots, addresses and the node's own pending updates, plus storage.
+  Stale guests (stopped for more than 30 days, no backup in 7 days, a snapshot older than 30
+  days) and untracked guests (running, no linked server) are flagged. The guest list is
+  sortable, filterable by flag, type, status, node, cluster and text, with extra columns on wide
+  screens and a detail dialog. **Add as server** opens the usual add-server wizard prefilled
+  from the guest and links the new server to it (agentless SSH; nothing is ever run through
+  Proxmox). Syncs run every 15 minutes and on request. The settings dialog shows exactly how to
+  create the token (a dedicated user, role `PVEAuditor`, privilege separation on, `pveum`
+  commands). Command search finds guests; the audit log has a Proxmox filter.
+- Migration 0011 (additive): tables `proxmox_cluster`, `proxmox_node`, `proxmox_guest`,
+  `proxmox_storage`, `proxmox_sync_run`; secret purpose `proxmox-token`. `POST /api/v1/hosts` accepts
+  `source: "proxmox"` and `sourceRef` (`<cluster id>:<vmid>`); servers show the guest they were
+  created from.
+- Servers (Infrastructure → Servers, ADR 0011, `docs/servers.md`): agentless, read-only
+  inventory over SSH. The list shows system, vulnerabilities per severity, pending updates,
+  last inventory and status, sortable and searchable, with extra columns on wide screens; a
+  server's page has its facts, vulnerabilities (CVSS, EPSS, known exploited, fixed in),
+  packages (with the update that is available and whether it is a security update) and the
+  inventory history. Inventories run nightly with the repository scans and on demand, and
+  are matched against the same local vulnerability database as repositories. A server that
+  could not be checked (unknown operating system, no database) is never shown as clean.
+- Host setup script ("install via script"): "Add server" is a four-step wizard (address and
+  allowed source address, the script, the host key, the first inventory). The script creates
+  the account `garnetops`, installs a read-only wrapper and one `authorized_keys` line
+  (`restrict,from=…,command=…`, both owned by root), prints the server's host key
+  fingerprints, is idempotent and has `--uninstall`. Copy it, download it, or use a one-line
+  installer that verifies a SHA-256 before it runs anything (one-time link, 60 minutes,
+  stored as a hash, rate limited, audited).
+- Host keys are pinned on first contact (`ssh-keyscan`, the admin confirms the fingerprint);
+  a changed key stops the server until an admin confirms the new fingerprint.
+- CSV import of servers (address, name, port; 500 rows, checked per row, duplicates skipped).
+- One SSH access key per organisation, generated by the worker and sealed in the vault
+  (purpose `host-ssh-key`); only its public half is stored in clear.
+- Command search finds servers; the audit log has a Servers filter.
+- Migration 0010 (additive): tables `host`, `host_package`, `host_finding`,
+  `host_inventory_run`, `host_access_key`, `host_setup_link`.
+- Notifications (Settings → Notifications, ADR 0010, `docs/notifications.md`): webhooks in
+  Discord, Slack-compatible (Slack, Mattermost, Rocket.Chat) and generic JSON format, and
+  mail via SMTP or Microsoft Graph, for new critical or known exploited vulnerabilities,
+  blocked gates and failed scans, with a test button and the last delivery's result.
+  Messages hold a summary and a link only. Credentials are sealed in the vault; webhooks go
+  over HTTPS only and never to loopback, link-local or metadata addresses.
+- Migration 0009 (additive): tables `notification_channel`, `notification_delivery`.
+- New dependency: nodemailer (MIT-0) in the worker; MIT-0 joins the allowed licences.
 - An "Alpha" badge next to the wordmark in the sidebar, with a short explanation on hover.
+- The version is 0.0.1, the first alpha. The sidebar and Settings → About show it as
+  "0.0.1 Alpha" (every 0.x release is an alpha) instead of "Development build"; builds
+  without a version argument report 0.0.1.
 - Team (Admin → Team, ADR 0009): owners and admins invite people by email and role. The
   invitation is a link that works once and for 7 days (shown once, stored as a hash,
   revocable); e-mail delivery follows with the mail module. The invited person sets a
@@ -286,6 +458,69 @@ Security-relevant changes are listed under **Security** in every release.
   optional API integration.
 
 ### Security
+
+- The attack overview (ADR 0016) keeps data local by default: location comes from tables on your server;
+  the monthly download and the reputation lookup are off, need a recent sign-in to switch on, and are
+  audited. GeoIP files are treated as hostile (compressed and inflated size caps counted while
+  streaming, 1 KiB lines, validated sorted ranges, one transaction, the last good data survives).
+  Outbound calls go to fixed hosts, accept only public addresses, verify TLS, follow no redirects and
+  cap size and time. The reputation API key is sealed in the vault and never shown, logged or audited;
+  only public addresses are sent. The AI summary sees numbers only. Source addresses are replaced at every
+  sync and deleted after a configurable retention period.
+
+- Wazuh integration (ADR 0015) is read-only by construction: both HTTP clients check a method
+  and path allow-list before a connection is opened (manager: `GET /`, the agent list with a
+  fixed field list, the user's own policies, and the login `POST`; indexer: `GET` of the version
+  and the user's own roles, `POST` of `_search` and `_count` on two indices with fixed query
+  templates whose only input is a period). Agent keys are never requested. The login token stays
+  in the memory of the worker. Passwords are sealed by the API and opened only by the worker. A
+  certificate is pinned on first contact (read without credentials), a changed certificate
+  blocks the sync, a custom authority is accepted only as certificates without a key. Addresses
+  are resolved and checked, the checked address is used, redirects are not followed, and size,
+  count and time are limited. Everything Wazuh sends is treated as hostile: validated with a
+  schema, cleaned of control and direction-changing characters, shown as text, never as a link or
+  HTML. The AI summary sees numbers only.
+- Fix pull requests use a **separate write token per repository** (never the read credential),
+  sealed in the vault and opened only by the worker; its use is limited to reading the repository,
+  creating one branch, changing one file and opening a pull request. The token goes only to the
+  stored https API address (private addresses allowed; loopback, link-local and metadata refused;
+  resolved address checked and used; no redirects; TLS verification always on; size and time
+  limits; error bodies never read). Pull request text puts values from scanned data inside code
+  spans that cannot be closed, uses no advisory text and keeps mentions inert. The manifest editor
+  is a strict text scanner with refusals instead of guesses and is fuzz-tested.
+- AI triage (ADR 0013): only the worker opens the model's API key and makes the calls; the
+  API stores messages, queues jobs and relays progress (PostgreSQL LISTEN/NOTIFY, server-sent
+  events). The endpoint address is checked when saved and again on every connection (resolve,
+  check every answer, connect to the checked address, no redirects, TLS verified, size and time
+  limits); loopback, link-local, metadata, unspecified and multicast addresses are refused in
+  every notation, a public address needs https and an audited per-host confirmation.
+- Model output is untrusted: parsed into a small validated shape (unknown fields dropped,
+  references limited to your own vulnerability data, the upgrade hint version-shaped), cleaned
+  of control and invisible characters, rendered without HTML, and unable to change a finding,
+  a gate or a setting (tested with an injection in advisory text and a model that obeys it).
+- Proxmox VE integration is read-only by construction: the HTTP client sends `GET` only, to a
+  fixed list of paths, refuses anything else before it connects, follows no redirects, caps every
+  answer at 8 MiB and runs one request at a time. Descriptions and cloud-init data of guests are
+  never read.
+- The Proxmox API certificate is pinned on first contact: the worker reads the leaf certificate
+  without sending the token, an admin confirms its SHA-256 fingerprint (step-up, audited), and
+  every later request verifies exactly that certificate before any byte of the request is written;
+  a different certificate blocks the sync until an admin confirms it. Hosts are resolved by the
+  worker, checked against loopback, link-local, metadata and multicast addresses, and the checked
+  address is the address it connects to.
+- The API token secret is sealed in the vault (purpose `proxmox-token`); only the worker opens
+  it. Tokens of `root` are refused. A token with privileges beyond `*.Audit` blocks the sync and
+  shows a warning until an admin acknowledges exactly those privileges.
+- Servers are read with one SSH key per organisation that can run only a read-only wrapper
+  (`restrict`, `from=<allowed source>`, `command=`; wrapper and `authorized_keys` owned by
+  root), never as a shell. Host keys are pinned after an admin confirmed the fingerprint and
+  checked strictly on every connection; a change blocks the server. Everything a server
+  prints is hostile input: parsed with strict per-field patterns, bounded (60 seconds,
+  16 MiB, 20 000 packages), never executed and never shown in an error message. Addresses
+  are validated (no ssh options, no loopback, link-local or metadata addresses, no numeric
+  host name tricks) and checked again after the worker resolved them. Adding, importing and
+  removing servers and confirming host keys need a recent sign-in; the setup download link is
+  single use, hashed and audited.
 
 - The update sidecar's token reaches only the API (read-only), never the worker or the
   browser; the API alone decides who may update (owners and admins, recent sign-in) and

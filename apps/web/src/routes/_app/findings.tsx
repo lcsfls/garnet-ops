@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Bug, ScanSearch } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AiPanel } from "../../components/ai-panel.tsx";
 import { findingCountsQuery } from "../../components/app-shell.tsx";
 import { ExportMenu } from "../../components/export-menu.tsx";
 import { SearchInput, Segmented } from "../../components/filters.tsx";
@@ -16,6 +17,7 @@ import { type SortDir, SortHeader } from "../../components/sort-header.tsx";
 import { SeverityBadge } from "../../components/ui/badge.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { Checkbox } from "../../components/ui/checkbox.tsx";
+import { Drawer } from "../../components/ui/drawer.tsx";
 import { Select } from "../../components/ui/select.tsx";
 import { api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
@@ -40,13 +42,13 @@ function Findings() {
   const navigate = useNavigate({ from: Route.fullPath });
 
   const list = useQuery({
-    queryKey: ["findings", { ...search, id: undefined }],
-    queryFn: () => api<Page<FindingRow>>(`/findings${toQuery(search, ["id"])}`),
+    queryKey: ["findings", { ...search, id: undefined, ai: undefined }],
+    queryFn: () => api<Page<FindingRow>>(`/findings${toQuery(search, ["id", "ai"])}`),
     placeholderData: keepPreviousData,
   });
   // Counts per state for the tabs, under every other filter.
   const counts = useQuery({
-    ...findingCountsQuery(toQuery(search, ["id", "cursor", "pageSize", "state"])),
+    ...findingCountsQuery(toQuery(search, ["id", "ai", "cursor", "pageSize", "state"])),
     placeholderData: keepPreviousData,
   });
   const repositories = useQuery({
@@ -61,6 +63,8 @@ function Findings() {
   // first finding is shown until the user picks one. Below it the list stays full width.
   const step = useLayoutStep();
   const shownId = search.id ?? (step === "xwide" ? list.data?.items[0]?.id : undefined);
+  // At xwide the AI conversation is a third pane (AGENTS.md rule 5); below it, a drawer behind a click.
+  const aiPane = step === "xwide";
 
   const queryClient = useQueryClient();
   const [queued, setQueued] = useState<number | null>(null);
@@ -119,7 +123,9 @@ function Findings() {
                 {t("overview.scansQueued", { count: queued })}
               </span>
             ) : null}
-            <ExportMenu filters={{ ...search, id: undefined, cursor: undefined, pageSize: undefined }} />
+            <ExportMenu
+              filters={{ ...search, id: undefined, ai: undefined, cursor: undefined, pageSize: undefined }}
+            />
             {me.role !== "viewer" ? (
               <Button disabled={scan.isPending} onClick={() => scan.mutate()}>
                 <ScanSearch aria-hidden="true" className="size-4" />
@@ -207,10 +213,11 @@ function Findings() {
       <div
         className={cn(
           "grid gap-4",
-          shownId && "@wide:grid-cols-[minmax(0,1fr)_28rem] @xwide:grid-cols-[minmax(0,1fr)_36rem]",
+          shownId && "@wide:grid-cols-[minmax(0,1fr)_28rem] @xwide:grid-cols-[minmax(0,1fr)_32rem_30rem]",
         )}
       >
-        <Card className="self-start">
+        {/* The table answers to the width of its own card, which is narrower when panes sit beside it. */}
+        <Card className="@container/list self-start">
           <table className="w-full text-left">
             <thead className="text-sm text-muted-foreground">
               <tr className="border-b">
@@ -238,14 +245,14 @@ function Findings() {
                   }
                   natural="desc"
                   align="right"
-                  className="hidden px-3 @6xl:table-cell"
+                  className="hidden px-3 @6xl/list:table-cell"
                   {...sortProps}
                 />
                 <SortHeader
                   column="published"
                   label={t("findings.columnPublished")}
                   natural="desc"
-                  className="hidden px-3 @3xl:table-cell"
+                  className="hidden px-3 @3xl/list:table-cell"
                   {...sortProps}
                 />
                 <SortHeader
@@ -255,7 +262,7 @@ function Findings() {
                   className="px-3"
                   {...sortProps}
                 />
-                <th className="hidden px-3 py-2.5 font-medium @4xl:table-cell">
+                <th className="hidden px-3 py-2.5 font-medium @4xl/list:table-cell">
                   {t("findings.columnFixedIn")}
                 </th>
                 <SortHeader
@@ -269,7 +276,7 @@ function Findings() {
                   column="firstSeen"
                   label={t("findings.columnFirstSeen")}
                   natural="desc"
-                  className="hidden px-5 @5xl:table-cell"
+                  className="hidden px-5 @5xl/list:table-cell"
                   {...sortProps}
                 />
               </tr>
@@ -301,10 +308,10 @@ function Findings() {
                   <td className="px-3 py-2.5 text-right font-mono text-sm tabular-nums">
                     {f.cvssScore !== null ? f.cvssScore.toFixed(1) : <Missing />}
                   </td>
-                  <td className="hidden px-3 py-2.5 text-right font-mono text-sm tabular-nums @6xl:table-cell">
+                  <td className="hidden px-3 py-2.5 text-right font-mono text-sm tabular-nums @6xl/list:table-cell">
                     {f.epss !== null ? formatPercent(f.epss) : <Missing />}
                   </td>
-                  <td className="hidden px-3 py-2.5 text-sm whitespace-nowrap @3xl:table-cell">
+                  <td className="hidden px-3 py-2.5 text-sm whitespace-nowrap @3xl/list:table-cell">
                     {f.publishedAt ? (
                       <time dateTime={f.publishedAt} title={formatDateTime(f.publishedAt)}>
                         {formatDate(f.publishedAt)}
@@ -317,7 +324,7 @@ function Findings() {
                     {f.packageName}
                     <div className="text-muted-foreground">{f.packageVersion}</div>
                   </td>
-                  <td className="hidden px-3 py-2.5 font-mono text-sm break-all @4xl:table-cell">
+                  <td className="hidden px-3 py-2.5 font-mono text-sm break-all @4xl/list:table-cell">
                     {f.fixedIn?.length ? (
                       f.fixedIn.join(", ")
                     ) : (
@@ -327,7 +334,7 @@ function Findings() {
                   <td className="px-3 py-2.5">
                     <RepositoryLink id={f.repositoryId} name={f.repositoryName} />
                   </td>
-                  <td className="hidden px-5 py-2.5 text-sm whitespace-nowrap @5xl:table-cell">
+                  <td className="hidden px-5 py-2.5 text-sm whitespace-nowrap @5xl/list:table-cell">
                     <time dateTime={f.firstSeenAt}>{formatDateTime(f.firstSeenAt)}</time>
                     <div className="text-muted-foreground">{formatRelative(f.firstSeenAt)}</div>
                   </td>
@@ -353,10 +360,28 @@ function Findings() {
             key={shownId}
             id={shownId}
             canEdit={me.role !== "viewer"}
-            onClose={search.id ? () => setSearch({ id: undefined, cursor: search.cursor }, true) : undefined}
+            onClose={
+              search.id
+                ? () => setSearch({ id: undefined, ai: undefined, cursor: search.cursor }, true)
+                : undefined
+            }
+            onAskAi={aiPane ? undefined : () => setSearch({ ai: "1", cursor: search.cursor }, true)}
           />
         ) : null}
+        {/* The pane is sized to start below the header and filters and still end inside the screen. */}
+        {shownId && aiPane ? (
+          <div className="sticky top-0 h-[calc(100dvh-15rem)] self-start">
+            <AiPanel key={shownId} findingId={shownId} me={me} variant="pane" />
+          </div>
+        ) : null}
       </div>
+      <Drawer
+        open={Boolean(shownId) && !aiPane && search.ai === "1"}
+        onClose={() => setSearch({ ai: undefined, cursor: search.cursor }, true)}
+        title={t("ai.panelTitle")}
+      >
+        {shownId ? <AiPanel key={shownId} findingId={shownId} me={me} variant="drawer" /> : null}
+      </Drawer>
     </>
   );
 }

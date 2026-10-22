@@ -64,6 +64,55 @@
       "when": 1792608357205,
       "tag": "0008_thick_diamondback",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792609630368,
+      "tag": "0009_optimal_hellfire_club",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792612447712,
+      "tag": "0010_hosts",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792615534226,
+      "tag": "0011_proxmox",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792618290927,
+      "tag": "0012_ai_triage",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792622068476,
+      "tag": "0013_fix_prs",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792627311612,
+      "tag": "0014_wazuh_xdr",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792630503961,
+      "tag": "0015_attack_overview",
+      "breakpoints": true
     }
   ]
 }

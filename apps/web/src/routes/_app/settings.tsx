@@ -3,20 +3,26 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AiSettingsPanel } from "../../components/ai-settings-panel.tsx";
 import { systemQuery } from "../../components/app-shell.tsx";
+import { AttacksPanel } from "../../components/attacks-panel.tsx";
 import { isAdmin } from "../../components/nav.ts";
+import { NotificationsPanel } from "../../components/notifications-panel.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
+import { ProxmoxPanel } from "../../components/proxmox-panel.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import { Alert } from "../../components/ui/alert.tsx";
 import { Button } from "../../components/ui/button.tsx";
 import { Checkbox } from "../../components/ui/checkbox.tsx";
 import { Select } from "../../components/ui/select.tsx";
 import { UpdatesPanel } from "../../components/updates-panel.tsx";
+import { XdrPanel } from "../../components/xdr-panel.tsx";
 import { ApiError, api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
 import { formatCalendarDate, formatDateTime } from "../../lib/format.ts";
 import type { MessageKey } from "../../lib/i18n.ts";
 import { SETTINGS_SECTIONS, type SettingsSection, settingsSearch } from "../../lib/search.ts";
+import { displayVersion } from "../../lib/version.ts";
 
 /** Public source repository; AGPL-3.0 section 13 asks us to offer the source to every user. */
 const SOURCE_REPOSITORY = "https://github.com/lcsfls/garnet-ops";
@@ -35,6 +41,11 @@ interface Organization {
 
 const SECTION_LABELS = {
   scanning: "settings.sectionScanning",
+  notifications: "settings.sectionNotifications",
+  proxmox: "settings.sectionProxmox",
+  xdr: "settings.sectionXdr",
+  attacks: "settings.sectionAttacks",
+  ai: "ai.sectionName",
   updates: "settings.sectionUpdates",
   about: "settings.sectionAbout",
 } as const satisfies Record<SettingsSection, MessageKey>;
@@ -48,8 +59,17 @@ function SettingsPage() {
   const { me } = Route.useRouteContext();
   const search = Route.useSearch();
   const admin = isAdmin(me);
-  // Updates are an installation matter: only owners and admins see them.
-  const sections = SETTINGS_SECTIONS.filter((s) => s !== "updates" || admin);
+  // Updates, notifications, Proxmox, XDR, attacks and AI are an installation matter: only owners and admins see them.
+  const sections = SETTINGS_SECTIONS.filter(
+    (s) =>
+      (s !== "updates" &&
+        s !== "notifications" &&
+        s !== "proxmox" &&
+        s !== "xdr" &&
+        s !== "attacks" &&
+        s !== "ai") ||
+      admin,
+  );
   const section = search.section && sections.includes(search.section) ? search.section : "scanning";
 
   return (
@@ -77,6 +97,11 @@ function SettingsPage() {
         </nav>
         <div className="grid min-w-0 gap-4">
           {section === "scanning" ? <ScanningSection canEdit={admin} /> : null}
+          {section === "notifications" ? <NotificationsPanel me={me} /> : null}
+          {section === "proxmox" ? <ProxmoxPanel me={me} /> : null}
+          {section === "xdr" ? <XdrPanel me={me} /> : null}
+          {section === "attacks" ? <AttacksPanel me={me} /> : null}
+          {section === "ai" ? <AiSettingsPanel me={me} /> : null}
           {section === "updates" ? <UpdatesPanel me={me} /> : null}
           {section === "about" ? <AboutSection /> : null}
         </div>
@@ -90,6 +115,29 @@ const HELP: Record<SettingsSection, { title: MessageKey; text: MessageKey }[]> =
   scanning: [
     { title: "settings.helpNightlyTitle", text: "settings.helpNightlyText" },
     { title: "settings.helpSandboxTitle", text: "settings.helpSandboxText" },
+  ],
+  notifications: [
+    { title: "settings.helpNotifyContentTitle", text: "settings.helpNotifyContentText" },
+    { title: "settings.helpNotifyDiscordTitle", text: "settings.helpNotifyDiscordText" },
+  ],
+  proxmox: [
+    { title: "settings.helpProxmoxReadOnlyTitle", text: "settings.helpProxmoxReadOnlyText" },
+    { title: "settings.helpProxmoxCertificateTitle", text: "settings.helpProxmoxCertificateText" },
+  ],
+  xdr: [
+    { title: "settings.helpXdrReadOnlyTitle", text: "settings.helpXdrReadOnlyText" },
+    { title: "settings.helpXdrCertificateTitle", text: "settings.helpXdrCertificateText" },
+    { title: "settings.helpXdrLicenseTitle", text: "settings.helpXdrLicenseText" },
+  ],
+  attacks: [
+    { title: "attacks.settings.helpLocalTitle", text: "attacks.settings.helpLocalText" },
+    { title: "attacks.settings.helpOptInTitle", text: "attacks.settings.helpOptInText" },
+    { title: "attacks.settings.helpLicenseTitle", text: "attacks.settings.helpLicenseText" },
+  ],
+  ai: [
+    { title: "ai.helpDataTitle", text: "ai.helpDataText" },
+    { title: "ai.helpNetworkTitle", text: "ai.helpNetworkText" },
+    { title: "ai.helpOffTitle", text: "ai.helpOffText" },
   ],
   updates: [
     { title: "settings.helpUpdatesSignedTitle", text: "settings.helpUpdatesSignedText" },
@@ -142,15 +190,14 @@ function AboutSection() {
   const { t } = useTranslation();
   const system = useQuery(systemQuery);
   const version = system.data?.version;
-  const sourceUrl =
-    version && version !== "0.0.0-dev" ? `${SOURCE_REPOSITORY}/tree/v${version}` : SOURCE_REPOSITORY;
+  const sourceUrl = version ? `${SOURCE_REPOSITORY}/tree/v${version}` : SOURCE_REPOSITORY;
   return (
     <Card>
       <CardHeader title={t("settings.aboutTitle")} description={t("settings.aboutDescription")} />
       {system.data ? (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-2 px-5 py-5">
           <dt className="text-muted-foreground">{t("settings.aboutVersion")}</dt>
-          <dd className="font-mono">{version === "0.0.0-dev" ? t("shell.devBuild") : version}</dd>
+          <dd className="font-mono">{version ? displayVersion(version, t("shell.alpha")) : null}</dd>
           <dt className="text-muted-foreground">{t("settings.aboutLicense")}</dt>
           <dd>{t("settings.aboutLicenseValue")}</dd>
           <dt className="text-muted-foreground">{t("settings.aboutSource")}</dt>

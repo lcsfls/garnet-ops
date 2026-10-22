@@ -10,6 +10,7 @@ import { Tile } from "../../components/tile.tsx";
 import { TrendChart } from "../../components/trend-chart.tsx";
 import { ScanStateBadge, SeverityBadge } from "../../components/ui/badge.tsx";
 import { Button } from "../../components/ui/button.tsx";
+import { WriteAccessCard } from "../../components/write-access-card.tsx";
 import { api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
 import { calendarDaysBetween } from "../../lib/dates.ts";
@@ -44,7 +45,11 @@ function RepositoryPage() {
     queryKey: ["repository", id],
     queryFn: () => api<RepositoryDetail>(`/repositories/${id}`),
     refetchInterval: (q) =>
-      q.state.data?.lastScan && ["queued", "running"].includes(q.state.data.lastScan.state) ? 4000 : false,
+      (q.state.data?.lastScan && ["queued", "running"].includes(q.state.data.lastScan.state)) ||
+      // The worker is checking a new write token (ADR 0014).
+      q.state.data?.writeAccess.access?.status === "unchecked"
+        ? 4000
+        : false,
   });
   const scan = useMutation({
     mutationFn: () => api(`/repositories/${id}/scans`, { method: "POST" }),
@@ -116,6 +121,7 @@ function RepositoryPage() {
               ))}
             </div>
           </div>
+          <WriteAccessCard repo={data} me={me} />
           <div className="grid gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <RepositoryTrend id={id} />
             <ScanHistory

@@ -11,6 +11,9 @@ updates (the worker) and release checks (the optional update service).
 - A host name your users open, for example `garnetops.example.lan`
 - Outbound HTTPS from the host to your Git servers, and to `grype.anchore.io` if the
   worker should update the vulnerability database itself (`GARNETOPS_GRYPE_DB_UPDATE=auto`)
+- Only if you switch them on in Settings, Attack overview: outbound HTTPS from the worker to
+  `download.db-ip.com` (monthly download of the location data) and to `api.abuseipdb.com` (reputation
+  lookup). Both are off by default; the data can also be imported by hand ([attacks.md](attacks.md))
 
 ## Install
 
@@ -25,11 +28,11 @@ release images and work from the first release on.
 sudo mkdir -p /opt/garnetops && cd /opt/garnetops
 # The files of the release you install (same tag for all of them):
 for f in docker-compose.yml updater.yaml .env.example deploy/Caddyfile deploy/install.sh; do
-  sudo curl -fsSL --create-dirs -o "$f" "https://raw.githubusercontent.com/lcsfls/garnet-ops/v0.1.0/$f"
+  sudo curl -fsSL --create-dirs -o "$f" "https://raw.githubusercontent.com/lcsfls/garnet-ops/v0.0.1/$f"
 done
 sudo sh deploy/install.sh garnetops.example.lan \
-  "ghcr.io/lcsfls/garnetops:0.1.0@sha256:<app digest from the release>" \
-  "ghcr.io/lcsfls/garnetops-web:0.1.0@sha256:<web digest from the release>"
+  "ghcr.io/lcsfls/garnetops:0.0.1@sha256:<app digest from the release>" \
+  "ghcr.io/lcsfls/garnetops-web:0.0.1@sha256:<web digest from the release>"
 sudo docker compose up -d
 sudo docker compose logs api   # prints the one-time setup token
 ```
@@ -44,8 +47,8 @@ set up its second factor.
 Release images are signed; check them before the first start:
 
 ```sh
-cosign verify ghcr.io/lcsfls/garnetops:0.1.0@sha256:<digest> \
-  --certificate-identity "https://github.com/lcsfls/garnet-ops/.github/workflows/release.yml@refs/tags/v0.1.0" \
+cosign verify ghcr.io/lcsfls/garnetops:0.0.1@sha256:<digest> \
+  --certificate-identity "https://github.com/lcsfls/garnet-ops/.github/workflows/release.yml@refs/tags/v0.0.1" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 

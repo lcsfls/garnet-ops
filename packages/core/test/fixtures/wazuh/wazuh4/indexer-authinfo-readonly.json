@@ -1,0 +1,15 @@
+{
+  "user": "User [name=garnetops-ro, backend_roles=[], requestedTenant=null]",
+  "user_name": "garnetops-ro",
+  "user_requested_tenant": null,
+  "remote_address": "192.0.2.5:41234",
+  "backend_roles": [],
+  "custom_attribute_names": [],
+  "roles": ["garnetops_xdr_read"],
+  "tenants": {
+    "garnetops-ro": true
+  },
+  "principal": null,
+  "peer_certificates": "0",
+  "sso_logout_url": null
+}

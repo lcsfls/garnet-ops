@@ -1,6 +1,6 @@
 {
   "name": "@garnetops/core",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -11,7 +11,24 @@
     "./password": "./src/password.ts",
     "./ssh": "./src/ssh.ts",
     "./gates": "./src/gates.ts",
-    "./team": "./src/team.ts"
+    "./team": "./src/team.ts",
+    "./notifications": "./src/notifications.ts",
+    "./hosts": "./src/hosts.ts",
+    "./host-setup": "./src/host-setup.ts",
+    "./proxmox": "./src/proxmox.ts",
+    "./proxmox-flags": "./src/proxmox-flags.ts",
+    "./ai": "./src/ai.ts",
+    "./ai-endpoint": "./src/ai-endpoint.ts",
+    "./versions": "./src/versions.ts",
+    "./manifests": "./src/manifests.ts",
+    "./fix-prs": "./src/fix-prs.ts",
+    "./wazuh": "./src/wazuh.ts",
+    "./wazuh-enroll": "./src/wazuh-enroll.ts",
+    "./xdr-summary": "./src/xdr-summary.ts",
+    "./geoip": "./src/geoip.ts",
+    "./osint": "./src/osint.ts",
+    "./attacks": "./src/attacks.ts",
+    "./attack-summary": "./src/attack-summary.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

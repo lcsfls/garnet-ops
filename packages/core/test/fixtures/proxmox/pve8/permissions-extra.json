@@ -1,0 +1,11 @@
+{
+  "data": {
+    "/": {
+      "Sys.Audit": 1,
+      "VM.Audit": 1,
+      "VM.PowerMgmt": 1,
+      "Datastore.Allocate": 1,
+      "Permissions.Modify": 0
+    }
+  }
+}

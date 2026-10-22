@@ -27,6 +27,8 @@ const schema = z.object({
    * outbound HTTPS to Anchore). "off" (default): the operator imports it, e.g. air-gapped.
    */
   GARNETOPS_GRYPE_DB_UPDATE: z.enum(["auto", "off"]).default("off"),
+  /** The address users open; links in notifications point here (ADR 0010). */
+  PUBLIC_URL: z.string().url().optional(),
   /** Upper bound for a cloned repository on disk. */
   GARNETOPS_MAX_REPO_MB: z.coerce.number().int().min(10).max(20_000).default(2048),
 });

@@ -1,0 +1,365 @@
+{
+  "took": 41,
+  "timed_out": false,
+  "_shards": {
+    "total": 7,
+    "successful": 7,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 12336,
+      "relation": "eq"
+    },
+    "max_score": null,
+    "hits": []
+  },
+  "aggregations": {
+    "levels": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": 3,
+          "doc_count": 9000
+        },
+        {
+          "key": 5,
+          "doc_count": 2400
+        },
+        {
+          "key": 7,
+          "doc_count": 720
+        },
+        {
+          "key": 10,
+          "doc_count": 180
+        },
+        {
+          "key": 12,
+          "doc_count": 30
+        },
+        {
+          "key": 15,
+          "doc_count": 6
+        }
+      ]
+    },
+    "tactics": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "Credential Access",
+          "doc_count": 240
+        },
+        {
+          "key": "Initial Access",
+          "doc_count": 72
+        },
+        {
+          "key": "Persistence",
+          "doc_count": 42
+        },
+        {
+          "key": "Defense Evasion",
+          "doc_count": 18
+        },
+        {
+          "key": "<script>alert(1)</script>",
+          "doc_count": 2
+        },
+        {
+          "key": "Made Up Tactic From A Custom Rule",
+          "doc_count": 1
+        }
+      ]
+    },
+    "agents": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "001",
+          "doc_count": 5400,
+          "name": {
+            "buckets": [
+              {
+                "key": "web-01",
+                "doc_count": 5400
+              }
+            ]
+          }
+        },
+        {
+          "key": "002",
+          "doc_count": 3840,
+          "name": {
+            "buckets": [
+              {
+                "key": "db-01",
+                "doc_count": 3840
+              }
+            ]
+          }
+        },
+        {
+          "key": "003",
+          "doc_count": 1800,
+          "name": {
+            "buckets": [
+              {
+                "key": "app-02.example.lan",
+                "doc_count": 1800
+              }
+            ]
+          }
+        },
+        {
+          "key": "004",
+          "doc_count": 900,
+          "name": {
+            "buckets": [
+              {
+                "key": "win-fs01",
+                "doc_count": 900
+              }
+            ]
+          }
+        },
+        {
+          "key": "not-an-agent",
+          "doc_count": 3,
+          "name": {
+            "buckets": []
+          }
+        }
+      ]
+    },
+    "fim": {
+      "doc_count": 108
+    },
+    "sources": {
+      "doc_count": 462,
+      "ips": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          {
+            "key": "198.51.100.77",
+            "doc_count": 330,
+            "groups": {
+              "buckets": [
+                {
+                  "key": "authentication_failed",
+                  "doc_count": 55
+                },
+                {
+                  "key": "sshd",
+                  "doc_count": 55
+                },
+                {
+                  "key": "authentication_failures",
+                  "doc_count": 3
+                }
+              ]
+            },
+            "first": {
+              "value": 1792054800000.0,
+              "value_as_string": "2026-10-15T09:00:00Z"
+            },
+            "last": {
+              "value": 1792655880000.0,
+              "value_as_string": "2026-10-22T07:58:00Z"
+            },
+            "agents": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "001",
+                  "doc_count": 325,
+                  "name": {
+                    "buckets": [
+                      {
+                        "key": "web-01",
+                        "doc_count": 325
+                      }
+                    ]
+                  }
+                },
+                {
+                  "key": "002",
+                  "doc_count": 5,
+                  "name": {
+                    "buckets": [
+                      {
+                        "key": "db-01",
+                        "doc_count": 5
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": "203.0.113.9",
+            "doc_count": 132,
+            "groups": {
+              "buckets": [
+                {
+                  "key": "web_scan",
+                  "doc_count": 22
+                },
+                {
+                  "key": "web",
+                  "doc_count": 22
+                }
+              ]
+            },
+            "first": {
+              "value": 1792054800000.0,
+              "value_as_string": "2026-10-15T09:00:00Z"
+            },
+            "last": {
+              "value": 1792650600000.0,
+              "value_as_string": "2026-10-22T06:30:00Z"
+            },
+            "agents": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "001",
+                  "doc_count": 132,
+                  "name": {
+                    "buckets": [
+                      {
+                        "key": "web-01",
+                        "doc_count": 132
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": "2001:db8::bad",
+            "doc_count": 3,
+            "groups": {
+              "buckets": [
+                {
+                  "key": "invalid_login",
+                  "doc_count": 3
+                }
+              ]
+            },
+            "first": {
+              "value": null
+            },
+            "last": {
+              "value": 1792620000000.0
+            },
+            "agents": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "not-an-agent",
+                  "doc_count": 1,
+                  "name": {
+                    "buckets": [
+                      {
+                        "key": "x",
+                        "doc_count": 1
+                      }
+                    ]
+                  }
+                },
+                {
+                  "key": "003",
+                  "doc_count": 3,
+                  "name": {
+                    "buckets": [
+                      {
+                        "key": "app-02.example.lan",
+                        "doc_count": 3
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "key": "999.1.1.1; drop table",
+            "doc_count": 1,
+            "groups": {
+              "buckets": []
+            },
+            "first": {
+              "value": null
+            },
+            "last": {
+              "value": null
+            },
+            "agents": {
+              "buckets": []
+            }
+          }
+        ]
+      }
+    },
+    "attacks": {
+      "doc_count": 492,
+      "distinct": {
+        "value": 10
+      },
+      "agents": {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+          {
+            "key": "001",
+            "doc_count": 456,
+            "name": {
+              "buckets": [
+                {
+                  "key": "web-01",
+                  "doc_count": 456
+                }
+              ]
+            }
+          },
+          {
+            "key": "002",
+            "doc_count": 30,
+            "name": {
+              "buckets": [
+                {
+                  "key": "db-01",
+                  "doc_count": 30
+                }
+              ]
+            }
+          },
+          {
+            "key": "bad id",
+            "doc_count": 1,
+            "name": {
+              "buckets": [
+                {
+                  "key": "x",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

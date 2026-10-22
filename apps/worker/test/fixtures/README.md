@@ -9,3 +9,13 @@ here is installed, built or executed.
 - `grype-npm-vulnerable.json`: grype 0.120.1 output for `npm-vulnerable/`,
   recorded on 2026-10-21 against the vulnerability database built
   2026-10-19. Local paths were replaced by `/fixture` and `/db`.
+
+## Servers
+
+- `host-grype-debian.json`: a **synthetic** grype-shaped report (not recorded
+  from a real run, because the vulnerability database cannot be fetched in the
+  test environment) for the Debian 12 inventory used in `hosts.test.ts`: one
+  critical finding with a fix in `libssl3` and one low finding without a fix in
+  `bash`. Vulnerability IDs are the fictional `CVE-2099-…` range. The test that
+  runs the real grype against a server inventory is skipped without a
+  vulnerability database.

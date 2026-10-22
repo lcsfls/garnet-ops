@@ -1,0 +1,34 @@
+{
+  "data": [
+    {
+      "volid": "nas-backup:backup/vzdump-qemu-100-2026_10_20-02_00_05.vma.zst",
+      "vmid": 100,
+      "ctime": 1792461605,
+      "format": "vma.zst",
+      "size": 5000,
+      "content": "backup",
+      "notes": "<b>x</b>"
+    },
+    {
+      "volid": "nas-backup:backup/vzdump-qemu-100-2026_10_13-02_00_05.vma.zst",
+      "vmid": 100,
+      "ctime": 1791856805,
+      "format": "vma.zst",
+      "size": 5000,
+      "content": "backup"
+    },
+    {
+      "volid": "nas-backup:backup/vzdump-qemu-101-2026_10_01-02_00_05.vma.zst",
+      "vmid": 101,
+      "ctime": 1790820005,
+      "format": "vma.zst",
+      "size": 9000,
+      "content": "backup"
+    },
+    {
+      "volid": "nas-backup:backup/garbage",
+      "vmid": "nope",
+      "ctime": "x"
+    }
+  ]
+}

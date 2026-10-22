@@ -1,5 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, test } from "@playwright/test";
 import { hasNoHorizontalScroll, overflowingCards, STATE_FILE, watchForProblems } from "./helpers.ts";
+import { AI, ATTACKS, FIXES, PROXMOX, restoreWazuh, sql, WAZUH } from "./seed.ts";
 
 /** Layout baseline (AGENTS.md rule 5): every screen fits at 1080p with 100, 125 and 150 % scaling. */
 test.describe("signed out", () => {
@@ -42,9 +43,41 @@ test.describe("signed in", () => {
     { path: "/findings?id=fnd_e2e0000000000000001", heading: "Findings", name: "findings-detail" },
     { path: "/repositories", heading: "Repositories", name: "repositories" },
     { path: "/packages", heading: "Packages", name: "packages" },
+    { path: "/servers", heading: "Servers", name: "servers" },
+    { path: "/servers?view=proxmox", heading: "Servers", name: "proxmox" },
+    {
+      path: "/servers?view=proxmox&pxFlag=stale&pxSort=mem&pxType=qemu",
+      heading: "Servers",
+      name: "proxmox-filtered",
+    },
+    { path: "/servers?view=wazuh", heading: "Servers", name: "wazuh-agents" },
+    { path: "/xdr", heading: "XDR", name: "xdr" },
+    { path: "/attacks", heading: "Attacks", name: "attacks" },
+    {
+      path: "/attacks?period=7d&country=DE&sort=lastSeen&dir=asc",
+      heading: "Attacks",
+      name: "attacks-filtered",
+    },
+    { path: "/settings?section=attacks", heading: "Settings", name: "settings-attacks" },
+    {
+      path: "/xdr?period=30d&status=disconnected&sort=vulnerabilities",
+      heading: "XDR",
+      name: "xdr-filtered",
+    },
+    { path: "/servers/host_e2eseeded000000001", heading: "web-01", name: "server" },
+    { path: "/servers/host_e2eseeded000000003", heading: "mail-01", name: "server-host-key-changed" },
+    { path: "/servers/host_e2eseeded000000005", heading: "db-01", name: "server-failed" },
     { path: "/gates?repositoryId=repo_e2eseeded000000001", heading: "Quality gates", name: "gates" },
+    { path: "/fixes", heading: "Fix proposals", name: "fixes" },
+    { path: `/fixes?id=${FIXES.key("pkg-2")}`, heading: "Fix proposals", name: "fixes-detail" },
+    { path: "/fixes?view=prs", heading: "Fix proposals", name: "fixes-pull-requests" },
     { path: "/settings", heading: "Settings", name: "settings" },
     { path: "/settings?section=updates", heading: "Settings", name: "settings-updates" },
+    { path: "/settings?section=notifications", heading: "Settings", name: "settings-notifications" },
+    { path: "/settings?section=proxmox", heading: "Settings", name: "settings-proxmox" },
+    { path: "/settings?section=xdr", heading: "Settings", name: "settings-xdr" },
+    { path: "/settings?section=ai", heading: "Settings", name: "settings-ai" },
+    { path: `/findings?id=${AI.talked.findingId}&ai=1`, heading: "Findings", name: "findings-ai" },
     { path: "/settings?section=about", heading: "Settings", name: "settings-about" },
     { path: "/repositories/repo_e2eseeded000000001", heading: "seeded-app", name: "repository" },
     { path: "/audit-log", heading: "Audit log", name: "audit-log" },
@@ -62,6 +95,431 @@ test.describe("signed in", () => {
       expect(problems).toEqual([]);
     });
   }
+
+  test("the add server dialogs fit the screen, with the script and the host key step", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    await page.goto("/servers?add=1");
+    const wizard = page.getByRole("dialog", { name: "Add a server" });
+    await expect(wizard).toBeVisible();
+    await page.screenshot({ path: info.outputPath("add-server-1.png") });
+    const fits = async () =>
+      wizard.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return el.scrollWidth <= el.clientWidth + 1 && box.left >= 0 && box.right <= window.innerWidth;
+      });
+    expect(await fits()).toBe(true);
+
+    await wizard.getByLabel("Address", { exact: true }).fill("layout-01.example.test");
+    await wizard.getByRole("button", { name: "Add server and continue" }).click();
+    await expect(wizard).toContainText("Step 2 of 4");
+    await wizard.getByRole("button", { name: "Copy script" }).first().click();
+    await expect(wizard.getByLabel("Script", { exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath("add-server-2.png") });
+    expect(await fits()).toBe(true);
+    await wizard.getByRole("button", { name: "One command" }).click();
+    await wizard.getByRole("button", { name: "Create command" }).click();
+    await expect(wizard.getByLabel("Command to run on the server")).toBeVisible();
+    await page.screenshot({ path: info.outputPath("add-server-2-command.png") });
+    expect(await fits()).toBe(true);
+
+    await wizard.getByRole("button", { name: "Continue" }).click();
+    await expect(wizard).toContainText("Step 3 of 4");
+    await page.screenshot({ path: info.outputPath("add-server-3.png") });
+    expect(await fits()).toBe(true);
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+
+    // Clean up what this test added (the viewports run one after another on the same database).
+    await sql("delete from host where address = 'layout-01.example.test'");
+    expect(problems).toEqual([]);
+  });
+
+  test("the Proxmox dialogs fit the screen: guest, add as server, connection and certificate", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    const fits = (dialog: Locator) =>
+      dialog.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return el.scrollWidth <= el.clientWidth + 1 && box.left >= 0 && box.right <= window.innerWidth;
+      });
+    await page.goto(`/servers?view=proxmox&guest=${PROXMOX.guests.cache.id}`);
+    const guest = page.getByRole("dialog", { name: "cache-01" });
+    await expect(guest).toBeVisible();
+    await page.screenshot({ path: info.outputPath("proxmox-guest.png") });
+    expect(await fits(guest)).toBe(true);
+
+    await page.goto(`/servers?view=proxmox&addGuest=${PROXMOX.guests.app.id}`);
+    const wizard = page.getByRole("dialog", { name: "Add a server" });
+    await expect(wizard).toContainText("Addresses known for this guest: 192.0.2.61, 2001:db8::61");
+    await page.screenshot({ path: info.outputPath("proxmox-add-as-server.png") });
+    expect(await fits(wizard)).toBe(true);
+
+    await page.goto("/settings?section=proxmox");
+    await page.getByRole("button", { name: "Add connection" }).click();
+    const connection = page.getByRole("dialog", { name: "Connect Proxmox VE" });
+    await expect(connection).toBeVisible();
+    await page.screenshot({ path: info.outputPath("proxmox-connection.png") });
+    expect(await fits(connection)).toBe(true);
+    await page.keyboard.press("Escape");
+
+    await page
+      .getByRole("listitem")
+      .filter({ hasText: PROXMOX.changed.name })
+      .getByRole("button", { name: "Review the change" })
+      .click();
+    const certificate = page.getByRole("dialog", { name: "The certificate of Moved lab changed" });
+    await expect(certificate).toBeVisible();
+    await page.screenshot({ path: info.outputPath("proxmox-certificate.png") });
+    expect(await fits(certificate)).toBe(true);
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+    expect(problems).toEqual([]);
+  });
+
+  test("XDR uses wide screens: more columns from wide on, the most from xwide on, and nothing is lost below", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    // The content area is the viewport minus the sidebar and the page padding (AGENTS.md rule 5).
+    const content = (page.viewportSize()?.width ?? 0) - 320;
+    await page.goto("/xdr");
+    await expect(page.getByRole("heading", { name: "XDR", level: 1 })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const agents = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Agents", exact: true }) });
+    const header = (name: string) => agents.getByRole("columnheader", { name, exact: true });
+    // Always there.
+    await expect(header("Agent")).toBeVisible();
+    await expect(header("Status")).toBeVisible();
+    await expect(header("Vulnerabilities")).toBeVisible();
+    await expect(header("Server")).toBeVisible();
+    // From wide (content 1450 px, 1080p at 100 %): system and last keep-alive; from xwide (1900 px): version and groups.
+    for (const [name, from] of [
+      ["System", 1450],
+      ["Last keep-alive", 1450],
+      ["Version", 1900],
+      ["Groups", 1900],
+    ] as const) {
+      if (content >= from) await expect(header(name)).toBeVisible();
+      else await expect(header(name)).toBeHidden();
+    }
+    // Below wide the address moves under the name instead of disappearing.
+    const web = agents.getByTestId(`agent-${WAZUH.agents.web.agentId}`);
+    await expect(web).toContainText("192.0.2.21");
+    // The periods table and the three cards side by side need the room; below it they stack, still complete.
+    const alerts = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Alerts", exact: true }) });
+    if (content >= 1450) await expect(alerts.getByRole("heading", { name: "All periods" })).toBeVisible();
+    else await expect(alerts.getByRole("heading", { name: "All periods" })).toBeHidden();
+    const cards = ["MITRE ATT&CK tactics", "Busiest agents", "Vulnerabilities on agents"].map((name) =>
+      page.locator("section").filter({ has: page.getByRole("heading", { name, exact: true }) }),
+    );
+    const boxes = await Promise.all(cards.map((c) => c.boundingBox()));
+    expect(boxes.every(Boolean)).toBe(true);
+    if (content >= 1900) {
+      // Three across.
+      expect(Math.abs((boxes[0]?.y ?? 0) - (boxes[2]?.y ?? 99999))).toBeLessThan(40);
+    } else if (content >= 1450) {
+      // Two across, the third below.
+      expect(Math.abs((boxes[0]?.y ?? 0) - (boxes[1]?.y ?? 99999))).toBeLessThan(40);
+      expect((boxes[2]?.y ?? 0) > (boxes[0]?.y ?? 0) + 100).toBe(true);
+    }
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+    expect(await overflowingCards(page)).toEqual([]);
+    await page.screenshot({ path: info.outputPath("xdr-columns.png"), fullPage: true });
+    expect(problems).toEqual([]);
+  });
+
+  test("Attacks uses wide screens: more columns and figures from wide on, the most from xwide on, and nothing is lost below", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    // The reputation column is part of the layout when it is switched on.
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    await sql(
+      "insert into attack_settings (organization_id, osint_enabled, osint_provider, osint_acknowledged_at) values ($1, true, 'abuseipdb', now()) on conflict (organization_id) do update set osint_enabled = true, osint_provider = 'abuseipdb', osint_acknowledged_at = now()",
+      [org?.id],
+    );
+    await sql(
+      `insert into attack_osint_result (id, organization_id, provider, ip, score, reports, last_reported_at, checked_at)
+       values ('osr_layout0000000001', $1, 'abuseipdb', $2, 91, 120, now() - interval '3 hours', now())`,
+      [org?.id, ATTACKS.ips.de],
+    );
+    try {
+      // The content area is the viewport minus the sidebar and the page padding (AGENTS.md rule 5).
+      const content = (page.viewportSize()?.width ?? 0) - 320;
+      await page.goto("/attacks");
+      await expect(page.getByRole("heading", { name: "Attacks", level: 1 })).toBeVisible();
+      await expect(page.getByTestId("attack-map").locator("svg")).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      const table = page.getByTestId("attack-table");
+      const header = (name: string) => table.getByRole("columnheader", { name, exact: true });
+      // Always there.
+      await expect(header("Address")).toBeVisible();
+      await expect(header("Alerts")).toBeVisible();
+      await expect(header("Abuse score")).toBeVisible();
+      // Country and network from 768 px of content; groups, machines and last seen from wide; first seen from xwide.
+      for (const [name, from] of [
+        ["Country", 768],
+        ["Network", 768],
+        ["Rule groups", 1450],
+        ["Machines", 1450],
+        ["Last seen", 1450],
+        ["First seen", 1900],
+      ] as const) {
+        if (content >= from) await expect(header(name), name).toBeVisible();
+        else await expect(header(name), name).toBeHidden();
+      }
+      // Below the country column the country and the network move under the address; nothing disappears.
+      const de = page.getByTestId(`attack-row-${ATTACKS.ips.de}`);
+      await expect(de).toContainText("Germany");
+      await expect(de).toContainText("AS64500");
+      // Figures: four always, five from wide, six from xwide.
+      const figures = page.getByTestId("attack-figures");
+      await expect(figures.locator('[data-figure="agents"]')).toBeVisible();
+      if (content >= 1450) await expect(figures.locator('[data-figure="internal"]')).toBeVisible();
+      else await expect(figures.locator('[data-figure="internal"]')).toBeHidden();
+      if (content >= 1900) await expect(figures.locator('[data-figure="unlocated"]')).toBeVisible();
+      else await expect(figures.locator('[data-figure="unlocated"]')).toBeHidden();
+      // The map and the lists: stacked below wide, map left and two lists right from wide, three across from xwide.
+      const box = async (name: string) =>
+        page
+          .locator("section")
+          .filter({ has: page.getByRole("heading", { name, exact: true }) })
+          .boundingBox();
+      const [map, countries, networks] = await Promise.all([
+        box("Origin of the alerts"),
+        box("Countries"),
+        box("Networks"),
+      ]);
+      expect(map && countries && networks).toBeTruthy();
+      if (content >= 1900) {
+        expect(Math.abs((map?.y ?? 0) - (countries?.y ?? 9999))).toBeLessThan(40);
+        expect(Math.abs((countries?.y ?? 0) - (networks?.y ?? 9999))).toBeLessThan(40);
+      } else if (content >= 1450) {
+        expect(Math.abs((map?.y ?? 0) - (countries?.y ?? 9999))).toBeLessThan(40);
+        expect((networks?.y ?? 0) > (countries?.y ?? 0) + 40).toBe(true);
+        expect((networks?.x ?? 0) > (map?.x ?? 0) + 100).toBe(true);
+      } else {
+        expect((countries?.y ?? 0) > (map?.y ?? 0) + 100).toBe(true);
+      }
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+      await page.screenshot({ path: info.outputPath("attacks-columns.png"), fullPage: true });
+    } finally {
+      await sql("delete from attack_osint_result");
+      await sql("delete from attack_settings");
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("the Attacks settings fit the screen with their dialogs", async ({ page }, info) => {
+    const problems = watchForProblems(page);
+    await page.goto("/settings?section=attacks");
+    await expect(page.getByRole("heading", { name: "Location data", level: 2 })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+    expect(await overflowingCards(page)).toEqual([]);
+    await page.getByRole("button", { name: "Delete stored addresses now" }).click();
+    const dialog = page.getByRole("dialog", { name: "Delete all stored source addresses?" });
+    await expect(dialog).toBeVisible();
+    await page.screenshot({ path: info.outputPath("attacks-purge.png") });
+    const box = await dialog.boundingBox();
+    expect(
+      (box?.x ?? -1) >= 0 && (box?.x ?? 0) + (box?.width ?? 0) <= (page.viewportSize()?.width ?? 0),
+    ).toBe(true);
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    expect(problems).toEqual([]);
+  });
+
+  test("the XDR dialogs fit the screen: enrollment helper, connection and certificate", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    const fits = (dialog: Locator) =>
+      dialog.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return el.scrollWidth <= el.clientWidth + 1 && box.left >= 0 && box.right <= window.innerWidth;
+      });
+    await page.goto("/xdr?enroll=1");
+    const enrollment = page.getByRole("dialog", { name: "Enroll an agent" });
+    await expect(enrollment.getByTestId("enrollment-output")).toBeVisible();
+    await page.screenshot({ path: info.outputPath("xdr-enrollment.png") });
+    expect(await fits(enrollment)).toBe(true);
+    await enrollment.getByLabel("My manager asks for an enrollment password").check();
+    await enrollment.getByLabel("Operating system").selectOption("windows");
+    expect(await fits(enrollment)).toBe(true);
+    await page.keyboard.press("Escape");
+
+    await page.goto("/settings?section=xdr");
+    await page.getByRole("button", { name: `Edit connection: ${WAZUH.connection.name}` }).click();
+    const connection = page.getByRole("dialog", { name: `Edit ${WAZUH.connection.name}` });
+    await expect(connection).toBeVisible();
+    await connection.getByText("How do I create the read-only users?").click();
+    await page.screenshot({ path: info.outputPath("xdr-connection.png") });
+    expect(await fits(connection)).toBe(true);
+    await page.keyboard.press("Escape");
+
+    // A changed certificate, the most text a dialog of this kind shows.
+    await sql(
+      `update wazuh_endpoint set cert_status = 'changed', candidate_fingerprint = $1,
+         candidate_subject = 'CN=rebuilt.example.lan, O=Example, OU=A rather long organisational unit name',
+         candidate_issuer = 'CN=rebuilt.example.lan', candidate_valid_from = now(), candidate_valid_to = now() + interval '1 year',
+         candidate_ca_trusted = false, candidate_seen_at = now() where kind = 'indexer'`,
+      [Array.from({ length: 32 }, (_, i) => (i + 16).toString(16).toUpperCase()).join(":")],
+    );
+    try {
+      await page.goto("/settings?section=xdr");
+      await page
+        .getByTestId("xdr-endpoint-indexer")
+        .getByRole("button", { name: "Review certificate change" })
+        .click();
+      const certificate = page.getByRole("dialog", { name: "The certificate of the indexer changed" });
+      await expect(certificate).toBeVisible();
+      await page.screenshot({ path: info.outputPath("xdr-certificate.png") });
+      expect(await fits(certificate)).toBe(true);
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+    } finally {
+      await restoreWazuh();
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("the AI conversation sits beside list and detail from xwide on, and behind a click below it", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    const width = page.viewportSize()?.width ?? 0;
+    const height = page.viewportSize()?.height ?? 0;
+    await page.goto(`/findings?id=${AI.talked.findingId}`);
+    await expect(page.getByRole("heading", { name: "Findings", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Test vulnerability 2." })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const panel = page.getByRole("region", { name: "AI triage" });
+
+    if (width >= 2400) {
+      // xwide (AGENTS.md rule 5): list, detail and conversation side by side, no click needed.
+      await expect(panel).toBeVisible();
+      await expect(panel.getByText("Does the update break anything?")).toBeVisible();
+      const [list, detail, ai] = await Promise.all([
+        page.getByRole("table").boundingBox(),
+        page.getByRole("heading", { name: "Test vulnerability 2." }).boundingBox(),
+        panel.boundingBox(),
+      ]);
+      expect(list && detail && ai).toBeTruthy();
+      expect((list?.x ?? 0) + (list?.width ?? 0)).toBeLessThanOrEqual((detail?.x ?? 0) + 1);
+      expect((detail?.x ?? 0) + (detail?.width ?? 0)).toBeLessThanOrEqual((ai?.x ?? 0) + 1);
+      expect(Math.abs((detail?.y ?? 0) - (ai?.y ?? 0))).toBeLessThan(80);
+      // The conversation keeps its question box in view, and its text scrolls inside the pane.
+      expect((ai?.y ?? 0) + (ai?.height ?? 0)).toBeLessThanOrEqual(height);
+      await expect(panel.getByLabel("Ask a follow-up")).toBeInViewport();
+      await page.screenshot({ path: info.outputPath("findings-three-panes.png") });
+    } else {
+      await expect(panel).toHaveCount(0);
+      await page.getByRole("button", { name: "Ask AI" }).click();
+      const drawer = page.getByRole("dialog", { name: "AI triage" });
+      await expect(drawer.getByText("Does the update break anything?")).toBeVisible();
+      const box = await drawer.boundingBox();
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width + 1);
+      expect(box?.height ?? 0).toBeLessThanOrEqual(height + 1);
+      await expect(drawer.getByLabel("Ask a follow-up")).toBeInViewport();
+      await page.screenshot({ path: info.outputPath("findings-ai-drawer.png") });
+    }
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+    expect(await overflowingCards(page)).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test("fix pull request screens fit with write access on: card, Renovate, Create PR and a failed token", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    const fits = (dialog: Locator) =>
+      dialog.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return el.scrollWidth <= el.clientWidth + 1 && box.left >= 0 && box.right <= window.innerWidth;
+      });
+    // Write access as the worker would have left it, with a long address and a warning.
+    await sql(
+      `insert into secret (id, organization_id, purpose, sealed, vault_key_id)
+       select 'sec_layoutwrite', id, 'forge-write-token', '{}'::jsonb, 'k' from organization limit 1`,
+    );
+    await sql(
+      `insert into repository_write_access (repository_id, organization_id, secret_id, forge_kind, api_base_url, status, status_reason, warning)
+       select 'repo_e2eseeded000000001', organization_id, 'sec_layoutwrite', 'gitea',
+         'https://a-rather-long-forge-name.internal.example.lan:8443/some/sub/path/for/the/forge/api/v1', 'ok', null, 'broad-token'
+       from repository where id = 'repo_e2eseeded000000001'`,
+    );
+    try {
+      await page.goto("/repositories/repo_e2eseeded000000001");
+      const card = page
+        .locator("section")
+        .filter({ has: page.getByRole("heading", { name: "Fix pull requests", level: 2 }) });
+      await expect(card).toContainText("Turned on");
+      await expect(card).toContainText("reaches more than this repository");
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+      await page.screenshot({ path: info.outputPath("repository-write-access.png"), fullPage: true });
+
+      await card.getByRole("button", { name: "Replace token …" }).click();
+      const replace = page.getByRole("dialog", { name: "Replace the write token" });
+      await expect(replace).toBeVisible();
+      await page.screenshot({ path: info.outputPath("write-access-dialog.png") });
+      expect(await fits(replace)).toBe(true);
+      await page.keyboard.press("Escape");
+
+      await card.getByRole("button", { name: "Renovate config" }).click();
+      const renovate = page.getByRole("dialog", { name: "Renovate configuration" });
+      await expect(renovate.getByRole("textbox", { name: "Renovate configuration" })).toHaveValue(
+        /vulnerabilityAlerts/,
+      );
+      await page.screenshot({ path: info.outputPath("renovate-dialog.png") });
+      expect(await fits(renovate)).toBe(true);
+      await page.keyboard.press("Escape");
+
+      await page.goto("/fixes");
+      await expect(page.getByRole("heading", { name: "Fix proposals", exact: true })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      await page.getByRole("button", { name: "Create PR" }).first().click();
+      const create = page.getByRole("dialog", { name: "Create a pull request" });
+      await expect(create).toBeVisible();
+      await page.screenshot({ path: info.outputPath("create-pr-dialog.png") });
+      expect(await fits(create)).toBe(true);
+      await page.keyboard.press("Escape");
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+
+      // A token the forge rejects.
+      await sql(
+        "update repository_write_access set status = 'failed', status_reason = 'token-rejected', warning = null where repository_id = 'repo_e2eseeded000000001'",
+      );
+      await page.goto("/repositories/repo_e2eseeded000000001");
+      await expect(
+        page
+          .locator("section")
+          .filter({ has: page.getByRole("heading", { name: "Fix pull requests", level: 2 }) }),
+      ).toContainText("The forge rejected the write token");
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      await page.goto("/fixes");
+      await expect(page.getByRole("row", { name: /pkg-2/ })).toContainText("The write token does not work");
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+    } finally {
+      await sql("delete from secret where id = 'sec_layoutwrite'");
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("the import dialog fits the screen", async ({ page }, info) => {
+    await page.goto("/servers?import=1");
+    const dialog = page.getByRole("dialog", { name: "Import servers" });
+    await expect(dialog).toBeVisible();
+    await page.screenshot({ path: info.outputPath("import-servers.png") });
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  });
 
   test("filter controls never move when filters change", async ({ page }, info) => {
     await page.goto("/findings");

@@ -67,15 +67,15 @@ The app decides who may update and shows the state.
 - Until cicd-updater publishes signed releases, its image must be built or mirrored by
   the operator; `CICD_UPDATER_IMAGE` stays a value the sidecar never writes.
 - The first release needs: branch and tag protection, GHCR packages made public, the
-  tag `v0.1.0`; then the smoke test runs the upgrade from the previous release on every
+  tag `v0.0.1`; then the smoke test runs the upgrade from the previous release on every
   later release.
 
 ## Verified on 2026-10-21
 
 In a sandbox with Docker 29: both images built, the stack started (all services healthy,
 CSP and HSTS on the edge), first-run setup and TOTP sign-in in a browser, and a real
-update from 0.1.0 to 0.1.1 scheduled on the Updates page: backup, stop, start, health
-with the version through the token, smoke check, banner, reload, 0.1.1 running, the
+update from 0.0.1 to 0.0.2 scheduled on the Updates page: backup, stop, start, health
+with the version through the token, smoke check, banner, reload, 0.0.2 running, the
 journal in the audit log. Not verified there: signature checking (the sandbox could not
 pull cosign, so the test ran unsigned from a local file feed), and the `apk add git
 openssh-client` step (Alpine's mirrors were blocked; it was left out of the local build).

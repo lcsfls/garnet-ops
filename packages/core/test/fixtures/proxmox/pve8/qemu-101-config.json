@@ -1,0 +1,8 @@
+{
+  "data": {
+    "name": "db-01",
+    "ostype": "l26",
+    "agent": "enabled=1,fstrim_cloned_disks=1",
+    "description": "database"
+  }
+}

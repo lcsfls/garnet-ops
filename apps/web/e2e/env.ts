@@ -34,6 +34,11 @@ export const E2E = {
   setupToken: "e2e-setup-token-not-a-secret",
   /** The fake update sidecar (fake-updater.ts) and the token file it shares with the API. */
   updaterPort: 8091,
+  /** The fake OpenAI-compatible model server (apps/worker/test/e2e-ai-worker.ts), which also runs the AI jobs. */
+  modelPort: 8092,
+  /** The fake Gitea/Forgejo server and its control server (apps/worker/test/e2e-forge-worker.ts). */
+  forgePort: 8093,
+  forgeControlPort: 8094,
   updaterTokenFile: fileURLToPath(new URL("./.state/updater-token", import.meta.url)),
   /** The owner's TOTP secret, saved by the sign-in flow for later step-up tests (throw-away database). */
   totpSecretFile: fileURLToPath(new URL("./.state/totp-secret", import.meta.url)),

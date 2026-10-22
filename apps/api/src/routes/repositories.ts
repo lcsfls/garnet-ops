@@ -21,6 +21,7 @@ import {
   toPage,
 } from "../lib/paginate.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
+import { renovateRoutes, writeAccessRoutes, writeAccessSummary } from "./fixes.ts";
 
 const r = schema.repository;
 
@@ -465,6 +466,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
       lastScan: lastScan ?? null,
       open: counts.get(row.id) ?? {},
       states: Object.fromEntries(states.map((s) => [s.state, s.n])),
+      writeAccess: await writeAccessSummary(row.id, row.url),
     });
   })
   /** Open findings of this repository per calendar day of the viewer (ADR 0005). */
@@ -532,12 +534,24 @@ export const repositoryRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     requireRole(actor, "admin");
     const id = c.req.param("id");
+    // The write token (fix pull requests, ADR 0014) is a secret of its own; it goes with the repository.
+    const [writeToken] = await db
+      .select({ secretId: schema.repositoryWriteAccess.secretId })
+      .from(schema.repositoryWriteAccess)
+      .where(
+        and(
+          eq(schema.repositoryWriteAccess.repositoryId, id),
+          eq(schema.repositoryWriteAccess.organizationId, actor.organizationId),
+        ),
+      )
+      .limit(1);
     const [row] = await db
       .delete(r)
       .where(and(eq(r.id, id), eq(r.organizationId, actor.organizationId)))
       .returning({ secretId: r.secretId, url: r.url });
     if (!row) throw notFound("Repository");
     if (row.secretId) await db.delete(schema.secret).where(eq(schema.secret.id, row.secretId));
+    if (writeToken) await db.delete(schema.secret).where(eq(schema.secret.id, writeToken.secretId));
     await audit(actor, "repository.deleted", { type: "repository", id }, { url: row.url });
     return c.body(null, 204);
   })
@@ -568,6 +582,8 @@ export const repositoryRoutes = new Hono<AppEnv>()
     );
     return c.body(null, 204);
   })
+  .route("/:id/write-access", writeAccessRoutes)
+  .route("/:id/renovate-config", renovateRoutes)
   .post("/:id/scans", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "member");

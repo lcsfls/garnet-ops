@@ -1,0 +1,12 @@
+{
+  "data": {
+    "title": "Wazuh App REST API",
+    "api_version": "4.12.0",
+    "revision": 40000,
+    "license_name": "GPL 2.0",
+    "license_url": "https://github.com/wazuh/wazuh/blob/master/LICENSE",
+    "hostname": "wazuh-manager.example.lan",
+    "timestamp": "2026-10-21T08:00:00Z"
+  },
+  "error": 0
+}

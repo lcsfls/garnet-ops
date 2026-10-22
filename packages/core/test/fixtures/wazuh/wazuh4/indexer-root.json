@@ -1,0 +1,13 @@
+{
+  "name": "node-1",
+  "cluster_name": "wazuh-cluster",
+  "cluster_uuid": "aBcDeFgHiJkLmNoPqRsTuV",
+  "version": {
+    "number": "7.10.2",
+    "build_type": "deb",
+    "build_snapshot": false,
+    "lucene_version": "9.10.0",
+    "minimum_wire_compatibility_version": "7.10.0"
+  },
+  "tagline": "The OpenSearch Project: https://opensearch.org/"
+}

@@ -3,6 +3,7 @@ import { serve } from "@hono/node-server";
 import { app } from "./app.ts";
 import { boss, db, pool, QUEUES } from "./db.ts";
 import { env } from "./env.ts";
+import { aiBus } from "./lib/ai-bus.ts";
 import { prepareSetupToken } from "./routes/setup.ts";
 import { updater } from "./updater/client.ts";
 import { journalStore, startJournalSync } from "./updater/journal.ts";
@@ -21,6 +22,7 @@ const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (
 async function shutdown() {
   stopJournalSync();
   server.close();
+  await aiBus.close().catch(() => {});
   await boss.stop({ graceful: true, timeout: 10_000 }).catch(() => {});
   await pool.end().catch(() => {});
   process.exit(0);
