@@ -27,7 +27,8 @@ fixed version, opened with a separate write token per repository and always left
 MITRE ATT&CK tactics, file integrity, agents and an enrollment helper
 ([docs/xdr.md](docs/xdr.md)), an attack overview with a world map from local GeoIP data you load yourself
 ([docs/attacks.md](docs/attacks.md)), a grade from A to F per repository and server that shows
-what to look at first ([docs/grades.md](docs/grades.md)), audit log, a Docker Compose stack and optional signed in-app updates.
+what to look at first ([docs/grades.md](docs/grades.md)), a bell with your own notifications, toast messages and a
+matrix of what you receive in the app and by email ([docs/notifications.md](docs/notifications.md)), audit log, a Docker Compose stack and optional signed in-app updates.
 
 ## What GarnetOps is built on
 

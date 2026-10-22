@@ -21,6 +21,7 @@ import { api } from "../../lib/api.ts";
 import { cn } from "../../lib/cn.ts";
 import { formatDateTime, formatRelative } from "../../lib/format.ts";
 import { type GateSearch, gateSearch, toQuery } from "../../lib/search.ts";
+import { toast } from "../../lib/toast.ts";
 import type {
   GateMatches,
   GateMode,
@@ -83,27 +84,22 @@ function Rules({ canEdit }: { canEdit: boolean }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const rules = useQuery({ queryKey: ["gate-rules"], queryFn: () => api<GateRuleState[]>("/gates/rules") });
-  const [saved, setSaved] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: (input: { rule: string; mode: GateMode; deniedLicenses?: string[] }) =>
       api(`/gates/rules/${input.rule}`, {
         method: "PUT",
         body: { mode: input.mode, deniedLicenses: input.deniedLicenses },
       }),
-    onSuccess: async (_, input) => {
-      setSaved(input.rule);
+    onSuccess: async () => {
+      toast.success(t("gates.saved"));
       await queryClient.invalidateQueries({ queryKey: ["gate-rules"] });
     },
+    onError: () => toast.error(t("errors.actionFailed")),
   });
   return (
     <Card>
       <CardHeader title={t("gates.rulesTitle")} description={t("gates.rulesDescription")} />
       <QueryStatus query={rules} />
-      {save.isError ? (
-        <div className="px-5 pb-3">
-          <Alert tone="error">{t("errors.actionFailed")}</Alert>
-        </div>
-      ) : null}
       <ul>
         {rules.data?.map((rule) => (
           <li key={rule.rule} className="grid gap-3 border-t px-5 py-3">
@@ -131,11 +127,6 @@ function Rules({ canEdit }: { canEdit: boolean }) {
                 pending={save.isPending}
                 onSave={(deniedLicenses) => save.mutate({ rule: rule.rule, mode: rule.mode, deniedLicenses })}
               />
-            ) : null}
-            {saved === rule.rule && save.isSuccess ? (
-              <p role="status" className="text-[13px] text-muted-foreground">
-                {t("gates.saved")}
-              </p>
             ) : null}
           </li>
         ))}

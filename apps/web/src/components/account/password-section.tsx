@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { type FormEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, api } from "../../lib/api.ts";
+import { toast } from "../../lib/toast.ts";
 import { Card, CardHeader } from "../page-header.tsx";
 import { Alert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
@@ -17,14 +18,15 @@ export function PasswordSection({ email }: { email: string }) {
   const stepUp = useStepUp(email);
   const formRef = useRef<HTMLFormElement>(null);
   const [revoke, setRevoke] = useState(true);
-  const [done, setDone] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mismatch, setMismatch] = useState(false);
   const change = useMutation({
     mutationFn: (body: { currentPassword: string; newPassword: string; revokeOtherSessions: boolean }) =>
       api<{ revokedSessions: number }>("/account/password", { method: "POST", body }),
     onSuccess: (result) => {
-      setDone(result.revokedSessions);
+      toast.success(
+        `${t("account.password.done")} ${t("account.password.doneRevoked", { count: result.revokedSessions })}`,
+      );
       formRef.current?.reset();
     },
     onError: (e, body) => {
@@ -43,7 +45,6 @@ export function PasswordSection({ email }: { email: string }) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const next = String(data.get("newPassword"));
-    setDone(null);
     setError(null);
     setMismatch(false);
     if (next !== String(data.get("repeat"))) return setMismatch(true);
@@ -59,11 +60,6 @@ export function PasswordSection({ email }: { email: string }) {
       <CardHeader title={t("account.password.title")} description={t("account.password.description")} />
       <form ref={formRef} className="grid gap-5 px-5 py-5" onSubmit={submit}>
         {error ? <Alert tone="error">{error}</Alert> : null}
-        {done !== null ? (
-          <Alert tone="info">
-            {t("account.password.done")} {t("account.password.doneRevoked", { count: done })}
-          </Alert>
-        ) : null}
         {/* Lets a password manager attach the new password to the right account. */}
         <input type="email" name="username" value={email} autoComplete="username" readOnly hidden />
         <Field

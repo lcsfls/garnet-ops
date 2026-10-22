@@ -120,6 +120,13 @@
       "when": 1792661619501,
       "tag": "0016_account_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792670987800,
+      "tag": "0017_user_notifications",
+      "breakpoints": true
     }
   ]
 }

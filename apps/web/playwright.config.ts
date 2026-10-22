@@ -64,6 +64,18 @@ export default defineConfig({
         timezoneId: "Europe/Berlin",
       },
     },
+    // Personal notifications (ADR 0019): the bell, the stream, toasts and the matrix on the account page.
+    {
+      name: "notifications",
+      testMatch: /notifications\.spec\.ts/,
+      dependencies: ["account"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1920, height: 1080 },
+        locale: "en-US",
+        timezoneId: "Europe/Berlin",
+      },
+    },
     // Layout baseline (AGENTS.md rule 5): 1080p at 100 %, 125 % and 150 % Windows scaling,
     // a small 1100 px window, and 1440p, where the xwide step (more columns and panes) starts.
     ...[
@@ -76,7 +88,7 @@ export default defineConfig({
     ].map((viewport) => ({
       name: `layout-${viewport.width}x${viewport.height}`,
       testMatch: /layout\.spec\.ts/,
-      dependencies: ["account"],
+      dependencies: ["notifications"],
       use: { ...devices["Desktop Chrome"], viewport, locale: "en-US", timezoneId: "Europe/Berlin" },
     })),
   ],

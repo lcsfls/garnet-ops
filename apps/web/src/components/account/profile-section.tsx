@@ -7,6 +7,7 @@ import { type AccountOverview, accountQuery } from "../../lib/account.ts";
 import { ApiError, api } from "../../lib/api.ts";
 import { setLanguage } from "../../lib/i18n.ts";
 import { browserTimeZone, setPreferredTimeZone, timeZoneChoices } from "../../lib/time-zone.ts";
+import { toast } from "../../lib/toast.ts";
 import { Card, CardHeader } from "../page-header.tsx";
 import { QueryStatus } from "../query-state.tsx";
 import { Alert } from "../ui/alert.tsx";
@@ -47,12 +48,11 @@ function NameCard({ profile }: { profile: AccountOverview["profile"] }) {
   const { t } = useTranslation();
   const refresh = useRefreshMe();
   const [name, setName] = useState(profile.name);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: (value: string) => api("/account/profile", { method: "PATCH", body: { name: value } }),
     onSuccess: async () => {
-      setSaved(true);
+      toast.success(t("account.profile.saved"));
       await refresh();
     },
     onError: (e) =>
@@ -62,14 +62,13 @@ function NameCard({ profile }: { profile: AccountOverview["profile"] }) {
   });
   function submit(event: FormEvent) {
     event.preventDefault();
-    setSaved(false);
     setError(null);
     save.mutate(name.trim());
   }
   return (
     <Card>
       <CardHeader title={t("account.profile.title")} description={t("account.profile.description")} />
-      <form className="grid gap-5 px-5 py-5" onSubmit={submit} onChange={() => setSaved(false)}>
+      <form className="grid gap-5 px-5 py-5" onSubmit={submit}>
         {error ? <Alert tone="error">{error}</Alert> : null}
         <Field
           label={t("account.profile.name")}
@@ -96,11 +95,6 @@ function NameCard({ profile }: { profile: AccountOverview["profile"] }) {
           >
             {save.isPending ? t("common.loading") : t("account.profile.save")}
           </Button>
-          {saved ? (
-            <span role="status" className="text-sm text-muted-foreground">
-              {t("account.profile.saved")}
-            </span>
-          ) : null}
         </div>
       </form>
     </Card>
@@ -113,7 +107,6 @@ function PreferencesCard({ profile }: { profile: AccountOverview["profile"] }) {
   const [locale, setLocale] = useState<Language>(profile.locale ?? resolveLanguage(i18n.language));
   // "" is automatic: the browser's zone.
   const [zone, setZone] = useState(profile.timeZone ?? "");
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const zones = useMemo(() => timeZoneChoices(profile.timeZone), [profile.timeZone]);
   const save = useMutation({
@@ -122,14 +115,13 @@ function PreferencesCard({ profile }: { profile: AccountOverview["profile"] }) {
     onSuccess: async () => {
       setPreferredTimeZone(zone === "" ? null : zone);
       await setLanguage(locale);
-      setSaved(true);
+      toast.success(t("account.profile.saved"));
       await refresh();
     },
     onError: () => setError(t("errors.generic")),
   });
   function submit(event: FormEvent) {
     event.preventDefault();
-    setSaved(false);
     setError(null);
     save.mutate();
   }
@@ -139,7 +131,7 @@ function PreferencesCard({ profile }: { profile: AccountOverview["profile"] }) {
         title={t("account.profile.preferencesTitle")}
         description={t("account.profile.preferencesDescription")}
       />
-      <form className="grid gap-5 px-5 py-5" onSubmit={submit} onChange={() => setSaved(false)}>
+      <form className="grid gap-5 px-5 py-5" onSubmit={submit}>
         {error ? <Alert tone="error">{error}</Alert> : null}
         <FormRow columns={["12rem", "1fr"]} from="md">
           <FormField label={t("account.profile.language")}>
@@ -170,11 +162,6 @@ function PreferencesCard({ profile }: { profile: AccountOverview["profile"] }) {
           <Button type="submit" disabled={save.isPending}>
             {save.isPending ? t("common.loading") : t("account.profile.save")}
           </Button>
-          {saved ? (
-            <span role="status" className="text-sm text-muted-foreground">
-              {t("account.profile.saved")}
-            </span>
-          ) : null}
         </div>
       </form>
     </Card>

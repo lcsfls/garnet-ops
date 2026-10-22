@@ -283,3 +283,16 @@
     transition: none;
   }
 }
+
+/* A toast slides in from the corner. Short; reduced motion switches it off (rule above). */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+@layer components {
+  .toast-in {
+    animation: toast-in 160ms ease-out;
+  }
+}

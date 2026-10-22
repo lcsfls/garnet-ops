@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { type SessionRow, sessionsQuery } from "../../lib/account.ts";
 import { api } from "../../lib/api.ts";
 import { formatDateTime, formatRelative } from "../../lib/format.ts";
+import { toast } from "../../lib/toast.ts";
 import { Card, CardHeader } from "../page-header.tsx";
 import { QueryStatus } from "../query-state.tsx";
 import { Alert } from "../ui/alert.tsx";
@@ -19,7 +20,6 @@ export function SessionsSection() {
   const query = useQuery(sessionsQuery);
   const [ending, setEnding] = useState<SessionRow | null>(null);
   const [endingOthers, setEndingOthers] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["account", "sessions"] });
 
@@ -27,7 +27,6 @@ export function SessionsSection() {
     mutationFn: (id: string) => api(`/account/sessions/${id}`, { method: "DELETE" }),
     onSuccess: async () => {
       setEnding(null);
-      setNotice(null);
       await refresh();
     },
     onError: () => setError(t("errors.generic")),
@@ -36,7 +35,7 @@ export function SessionsSection() {
     mutationFn: () => api<{ revoked: number }>("/account/sessions/revoke-others", { method: "POST" }),
     onSuccess: async (result) => {
       setEndingOthers(false);
-      setNotice(t("account.sessions.revoked", { count: result.revoked }));
+      toast.success(t("account.sessions.revoked", { count: result.revoked }));
       await refresh();
     },
     onError: () => setError(t("errors.generic")),
@@ -68,7 +67,6 @@ export function SessionsSection() {
         }
       />
       <div className="grid gap-4 px-5 pb-5">
-        {notice ? <Alert tone="info">{notice}</Alert> : null}
         {error ? <Alert tone="error">{error}</Alert> : null}
         {query.data ? (
           <ul className="grid gap-2">

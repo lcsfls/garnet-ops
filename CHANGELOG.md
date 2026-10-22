@@ -10,6 +10,25 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- In-app notifications, toasts and personal preferences (ADR 0019, `docs/notifications.md`, `docs/account.md`).
+  **Bell** in the top bar (left of the account menu) with an unread number ("99+" from a hundred, no animation) and a
+  panel of the latest notifications grouped by day in your time zone, relative times, mark one or all read, a link on
+  each, "Show older" and a link to your settings. Notifications hold a title key, a few facts (names, counts) and an app
+  link, never free text or scanned content, and are kept 90 days or 500 per person. Events: new critical findings, a
+  blocked gate, a failed scan, a fix pull request merged or failed, a server's SSH host key changed, a Proxmox VE or Wazuh
+  certificate changed or sync blocked, an invitation accepted, your role changed, an update finished or failed; role
+  decides who is told. They arrive live over one server-sent event stream (`GET /api/v1/me/notifications/stream`, via
+  PostgreSQL LISTEN/NOTIFY on the shared connection, resumes with the last id, at most four streams per person) and fall
+  back to polling every 30 seconds. **Account → Notifications**: a matrix per event type with "In app" and "Email" (email
+  only with an organisation SMTP or Graph channel), a scope where it makes sense, defaults in app on and email off.
+  **Personal mail** goes through the organisation's mail channel to your own address only, summary and link, at most one
+  per event type every 15 minutes and a digest after that. **Toasts** (our own, no dependency) for the results of
+  actions: bottom right, at most three, errors stay until closed, pause on hover and focus, `role="alert"` and
+  `role="status"`, keyboard reachable with Alt+Shift+T without taking focus, no green for plain success, reduced motion
+  respected. Settings → Notifications and Account → Notifications explain how organisation channels and personal choices
+  relate. Migration 0017 (additive: `user_notification`, `notification_preference`). API (additive):
+  `/api/v1/me/notifications` (list, `/{id}/read`, `/read-all`, `/stream`) and `/api/v1/me/notification-preferences`. In
+  English and German.
 - Grades A to F for repositories and servers (ADR 0018, `docs/grades.md`), display only: they never change a gate
   result, a notification or an alert. The worst open finding decides: F a known exploited vulnerability (CISA KEV)
   with a fix, E a critical with a fix, D a high with a fix or a critical without, C a medium with a fix or a high
@@ -508,6 +527,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Security
 
+- Personal notifications (ADR 0019): every query names the signed-in person and organisation, so nobody reads another
+  person's or organisation's notifications; the NOTIFY payload carries no content (a stream reads its own rows); role
+  decides first who is told, and a stored choice can never widen it; notifications hold no free text and no scanned
+  content, parameters are sanitised and shown as text, links must be paths inside the app (checked on write and again
+  in the browser); personal mail goes to the person's own sign-in address only, never to a channel's recipient list,
+  at most one per event type every 15 minutes, summary and link only; at most four event streams per person, ten
+  minutes each, 500 notifications and 90 days per person.
 - Development dependencies: Vitest 3.2.7 to 4.1.12 (GHSA-82fw-gwwq-j7x9, GHSA-qxg6-89mg-rqv8, GHSA-xp26-3454-mjgp; it no longer pulls in tinypool 1.1.1 with its
   two critical advisories), and the old esbuild 0.18.20 (GHSA-67mh-4wv8-2f99) that drizzle-kit 0.31 reaches through
   the deprecated `@esbuild-kit` loader is replaced by esbuild 0.25.12 with a scoped pnpm override; no esbuild below

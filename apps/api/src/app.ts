@@ -32,6 +32,7 @@ import { setupRoutes } from "./routes/setup.ts";
 import { systemRoutes } from "./routes/system.ts";
 import { teamRoutes } from "./routes/team.ts";
 import { maintenanceRoutes, updateRoutes } from "./routes/updates.ts";
+import { userNotificationRoutes } from "./routes/user-notifications.ts";
 import { xdrRoutes } from "./routes/xdr.ts";
 import { APP_VERSION } from "./version.ts";
 
@@ -100,6 +101,7 @@ export const app = new Hono()
 const v1 = new Hono<AppEnv>()
   .use("*", requireActor)
   .route("/me", meRoutes)
+  .route("/me", userNotificationRoutes)
   .route("/account", accountRoutes)
   .route("/overview", overviewRoutes)
   .route("/repositories", repositoryRoutes)

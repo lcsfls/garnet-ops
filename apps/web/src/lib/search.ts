@@ -357,7 +357,14 @@ export const settingsSearch = z.object({
   section: z.enum(SETTINGS_SECTIONS).optional().catch(undefined),
 });
 
-export const ACCOUNT_SECTIONS = ["profile", "password", "authenticator", "passkeys", "sessions"] as const;
+export const ACCOUNT_SECTIONS = [
+  "profile",
+  "password",
+  "authenticator",
+  "passkeys",
+  "sessions",
+  "notifications",
+] as const;
 export type AccountSection = (typeof ACCOUNT_SECTIONS)[number];
 export const accountSearch = z.object({
   section: z.enum(ACCOUNT_SECTIONS).optional().catch(undefined),

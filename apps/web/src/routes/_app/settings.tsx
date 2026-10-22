@@ -23,6 +23,7 @@ import { ApiError, api } from "../../lib/api.ts";
 import { formatCalendarDate, formatDateTime } from "../../lib/format.ts";
 import type { MessageKey } from "../../lib/i18n.ts";
 import { SETTINGS_SECTIONS, type SettingsSection, settingsSearch } from "../../lib/search.ts";
+import { toast } from "../../lib/toast.ts";
 import { displayVersion } from "../../lib/version.ts";
 
 /** Public source repository; AGPL-3.0 section 13 asks us to offer the source to every user. */
@@ -235,7 +236,6 @@ function NightlyScan({ org, canEdit }: { org: Organization; canEdit: boolean }) 
   const schedule = org.scanSchedule;
   const [enabled, setEnabled] = useState(schedule.enabled);
   const [timeZone, setTimeZone] = useState(schedule.timeZone);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<MessageKey | null>(null);
   const zones = useTimeZones(schedule.timeZone);
 
@@ -243,7 +243,7 @@ function NightlyScan({ org, canEdit }: { org: Organization; canEdit: boolean }) 
     mutationFn: (body: { enabled: boolean; localTime: string; timeZone: string }) =>
       api("/organization/scan-schedule", { method: "PUT", body }),
     onSuccess: async () => {
-      setSaved(true);
+      toast.success(t("settings.saved"));
       // The repositories page shows the schedule from the session status.
       await queryClient.invalidateQueries({ queryKey: ["organization"] });
       await queryClient.invalidateQueries({ queryKey: ["status"] });
@@ -257,7 +257,6 @@ function NightlyScan({ org, canEdit }: { org: Organization; canEdit: boolean }) 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    setSaved(false);
     setError(null);
     save.mutate({ enabled, localTime: String(form.get("localTime")), timeZone });
   }
@@ -265,7 +264,7 @@ function NightlyScan({ org, canEdit }: { org: Organization; canEdit: boolean }) 
   return (
     <Card>
       <CardHeader title={t("settings.nightlyTitle")} description={t("settings.nightlyDescription")} />
-      <form className="grid gap-5 px-5 py-5" onSubmit={submit} onChange={() => setSaved(false)}>
+      <form className="grid gap-5 px-5 py-5" onSubmit={submit}>
         {!canEdit ? <Alert tone="info">{t("settings.readOnly")}</Alert> : null}
         {error ? <Alert tone="error">{t(error)}</Alert> : null}
         <label className="flex items-center gap-2.5">
@@ -306,11 +305,6 @@ function NightlyScan({ org, canEdit }: { org: Organization; canEdit: boolean }) 
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? t("common.loading") : t("settings.save")}
             </Button>
-            {saved ? (
-              <span role="status" className="text-sm text-muted-foreground">
-                {t("settings.saved")}
-              </span>
-            ) : null}
           </div>
         ) : null}
       </form>

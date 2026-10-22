@@ -115,6 +115,83 @@ export const en = {
       authenticator: "Authenticator app",
       passkeys: "Passkeys",
       sessions: "Sessions",
+      notifications: "Notifications",
+    },
+    notifications: {
+      title: "Notifications",
+      description: "What you are told about, in the app and by email.",
+      relation:
+        "This is what you receive yourself. The shared channels of your organisation (webhooks and mailboxes) are set up by admins under Settings, Notifications, and this table does not change them.",
+      onlyRole: "Only events your role can receive are listed.",
+      inApp: "In app",
+      email: "Email",
+      scope: "Applies to",
+      groups: {
+        code: "Code",
+        infrastructure: "Infrastructure",
+        account: "Account and team",
+        system: "System",
+      },
+      events: {
+        findingNewCritical: {
+          label: "New critical vulnerabilities",
+          hint: "A scan found new critical or known exploited vulnerabilities in a repository.",
+        },
+        gateBlocked: {
+          label: "A quality gate blocked",
+          hint: "A rule set to Block matched in a scan of a repository.",
+        },
+        scanFailed: { label: "A scan failed", hint: "A repository could not be scanned." },
+        fixPrMerged: {
+          label: "A fix pull request was merged",
+          hint: "The forge reports that a pull request opened by GarnetOps was merged.",
+        },
+        fixPrFailed: {
+          label: "A fix pull request failed",
+          hint: "No pull request could be opened.",
+        },
+        infraHostKeyChanged: {
+          label: "A server's SSH host key changed",
+          hint: "Monitoring of that server stops until an admin confirms the new key.",
+        },
+        infraCertificateChanged: {
+          label: "A certificate changed (Proxmox VE, Wazuh)",
+          hint: "The sync stops until an admin confirms the new certificate.",
+        },
+        infraSyncBlocked: {
+          label: "A sync is blocked (Proxmox VE, Wazuh)",
+          hint: "The token or account can do more than read and nobody has acknowledged it.",
+        },
+        teamInvitationAccepted: {
+          label: "An invitation was accepted",
+          hint: "Someone joined your organisation.",
+        },
+        teamRoleChanged: { label: "Your role changed", hint: "An owner or admin changed your role." },
+        systemUpdateFinished: {
+          label: "An update finished or failed",
+          hint: "An update of GarnetOps was installed or did not work.",
+        },
+      },
+      scopes: {
+        repositories: { all: "All repositories", mine: "Only repositories I added" },
+        requests: { all: "All requests", mine: "Only requests I made" },
+      },
+      scopeLabel: "{event}: applies to",
+      inAppLabel: "{event}: in the app",
+      emailLabel: "{event}: by email",
+      emailUnavailable: "Email is not available",
+      emailUnavailableAdmin:
+        "Your organisation has no mail channel. Add an SMTP or Microsoft Graph channel under Settings, Notifications; it then also sends personal mail.",
+      emailUnavailableMember:
+        "Your organisation has no mail channel yet. Ask an owner or admin to set one up.",
+      emailRules:
+        "Email goes to {email} only, with a summary and a link. At most one mail per event type every 15 minutes; more are combined into one message.",
+      settingsLink: "Open the organisation channels",
+      save: "Save",
+      saved: "Notification settings saved.",
+      restore: "Restore defaults",
+      restoreHint: "In app on, email off. Nothing changes until you save.",
+      loadFailed: "The notification settings could not be loaded.",
     },
     menuLink: "Account",
     profile: {
@@ -974,6 +1051,9 @@ export const en = {
     channelSave: "Add channel",
     channelEnabled: "On",
     sendTest: "Send test",
+    notificationsRelation:
+      "These channels are shared destinations for the whole organisation. What each person receives themselves, in the app and by email, is chosen under Account, Notifications. A mail channel here also sends that personal mail; switch it off to stop both.",
+    notificationsPersonalLink: "My notification settings",
     testQueued: "Test message queued. Its result appears here in a moment.",
     deleteChannel: "Delete",
     deleteChannelTitle: "Delete the channel {name}?",
@@ -2775,6 +2855,104 @@ export const en = {
     columnAcceptedUntil: "Accepted until",
     yes: "yes",
     no: "no",
+  },
+  inapp: {
+    bell: "Notifications",
+    bellUnread: "Notifications, {count, plural, one {# unread} other {# unread}}",
+    panelLabel: "Your notifications",
+    panelTitle: "Notifications",
+    empty: "No notifications yet.",
+    caughtUp: "You are all caught up.",
+    markRead: "Mark as read",
+    markAllRead: "Mark all as read",
+    markedAllRead: "All notifications marked as read.",
+    newMany: "{count} new notifications",
+    view: "View",
+    unreadMarker: "Unread",
+    settingsLink: "Notification settings",
+    showOlder: "Show older",
+    loadFailed: "Notifications could not be loaded.",
+    today: "Today",
+    yesterday: "Yesterday",
+    live: "Updates arrive as they happen.",
+    polling: "Checking for new notifications every 30 seconds.",
+    items: {
+      findingNewCritical: {
+        title: "New critical vulnerabilities: {repository}",
+        text: "New in the last scan: {critical} critical, {knownExploited} known to be exploited.",
+      },
+      gateBlocked: {
+        title: "Quality gate blocked: {repository}",
+        text: "Rules set to Block that matched: {rules}.",
+      },
+      scanFailed: { title: "Scan failed: {repository}", text: "The reason is in GarnetOps." },
+      fixPrMerged: {
+        title: "Fix pull request merged: {repository}",
+        text: "The forge reports that the pull request was merged.",
+      },
+      fixPrFailed: {
+        title: "Fix pull request failed: {repository}",
+        text: "No pull request was opened. The reason is in GarnetOps.",
+      },
+      hostKeyChanged: {
+        title: "SSH host key changed: {server}",
+        text: "Monitoring of this server stops until an admin confirms the new key.",
+      },
+      certificateChangedProxmox: {
+        title: "Proxmox VE certificate changed: {name}",
+        text: "The sync stops until an admin confirms the new certificate.",
+      },
+      certificateChangedXdr: {
+        title: "Wazuh certificate changed: {name}",
+        text: "The sync stops until an admin confirms the new certificate.",
+      },
+      syncBlockedProxmox: {
+        title: "Proxmox VE sync blocked: {name}",
+        text: "The token can do more than read. An admin has to acknowledge it.",
+      },
+      syncBlockedXdr: {
+        title: "Wazuh sync blocked: {name}",
+        text: "The account can do more than read. An admin has to acknowledge it.",
+      },
+      invitationAccepted: {
+        title: "Invitation accepted: {person}",
+        text: "Joined as {role}.",
+      },
+      roleChanged: {
+        title: "Your role changed",
+        text: "You are now {role}.",
+      },
+      updateSucceeded: {
+        title: "GarnetOps was updated to {version}",
+        text: "The update finished. The journal is in the audit log.",
+      },
+      updateFailed: {
+        title: "Update to {version} failed",
+        text: "The journal in the audit log has the details.",
+      },
+    },
+    roles: { owner: "an owner", admin: "an admin", member: "a member", viewer: "a viewer" },
+    unknown: { title: "Notification", text: "Open GarnetOps for details." },
+    mail: {
+      digestSubject: "GarnetOps: {count} new notifications",
+      digestIntro: "{count} new notifications for you in {organization}:",
+      more: "… and {count} more",
+      open: "Open GarnetOps:",
+      footer:
+        "Sent by GarnetOps for {organization} to your own address. You choose what you receive under Account, Notifications.",
+    },
+  },
+  toast: {
+    region: "Messages",
+    close: "Close message",
+    success: "Done",
+    error: "Error",
+    info: "Note",
+    view: "View",
+    copied: "Copied to the clipboard.",
+    copyFailed: "Could not copy. Select the text and copy it by hand.",
+    scanQueued: "Scan of {repository} queued.",
+    invitationCreated: "Invitation created.",
   },
   time: {
     never: "never",

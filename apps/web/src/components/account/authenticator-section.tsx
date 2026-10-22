@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { accountQuery } from "../../lib/account.ts";
 import { ApiError, api } from "../../lib/api.ts";
+import { toast } from "../../lib/toast.ts";
 import { Card, CardHeader } from "../page-header.tsx";
 import { QrCode } from "../qr-code.tsx";
 import { QueryStatus } from "../query-state.tsx";
@@ -26,7 +27,6 @@ export function AuthenticatorSection({ email }: { email: string }) {
   const [replacing, setReplacing] = useState(false);
   const [confirmingCodes, setConfirmingCodes] = useState(false);
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const renew = useMutation({
@@ -34,7 +34,6 @@ export function AuthenticatorSection({ email }: { email: string }) {
     onSuccess: async (result) => {
       setConfirmingCodes(false);
       setCodes(result.codes);
-      setNotice(null);
       await queryClient.invalidateQueries({ queryKey: ["account"] });
     },
     onError: (e) => {
@@ -60,7 +59,6 @@ export function AuthenticatorSection({ email }: { email: string }) {
           description={t("account.authenticator.description")}
         />
         <div className="grid gap-4 px-5 py-5">
-          {notice ? <Alert tone="info">{notice}</Alert> : null}
           {error ? <Alert tone="error">{error}</Alert> : null}
           <div className="flex flex-wrap items-center gap-3">
             <Badge tone={totp.enrolled ? "neutral" : "critical"}>
@@ -103,7 +101,7 @@ export function AuthenticatorSection({ email }: { email: string }) {
         onClose={() => setReplacing(false)}
         onReplaced={async () => {
           setReplacing(false);
-          setNotice(t("account.authenticator.replaced"));
+          toast.success(t("account.authenticator.replaced"));
           await queryClient.invalidateQueries({ queryKey: ["account"] });
         }}
       />

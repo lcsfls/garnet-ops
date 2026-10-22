@@ -222,6 +222,9 @@ See ADR 0002 and ADR 0004.
 - [~] Mail via SMTP or Microsoft Graph and webhooks (Discord, Slack-compatible, JSON) for
       alerts (ADR 0010). Still open: weekly digest, never sent twice or skipped around a
       clock change (ADR 0005); invitation mail
+- [~] In-app notifications: bell, toasts and a per-person matrix with personal mail (ADR 0019,
+      `docs/notifications.md`). Still open: quiet hours, a page with all notifications, "update available",
+      notifications for new vulnerabilities on servers, cutting an open stream when a session is revoked
 - [ ] SSO (OIDC/OAuth) and LDAP with allowed-domain registration
 - [ ] Multi-tenant mode for MSPs, fine-grained permissions
 - [ ] Compliance reports (NIS2, ISO 27001 mapping)

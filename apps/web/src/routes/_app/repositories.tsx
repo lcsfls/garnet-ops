@@ -40,6 +40,7 @@ import { BULK_LIMIT, parseUrlList } from "../../lib/repo-urls.ts";
 import { rowClick } from "../../lib/row-link.ts";
 import { useScanErrorText } from "../../lib/scan-error.ts";
 import { type RepositorySearch, repositorySearch, toQuery } from "../../lib/search.ts";
+import { toast } from "../../lib/toast.ts";
 import type { GateResult, Grade, Page, RepositoryRow, Severity } from "../../lib/types.ts";
 
 export const Route = createFileRoute("/_app/repositories")({
@@ -263,7 +264,11 @@ function RepositoryRowView({
 
   const scan = useMutation({
     mutationFn: () => api(`/repositories/${repo.id}/scans`, { method: "POST" }),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      toast.success(t("toast.scanQueued", { repository: repo.name }));
+      await refresh();
+    },
+    onError: () => toast.error(t("errors.actionFailed")),
   });
   const remove = useMutation({
     mutationFn: () => api(`/repositories/${repo.id}`, { method: "DELETE" }),

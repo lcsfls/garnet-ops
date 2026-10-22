@@ -57,6 +57,7 @@ import type { PgBoss } from "pg-boss";
 import { enrichOsint } from "./attacks.ts";
 import { db } from "./db.ts";
 import { vaultPrivateKey } from "./env.ts";
+import { tellUsers } from "./user-notify.ts";
 import {
   type CertificateInfo,
   CertificateMismatch,
@@ -195,6 +196,7 @@ export async function applyObservedCertificate(
     return;
   }
   if (endpoint.certFingerprint) {
+    let news = false;
     await db.transaction(async (tx) => {
       await tx
         .update(e)
@@ -208,6 +210,7 @@ export async function applyObservedCertificate(
         })
         .where(eq(e.id, endpoint.id));
       if (endpoint.certStatus !== "changed" || endpoint.candidateFingerprint !== seen.fingerprint) {
+        news = true;
         await tx.insert(schema.auditLog).values({
           organizationId: connection.organizationId,
           action: "xdr.certificate_changed",
@@ -222,6 +225,15 @@ export async function applyObservedCertificate(
         });
       }
     });
+    // Owners and admins hear of it once per change, like the audit entry (ADR 0019).
+    if (news) {
+      await tellUsers({
+        organizationId: connection.organizationId,
+        titleKey: "certificateChangedXdr",
+        params: { name: connection.name },
+        link: "/settings?section=xdr",
+      });
+    }
     return;
   }
   await db
@@ -508,6 +520,7 @@ async function collect(
   }
   const extra = [...new Set([...policies, ...indexerExtra])].sort();
   const c = schema.wazuhConnection;
+  let newPrivileges = false;
   await db.transaction(async (tx) => {
     await tx
       .update(c)
@@ -520,6 +533,7 @@ async function collect(
       })
       .where(eq(c.id, connection.id));
     if (extra.length > 0 && extra.join("\n") !== connection.extraPrivileges.join("\n")) {
+      newPrivileges = true;
       await tx.insert(schema.auditLog).values({
         organizationId: connection.organizationId,
         action: "xdr.privileges_detected",
@@ -530,6 +544,14 @@ async function collect(
     }
   });
   if (extra.length > 0 && !privilegesAcknowledged(extra, connection.acknowledgedPrivileges)) {
+    if (newPrivileges) {
+      await tellUsers({
+        organizationId: connection.organizationId,
+        titleKey: "syncBlockedXdr",
+        params: { name: connection.name },
+        link: "/settings?section=xdr",
+      });
+    }
     throw new WazuhError("privilegesNotAcknowledged");
   }
 

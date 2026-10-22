@@ -183,6 +183,7 @@ export function CommandSearch({ me }: { me: Me }) {
       ["authenticator", t("account.nav.authenticator")],
       ["passkeys", t("account.nav.passkeys")],
       ["sessions", t("account.nav.sessions")],
+      ["notifications", t("account.nav.notifications")],
     ] as const) {
       // Without a search text only the page itself is listed; its sections appear when typing.
       if (q ? !name.toLowerCase().includes(q.toLowerCase()) : section !== undefined) continue;

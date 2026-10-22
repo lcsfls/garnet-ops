@@ -1,4 +1,4 @@
-import { type Database, schema } from "@garnetops/db";
+import { type Database, notifyUsers, schema } from "@garnetops/db";
 import { type JournalEvent, syncJournal, type UpdaterClient } from "@restow-backup/cicd-updater";
 import { eq, sql } from "drizzle-orm";
 
@@ -28,6 +28,29 @@ function details(event: JournalEvent): Record<string, unknown> {
   return text.length <= MAX_DETAILS_BYTES ? event.details : { truncated: true };
 }
 
+/** A release version as the sidecar names it; anything else is shown as a question mark. */
+const VERSION = /^[0-9A-Za-z.+-]{1,40}$/;
+
+async function tellAdmins(db: Database, event: JournalEvent, organizationId: string | null): Promise<void> {
+  try {
+    const organizations = organizationId
+      ? [{ id: organizationId }]
+      : await db.select({ id: schema.organization.id }).from(schema.organization);
+    for (const organization of organizations) {
+      await notifyUsers(db, {
+        organizationId: organization.id,
+        titleKey: event.action === "update.succeeded" ? "updateSucceeded" : "updateFailed",
+        params: {
+          version: typeof event.target === "string" && VERSION.test(event.target) ? event.target : "?",
+        },
+        link: "/settings?section=updates",
+      });
+    }
+  } catch (error) {
+    console.error("notification:", (error as Error)?.name ?? "error");
+  }
+}
+
 export function journalStore(db: Database): JournalStore {
   /** The requester's organisation, so organisation admins see the entry; null for the system. */
   async function actorOf(userId: string | null) {
@@ -52,8 +75,9 @@ export function journalStore(db: Database): JournalStore {
 
     async ingest(event) {
       const who = await actorOf(event.actor.via === "api" ? event.actor.id : null);
+      let fresh = false;
       await db.transaction(async (tx) => {
-        await tx
+        const inserted = await tx
           .insert(schema.auditLog)
           .values({
             organizationId: who.organizationId,
@@ -71,7 +95,9 @@ export function journalStore(db: Database): JournalStore {
             eventId: event.id,
             createdAt: new Date(event.at),
           })
-          .onConflictDoNothing({ target: [schema.auditLog.source, schema.auditLog.eventId] });
+          .onConflictDoNothing({ target: [schema.auditLog.source, schema.auditLog.eventId] })
+          .returning({ id: schema.auditLog.id });
+        fresh = inserted.length > 0;
         await tx
           .insert(schema.updaterJournalCursor)
           .values({ id: CURSOR_ID, lastEventId: event.id })
@@ -80,6 +106,10 @@ export function journalStore(db: Database): JournalStore {
             set: { lastEventId: event.id, updatedAt: sql`now()` },
           });
       });
+      // Owners and admins hear of the end of an update once, when the entry is first copied (ADR 0019).
+      if (fresh && (event.action === "update.succeeded" || event.action === "update.failed")) {
+        await tellAdmins(db, event, who.organizationId);
+      }
     },
 
     async recordGap(after) {

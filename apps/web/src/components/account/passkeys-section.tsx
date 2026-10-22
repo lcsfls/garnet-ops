@@ -6,6 +6,7 @@ import { accountQuery, type PasskeyRow } from "../../lib/account.ts";
 import { ApiError, api } from "../../lib/api.ts";
 import { formatDateTime } from "../../lib/format.ts";
 import { PASSKEY_FAILURE_KEYS, passkeysSupported, registerPasskey } from "../../lib/passkeys.ts";
+import { toast } from "../../lib/toast.ts";
 import { Card, CardHeader } from "../page-header.tsx";
 import { QueryStatus } from "../query-state.tsx";
 import { Alert } from "../ui/alert.tsx";
@@ -33,7 +34,6 @@ export function PasskeysSection({ email }: { email: string }) {
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<PasskeyRow | null>(null);
   const [removing, setRemoving] = useState<PasskeyRow | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["account"] });
 
@@ -41,7 +41,7 @@ export function PasskeysSection({ email }: { email: string }) {
     mutationFn: (id: string) => api(`/account/passkeys/${id}`, { method: "DELETE" }),
     onSuccess: async () => {
       setRemoving(null);
-      setNotice(t("account.passkeys.removed"));
+      toast.success(t("account.passkeys.removed"));
       await refresh();
     },
     onError: (e, id) => {
@@ -72,12 +72,7 @@ export function PasskeysSection({ email }: { email: string }) {
           description={t("account.passkeys.description")}
           actions={
             usable ? (
-              <Button
-                onClick={() => {
-                  setNotice(null);
-                  setAdding(true);
-                }}
-              >
+              <Button onClick={() => setAdding(true)}>
                 <Plus aria-hidden="true" className="size-4" />
                 {t("account.passkeys.add")}
               </Button>
@@ -85,7 +80,6 @@ export function PasskeysSection({ email }: { email: string }) {
           }
         />
         <div className="grid gap-4 px-5 pb-5">
-          {notice ? <Alert tone="info">{notice}</Alert> : null}
           {!passkeysAvailable ? <Alert tone="info">{t("account.passkeys.unavailable")}</Alert> : null}
           {passkeysAvailable && !passkeysSupported() ? (
             <Alert tone="info">{t("account.passkeys.errorUnsupported")}</Alert>
@@ -151,7 +145,7 @@ export function PasskeysSection({ email }: { email: string }) {
         onClose={() => setAdding(false)}
         onAdded={async () => {
           setAdding(false);
-          setNotice(t("account.passkeys.added"));
+          toast.success(t("account.passkeys.added"));
           await refresh();
         }}
       />

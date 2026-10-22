@@ -12,9 +12,9 @@ export function formatDate(value: string | Date): string {
   return formatInstant(value, i18n.language, displayTimeZone(), "date");
 }
 
-/** "3 hours ago", "yesterday", "just now", counting calendar days in the browser's zone. */
+/** "3 hours ago", "yesterday", "just now", counting calendar days in the user's display zone (ADR 0005). */
 export function formatRelative(value: string | Date, now: Date = new Date()): string {
-  const { value: amount, unit } = relativeTime(new Date(value), now);
+  const { value: amount, unit } = relativeTime(new Date(value), now, displayTimeZone());
   return new Intl.RelativeTimeFormat(i18n.language, { numeric: "auto" }).format(amount, unit);
 }
 

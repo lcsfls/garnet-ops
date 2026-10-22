@@ -8,6 +8,7 @@ export * from "./attacks.ts";
 export * from "./geoip.ts";
 export * from "./schedule.ts";
 export * from "./trend.ts";
+export * from "./user-notifications.ts";
 export { schema };
 export type Database = ReturnType<typeof createDb>["db"];
 

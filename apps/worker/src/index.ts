@@ -32,6 +32,7 @@ import {
 } from "./proxmox.ts";
 import { runScan } from "./scan.ts";
 import { SCAN_QUEUE as QUEUE, startScheduler } from "./schedule.ts";
+import { startUserNotificationUpkeep, tellAboutScan } from "./user-notify.ts";
 import { startVulnDbUpdates } from "./vulndb.ts";
 import {
   readCertificate as readWazuhCertificate,
@@ -76,10 +77,13 @@ for (let i = 0; i < env.GARNETOPS_SCAN_CONCURRENCY; i++) {
       console.error(`notify after scan ${job.data.scanId}:`, error.message);
       return null;
     });
-    if (events)
+    if (events) {
       await queueNotifications(boss, events.organizationId, events.payloads).catch((error: Error) => {
         console.error(`notify after scan ${job.data.scanId}:`, error.message);
       });
+      // The same facts for the people of the organisation, in the app and by their own mail (ADR 0019).
+      await tellAboutScan(events);
+    }
   });
 }
 await boss.work<{ channelId: string; payload: Parameters<typeof deliver>[1] }>(
@@ -182,10 +186,12 @@ await startProxmoxScheduler(boss);
 await startWazuhScheduler(boss);
 await startAttacksScheduler(boss);
 const stopVulnDbUpdates = startVulnDbUpdates();
+const stopUserNotifications = startUserNotificationUpkeep();
 console.log(`worker: ready (${env.GARNETOPS_SCAN_CONCURRENCY} scan slots, nightly schedule active)`);
 
 async function shutdown() {
   stopVulnDbUpdates();
+  stopUserNotifications();
   clearInterval(aiSweep);
   clearInterval(wazuhSweep);
   clearInterval(attackSweep);

@@ -19,6 +19,7 @@ import { forgeOf } from "../../lib/forge.ts";
 import { formatDate, formatDateTime, formatNumber, formatRelative } from "../../lib/format.ts";
 import { useScanErrorText } from "../../lib/scan-error.ts";
 import { type RepositoryDetailSearch, repositoryDetailSearch, toQuery } from "../../lib/search.ts";
+import { toast } from "../../lib/toast.ts";
 import { trendDays } from "../../lib/trend.ts";
 import type { Overview, Page, PatchRow, RepositoryDetail, ScanRow, Severity } from "../../lib/types.ts";
 
@@ -54,7 +55,11 @@ function RepositoryPage() {
   });
   const scan = useMutation({
     mutationFn: () => api(`/repositories/${id}/scans`, { method: "POST" }),
-    onSuccess: () => queryClient.invalidateQueries(),
+    onSuccess: () => {
+      toast.success(t("toast.scanQueued", { repository: repo.data?.name ?? "" }));
+      return queryClient.invalidateQueries();
+    },
+    onError: () => toast.error(t("errors.actionFailed")),
   });
   const setSearch = (patch: Partial<RepositoryDetailSearch>) =>
     navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });

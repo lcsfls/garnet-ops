@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AuthenticatorSection } from "../../components/account/authenticator-section.tsx";
+import { NotificationsSection } from "../../components/account/notifications-section.tsx";
 import { PasskeysSection } from "../../components/account/passkeys-section.tsx";
 import { PasswordSection } from "../../components/account/password-section.tsx";
 import { ProfileSection } from "../../components/account/profile-section.tsx";
@@ -22,6 +23,7 @@ const SECTION_LABELS = {
   authenticator: "account.nav.authenticator",
   passkeys: "account.nav.passkeys",
   sessions: "account.nav.sessions",
+  notifications: "account.nav.notifications",
 } as const satisfies Record<AccountSection, MessageKey>;
 
 /**
@@ -59,6 +61,7 @@ function AccountPage() {
           {section === "authenticator" ? <AuthenticatorSection email={me.user.email} /> : null}
           {section === "passkeys" ? <PasskeysSection email={me.user.email} /> : null}
           {section === "sessions" ? <SessionsSection /> : null}
+          {section === "notifications" ? <NotificationsSection /> : null}
         </div>
       </div>
     </div>

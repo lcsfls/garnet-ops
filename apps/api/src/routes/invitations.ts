@@ -6,6 +6,7 @@ import { auth } from "../auth.ts";
 import { db, pool } from "../db.ts";
 import { audit } from "../lib/audit.ts";
 import { clientIp } from "../lib/ip.ts";
+import { notifyUsers } from "../lib/notify-users.ts";
 import { ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
 import { hashInvitationToken } from "./team.ts";
@@ -144,6 +145,18 @@ export const invitationRoutes = new Hono()
         },
         { email: row.email, role: row.role, existingAccount: Boolean(existing) },
       );
+      // Tells the owners and admins that someone joined (ADR 0019).
+      const [joined] = await db
+        .select({ name: schema.user.name })
+        .from(schema.user)
+        .where(eq(schema.user.id, userId))
+        .limit(1);
+      await notifyUsers({
+        organizationId: row.organizationId,
+        titleKey: "invitationAccepted",
+        params: { person: joined?.name ?? "", role: row.role },
+        link: "/team",
+      });
       return c.json({ email: row.email, existingAccount: Boolean(existing) }, 201);
     } finally {
       await client.query("select pg_advisory_unlock(hashtext('garnetops.invitation'))").catch(() => {});

@@ -345,8 +345,9 @@ test("password: wrong and mismatching input is refused, a change ends the other 
   await page.getByLabel("Repeat the new password").fill(NEW_PASSWORD);
   expect(await page.getByLabel("Sign out all my other sessions").isChecked()).toBe(true);
   await page.getByRole("button", { name: "Change password" }).click();
-  await expect(page.getByRole("status")).toContainText("Password changed.");
-  await expect(page.getByRole("status")).toContainText("One other session was signed out.");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Password changed. One other session was signed out." }),
+  ).toBeVisible();
   expect(await sql("select 1 from session where id = 'ses_e2e_account_other'")).toHaveLength(0);
   // This session stays; the new password works, the old one does not.
   await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
@@ -368,7 +369,9 @@ test("password: wrong and mismatching input is refused, a change ends the other 
   await page.getByLabel("Repeat the new password").fill(PASSWORD);
   await page.getByLabel("Sign out all my other sessions").uncheck();
   await page.getByRole("button", { name: "Change password" }).click();
-  await expect(page.getByRole("status")).toContainText("No other session was signed in.");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Password changed. No other session was signed in." }),
+  ).toBeVisible();
   expect(await sql("select 1 from session where id = 'ses_e2e_account_keep'")).toHaveLength(1);
   await sql("delete from session where id = 'ses_e2e_account_keep'");
   expect(problems).toEqual([]);

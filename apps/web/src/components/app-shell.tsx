@@ -14,6 +14,8 @@ import { Mark, Wordmark } from "./brand.tsx";
 import { CommandSearch } from "./command-search.tsx";
 import { MaintenanceBanner } from "./maintenance-banner.tsx";
 import { navFor, navTrail } from "./nav.ts";
+import { NotificationBell } from "./notification-bell.tsx";
+import { ToastRegion } from "./toast-region.tsx";
 import { Badge } from "./ui/badge.tsx";
 import { UserMenu } from "./user-menu.tsx";
 
@@ -214,6 +216,7 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
                 <Moon aria-hidden="true" className="size-4" />
               )}
             </button>
+            <NotificationBell />
             <UserMenu me={me} />
           </div>
         </header>
@@ -223,6 +226,7 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
           {children}
         </main>
       </div>
+      <ToastRegion />
     </div>
   );
 }

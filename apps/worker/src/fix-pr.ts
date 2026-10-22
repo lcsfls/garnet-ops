@@ -35,6 +35,7 @@ import {
   repoInfo,
   writeFile,
 } from "./forge.ts";
+import { tellAboutFixPr } from "./user-notify.ts";
 
 export const FIX_PR_QUEUE = "fix-pr.create";
 export const FIX_PR_CHECK_QUEUE = "fix-pr.check";
@@ -170,6 +171,7 @@ async function fail(row: FixPrRow, reason: string) {
     .set({ state: "failed", reason, updatedAt: new Date() })
     .where(eq(schema.fixPr.id, row.id));
   await audit(row, "fix_pr.failed", { reason, from: row.fromVersion, to: row.toVersion });
+  await tellAboutFixPr(row, "fixPrFailed");
 }
 
 /**
@@ -394,7 +396,7 @@ export async function refreshFixPrs(
       if (pr.prNumber === null) continue;
       try {
         const state = await pullRequestState(opened.target, pr.prNumber);
-        await db
+        const changed = await db
           .update(schema.fixPr)
           .set({
             state,
@@ -403,9 +405,12 @@ export async function refreshFixPrs(
             updatedAt: new Date(),
             ...(state === "open" ? {} : { closedAt: new Date() }),
           })
-          .where(and(eq(schema.fixPr.id, pr.id), eq(schema.fixPr.state, "open")));
+          .where(and(eq(schema.fixPr.id, pr.id), eq(schema.fixPr.state, "open")))
+          .returning({ id: schema.fixPr.id });
         checked++;
         if (state !== "open") await audit(pr, `fix_pr.${state}`, { number: pr.prNumber });
+        // Once: only the refresh that changed the row tells the people (ADR 0019).
+        if (state === "merged" && changed.length > 0) await tellAboutFixPr(pr, "fixPrMerged");
       } catch (error) {
         await db
           .update(schema.fixPr)
@@ -425,7 +430,7 @@ export async function refreshFixPrs(
 
 /** Requests whose worker disappeared would block the same change for ever; they end as failed. */
 export async function sweepStale(): Promise<void> {
-  await db
+  const lost = await db
     .update(schema.fixPr)
     .set({ state: "failed", reason: "interrupted", updatedAt: new Date() })
     .where(
@@ -434,7 +439,13 @@ export async function sweepStale(): Promise<void> {
         // A request that was queued or running this long lost its worker.
         lt(schema.fixPr.updatedAt, sql`now() - interval '20 minutes'`),
       ),
-    );
+    )
+    .returning({
+      organizationId: schema.fixPr.organizationId,
+      repositoryId: schema.fixPr.repositoryId,
+      requestedBy: schema.fixPr.requestedBy,
+    });
+  for (const pr of lost) await tellAboutFixPr(pr, "fixPrFailed");
 }
 
 /** Registers the periodic status refresh: every 15 minutes, evaluated in UTC. */

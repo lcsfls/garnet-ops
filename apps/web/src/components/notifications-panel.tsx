@@ -1,11 +1,13 @@
 import { LANGUAGE_NAMES, LANGUAGES, type Language } from "@garnetops/i18n";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Plus, Send, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, api } from "../lib/api.ts";
 import { formatRelative } from "../lib/format.ts";
 import type { Me } from "../lib/session.ts";
+import { toast } from "../lib/toast.ts";
 import { Card, CardHeader } from "./page-header.tsx";
 import { QueryStatus } from "./query-state.tsx";
 import { Alert } from "./ui/alert.tsx";
@@ -60,7 +62,6 @@ export function NotificationsPanel({ me }: { me: Me }) {
   });
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<Channel | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["notification-channels"] });
   const patch = useMutation({
     mutationFn: (input: { id: string; body: Partial<Pick<Channel, "enabled" | "events">> }) =>
@@ -74,7 +75,8 @@ export function NotificationsPanel({ me }: { me: Me }) {
   });
   const test = useMutation({
     mutationFn: (id: string) => api(`/notifications/channels/${id}/test`, { method: "POST" }),
-    onSuccess: () => setNotice(t("settings.testQueued")),
+    onSuccess: () => toast.success(t("settings.testQueued")),
+    onError: () => toast.error(t("errors.actionFailed")),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api(`/notifications/channels/${id}`, { method: "DELETE" }),
@@ -96,13 +98,18 @@ export function NotificationsPanel({ me }: { me: Me }) {
           </Button>
         }
       />
+      <p className="px-5 pb-3 text-sm text-muted-foreground">
+        {t("settings.notificationsRelation")}{" "}
+        <Link
+          to="/account"
+          search={{ section: "notifications" }}
+          className="font-medium text-primary-text underline underline-offset-4"
+        >
+          {t("settings.notificationsPersonalLink")}
+        </Link>
+      </p>
       <QueryStatus query={channels} />
-      {notice ? (
-        <div className="px-5 pb-3">
-          <Alert tone="info">{notice}</Alert>
-        </div>
-      ) : null}
-      {patch.isError || test.isError ? (
+      {patch.isError ? (
         <div className="px-5 pb-3">
           <Alert tone="error">{t("errors.actionFailed")}</Alert>
         </div>

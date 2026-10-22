@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ApiError, api } from "../lib/api.ts";
 import type { MessageKey } from "../lib/i18n.ts";
 import type { Me } from "../lib/session.ts";
+import { toast } from "../lib/toast.ts";
 import type { AiProbe, AiSettings } from "../lib/types.ts";
 import { Card, CardHeader } from "./page-header.tsx";
 import { QueryStatus } from "./query-state.tsx";
@@ -64,7 +65,6 @@ function AiForm({ stored, me }: { stored: Configured | null; me: Me }) {
   const [needsAck, setNeedsAck] = useState(stored?.scope === "external");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [models, setModels] = useState<string[] | null>(null);
   const [probeNote, setProbeNote] = useState<{ tone: "error" | "info"; text: string } | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -118,7 +118,6 @@ function AiForm({ stored, me }: { stored: Configured | null; me: Me }) {
     onMutate: () => {
       setError(null);
       setFieldErrors({});
-      setSaved(false);
     },
     onSuccess: async (result) => {
       queryClient.setQueryData(["ai-settings"], result);
@@ -126,7 +125,7 @@ function AiForm({ stored, me }: { stored: Configured | null; me: Me }) {
       setClearKey(false);
       // Findings pages show the model and where it runs.
       await queryClient.invalidateQueries({ queryKey: ["ai-thread"] });
-      setSaved(true);
+      toast.success(t("ai.saved"));
     },
     onError: (e) => {
       if (explain(e, () => save.mutate())) return;
@@ -226,7 +225,7 @@ function AiForm({ stored, me }: { stored: Configured | null; me: Me }) {
             ) : null
           }
         />
-        <form className="grid gap-5 px-5 py-5" onSubmit={submit} onChange={() => setSaved(false)}>
+        <form className="grid gap-5 px-5 py-5" onSubmit={submit}>
           {error ? <Alert tone="error">{error}</Alert> : null}
 
           <div className="grid gap-1">
@@ -409,11 +408,6 @@ function AiForm({ stored, me }: { stored: Configured | null; me: Me }) {
               <PlugZap aria-hidden="true" className="size-4" />
               {probe.isPending && probe.variables === "test" ? t("ai.testing") : t("ai.test")}
             </Button>
-            {saved ? (
-              <span role="status" className="text-sm text-muted-foreground">
-                {t("ai.saved")}
-              </span>
-            ) : null}
             {stored ? (
               <Button variant="ghost" className="ml-auto" onClick={() => setRemoving(true)}>
                 <Trash2 aria-hidden="true" className="size-4" />

@@ -9,6 +9,7 @@ import { db } from "../db.ts";
 import { env } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type Actor, type AppEnv, requireRole } from "../lib/context.ts";
+import { notifyUsers } from "../lib/notify-users.ts";
 import { forbidden, notFound, ProblemError } from "../lib/problem.ts";
 import { requireRecentSignIn } from "../lib/step-up.ts";
 
@@ -111,6 +112,14 @@ export const teamRoutes = new Hono<AppEnv>()
         after: role,
       },
     );
+    // Tells the person whose access changed (ADR 0019).
+    await notifyUsers({
+      organizationId: actor.organizationId,
+      titleKey: "roleChanged",
+      params: { role },
+      link: "/account",
+      context: { targetUserId: userId },
+    });
     return c.body(null, 204);
   })
   /** Ends access at once: the membership and every session go; the account stays for the audit trail. */

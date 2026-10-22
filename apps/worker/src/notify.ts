@@ -155,7 +155,18 @@ async function openSecret(channel: Channel, purpose: SecretPurpose): Promise<str
 const recipients = (config: Record<string, unknown>) =>
   (Array.isArray(config.to) ? config.to : []).filter((v): v is string => typeof v === "string");
 
-async function sendSmtp(channel: Channel, title: string, text: string) {
+/** Tests only: a certificate authority for a local SMTP server with a throw-away certificate. */
+export interface MailTestOptions {
+  ca?: string;
+}
+
+async function sendSmtp(
+  channel: Channel,
+  title: string,
+  text: string,
+  to: string[],
+  test: MailTestOptions = {},
+) {
   const c = channel.config;
   const password = c.username ? await openSecret(channel, "smtp-password") : null;
   const transport = nodemailer.createTransport({
@@ -168,10 +179,10 @@ async function sendSmtp(channel: Channel, title: string, text: string) {
     connectionTimeout: TIMEOUT_MS,
     greetingTimeout: TIMEOUT_MS,
     socketTimeout: TIMEOUT_MS,
-    tls: { minVersion: "TLSv1.2" },
+    tls: { minVersion: "TLSv1.2", ...(test.ca ? { ca: test.ca } : {}) },
   });
   try {
-    await transport.sendMail({ from: String(c.from), to: recipients(c), subject: title, text });
+    await transport.sendMail({ from: String(c.from), to, subject: title, text });
   } catch (error) {
     const code = (error as { code?: string; responseCode?: number }).code;
     const status = (error as { responseCode?: number }).responseCode;
@@ -181,7 +192,7 @@ async function sendSmtp(channel: Channel, title: string, text: string) {
   }
 }
 
-async function sendGraph(channel: Channel, title: string, text: string) {
+async function sendGraph(channel: Channel, title: string, text: string, to: string[]) {
   const c = channel.config;
   const secret = await openSecret(channel, "graph-client-secret");
   const tokenResponse = await fetch(
@@ -214,7 +225,7 @@ async function sendGraph(channel: Channel, title: string, text: string) {
         message: {
           subject: title,
           body: { contentType: "Text", content: text },
-          toRecipients: recipients(c).map((address) => ({ emailAddress: { address } })),
+          toRecipients: to.map((address) => ({ emailAddress: { address } })),
         },
         saveToSentItems: false,
       }),
@@ -224,6 +235,22 @@ async function sendGraph(channel: Channel, title: string, text: string) {
   });
   await send.body?.cancel();
   if (!send.ok) throw new DeliveryError(`Microsoft Graph HTTP ${send.status}`);
+}
+
+/**
+ * Sends one message through a mail channel (SMTP or Graph) to the given addresses. Personal
+ * notification mail (ADR 0019) uses this with the address of the one person it is for.
+ */
+export async function sendMailVia(
+  channel: Channel,
+  title: string,
+  text: string,
+  to: string[],
+  test: MailTestOptions = {},
+): Promise<void> {
+  if (channel.kind === "smtp") await sendSmtp(channel, title, text, to, test);
+  else if (channel.kind === "graph") await sendGraph(channel, title, text, to);
+  else throw new DeliveryError("not a mail channel");
 }
 
 /** Sends one notification to one channel and records the delivery. Throws so the queue retries. */
@@ -252,9 +279,9 @@ export async function deliver(channelId: string, payload: NotifyPayload): Promis
         webhookBody((channel.format ?? "generic") as WebhookFormat, payload, title, `${text}`),
       );
     } else if (channel.kind === "smtp") {
-      await sendSmtp(channel, title, `${text}\n${payload.link}`);
+      await sendSmtp(channel, title, `${text}\n${payload.link}`, recipients(channel.config));
     } else {
-      await sendGraph(channel, title, `${text}\n${payload.link}`);
+      await sendGraph(channel, title, `${text}\n${payload.link}`, recipients(channel.config));
     }
     await record("sent", null);
   } catch (error) {
@@ -271,7 +298,7 @@ export async function deliver(channelId: string, payload: NotifyPayload): Promis
  */
 export async function eventsForScan(
   scanId: string,
-): Promise<{ organizationId: string; payloads: NotifyPayload[] } | null> {
+): Promise<{ organizationId: string; ownerUserId: string | null; payloads: NotifyPayload[] } | null> {
   const [row] = await db
     .select({
       state: schema.scan.state,
@@ -280,6 +307,7 @@ export async function eventsForScan(
       organization: schema.organization.name,
       repositoryId: schema.repository.id,
       repositoryName: schema.repository.name,
+      ownerUserId: schema.repository.ownerUserId,
       finishedAt: schema.scan.finishedAt,
     })
     .from(schema.scan)
@@ -295,7 +323,11 @@ export async function eventsForScan(
     at: (row.finishedAt ?? new Date()).toISOString(),
   };
   if (row.state === "failed")
-    return { organizationId: row.organizationId, payloads: [{ ...base, event: "scan.failed" }] };
+    return {
+      organizationId: row.organizationId,
+      ownerUserId: row.ownerUserId,
+      payloads: [{ ...base, event: "scan.failed" }],
+    };
   if (row.state !== "succeeded") return null;
 
   const payloads: NotifyPayload[] = [];
@@ -319,7 +351,7 @@ export async function eventsForScan(
     const blockingRules = Object.values(gate.matches).filter((m) => m.mode === "block").length;
     payloads.push({ ...base, event: "gate.blocked", gate: { blockingRules } });
   }
-  return { organizationId: row.organizationId, payloads };
+  return { organizationId: row.organizationId, ownerUserId: row.ownerUserId, payloads };
 }
 
 /** Queues one job per subscribed channel and notification. */

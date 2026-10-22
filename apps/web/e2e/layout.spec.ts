@@ -85,6 +85,7 @@ test.describe("signed in", () => {
     { path: "/account?section=authenticator", heading: "Account", name: "account-authenticator" },
     { path: "/account?section=passkeys", heading: "Account", name: "account-passkeys" },
     { path: "/account?section=sessions", heading: "Account", name: "account-sessions" },
+    { path: "/account?section=notifications", heading: "Account", name: "account-notifications" },
     { path: "/settings?section=updates", heading: "Settings", name: "settings-updates" },
     { path: "/settings?section=notifications", heading: "Settings", name: "settings-notifications" },
     { path: "/settings?section=proxmox", heading: "Settings", name: "settings-proxmox" },
@@ -757,6 +758,76 @@ test.describe("signed in", () => {
         await page.screenshot({ path: info.outputPath("filters-checked.png") });
       }
     }
+  });
+
+  test("the notification panel, a message and the matrix fit the window at every width, in English and German", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    const [owner] = await sql<{ id: string; organization_id: string }>(
+      `select u."id", m."organization_id" from "user" u join membership m on m.user_id = u.id where m.role = 'owner' limit 1`,
+    );
+    const insert = async (repository: string, minutes: number) => {
+      const [row] = await sql<{ id: string }>(
+        `insert into user_notification (user_id, organization_id, event, title_key, params, link, created_at)
+         values ($1, $2, 'gate.blocked', 'gateBlocked', $3::jsonb, '/gates', now() - ($4 || ' minutes')::interval)
+         returning id`,
+        [owner?.id, owner?.organization_id, JSON.stringify({ repository, rules: 1 }), String(minutes)],
+      );
+      return row?.id;
+    };
+    try {
+      await sql("delete from user_notification");
+      // A long name must wrap inside the panel, not widen it.
+      const longName = `very-long-repository-name-${"x".repeat(60)}`;
+      for (let i = 8; i > 0; i--) await insert(i === 4 ? longName : `repo-${i}`, i * 90);
+      for (const language of ["en", "de"]) {
+        await page.addInitScript((lang) => localStorage.setItem("garnetops.language", lang), language);
+        await page.goto("/");
+        const bell = page.getByRole("button", { name: /^(Notifications|Benachrichtigungen)/ });
+        await expect(bell).toBeInViewport();
+        await bell.click();
+        const panel = page.getByRole("region", { name: /^(Your notifications|Ihre Benachrichtigungen)$/ });
+        await expect(panel.locator("li").first()).toBeVisible();
+        const view = page.viewportSize() ?? { width: 0, height: 0 };
+        const box = await panel.boundingBox();
+        expect(box, "panel is shown").not.toBeNull();
+        if (box) {
+          expect(box.x, `${language}: panel inside on the left`).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width, `${language}: panel inside on the right`).toBeLessThanOrEqual(view.width);
+          expect(box.y + box.height, `${language}: panel inside at the bottom`).toBeLessThanOrEqual(
+            view.height,
+          );
+        }
+        expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+        expect(await hasNoHorizontalScroll(page)).toBe(true);
+        // The bell stays left of the account menu, at the same height.
+        const bellBox = await bell.boundingBox();
+        const menuBox = await page.getByRole("button", { name: /^(Account|Konto): / }).boundingBox();
+        expect(bellBox && menuBox && bellBox.x + bellBox.width <= menuBox.x).toBe(true);
+        await page.screenshot({ path: info.outputPath(`notification-panel-${language}.png`) });
+        await page.keyboard.press("Escape");
+
+        // A message arrives while the panel is closed: bottom right, inside the window.
+        const id = await insert(`fresh-${language}`, 0);
+        await sql("select pg_notify('user_notification', $1)", [
+          JSON.stringify({ u: owner?.id, id: Number(id) }),
+        ]);
+        const message = page.locator("[data-toast]").first();
+        await expect(message).toBeVisible({ timeout: 8000 });
+        const toastBox = await message.boundingBox();
+        if (toastBox) {
+          expect(toastBox.x + toastBox.width).toBeLessThanOrEqual(view.width);
+          expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(view.height);
+          expect(toastBox.x).toBeGreaterThanOrEqual(0);
+        }
+        await page.screenshot({ path: info.outputPath(`notification-toast-${language}.png`) });
+        await sql("delete from user_notification where params->>'repository' like 'fresh-%'");
+      }
+    } finally {
+      await sql("delete from user_notification");
+    }
+    expect(problems).toEqual([]);
   });
 
   test("dark theme renders the signed-in screens", async ({ page }, info) => {

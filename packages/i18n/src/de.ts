@@ -120,6 +120,89 @@ export const de: Messages = {
       authenticator: "Authenticator-App",
       passkeys: "Passkeys",
       sessions: "Sitzungen",
+      notifications: "Benachrichtigungen",
+    },
+    notifications: {
+      title: "Benachrichtigungen",
+      description: "Worüber Sie informiert werden, in der App und per E-Mail.",
+      relation:
+        "Das ist, was Sie selbst erhalten. Die gemeinsamen Kanäle Ihrer Organisation (Webhooks und Postfächer) richten Admins unter Einstellungen, Benachrichtigungen ein; diese Tabelle ändert sie nicht.",
+      onlyRole: "Aufgeführt sind nur Ereignisse, die Ihre Rolle erhalten kann.",
+      inApp: "In der App",
+      email: "E-Mail",
+      scope: "Gilt für",
+      groups: {
+        code: "Code",
+        infrastructure: "Infrastruktur",
+        account: "Konto und Team",
+        system: "System",
+      },
+      events: {
+        findingNewCritical: {
+          label: "Neue kritische Schwachstellen",
+          hint: "Ein Scan hat in einem Repository neue kritische oder bekannt ausgenutzte Schwachstellen gefunden.",
+        },
+        gateBlocked: {
+          label: "Ein Quality Gate hat blockiert",
+          hint: "Im Scan eines Repositorys hat eine Regel im Modus Blockieren gegriffen.",
+        },
+        scanFailed: {
+          label: "Ein Scan ist fehlgeschlagen",
+          hint: "Ein Repository konnte nicht gescannt werden.",
+        },
+        fixPrMerged: {
+          label: "Ein Fix-Pull-Request wurde gemergt",
+          hint: "Die Forge meldet, dass ein von GarnetOps geöffneter Pull Request gemergt wurde.",
+        },
+        fixPrFailed: {
+          label: "Ein Fix-Pull-Request ist fehlgeschlagen",
+          hint: "Es konnte kein Pull Request geöffnet werden.",
+        },
+        infraHostKeyChanged: {
+          label: "Der SSH-Host-Key eines Servers hat sich geändert",
+          hint: "Die Überwachung dieses Servers ruht, bis ein Admin den neuen Schlüssel bestätigt.",
+        },
+        infraCertificateChanged: {
+          label: "Ein Zertifikat hat sich geändert (Proxmox VE, Wazuh)",
+          hint: "Der Abgleich ruht, bis ein Admin das neue Zertifikat bestätigt.",
+        },
+        infraSyncBlocked: {
+          label: "Ein Abgleich ist blockiert (Proxmox VE, Wazuh)",
+          hint: "Token oder Konto dürfen mehr als lesen, und niemand hat das bestätigt.",
+        },
+        teamInvitationAccepted: {
+          label: "Eine Einladung wurde angenommen",
+          hint: "Jemand ist Ihrer Organisation beigetreten.",
+        },
+        teamRoleChanged: {
+          label: "Ihre Rolle hat sich geändert",
+          hint: "Ein Owner oder Admin hat Ihre Rolle geändert.",
+        },
+        systemUpdateFinished: {
+          label: "Ein Update ist fertig oder fehlgeschlagen",
+          hint: "Ein Update von GarnetOps wurde installiert oder hat nicht funktioniert.",
+        },
+      },
+      scopes: {
+        repositories: { all: "Alle Repositories", mine: "Nur von mir angelegte Repositories" },
+        requests: { all: "Alle Anfragen", mine: "Nur meine Anfragen" },
+      },
+      scopeLabel: "{event}: gilt für",
+      inAppLabel: "{event}: in der App",
+      emailLabel: "{event}: per E-Mail",
+      emailUnavailable: "E-Mail ist nicht verfügbar",
+      emailUnavailableAdmin:
+        "Ihre Organisation hat keinen Mail-Kanal. Legen Sie unter Einstellungen, Benachrichtigungen einen SMTP- oder Microsoft-Graph-Kanal an; er sendet dann auch persönliche Mails.",
+      emailUnavailableMember:
+        "Ihre Organisation hat noch keinen Mail-Kanal. Bitten Sie einen Owner oder Admin, einen einzurichten.",
+      emailRules:
+        "E-Mails gehen nur an {email}, mit Zusammenfassung und Link. Höchstens eine Mail je Ereignisart alle 15 Minuten; weitere werden in einer Nachricht zusammengefasst.",
+      settingsLink: "Kanäle der Organisation öffnen",
+      save: "Speichern",
+      saved: "Benachrichtigungs-Einstellungen gespeichert.",
+      restore: "Standard wiederherstellen",
+      restoreHint: "In der App an, E-Mail aus. Es ändert sich nichts, bis Sie speichern.",
+      loadFailed: "Die Benachrichtigungs-Einstellungen konnten nicht geladen werden.",
     },
     menuLink: "Konto",
     profile: {
@@ -998,6 +1081,9 @@ export const de: Messages = {
     channelSave: "Kanal hinzufügen",
     channelEnabled: "Ein",
     sendTest: "Test senden",
+    notificationsRelation:
+      "Diese Kanäle sind gemeinsame Ziele für die ganze Organisation. Was jede Person selbst erhält, in der App und per E-Mail, wählt sie unter Konto, Benachrichtigungen. Ein Mail-Kanal hier versendet auch diese persönlichen Mails; schalten Sie ihn aus, endet beides.",
+    notificationsPersonalLink: "Meine Benachrichtigungs-Einstellungen",
     testQueued: "Testnachricht eingereiht. Das Ergebnis erscheint gleich hier.",
     deleteChannel: "Löschen",
     deleteChannelTitle: "Kanal {name} löschen?",
@@ -2851,6 +2937,104 @@ export const de: Messages = {
     columnAcceptedUntil: "Akzeptiert bis",
     yes: "ja",
     no: "nein",
+  },
+  inapp: {
+    bell: "Benachrichtigungen",
+    bellUnread: "Benachrichtigungen, {count, plural, one {# ungelesen} other {# ungelesen}}",
+    panelLabel: "Ihre Benachrichtigungen",
+    panelTitle: "Benachrichtigungen",
+    empty: "Noch keine Benachrichtigungen.",
+    caughtUp: "Alles gelesen.",
+    markRead: "Als gelesen markieren",
+    markAllRead: "Alle als gelesen markieren",
+    markedAllRead: "Alle Benachrichtigungen als gelesen markiert.",
+    newMany: "{count} neue Benachrichtigungen",
+    view: "Ansehen",
+    unreadMarker: "Ungelesen",
+    settingsLink: "Benachrichtigungs-Einstellungen",
+    showOlder: "Ältere anzeigen",
+    loadFailed: "Die Benachrichtigungen konnten nicht geladen werden.",
+    today: "Heute",
+    yesterday: "Gestern",
+    live: "Neues erscheint sofort.",
+    polling: "Neue Benachrichtigungen werden alle 30 Sekunden abgefragt.",
+    items: {
+      findingNewCritical: {
+        title: "Neue kritische Schwachstellen: {repository}",
+        text: "Neu im letzten Scan: {critical} kritisch, {knownExploited} bekannt ausgenutzt.",
+      },
+      gateBlocked: {
+        title: "Quality Gate blockiert: {repository}",
+        text: "Passende Regeln im Modus Blockieren: {rules}.",
+      },
+      scanFailed: { title: "Scan fehlgeschlagen: {repository}", text: "Den Grund zeigt GarnetOps." },
+      fixPrMerged: {
+        title: "Fix-Pull-Request gemergt: {repository}",
+        text: "Die Forge meldet, dass der Pull Request gemergt wurde.",
+      },
+      fixPrFailed: {
+        title: "Fix-Pull-Request fehlgeschlagen: {repository}",
+        text: "Es wurde kein Pull Request geöffnet. Den Grund zeigt GarnetOps.",
+      },
+      hostKeyChanged: {
+        title: "SSH-Host-Key geändert: {server}",
+        text: "Die Überwachung dieses Servers ruht, bis ein Admin den neuen Schlüssel bestätigt.",
+      },
+      certificateChangedProxmox: {
+        title: "Zertifikat von Proxmox VE geändert: {name}",
+        text: "Der Abgleich ruht, bis ein Admin das neue Zertifikat bestätigt.",
+      },
+      certificateChangedXdr: {
+        title: "Zertifikat von Wazuh geändert: {name}",
+        text: "Der Abgleich ruht, bis ein Admin das neue Zertifikat bestätigt.",
+      },
+      syncBlockedProxmox: {
+        title: "Abgleich mit Proxmox VE blockiert: {name}",
+        text: "Der Token darf mehr als lesen. Ein Admin muss das bestätigen.",
+      },
+      syncBlockedXdr: {
+        title: "Abgleich mit Wazuh blockiert: {name}",
+        text: "Das Konto darf mehr als lesen. Ein Admin muss das bestätigen.",
+      },
+      invitationAccepted: {
+        title: "Einladung angenommen: {person}",
+        text: "Ist beigetreten als {role}.",
+      },
+      roleChanged: {
+        title: "Ihre Rolle hat sich geändert",
+        text: "Sie sind jetzt {role}.",
+      },
+      updateSucceeded: {
+        title: "GarnetOps wurde auf {version} aktualisiert",
+        text: "Das Update ist abgeschlossen. Das Journal steht im Audit-Log.",
+      },
+      updateFailed: {
+        title: "Update auf {version} fehlgeschlagen",
+        text: "Das Journal im Audit-Log nennt die Einzelheiten.",
+      },
+    },
+    roles: { owner: "Owner", admin: "Admin", member: "Mitglied", viewer: "Betrachter" },
+    unknown: { title: "Benachrichtigung", text: "Öffnen Sie GarnetOps für Einzelheiten." },
+    mail: {
+      digestSubject: "GarnetOps: {count} neue Benachrichtigungen",
+      digestIntro: "{count} neue Benachrichtigungen für Sie in {organization}:",
+      more: "… und {count} weitere",
+      open: "GarnetOps öffnen:",
+      footer:
+        "Von GarnetOps für {organization} an Ihre eigene Adresse gesendet. Was Sie erhalten, wählen Sie unter Konto, Benachrichtigungen.",
+    },
+  },
+  toast: {
+    region: "Meldungen",
+    close: "Meldung schließen",
+    success: "Erledigt",
+    error: "Fehler",
+    info: "Hinweis",
+    view: "Ansehen",
+    copied: "In die Zwischenablage kopiert.",
+    copyFailed: "Kopieren nicht möglich. Markieren Sie den Text und kopieren Sie ihn von Hand.",
+    scanQueued: "Scan von {repository} eingereiht.",
+    invitationCreated: "Einladung erstellt.",
   },
   time: {
     never: "nie",

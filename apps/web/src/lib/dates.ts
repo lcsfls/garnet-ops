@@ -39,9 +39,30 @@ export function endOfLocalDay(day: string): Date {
   return new Date(y, m - 1, d + 1);
 }
 
-/** Whole calendar days from `from` to `to` in the local zone (negative if `to` is earlier). */
-export function calendarDaysBetween(from: Date, to: Date): number {
+/** The calendar day of an instant in an IANA zone as a UTC-midnight timestamp, for day arithmetic. */
+function dayNumberIn(date: Date, zone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(date);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  return Date.UTC(get("year"), get("month") - 1, get("day"));
+}
+
+/** "YYYY-MM-DD" of the calendar day of `date` in an IANA zone (ADR 0005: the user's zone, not the server's). */
+export function dayKeyIn(date: Date, zone: string): string {
+  return new Date(dayNumberIn(date, zone)).toISOString().slice(0, 10);
+}
+
+/**
+ * Whole calendar days from `from` to `to` (negative if `to` is earlier): in the browser's zone,
+ * or in `zone` when one is given (the user's chosen display zone).
+ */
+export function calendarDaysBetween(from: Date, to: Date, zone?: string): number {
   // Rounding absorbs the 23- or 25-hour days around a switch.
+  if (zone) return Math.round((dayNumberIn(to, zone) - dayNumberIn(from, zone)) / DAY_MS);
   return Math.round((startOfLocalDay(to).getTime() - startOfLocalDay(from).getTime()) / DAY_MS);
 }
 
@@ -50,12 +71,16 @@ export function calendarDaysBetween(from: Date, to: Date): number {
  * hours it counts hours and minutes; beyond that it counts calendar days, so
  * anything on the previous calendar day is "yesterday" even across a switch.
  */
-export function relativeTime(value: Date, now: Date): { value: number; unit: Intl.RelativeTimeFormatUnit } {
+export function relativeTime(
+  value: Date,
+  now: Date,
+  zone?: string,
+): { value: number; unit: Intl.RelativeTimeFormatUnit } {
   const seconds = Math.round((value.getTime() - now.getTime()) / 1000);
   const abs = Math.abs(seconds);
   if (abs < 60) return { value: 0, unit: "second" };
   if (abs < 3600) return { value: Math.trunc(seconds / 60), unit: "minute" };
-  const days = calendarDaysBetween(now, value);
+  const days = calendarDaysBetween(now, value, zone);
   if (abs < 12 * 3600 || days === 0) return { value: Math.trunc(seconds / 3600), unit: "hour" };
   if (Math.abs(days) < 7) return { value: days, unit: "day" };
   if (Math.abs(days) < 30) return { value: Math.trunc(days / 7), unit: "week" };

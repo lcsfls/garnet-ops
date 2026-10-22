@@ -20,6 +20,7 @@ import { useStepUp } from "../../components/use-step-up.tsx";
 import { ApiError, api } from "../../lib/api.ts";
 import { formatDate, formatDateTime, formatRelative } from "../../lib/format.ts";
 import type { Me } from "../../lib/session.ts";
+import { toast } from "../../lib/toast.ts";
 
 export const Route = createFileRoute("/_app/team")({
   // Owners and admins only; the API enforces the same rule.
@@ -309,6 +310,7 @@ function InviteDialog({ me, open, onClose }: { me: Me; open: boolean; onClose: (
     onMutate: () => setError(null),
     onSuccess: async (data, input) => {
       setResult({ link: data.link, email: input.email, expiresAt: data.expiresAt });
+      toast.success(t("toast.invitationCreated"));
       await queryClient.invalidateQueries({ queryKey: ["team-invitations"] });
     },
     onError: (e, input) => {

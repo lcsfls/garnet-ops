@@ -53,6 +53,7 @@ import {
   resolveProxmoxAddress,
   type TlsTestOptions,
 } from "./proxmox-http.ts";
+import { tellUsers } from "./user-notify.ts";
 
 export const PROXMOX_CERT_QUEUE = "proxmox.certificate";
 export const PROXMOX_SYNC_QUEUE = "proxmox.sync";
@@ -164,6 +165,7 @@ export async function applyObservedCertificate(cluster: ClusterRow, seen: Certif
     return;
   }
   if (cluster.certFingerprint) {
+    let news = false;
     await db.transaction(async (tx) => {
       await tx
         .update(c)
@@ -175,6 +177,7 @@ export async function applyObservedCertificate(cluster: ClusterRow, seen: Certif
         })
         .where(eq(c.id, cluster.id));
       if (cluster.certStatus !== "changed" || cluster.candidateFingerprint !== seen.fingerprint) {
+        news = true;
         await tx.insert(schema.auditLog).values({
           organizationId: cluster.organizationId,
           action: "proxmox.certificate_changed",
@@ -184,6 +187,15 @@ export async function applyObservedCertificate(cluster: ClusterRow, seen: Certif
         });
       }
     });
+    // Owners and admins hear of it once per change, like the audit entry (ADR 0019).
+    if (news) {
+      await tellUsers({
+        organizationId: cluster.organizationId,
+        titleKey: "certificateChangedProxmox",
+        params: { name: cluster.name },
+        link: "/settings?section=proxmox",
+      });
+    }
     return;
   }
   await db
@@ -379,12 +391,15 @@ async function collect(cluster: ClusterRow, call: Call, optional: Optional): Pro
   }
   const extra = extraPrivileges(permissions);
   const c = schema.proxmoxCluster;
+  const blocked = extra.length > 0 && !privilegesAcknowledged(extra, cluster.acknowledgedPrivileges);
+  let newPrivileges = false;
   await db.transaction(async (tx) => {
     await tx
       .update(c)
       .set({ extraPrivileges: extra, permissionsCheckedAt: new Date() })
       .where(eq(c.id, cluster.id));
     if (extra.length > 0 && extra.join("\n") !== cluster.extraPrivileges.join("\n")) {
+      newPrivileges = true;
       await tx.insert(schema.auditLog).values({
         organizationId: cluster.organizationId,
         action: "proxmox.privileges_detected",
@@ -394,7 +409,15 @@ async function collect(cluster: ClusterRow, call: Call, optional: Optional): Pro
       });
     }
   });
-  if (extra.length > 0 && !privilegesAcknowledged(extra, cluster.acknowledgedPrivileges)) {
+  if (blocked) {
+    if (newPrivileges) {
+      await tellUsers({
+        organizationId: cluster.organizationId,
+        titleKey: "syncBlockedProxmox",
+        params: { name: cluster.name },
+        link: "/settings?section=proxmox",
+      });
+    }
     throw new ProxmoxError("privilegesNotAcknowledged");
   }
 

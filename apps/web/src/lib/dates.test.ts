@@ -9,7 +9,7 @@
  * so that local midnight does not exist.
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { addLocalDays, endOfLocalDay, localDateInput, relativeTime } from "./dates.ts";
+import { addLocalDays, dayKeyIn, endOfLocalDay, localDateInput, relativeTime } from "./dates.ts";
 
 const originalTz = process.env.TZ;
 afterEach(() => {
@@ -104,5 +104,40 @@ describe("relativeTime", () => {
     const now = new Date("2026-10-26T23:10:00Z"); // 00:10 CET
     expect(relativeTime(new Date("2026-10-26T22:50:00Z"), now)).toEqual({ value: -20, unit: "minute" });
     expect(relativeTime(new Date("2026-10-26T20:10:00Z"), now)).toEqual({ value: -3, unit: "hour" });
+  });
+});
+
+describe("calendar days in the user's chosen zone (ADR 0005)", () => {
+  it("counts days in the given zone, whatever the browser's zone is", () => {
+    inZone("America/Los_Angeles");
+    // 22:30 UTC on the 24th is already the 25th in Berlin, but the 24th in Los Angeles.
+    const now = new Date("2026-10-25T10:00:00Z");
+    const evening = new Date("2026-10-24T22:30:00Z");
+    expect(relativeTime(evening, now, "Europe/Berlin")).toEqual({ value: -11, unit: "hour" });
+    const earlier = new Date("2026-10-24T09:00:00Z");
+    expect(relativeTime(earlier, now, "Europe/Berlin")).toEqual({ value: -1, unit: "day" });
+    expect(relativeTime(earlier, now, "America/Los_Angeles")).toEqual({ value: -1, unit: "day" });
+  });
+
+  it("calls the previous day 'yesterday' across the Berlin switch days, with the browser elsewhere", () => {
+    inZone("Pacific/Auckland");
+    const now = new Date("2026-03-29T10:00:00Z"); // Sunday 12:00 CEST in Berlin
+    expect(relativeTime(new Date("2026-03-28T11:00:00Z"), now, "Europe/Berlin")).toEqual({
+      value: -1,
+      unit: "day",
+    });
+    const fall = new Date("2026-10-25T11:00:00Z");
+    expect(relativeTime(new Date("2026-10-24T10:00:00Z"), fall, "Europe/Berlin")).toEqual({
+      value: -1,
+      unit: "day",
+    });
+  });
+
+  it("names the calendar day of an instant in a zone", () => {
+    expect(dayKeyIn(new Date("2026-10-24T22:30:00Z"), "Europe/Berlin")).toBe("2026-10-25");
+    expect(dayKeyIn(new Date("2026-10-24T22:30:00Z"), "America/Los_Angeles")).toBe("2026-10-24");
+    expect(dayKeyIn(new Date("2026-10-25T00:30:00Z"), "Europe/Berlin")).toBe("2026-10-25"); // 02:30 CEST
+    expect(dayKeyIn(new Date("2026-10-25T01:30:00Z"), "Europe/Berlin")).toBe("2026-10-25"); // 02:30 CET
+    expect(dayKeyIn(new Date("2026-03-28T23:30:00Z"), "Europe/Berlin")).toBe("2026-03-29");
   });
 });

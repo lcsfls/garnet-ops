@@ -266,6 +266,70 @@ export const notificationDelivery = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/* Personal notifications (ADR 0019)                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One notification for one person: a title key plus short parameters (names, counts) and a
+ * relative link, never free text. The web app and the mail renderer turn the key into a sentence.
+ */
+export const userNotification = pgTable(
+  "user_notification",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** One of USER_EVENTS in packages/core/src/user-notifications.ts. */
+    event: text("event").notNull(),
+    /** One of TITLE_EVENTS (core); selects the sentence in the reader's language. */
+    titleKey: text("title_key").notNull(),
+    params: jsonb("params").$type<Record<string, string | number>>().notNull().default({}),
+    /** A path inside the app, validated with safeAppLink before it is stored. */
+    link: text("link").notNull(),
+    /** False: kept only to batch a personal mail because the person switched the in-app copy off. */
+    inApp: boolean("in_app").notNull().default(true),
+    createdAt: createdAt(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    /** Personal mail: "none" (not wanted), "pending", "sent", "skipped" (no mail channel or too old) or "failed". */
+    mailState: text("mail_state", { enum: ["none", "pending", "sent", "skipped", "failed"] })
+      .notNull()
+      .default("none"),
+    mailedAt: timestamp("mailed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("user_notification_user_idx").on(t.userId, t.id),
+    index("user_notification_unread_idx").on(t.userId).where(sql`${t.readAt} is null and ${t.inApp}`),
+    index("user_notification_mail_idx").on(t.userId, t.event, t.id).where(sql`${t.mailState} = 'pending'`),
+    index("user_notification_created_idx").on(t.createdAt),
+  ],
+);
+
+/** What a person chose for one event type: in app, email, and the scope. A missing row means the defaults. */
+export const notificationPreference = pgTable(
+  "notification_preference",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    event: text("event").notNull(),
+    inApp: boolean("in_app").notNull(),
+    email: boolean("email").notNull(),
+    scope: text("scope", { enum: ["all", "mine"] })
+      .notNull()
+      .default("all"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.userId, t.event] })],
+);
+
+/* -------------------------------------------------------------------------- */
 /* Secrets vault (ADR 0004). Plaintext never touches the database.             */
 /* -------------------------------------------------------------------------- */
 

@@ -851,6 +851,15 @@ test("team: invite someone, they join with a second factor, change their role, r
   for (const action of ["Invitation created", "Invitation accepted", "Role changed", "Member removed"]) {
     await expect(page.getByText(action).first()).toBeVisible();
   }
+  // The same events reached the people concerned as notifications (ADR 0019): the owner heard that
+  // somebody joined, and the new member heard about the role change, and nobody else.
+  const told = await sql<{ title_key: string; email: string }>(
+    `select n.title_key, u.email from user_notification n join "user" u on u.id = n.user_id
+     where n.title_key in ('invitationAccepted', 'roleChanged')`,
+  );
+  expect(told).toContainEqual({ title_key: "invitationAccepted", email: OWNER.email });
+  expect(told).toContainEqual({ title_key: "roleChanged", email: "new.person@e2e.test" });
+  expect(told.filter((t) => t.title_key === "roleChanged")).toHaveLength(1);
   expect(problems).toEqual([]);
 });
 
@@ -2420,7 +2429,8 @@ test.describe("fix proposals and fix pull requests (ADR 0014)", () => {
     expect(pr?.closed_at).not.toBeNull();
   });
 
-  test("the repository page generates a Renovate configuration to copy", async ({ page }) => {
+  test("the repository page generates a Renovate configuration to copy", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto(REPO_PAGE);
     await page.getByRole("button", { name: "Renovate config" }).click();
     const dialog = page.getByRole("dialog", { name: "Renovate configuration" });
@@ -2429,7 +2439,9 @@ test.describe("fix proposals and fix pull requests (ADR 0014)", () => {
     await expect(json).toHaveValue(/"vulnerabilityAlerts"/);
     await expect(json).toHaveValue(/"pkg-1"/);
     await expect(json).toHaveValue(/">=1.0.1"/);
-    await expect(dialog.getByRole("button", { name: "Copy" })).toBeVisible();
+    // Copying is confirmed with a message a screen reader announces, and the clipboard has the text.
+    await dialog.getByRole("button", { name: "Copy" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Copied to the clipboard." })).toBeVisible();
   });
 
   test("turning off deletes the stored token", async ({ page }) => {
@@ -3593,7 +3605,7 @@ test.describe("attacks", () => {
           gzipSync(Buffer.from("198.51.100.0,198.51.100.255,NL\n203.0.113.0,203.0.113.255,DE\n")),
         );
         await card.getByRole("button", { name: "Import Country" }).click();
-        await expect(card.getByTestId("import-country")).toContainText("Loaded 2 ranges.");
+        await expect(page.getByRole("status").filter({ hasText: "Loaded 2 ranges." })).toBeVisible();
         await expect(card.getByTestId("geoip-country")).toContainText("2026-10");
         await expect(card.getByTestId("geoip-country")).toContainText("2");
         // The page uses it at once.
@@ -3639,7 +3651,7 @@ test.describe("attacks", () => {
             buffer: gzipSync(Buffer.from('198.51.100.0,198.51.100.255,64500,"Example, Inc."\n')),
           });
         await geo(page).getByRole("button", { name: "Import Network (ASN)" }).click();
-        await expect(geo(page).getByTestId("import-asn")).toContainText("Loaded 1 range.");
+        await expect(page.getByRole("status").filter({ hasText: "Loaded 1 range." })).toBeVisible();
 
         // Everything is in the audit log, without any content of the files.
         await page.goto("/audit-log?group=attacks");
@@ -3739,7 +3751,7 @@ test.describe("attacks", () => {
         await expect(card.getByLabel("Delete stored addresses after (days)")).toHaveValue("90");
         await card.getByLabel("Delete stored addresses after (days)").fill("30");
         await card.getByRole("button", { name: "Save", exact: true }).click();
-        await expect(card).toContainText("Saved.");
+        await expect(page.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
         const [row] = await sql<{ retention_days: number }>("select retention_days from attack_settings");
         expect(row?.retention_days).toBe(30);
         await card.getByLabel("Delete stored addresses after (days)").fill("0");
@@ -3749,7 +3761,9 @@ test.describe("attacks", () => {
         await card.getByRole("button", { name: "Delete stored addresses now" }).click();
         const dialog = page.getByRole("dialog", { name: "Delete all stored source addresses?" });
         await dialog.getByRole("button", { name: "Delete", exact: true }).click();
-        await expect(card).toContainText("Deleted 9 addresses and 2 figure sets.");
+        await expect(
+          page.getByRole("status").filter({ hasText: "Deleted 9 addresses and 2 figure sets." }),
+        ).toBeVisible();
         expect(await sql("select 1 from wazuh_source_ip")).toHaveLength(0);
         await page.goto("/attacks");
         await expect(page.getByText("Wazuh has not reported attack data for this period yet.")).toBeVisible();

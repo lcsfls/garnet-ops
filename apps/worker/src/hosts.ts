@@ -37,6 +37,7 @@ import {
   sshEnv,
   sshTools,
 } from "./host-ssh.ts";
+import { tellUsers } from "./user-notify.ts";
 import { upsertVulnerabilities } from "./vulnerability-store.ts";
 
 export const HOST_KEYSCAN_QUEUE = "host.keyscan";
@@ -173,6 +174,7 @@ async function recordScan(
       }
       return;
     }
+    let news = false;
     await db.transaction(async (tx) => {
       await tx
         .update(schema.host)
@@ -187,6 +189,7 @@ async function recordScan(
         })
         .where(eq(schema.host.id, host.id));
       if (host.hostKeyStatus !== "changed" || host.candidateKeyFingerprint !== best.fingerprint) {
+        news = true;
         await tx.insert(schema.auditLog).values({
           organizationId: host.organizationId,
           action: "host.key_changed",
@@ -196,6 +199,15 @@ async function recordScan(
         });
       }
     });
+    // Owners and admins hear of it once per change, like the audit entry (ADR 0019).
+    if (news) {
+      await tellUsers({
+        organizationId: host.organizationId,
+        titleKey: "hostKeyChanged",
+        params: { server: host.name },
+        link: `/servers/${host.id}`,
+      });
+    }
     return;
   }
   // First contact: a proposal for an admin to confirm.

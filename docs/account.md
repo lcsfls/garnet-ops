@@ -4,7 +4,8 @@ Open the account page from the round avatar at the top right: **Account settings
 else can change anything here, and it is the same for every role. The sections are on the left, like Settings
 (above the form on a narrow window), and the section is part of the address, so a link opens it directly.
 
-The design decisions and the threat model are in [ADR 0017](adr/0017-account-settings-and-passkeys.md).
+The design decisions and the threat model are in [ADR 0017](adr/0017-account-settings-and-passkeys.md); the
+Notifications section is [ADR 0019](adr/0019-in-app-notifications-toasts-and-personal-preferences.md).
 
 ## Profile
 
@@ -69,6 +70,16 @@ Every browser or device that is signed in to your account, with browser and syst
 when it was last active (updated about every 30 minutes). **This session** is marked. **Sign out** ends one other
 session, **Sign out all other sessions** ends the rest; the current one ends with **Sign out** in the avatar menu.
 Signing in again ("Confirm it is you") replaces the session it started from, so the list does not grow.
+
+## Notifications
+
+What you are told about, in the app (the bell in the top bar and short messages) and by email. One row per event your
+role can receive, with **In app** and **Email** boxes and, for events about repositories, a choice between all and
+only the ones you added or requested. Defaults are in app on and email off. **Email** is available only when your
+organisation has an SMTP or Microsoft Graph channel; mail goes to the address you sign in with, never anywhere else, at
+most one per event type every 15 minutes (more are combined). The organisation's shared channels (webhooks, mailboxes)
+are separate and are managed by admins under Settings, Notifications. Changing these choices is not audited. Details:
+[notifications.md](notifications.md) and [ADR 0019](adr/0019-in-app-notifications-toasts-and-personal-preferences.md).
 
 ## A lost second factor
 

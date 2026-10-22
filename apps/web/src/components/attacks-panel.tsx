@@ -8,6 +8,7 @@ import { geoipReasonKey, osintReasonKey, uploadReason } from "../lib/attacks.ts"
 import { formatBytes, formatDateTime, formatRelative } from "../lib/format.ts";
 import type { MessageKey } from "../lib/i18n.ts";
 import type { Me } from "../lib/session.ts";
+import { toast } from "../lib/toast.ts";
 import type { AttackSettings, GeoipDatasetView, GeoipKind } from "../lib/types.ts";
 import { Card, CardHeader } from "./page-header.tsx";
 import { QueryStatus } from "./query-state.tsx";
@@ -268,12 +269,12 @@ function ImportRow({
   const input = useRef<HTMLInputElement>(null);
   const id = useId();
   const [file, setFile] = useState<File | null>(null);
-  const [message, setMessage] = useState<{ tone: "error" | "info"; text: string } | null>(null);
+  const [message, setMessage] = useState<{ tone: "error"; text: string } | null>(null);
   const upload = useMutation({
     mutationFn: (f: File) => uploadGeoip(kind, f),
     onMutate: () => setMessage(null),
     onSuccess: async (result) => {
-      setMessage({ tone: "info", text: t("attacks.settings.importDone", { rows: result.rows }) });
+      toast.success(t("attacks.settings.importDone", { rows: result.rows }));
       setFile(null);
       if (input.current) input.current.value = "";
       await onImported();
@@ -396,14 +397,12 @@ function RetentionCard({ data, stepUp, onChanged }: CardProps) {
   const { t } = useTranslation();
   const [days, setDays] = useState(String(data.retentionDays));
   const [purging, setPurging] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const valid =
     /^\d{1,3}$/.test(days) && Number(days) >= data.retention.min && Number(days) <= data.retention.max;
   const save = useMutation({
     mutationFn: () => api("/attacks/settings", { method: "PATCH", body: { retentionDays: Number(days) } }),
-    onMutate: () => setMessage(null),
     onSuccess: async () => {
-      setMessage(t("attacks.settings.retentionSaved"));
+      toast.success(t("attacks.settings.retentionSaved"));
       await onChanged();
     },
     onError: (e) => {
@@ -415,7 +414,7 @@ function RetentionCard({ data, stepUp, onChanged }: CardProps) {
       api<{ sourceAddresses: number; attackWindows: number }>("/attacks/data", { method: "DELETE" }),
     onSuccess: async (result) => {
       setPurging(false);
-      setMessage(
+      toast.success(
         t("attacks.settings.purged", { sources: result.sourceAddresses, windows: result.attackWindows }),
       );
       await onChanged();
@@ -459,7 +458,6 @@ function RetentionCard({ data, stepUp, onChanged }: CardProps) {
             {t("attacks.settings.purgeButton")}
           </Button>
         </div>
-        {message ? <Alert tone="info">{message}</Alert> : null}
         {save.isError && !(save.error instanceof ApiError && save.error.code === "step-up-required") ? (
           <Alert tone="error">{t("errors.actionFailed")}</Alert>
         ) : null}
@@ -497,7 +495,6 @@ function OsintCard({ data, stepUp, onChanged }: CardProps) {
   const [ackLeave, setAckLeave] = useState(false);
   const [ackTerms, setAckTerms] = useState(false);
   const [removingKey, setRemovingKey] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selected = o.providers.find((p) => p.id === providerId) ?? provider;
   const name = selected?.name ?? "";
@@ -515,10 +512,9 @@ function OsintCard({ data, stepUp, onChanged }: CardProps) {
       api("/attacks/settings", { method: "PATCH", body: { osint: body } }),
     onMutate: () => {
       setError(null);
-      setMessage(null);
     },
     onSuccess: async () => {
-      setMessage(t("attacks.settings.osintSaved"));
+      toast.success(t("attacks.settings.osintSaved"));
       setApiKey("");
       setAckLeave(false);
       setAckTerms(false);
@@ -689,7 +685,6 @@ function OsintCard({ data, stepUp, onChanged }: CardProps) {
         )}
 
         {error ? <Alert tone="error">{error}</Alert> : null}
-        {message ? <Alert tone="info">{message}</Alert> : null}
 
         <div className="flex flex-wrap items-center gap-3">
           {o.enabled ? (
