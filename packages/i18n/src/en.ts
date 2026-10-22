@@ -2804,7 +2804,7 @@ export const en = {
     attributionMap: "Map: Natural Earth (public domain)",
     summaryTitle: "Summary",
     summaryDescription:
-      "An AI summary of the numbers per country and network. It never sees an address, a name or an organisation.",
+      "An AI summary of the numbers per country and network, from Wazuh alerts and UniFi events (blocked and alerted counts). It never sees an address, a signature, a name or an organisation.",
     summarise: "Summarise with AI",
     summarising: "Summarising",
     summarisePending: "The model is writing the summary. This can take a minute.",

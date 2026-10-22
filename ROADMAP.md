@@ -198,8 +198,8 @@ See ADR 0002 and ADR 0004.
       IPS / threat events from the internal API with a separate view-only user (cookie session in worker memory, login and logout
       the only POSTs), joined to the attack overview, live stream and globe (dashed blue "Blocked by UniFi"). Open: run against
       real UniFi OS and Network application 9.x consoles (synthetic fixtures only; field names and the unofficial endpoints are
-      assumptions), public-key pinning for renewing certificates, the v2 threat endpoints, UniFi data in the AI summary,
-      per-port and Wi-Fi views
+      assumptions), public-key pinning for renewing certificates, the v2 threat endpoints, per-port and Wi-Fi views.
+      Done: UniFi counts (blocked and alerted per country and AS number) in the attack overview's AI summary
 - [ ] Post-quantum SSH key exchange (`mlkem768x25519-sha256`): check support
       in the ssh2 library, otherwise document the gap
 

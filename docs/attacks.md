@@ -92,8 +92,8 @@ If DB-IP ever answered with a redirect, the download would fail and say so; the 
 - **Coverage**: the lists cover the 100 busiest addresses of a period ("105 of 120 alerts"); the key figures
   for alerts and sources count all.
 - **Summarise with AI** (only when AI is set up and on): the model receives numbers per country code and
-  per AS number, never an address, organisation, machine name or rule text. The answer is labelled "AI
-  suggestion" and is never acted on.
+  per AS number, never an address, organisation, machine name or rule text. With the UniFi IPS preview it
+  also receives the UniFi counts (see below). The answer is labelled "AI suggestion" and is never acted on.
 
 ## 3-unifi. UniFi threat events (preview)
 
@@ -108,8 +108,15 @@ that the gateway detected or **blocked** join the page:
 - The **Latest events** list mixes Wazuh alerts and UniFi events in the order they were stored. A UniFi event shows the
   signature, the address, the country, "Blocked by UniFi" or "Observed", the site and the targeted port. A second status
   line says "UniFi IPS preview: live, last event 12 s ago", "waiting for the console" or "paused" (with the reason).
-- Signatures and categories are written by whoever attacks you: plain text, never a link, never sent to an AI model. The AI
-  summary reads Wazuh's aggregated numbers only.
+- Signatures and categories are written by whoever attacks you: plain text, never a link, never sent to an AI model.
+- **Summarise with AI includes the UniFi events as numbers only.** For each period (24 hours, 7 days, 30 days) the model gets,
+  next to Wazuh's figures, the UniFi totals (events, how many the gateway **blocked** and how many it only **alerted**, source
+  addresses, and the same figures for the period before) and the counts per **country code** and per **AS number**. The two
+  origins are kept apart in what the model sees, because they are counted by different systems and one address can be in
+  both; the model is told not to add them up. **Never sent:** an IP address, a signature or category, an organisation name,
+  a site, console, device or machine name, a port, a rule group, any other text from an event. The only text in the data are
+  our own fixed field names and two-letter country codes. The summary also works with UniFi alone, without a Wazuh
+  connection. The question is audited as before (`ai.request`), now naming the origins that fed it (`wazuh`, `unifi`), never data.
 - Retention, "Delete stored addresses now" and the home location are the same as for Wazuh. At most 20,000 UniFi events are
   kept per console.
 

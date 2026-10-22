@@ -2900,7 +2900,7 @@ export const de: Messages = {
     attributionMap: "Karte: Natural Earth (gemeinfrei)",
     summaryTitle: "Zusammenfassung",
     summaryDescription:
-      "Eine KI-Zusammenfassung der Zahlen pro Land und Netz. Sie sieht nie eine Adresse, einen Namen oder eine Organisation.",
+      "Eine KI-Zusammenfassung der Zahlen pro Land und Netz, aus Wazuh-Alarmen und UniFi-Ereignissen (Anzahl blockiert und gemeldet). Sie sieht nie eine Adresse, eine Signatur, einen Namen oder eine Organisation.",
     summarise: "Mit KI zusammenfassen",
     summarising: "Wird zusammengefasst",
     summarisePending: "Das Modell schreibt die Zusammenfassung. Das kann eine Minute dauern.",

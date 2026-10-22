@@ -1,0 +1,1 @@
+ALTER TABLE "attack_summary" ALTER COLUMN "connection_id" DROP NOT NULL;

@@ -14,7 +14,7 @@ import { Hono } from "hono";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const adminUrl = devDatabaseUrl();
-const holder = vi.hoisted(() => ({ db: null as unknown }));
+const holder = vi.hoisted(() => ({ db: null as unknown, sent: [] as { name: string; data: unknown }[] }));
 
 vi.mock("../db.ts", async () => {
   const { createTestDatabase: create, devDatabaseUrl: url } = await import("@garnetops/db/testing");
@@ -22,7 +22,17 @@ vi.mock("../db.ts", async () => {
   if (!target) return { db: null, pool: null, boss: null, QUEUES: {} };
   const t = await create(target, "api_attacks_unifi");
   holder.db = t;
-  return { db: t.db, pool: t.pool, boss: null, QUEUES: {} };
+  return {
+    db: t.db,
+    pool: t.pool,
+    boss: {
+      send: async (name: string, data: unknown) => {
+        holder.sent.push({ name, data });
+        return "job";
+      },
+    },
+    QUEUES: { attackSummary: "attacks.summary" },
+  };
 });
 vi.mock("../env.ts", async () => {
   const { generateVaultKeyPair: generate, loadVaultPublicKey } = await import("@garnetops/core/vault");
@@ -622,6 +632,62 @@ describe.skipIf(!adminUrl)("attack overview with UniFi threat events", () => {
         (a) => a.action === "attacks.data_purged",
       );
       expect(audit[0]?.data).toMatchObject({ attackEvents: 2 });
+    });
+  });
+
+  describe("the AI summary", () => {
+    const configureAi = () =>
+      t.db
+        .insert(schema.aiSettings)
+        .values({
+          organizationId: ORG,
+          enabled: true,
+          baseUrl: "https://llm.example.lan/v1",
+          model: "example-model",
+        } as never)
+        .onConflictDoNothing();
+
+    it("can be asked for with UniFi events alone, and not without any data", async () => {
+      await configureAi();
+      holder.sent.length = 0;
+      // A console with the preview off and no events: no source of attack data at all.
+      const unifi = await seedUnifi(ORG);
+      expect((await call("POST", "/api/v1/attacks/summary", { body: {} })).status).toBe(404);
+      expect(holder.sent).toEqual([]);
+
+      // Preview on, nothing stored yet: nothing to summarise.
+      await t.db.update(schema.unifiConnection).set({ ipsEnabled: true });
+      const empty = await call("POST", "/api/v1/attacks/summary", { body: {} });
+      expect(empty.status).toBe(409);
+      expect(empty.text).toContain("no-data");
+      expect(holder.sent).toEqual([]);
+
+      await unifiEvent(unifi, { ip: "198.51.100.77", action: "blocked" });
+      const ok = await call("POST", "/api/v1/attacks/summary", { body: { language: "de" } });
+      expect(ok.status).toBe(202);
+      expect(holder.sent[0]).toMatchObject({ name: "attacks.summary", data: { summaryId: ok.json?.id } });
+      // No Wazuh connection: the summary belongs to the organisation, and the audit entry names the origin, not data.
+      const [row] = await t.db.select().from(schema.attackSummary);
+      expect(row).toMatchObject({
+        organizationId: ORG,
+        connectionId: null,
+        status: "pending",
+        language: "de",
+      });
+      const audit = (await t.db.select().from(schema.auditLog)).filter((a) => a.action === "ai.request");
+      expect(audit[0]).toMatchObject({ targetType: "organization", targetId: ORG });
+      expect(audit[0]?.data).toMatchObject({ kind: "attack-summary", sources: ["unifi"] });
+      expect(JSON.stringify(audit[0]?.data)).not.toMatch(/198\.51\.100|SSH brute force/);
+      const latest = await call("GET", "/api/v1/attacks/summary");
+      expect(latest.json?.summary).toMatchObject({ status: "pending", language: "de" });
+    });
+
+    it("does not count another organisation's events", async () => {
+      await configureAi();
+      await seedUnifi(ORG, { ipsEnabled: true });
+      const theirs = await seedUnifi(OTHER);
+      await unifiEvent(theirs, {}, OTHER);
+      expect((await call("POST", "/api/v1/attacks/summary", { body: {} })).status).toBe(409);
     });
   });
 });

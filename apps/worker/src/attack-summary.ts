@@ -3,8 +3,9 @@
  * (ADR 0015): the API stores a pending summary and queues a job; the worker, the only process
  * that opens the model's API key (ADR 0013), builds the prompt from the stored aggregates and
  * calls the model through the same address policy as AI triage. The prompt holds numbers per
- * country code and AS number only (packages/core/src/attack-summary.ts): no IP address, no
- * organisation name, no agent name. The answer is untrusted text: cleaned, cut, never executed,
+ * country code and AS number only (packages/core/src/attack-summary.ts), for Wazuh and for UniFi IPS
+ * events (ADR 0022 section 7.6): no IP address, no signature or category text, no organisation, agent,
+ * device or site name. The answer is untrusted text: cleaned, cut, never executed,
  * never able to change a setting, and shown with the label "AI suggestion".
  */
 import { AI_LIMITS, type AiError, type AiLanguage, sanitizeModelText, ThinkFilter } from "@garnetops/core/ai";
@@ -14,7 +15,7 @@ import {
   buildAttackMessages,
 } from "@garnetops/core/attack-summary";
 import { WINDOWS } from "@garnetops/core/wazuh";
-import { loadAttackSources, schema } from "@garnetops/db";
+import { loadAttackSources, loadUnifiSources, loadUnifiTotals, schema } from "@garnetops/db";
 import { and, eq, sql } from "drizzle-orm";
 import { openKey } from "./ai.ts";
 import { ModelError, type ModelTarget, streamChat } from "./ai-client.ts";
@@ -50,18 +51,45 @@ export async function runAttackSummary(summaryId: string): Promise<void> {
   if (!settings.enabled) return fail("disabled");
 
   const aw = schema.wazuhAttackWindow;
-  const stored = await db.select().from(aw).where(eq(aw.connectionId, row.connectionId));
-  if (stored.length === 0) return fail("internal");
+  const stored = row.connectionId
+    ? await db.select().from(aw).where(eq(aw.connectionId, row.connectionId))
+    : [];
+  // UniFi IPS events are part of the picture as soon as the organisation has stored some (ADR 0022). The 30 day totals
+  // and the period before them cover the shorter windows too, so one look decides.
+  const longest = await loadUnifiTotals(db, row.organizationId, "30d");
+  const hasUnifi = longest.alerts + longest.previousAlerts > 0;
+  if (stored.length === 0 && !hasUnifi) return fail("internal");
   const input: Partial<Record<(typeof WINDOWS)[number], AttackWindowInput>> = {};
   for (const window of WINDOWS) {
     const numbers = stored.find((x) => x.window === window);
-    if (!numbers) continue;
+    const unifi = hasUnifi ? await loadUnifiTotals(db, row.organizationId, window) : null;
+    if (!numbers && !unifi) continue;
     input[window] = {
-      attackAlerts: numbers.attackAlerts,
-      previousAttackAlerts: numbers.previousAttackAlerts,
-      distinctSources: numbers.distinctSources,
-      previousDistinctSources: numbers.previousDistinctSources,
-      sources: await loadAttackSources(db, row.connectionId, window),
+      ...(numbers && row.connectionId
+        ? {
+            wazuh: {
+              attackAlerts: numbers.attackAlerts,
+              previousAttackAlerts: numbers.previousAttackAlerts,
+              distinctSources: numbers.distinctSources,
+              previousDistinctSources: numbers.previousDistinctSources,
+              sources: await loadAttackSources(db, row.connectionId, window),
+            },
+          }
+        : {}),
+      ...(unifi
+        ? {
+            unifi: {
+              events: unifi.alerts,
+              blocked: unifi.blocked,
+              previousEvents: unifi.previousAlerts,
+              previousBlocked: unifi.previousBlocked,
+              distinctSources: unifi.distinctSources,
+              previousDistinctSources: unifi.previousDistinctSources,
+              // The UniFi sources alone, so the two origins are never merged in what the model sees.
+              sources: await loadUnifiSources(db, row.organizationId, window),
+            },
+          }
+        : {}),
     };
   }
   const facts = buildAttackFacts(input);

@@ -10,6 +10,14 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- **UniFi IPS events in the attack overview's "Summarise with AI"** (ADR 0022 section 7.6, `docs/attacks.md`). The summary now
+  also receives, as **numbers only**, the UniFi events of each period (blocked and alerted, source addresses, the same figures for
+  the period before) and the counts per country code and AS number, in a block apart from Wazuh's so the two are never added up.
+  Never sent: an IP address, a signature or category, an organisation, console, site, device or machine name, a port, or any text
+  from an event; the only text is our own fixed keys and two-letter country codes. The summary works with UniFi alone, without a
+  Wazuh connection. Migration 0021 (additive: `attack_summary.connection_id` may be null). `POST /api/v1/attacks/summary` is accepted
+  with either source; the `ai.request` audit entry names the origins. The fixed system prompt gained the description of the two
+  origins. No new dependency.
 - **UniFi integration, read-only and local** (ADR 0022, `docs/unifi.md`). **Settings → UniFi** (owners and admins) connects UniFi
   consoles (UniFi OS or a self-hosted Network Application, 9.0 or newer) through the **official local UniFi Network API** with an
   API key made on the console; the key is sealed in the vault (new secret purpose `unifi-api-key`) and only the worker opens it. The

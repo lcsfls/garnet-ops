@@ -199,6 +199,9 @@ addresses. **No IP address, no organisation name, no agent name, no rule group, 
 Tests replay hostile organisation names, agent names and addresses and assert none reaches the model. The answer is
 untrusted, labelled "AI suggestion", rendered by the safe Markdown renderer.
 
+From ADR 0022 (section 7.6) the same numbers-only rule covers UniFi IPS events: counts of blocked and alerted events per
+country code and AS number, in a block apart from Wazuh's, and never a signature, category, address or name.
+
 ### 8. Permissions, audit, errors
 
 | Action | Who | Recent sign-in | Audit action |

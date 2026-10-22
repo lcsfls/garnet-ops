@@ -50,8 +50,11 @@ const WINDOW_HOURS: Record<Window, number> = { "24h": 24, "7d": 7 * 24, "30d": 3
 /** The numbers of the UniFi threat events of an organisation in a window and in the period before it (ADR 0022). */
 export interface UnifiTotals {
   alerts: number;
+  /** Of `alerts`, the events the console blocked; the rest were alerted only. */
+  blocked: number;
   distinctSources: number;
   previousAlerts: number;
+  previousBlocked: number;
   previousDistinctSources: number;
   /** The newest event stored, whatever the window. */
   lastEventAt: Date | null;
@@ -68,15 +71,19 @@ export async function loadUnifiTotals(
   const to = now.toISOString();
   const rows = await db.execute<{
     alerts: number;
+    blocked: number;
     sources: number;
     previous_alerts: number;
+    previous_blocked: number;
     previous_sources: number;
     last_at: Date | null;
   }>(sql`
     select
       (count(*) filter (where ${e.at} > ${to}::timestamptz - make_interval(hours => ${hours})))::int as alerts,
+      (count(*) filter (where ${e.action} = 'blocked' and ${e.at} > ${to}::timestamptz - make_interval(hours => ${hours})))::int as blocked,
       (count(distinct ${e.ip}) filter (where ${e.at} > ${to}::timestamptz - make_interval(hours => ${hours})))::int as sources,
       (count(*) filter (where ${e.at} <= ${to}::timestamptz - make_interval(hours => ${hours})))::int as previous_alerts,
+      (count(*) filter (where ${e.action} = 'blocked' and ${e.at} <= ${to}::timestamptz - make_interval(hours => ${hours})))::int as previous_blocked,
       (count(distinct ${e.ip}) filter (where ${e.at} <= ${to}::timestamptz - make_interval(hours => ${hours})))::int as previous_sources,
       max(${e.at}) as last_at
     from ${e}
@@ -85,8 +92,10 @@ export async function loadUnifiTotals(
   const row = rows.rows[0];
   return {
     alerts: row?.alerts ?? 0,
+    blocked: row?.blocked ?? 0,
     distinctSources: row?.sources ?? 0,
     previousAlerts: row?.previous_alerts ?? 0,
+    previousBlocked: row?.previous_blocked ?? 0,
     previousDistinctSources: row?.previous_sources ?? 0,
     lastEventAt: row?.last_at ? new Date(row.last_at) : null,
   };

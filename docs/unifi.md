@@ -108,7 +108,8 @@ the traffic, the signature and category (for example *ET SCAN … SSH brute forc
 was targeted. These events join the attack overview: the world map and **globe** (blocked ones as
 dashed blue lines, legend *Blocked by UniFi*, next to the orange *Observed* lines), the countries,
 networks and addresses tables, and the live list. Signatures are written by whoever attacks you: they
-are shown as plain text and never sent to an AI model. **Not kept:** the packet or payload, the
+are shown as plain text and never sent to an AI model (the AI summary of the Attacks page receives only counts per
+country code and AS number, split into blocked and alerted; see [attacks.md](attacks.md)). **Not kept:** the packet or payload, the
 destination address or host, the source port, user names.
 
 ### Create a view-only user

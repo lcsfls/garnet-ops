@@ -406,7 +406,15 @@ export const attackRoutes = new Hono<AppEnv>()
       unifiSources.length > 0 ? mergeSources(wazuhSources, unifiSources, canonical) : wazuhSources;
     const totals = hasUnifi
       ? await loadUnifiTotals(db, actor.organizationId, period, now)
-      : { alerts: 0, distinctSources: 0, previousAlerts: 0, previousDistinctSources: 0, lastEventAt: null };
+      : {
+          alerts: 0,
+          blocked: 0,
+          distinctSources: 0,
+          previousAlerts: 0,
+          previousBlocked: 0,
+          previousDistinctSources: 0,
+          lastEventAt: null,
+        };
     const wazuhIps = new Set(wazuhSources.map((x) => canonical(x.ip)));
     const overlap = unifiSources.filter((x) => wazuhIps.has(canonical(x.ip))).length;
     const located = countryTotals(sources);
@@ -616,18 +624,24 @@ export const attackRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     requireRole(actor, "member");
     const body = summaryBody.parse(await c.req.json().catch(() => ({})));
+    // Wazuh and the UniFi IPS preview both feed the summary; either one is enough (ADR 0022).
     const connection = await wazuhConnection(actor.organizationId);
-    if (!connection) throw new ProblemError(404, "not-found", "Wazuh connection not found");
+    const hasUnifi = await unifiActive(actor.organizationId);
+    if (!connection && !hasUnifi) throw new ProblemError(404, "not-found", "Wazuh connection not found");
     const ai = await aiAvailability(actor.organizationId);
     if (ai.state !== "ready") {
       throw new ProblemError(409, "ai-not-ready", "AI is not available", undefined, { state: ai.state });
     }
-    const [numbers] = await db
-      .select({ connectionId: schema.wazuhAttackWindow.connectionId })
-      .from(schema.wazuhAttackWindow)
-      .where(eq(schema.wazuhAttackWindow.connectionId, connection.id))
-      .limit(1);
-    if (!numbers) throw new ProblemError(409, "no-data", "There is nothing to summarise yet");
+    const [numbers] = connection
+      ? await db
+          .select({ connectionId: schema.wazuhAttackWindow.connectionId })
+          .from(schema.wazuhAttackWindow)
+          .where(eq(schema.wazuhAttackWindow.connectionId, connection.id))
+          .limit(1)
+      : [];
+    const unifiTotals = hasUnifi ? await loadUnifiTotals(db, actor.organizationId, "30d") : null;
+    const unifiData = unifiTotals ? unifiTotals.alerts + unifiTotals.previousAlerts > 0 : false;
+    if (!numbers && !unifiData) throw new ProblemError(409, "no-data", "There is nothing to summarise yet");
     await rateLimit(`ai:user:${actor.userId}`, AI_USER_PER_MINUTE);
     await rateLimit(`ai:org:${actor.organizationId}`, AI_ORG_PER_MINUTE);
     const w = schema.attackSummary;
@@ -648,7 +662,7 @@ export const attackRoutes = new Hono<AppEnv>()
     await db.insert(w).values({
       id,
       organizationId: actor.organizationId,
-      connectionId: connection.id,
+      connectionId: connection?.id ?? null,
       status: "pending",
       language: body.language,
       requestedBy: actor.userId,
@@ -667,8 +681,15 @@ export const attackRoutes = new Hono<AppEnv>()
     await audit(
       actor,
       "ai.request",
-      { type: "wazuh_connection", id: connection.id },
-      { kind: "attack-summary", model: ai.model, summaryId: id },
+      connection
+        ? { type: "wazuh_connection", id: connection.id }
+        : { type: "organization", id: actor.organizationId },
+      {
+        kind: "attack-summary",
+        model: ai.model,
+        summaryId: id,
+        sources: [...(numbers ? ["wazuh"] : []), ...(unifiData ? ["unifi"] : [])],
+      },
     );
     return c.json({ id }, 202);
   })

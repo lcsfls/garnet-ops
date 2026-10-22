@@ -1944,9 +1944,8 @@ export const attackSummary = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
-    connectionId: text("connection_id")
-      .notNull()
-      .references(() => wazuhConnection.id, { onDelete: "cascade" }),
+    /** The Wazuh connection the summary was asked for; null when only UniFi events exist (ADR 0022). */
+    connectionId: text("connection_id").references(() => wazuhConnection.id, { onDelete: "cascade" }),
     status: text("status", { enum: ["pending", "running", "complete", "failed"] }).notNull(),
     language: text("language", { enum: ["en", "de"] })
       .notNull()

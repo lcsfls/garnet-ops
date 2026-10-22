@@ -217,9 +217,39 @@ reports "ipsEndpointMissing" and stops, and the rest of GarnetOps is unaffected.
   console blocked as a **dashed steel-blue line** (the colour of the map's scale and of "information", never a severity colour and never
   green: blocking an attack is not proof of anything). Legend: "Observed", and "Blocked by UniFi" when something was blocked. A
   blocked live event draws a dashed live line. Lists show "Blocked by UniFi" as a badge with a word, so colour is never the only signal.
-- The AI summary of ADR 0016 keeps reading the aggregated numbers of Wazuh only; UniFi signatures never reach a model.
+- The AI summary of ADR 0016 also reads aggregated UniFi numbers (section 7.6); signatures and categories never reach a model.
 - The live list shows UniFi events with the signature as the title, the address, the country, "Blocked by UniFi" or "Observed", the
   site and the target port. A second status line, "UniFi IPS preview: live — last event 12 s ago", is neutral and always says preview.
+
+#### 7.6 The AI summary includes UniFi counts (numbers only)
+
+Decision (maintainer, 2026-10-22): "Summarise with AI" on the Attacks page (ADR 0016 section 7) now includes the UniFi IPS
+events, as **aggregated numbers only**. This replaces the earlier "Wazuh only" boundary of this ADR.
+
+- **What the model receives**, per window (24 hours, 7 days, 30 days), in two separate blocks that are never merged: `wazuh`
+  (as before: attack alerts, distinct sources, previous values, alerts and sources per country code and AS number) and `unifi`:
+  events, `blocked`, `alerted`, distinct sources, the same four figures for the previous period, events in the listed (busiest
+  100) sources, events and sources per **ISO country code** and per **AS number** (each with its blocked and alerted part),
+  the events of unlocated and of internal sources. The keys are our own fixed labels; the system prompt says what they mean
+  and tells the model not to add the two origins together, because they come from different systems and an address can be in
+  both. The UniFi block is present when the organisation has any stored event in the last 60 days; the summary also works
+  without a Wazuh connection.
+- **Data minimisation statement.** The prompt contains integers, the fixed keys, and country codes that match `^[A-Z]{2}$`.
+  It **never** contains: an IP address; a signature or category; an organisation name from the GeoIP data; a console, site,
+  device, agent or machine name; a port or protocol; a rule group; any text that came from an event or a data file. Facts are
+  built from typed numbers (`packages/core/src/attack-summary.ts`) and copy no field they do not name, so a new column in an
+  event cannot leak by accident. The system prompt is fixed text; the data stays between the random markers of ADR 0013 and
+  is declared as data, not instructions. A model answer stays untrusted ("AI suggestion", safe Markdown, never executed, never
+  able to change a setting or a gate).
+- **Tests.** A core unit test builds the context from sources that carry an injection attempt in the signature, category and
+  site name and asserts that none of it, and no address, is in the message, and that every string in the data block is a fixed
+  key or a country code. A worker test seeds stored UniFi events with a hostile signature and runs the job against a fake model;
+  an end-to-end test asks for a summary with UniFi data alone.
+- **Data model.** `attack_summary.connection_id` becomes nullable (migration 0021, a relaxing and therefore expand-only change):
+  a summary asked for when only the UniFi preview exists belongs to the organisation. Older code that always wrote the column keeps
+  working. The audit entry `ai.request` names the origins (`wazuh`, `unifi`), never data.
+- **API.** `POST /api/v1/attacks/summary` is accepted when a Wazuh connection or the UniFi preview exists; it answers 409
+  `no-data` when neither has stored anything. No field is removed or changed in meaning.
 
 ### 8. Notifications (ADR 0019)
 
@@ -262,7 +292,8 @@ user, the acknowledgement, the interval). Green is not used anywhere: a pinned c
 | Instability of the unofficial API | Silent wrong data, or a feature that breaks after a console update. | Marked preview in the interface and the documentation; one file holds the assumptions; the parser rejects shapes it does not know (the poll fails with a short code instead of storing nothing silently); the rest of GarnetOps does not depend on it. |
 | The IPS user has more than viewing rights (wrong role, or the role changed later) | A stolen password would not be limited to reading events. | The login answer is parsed into a rights list; with any right beyond viewing the worker logs out without reading anything until an owner or admin acknowledges exactly that list (step-up, audit); the acknowledgement is void when the reported list changes; best effort where the console does not report rights, hence the documented view-only role. |
 | A member without rights changes connections | Re-point, remove, pin a certificate, switch the preview on. | Role checks on every write, step-up for sensitive ones, organisation scoping on every query, audit log. |
-| Device or site names carry prompt injection | Manipulated AI triage later. | Not used by AI in this change; console text is untrusted input wherever AI reads it (AGENTS.md rule 1). |
+| Device or site names carry prompt injection | Manipulated AI triage later. | Not used by AI; console text is untrusted input wherever AI reads it (AGENTS.md rule 1). |
+| Event text (signature, category, site) tries to talk to the AI summary | Manipulated summary, leaked context. | Only counts, fixed keys and country codes are built into the prompt (section 7.6); the text fields are never read by the summary job; tested with injection text in every field; the answer is untrusted text. |
 
 ## Consequences
 
@@ -277,4 +308,4 @@ user, the acknowledgement, the interval). Green is not used anywhere: a pinned c
   contract step that replaces `wazuh_attack_event` must keep the sequence.
 - Out of scope, on the roadmap: reading firmware release notes or versions from the cloud (never), restarting or upgrading devices
   (never), per-port or per-client views, WiFi and traffic statistics, the v2 threat endpoints (POST), public-key pinning for renewing
-  certificates, UniFi data in the AI summary, a real-console test.
+  certificates, a real-console test.

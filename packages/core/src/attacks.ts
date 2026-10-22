@@ -50,6 +50,8 @@ export interface AsnTotal {
   org: string | null;
   alerts: number;
   sources: number;
+  /** Of `alerts`, the events a UniFi console blocked (ADR 0022). Absent when there are none. */
+  blocked?: number;
 }
 
 const byAlerts = <T extends { alerts: number }>(a: T, b: T) => b.alerts - a.alerts;
@@ -110,6 +112,7 @@ export function asnTotals(sources: readonly AttackSource[]): AsnTotal[] {
     const total = totals.get(key) ?? { asn: key, org: s.org, alerts: 0, sources: 0 };
     total.alerts += s.count;
     total.sources += 1;
+    if (s.blocked) total.blocked = (total.blocked ?? 0) + s.blocked;
     if (!total.org && s.org) total.org = s.org;
     totals.set(key, total);
   }

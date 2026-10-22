@@ -15,8 +15,8 @@ import { Button } from "./ui/button.tsx";
 const camel = (code: string) => code.replace(/-(\w)/g, (_, c: string) => c.toUpperCase());
 
 /**
- * "Summarise with AI" on the Attacks page (ADR 0016). The model sees counts per country code and
- * AS number only, never an address; its answer is untrusted text: labelled "AI suggestion" and
+ * "Summarise with AI" on the Attacks page (ADR 0016, ADR 0022). The model sees counts per country code and
+ * AS number only, for Wazuh alerts and UniFi events (blocked and alerted), never an address, a signature or a name; its answer is untrusted text: labelled "AI suggestion" and
  * rendered by the safe Markdown renderer (no HTML, no images). Not shown at all while AI is not
  * configured and switched on.
  */
