@@ -315,7 +315,7 @@ function fingerprintOf(label: string): string {
  * the database is four days old and the last update failed); tests change them with `reportStatus`.
  */
 export const SYSTEM = {
-  workerVersion: "0.0.1",
+  workerVersion: "0.0.2",
   /** Advisories per provider in the seeded database report. */
   providers: { nvd: 250_000, github: 41_000 },
 };

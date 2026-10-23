@@ -209,8 +209,8 @@ export function UpdatesPanel({ me }: { me: Me }) {
 /** Until the first release there are no signed images; installations build them from the repository. */
 const SOURCE_UPDATE = [
   "git pull",
-  "docker build --target app -t garnetops:local --build-arg VERSION=0.0.1 .",
-  "docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.1 .",
+  "docker build --target app -t garnetops:local --build-arg VERSION=0.0.2 .",
+  "docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.2 .",
   "docker compose up -d",
 ].join("\n");
 

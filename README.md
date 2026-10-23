@@ -67,8 +67,8 @@ disk for the build.
 ```sh
 git clone https://github.com/lcsfls/garnet-ops.git /opt/garnetops
 cd /opt/garnetops
-docker build --target app -t garnetops:local     --build-arg VERSION=0.0.1 .
-docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.1 .
+docker build --target app -t garnetops:local     --build-arg VERSION=0.0.2 .
+docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.2 .
 
 sh deploy/install.sh garnetops.example.com garnetops:local garnetops-web:local
 echo 'UPDATER_URL=' >> .env    # in-app updates need signed releases; off for local builds
@@ -132,8 +132,8 @@ used. Update by hand from the repository:
 cd /opt/garnetops
 docker compose exec db pg_dump -U garnetops -Fc garnetops > garnetops-$(date +%F).dump
 git pull
-docker build --target app -t garnetops:local     --build-arg VERSION=0.0.1 .
-docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.1 .
+docker build --target app -t garnetops:local     --build-arg VERSION=0.0.2 .
+docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.2 .
 docker compose up -d
 ```
 

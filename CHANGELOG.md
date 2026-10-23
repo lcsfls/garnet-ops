@@ -8,6 +8,12 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-10-23
+
+The first tagged release, an alpha. Version 0.0.1 was never tagged; everything built until
+now is part of this release. Every 0.x release is an alpha: features and screens can still
+change, and data stays when you update.
+
 ### Added
 
 - **System status** (ADR 0024, `docs/system-status.md`). New page **Admin → System status** (owners and admins; also in the command
@@ -827,3 +833,6 @@ Security-relevant changes are listed under **Security** in every release.
   `vendor/` with their license files; no CDN or font service is contacted.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
+
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/lcsfls/garnet-ops/releases/tag/v0.0.2
