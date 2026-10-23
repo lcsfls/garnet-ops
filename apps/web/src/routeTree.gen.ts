@@ -28,6 +28,7 @@ import { Route as AppPackagesRouteImport } from './routes/_app/packages'
 import { Route as AppRepositoriesRouteImport } from './routes/_app/repositories'
 import { Route as AppServersRouteImport } from './routes/_app/servers'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSystemRouteImport } from './routes/_app/system'
 import { Route as AppTeamRouteImport } from './routes/_app/team'
 import { Route as AppXdrRouteImport } from './routes/_app/xdr'
 import { Route as AppExposureIdRouteImport } from './routes/_app/exposure_.$id'
@@ -128,6 +129,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSystemRoute = AppSystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTeamRoute = AppTeamRouteImport.update({
   id: '/team',
   path: '/team',
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/repositories': typeof AppRepositoriesRoute
   '/servers': typeof AppServersRoute
   '/settings': typeof AppSettingsRoute
+  '/system': typeof AppSystemRoute
   '/team': typeof AppTeamRoute
   '/xdr': typeof AppXdrRoute
   '/exposure/$id': typeof AppExposureIdRoute
@@ -197,6 +204,7 @@ export interface FileRoutesByTo {
   '/repositories': typeof AppRepositoriesRoute
   '/servers': typeof AppServersRoute
   '/settings': typeof AppSettingsRoute
+  '/system': typeof AppSystemRoute
   '/team': typeof AppTeamRoute
   '/xdr': typeof AppXdrRoute
   '/': typeof AppIndexRoute
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/_app/repositories': typeof AppRepositoriesRoute
   '/_app/servers': typeof AppServersRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/system': typeof AppSystemRoute
   '/_app/team': typeof AppTeamRoute
   '/_app/xdr': typeof AppXdrRoute
   '/_app/': typeof AppIndexRoute
@@ -252,6 +261,7 @@ export interface FileRouteTypes {
     | '/repositories'
     | '/servers'
     | '/settings'
+    | '/system'
     | '/team'
     | '/xdr'
     | '/exposure/$id'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/repositories'
     | '/servers'
     | '/settings'
+    | '/system'
     | '/team'
     | '/xdr'
     | '/'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/_app/repositories'
     | '/_app/servers'
     | '/_app/settings'
+    | '/_app/system'
     | '/_app/team'
     | '/_app/xdr'
     | '/_app/'
@@ -455,6 +467,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/system': {
+      id: '/_app/system'
+      path: '/system'
+      fullPath: '/system'
+      preLoaderRoute: typeof AppSystemRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/team': {
       id: '/_app/team'
       path: '/team'
@@ -505,6 +524,7 @@ interface AppRouteChildren {
   AppRepositoriesRoute: typeof AppRepositoriesRoute
   AppServersRoute: typeof AppServersRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppSystemRoute: typeof AppSystemRoute
   AppTeamRoute: typeof AppTeamRoute
   AppXdrRoute: typeof AppXdrRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -525,6 +545,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppRepositoriesRoute: AppRepositoriesRoute,
   AppServersRoute: AppServersRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppSystemRoute: AppSystemRoute,
   AppTeamRoute: AppTeamRoute,
   AppXdrRoute: AppXdrRoute,
   AppIndexRoute: AppIndexRoute,

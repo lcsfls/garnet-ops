@@ -421,6 +421,18 @@ export async function runProbe(probeId: string): Promise<void> {
     result = { ok: false, error: code, status: error instanceof ModelError ? error.status : null };
   }
   await db.update(schema.aiProbe).set({ status: "done", result }).where(eq(schema.aiProbe.id, probe.id));
+  // The probe rows are swept after an hour; the outcome stays on the settings for the System status page (ADR 0024).
+  await db
+    .update(schema.aiSettings)
+    .set({
+      lastProbeAt: new Date(),
+      lastProbeOk: result.ok === true,
+      lastProbeError:
+        result.ok === true ? null : typeof result.error === "string" ? result.error : "internal",
+      lastProbeUrl: probe.baseUrl,
+    })
+    .where(eq(schema.aiSettings.organizationId, probe.organizationId))
+    .catch((error: Error) => console.error(`ai probe ${probe.id}: result not kept: ${error.name}`));
   if (probe.tempSecret && probe.secretId) {
     await db.delete(schema.secret).where(eq(schema.secret.id, probe.secretId));
   }

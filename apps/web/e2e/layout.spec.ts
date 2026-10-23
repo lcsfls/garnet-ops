@@ -1,4 +1,4 @@
-import { expect, type Locator, test } from "@playwright/test";
+import { expect, type Locator, type Page, type TestInfo, test } from "@playwright/test";
 import {
   contentWidth,
   hasNoHorizontalScroll,
@@ -15,6 +15,7 @@ import {
   EXPOSURE,
   FIXES,
   PROXMOX,
+  resetSystemStatus,
   restoreWazuh,
   setUnifiIps,
   signedInAt,
@@ -160,6 +161,7 @@ test.describe("signed in", () => {
     { path: "/settings?section=about", heading: "Settings", name: "settings-about" },
     { path: "/repositories/repo_e2eseeded000000001", heading: "seeded-app", name: "repository" },
     { path: "/audit-log", heading: "Audit log", name: "audit-log" },
+    { path: "/system", heading: "System status", name: "system" },
     { path: "/team", heading: "Team", name: "team" },
   ]) {
     test(`${name} fits without horizontal scrolling`, async ({ page }, info) => {
@@ -263,8 +265,8 @@ test.describe("signed in", () => {
   test("settings and the account page stay inside the content area in small windows and in German", async ({
     page,
   }) => {
-    // 21 pages at two widths, each waited for until the network is idle: more than the default 30 s.
-    test.setTimeout(120_000);
+    // 22 pages at two widths, each waited for until the network is idle: more than the default 30 s.
+    test.setTimeout(150_000);
     const problems = watchForProblems(page);
     // German texts are longer; 760 px is a small window next to the wider sidebar.
     await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
@@ -285,6 +287,7 @@ test.describe("signed in", () => {
       "/settings?section=ai",
       "/settings?section=updates",
       "/settings?section=about",
+      "/system",
       "/account",
       "/account?section=password",
       "/account?section=authenticator",
@@ -397,6 +400,118 @@ test.describe("signed in", () => {
     await page.screenshot({ path: info.outputPath("exposure-asset-panes.png"), fullPage: true });
     expect(problems).toEqual([]);
   });
+
+  test("System status uses the width: one column of reading width, two from wide, three from xwide, in English and German", async ({
+    page,
+  }, info) => {
+    // Two languages with a full page each, waited for until the network is idle.
+    test.setTimeout(90_000);
+    const problems = watchForProblems(page);
+    await resetSystemStatus();
+    // Busy queues, one with a long wait, so the queue table has its widest content (badges in the figures).
+    await sql(
+      `insert into pgboss.job (name, start_after, data) values
+         ('scan.repository', now() - interval '30 minutes', '{"e2e":"system-status"}'), ('scan.repository', now(), '{"e2e":"system-status"}'), ('host.keyscan', now() - interval '2 minutes', '{"e2e":"system-status"}')`,
+    );
+    try {
+      await checkSystemStatusLayout(page, info);
+    } finally {
+      await sql("delete from pgboss.job where data->>'e2e' = 'system-status'");
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("System status stays inside a small window, in English and German, with busy queues", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const problems = watchForProblems(page);
+    await resetSystemStatus();
+    await sql(
+      `insert into pgboss.job (name, start_after, data) values ('scan.repository', now() - interval '30 minutes', '{"e2e":"system-status"}'), ('host.keyscan', now(), '{"e2e":"system-status"}')`,
+    );
+    try {
+      const height = page.viewportSize()?.height ?? 800;
+      for (const language of ["en", "de"]) {
+        await page.addInitScript((l) => localStorage.setItem("garnetops.language", l), language);
+        for (const width of [760, 900]) {
+          await page.setViewportSize({ width, height });
+          await page.goto("/system");
+          await expect(page.locator("html")).toHaveAttribute("lang", language);
+          await expect(page.getByTestId("worker-queues")).toBeVisible();
+          await page.getByTestId("worker-idle-queues").locator("summary").click();
+          await page.waitForLoadState("networkidle");
+          expect(await hasNoHorizontalScroll(page), `${language} ${width}`).toBe(true);
+          expect(await overflowingCards(page), `${language} ${width}`).toEqual([]);
+        }
+      }
+    } finally {
+      await sql("delete from pgboss.job where data->>'e2e' = 'system-status'");
+    }
+    expect(problems).toEqual([]);
+  });
+
+  async function checkSystemStatusLayout(page: Page, info: TestInfo) {
+    for (const language of ["en", "de"]) {
+      await page.addInitScript((l) => localStorage.setItem("garnetops.language", l), language);
+      await page.goto("/system");
+      await expect(page.locator("html")).toHaveAttribute("lang", language);
+      await expect(page.getByTestId("system-vulndb")).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      // The idle queues are behind a click; open them, so the longest table is measured too.
+      await page.getByTestId("worker-idle-queues").locator("summary").click();
+      const content = await contentWidth(page);
+      const boxes = await page.evaluate(() =>
+        Array.from(document.querySelectorAll("[data-testid^='system-'][class*='break-inside-avoid']")).map(
+          (cell) => {
+            const b = cell.getBoundingClientRect();
+            return {
+              id: cell.getAttribute("data-testid"),
+              left: Math.round(b.left),
+              width: Math.round(b.width),
+            };
+          },
+        ),
+      );
+      expect(
+        boxes.map((b) => b.id),
+        language,
+      ).toEqual([
+        "system-vulndb",
+        "system-scanners",
+        "system-local-build",
+        "system-geoip",
+        "system-integrations",
+        "system-worker",
+        "system-app",
+      ]);
+      const columns = new Set(boxes.map((b) => b.left)).size;
+      const expected = content >= 1900 ? 3 : content >= 1450 ? 2 : 1;
+      expect(columns, `${language}: columns at a content width of ${content}`).toBe(expected);
+      if (content < 1450) {
+        // Reading width on the base step: one column, not wider than 72 rem.
+        expect(Math.max(...boxes.map((b) => b.width))).toBeLessThanOrEqual(72 * 16 + 1);
+      }
+      expect(await hasNoHorizontalScroll(page), language).toBe(true);
+      expect(await overflowingCards(page), language).toEqual([]);
+      // Every card is whole: its bottom is below its top and nothing is cut at the right.
+      const cut = await page.evaluate(() =>
+        Array.from(
+          document.querySelectorAll(
+            "[data-testid^='system-'] section, [data-testid^='system-'] td, [data-testid^='system-'] li",
+          ),
+        )
+          .filter((el) => (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth + 1)
+          .map((el) => (el.textContent ?? "").trim().slice(0, 50)),
+      );
+      expect(cut, language).toEqual([]);
+      // The content area scrolls on its own, so a tall window shows the whole page in the picture.
+      const size = page.viewportSize() ?? { width: 1280, height: 720 };
+      await page.setViewportSize({ width: size.width, height: 3200 });
+      await page.screenshot({ path: info.outputPath(`system-${language}.png`) });
+      await page.setViewportSize(size);
+    }
+  }
 
   test("the Exposure dialogs fit the screen, in English and German: add, verify, stage 2 and Certificate Transparency", async ({
     page,

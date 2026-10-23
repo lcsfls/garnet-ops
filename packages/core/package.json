@@ -40,7 +40,9 @@
     "./account": "./src/account.ts",
     "./user-notifications": "./src/user-notifications.ts",
     "./directory": "./src/directory.ts",
-    "./directory-policy": "./src/directory-policy.ts"
+    "./directory-policy": "./src/directory-policy.ts",
+    "./system-status": "./src/system-status.ts",
+    "./system-status-view": "./src/system-status-view.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

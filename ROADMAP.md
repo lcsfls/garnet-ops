@@ -109,7 +109,13 @@ paginated findings, and every number on the overview leads to its details.
       Still open: per-repository rule overrides, secret and SAST rules (Phase 5)
 - [ ] Per-user forge connections (OAuth app / GitHub App) with repository
       listing and import
-- [ ] Local vulnerability database: vunnel + grype-db build job, offline import
+- [ ] Local vulnerability database: vunnel + grype-db build job, offline import. Planned and shown as such on the
+      System status page, whose report shape (per provider: last run, result, records, duration) the builder will fill
+      (ADR 0024)
+- [x] System status page (Admin): scanner versions against the pinned ones, vulnerability database age and update with
+      limits (amber after 3 days, vermilion after 7), GeoIP, every integration's last success and blocker, worker
+      heartbeat, queues, nightly scan, database and app version; read-only (ADR 0024, `docs/system-status.md`). Still
+      open: notifications when something stops, history
 - [x] Docker Compose stack, non-root containers, pinned digests, health checks;
       reverse proxy with hybrid post-quantum TLS key exchange (X25519MLKEM768) (ADR 0007)
 - [~] In-app updates with the cicd-updater sidecar: signed releases, backup first,

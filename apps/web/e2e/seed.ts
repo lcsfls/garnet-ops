@@ -309,6 +309,17 @@ function fingerprintOf(label: string): string {
     .replace(/=+$/, "")}`;
 }
 
+/**
+ * What the worker reports for the System status page (ADR 0024). No real worker runs here: its part is played by
+ * these rows. The scanners and the database are in states that need a look on purpose (syft differs from the pin,
+ * the database is four days old and the last update failed); tests change them with `reportStatus`.
+ */
+export const SYSTEM = {
+  workerVersion: "0.0.1",
+  /** Advisories per provider in the seeded database report. */
+  providers: { nvd: 250_000, github: 41_000 },
+};
+
 const RANK = { critical: 5, high: 4, medium: 3, low: 2 } as const;
 
 export async function seed(): Promise<void> {
@@ -436,6 +447,7 @@ export async function seed(): Promise<void> {
     await seedExposure(client, org.id, now);
     await seedWazuhRows(client, org.id, now);
     await seedGeoipRows(client);
+    await seedSystemStatusRows(client, now);
     await seedAi(client, org.id, now);
     await client.query("commit");
   } catch (error) {
@@ -1901,6 +1913,49 @@ async function seedWazuhRows(client: Client, orgId: string, now: Date) {
   );
 }
 
+async function seedSystemStatusRows(client: Client, now: Date) {
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+  const hours = (n: number) => n * 3_600_000;
+  const days = (n: number) => n * 86_400_000;
+  await client.query(
+    `insert into worker_heartbeat (instance_id, version, started_at, beat_at) values ('wrk_e2eseeded0000000001', $1, $2, $3)`,
+    [SYSTEM.workerVersion, ago(hours(2)), ago(0)],
+  );
+  const reports: Record<string, unknown> = {
+    scanners: {
+      grype: { version: "0.120.1", reportedAt: ago(hours(2)), problem: null },
+      syft: { version: "1.54.0", reportedAt: ago(hours(2)), problem: null },
+    },
+    vulndb: {
+      checkedAt: ago(60_000),
+      valid: true,
+      problem: null,
+      schemaVersion: "6.1.5",
+      builtAt: ago(days(4)),
+      source: "anchore",
+      providers: {
+        available: true,
+        items: [
+          { name: "nvd", version: "6", capturedAt: ago(days(4)), records: SYSTEM.providers.nvd },
+          { name: "github", version: "6", capturedAt: ago(days(4)), records: SYSTEM.providers.github },
+          { name: "debian", version: "6", capturedAt: null, records: null },
+        ],
+      },
+    },
+    vulndb_update: {
+      mode: "auto",
+      lastAttemptAt: ago(hours(2)),
+      lastSuccessAt: ago(days(4)),
+      lastResult: "failed",
+      reason: "network",
+      nextAt: new Date(now.getTime() + hours(22)).toISOString(),
+    },
+  };
+  for (const [key, data] of Object.entries(reports)) {
+    await client.query("insert into system_report (key, data) values ($1, $2)", [key, JSON.stringify(data)]);
+  }
+}
+
 async function seedGeoipRows(client: Client): Promise<void> {
   const dataset = async (kind: "country" | "asn", id: string) =>
     client.query(
@@ -1979,6 +2034,80 @@ export async function sql<R = Record<string, unknown>>(query: string, params: un
   } finally {
     await client.end();
   }
+}
+
+/** Puts the seeded reports and heartbeat back (after a test changed them). */
+export async function resetSystemStatus(): Promise<void> {
+  const client = new pg.Client({ connectionString: E2E.databaseUrl });
+  await client.connect();
+  try {
+    await client.query("begin");
+    await client.query("delete from system_report");
+    await client.query("delete from worker_heartbeat");
+    await seedSystemStatusRows(client, new Date());
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw error;
+  } finally {
+    await client.end();
+  }
+}
+
+/** Replaces one report of the worker (`scanners`, `vulndb`, `vulndb_update` or `vulndb_build`), as the worker would. */
+export async function reportStatus(key: string, data: unknown): Promise<void> {
+  await sql(
+    `insert into system_report (key, data) values ($1, $2)
+     on conflict (key) do update set data = excluded.data, reported_at = now()`,
+    [key, JSON.stringify(data)],
+  );
+}
+
+/** Takes one report away again, as if the worker had not reported it. */
+export async function clearStatus(key: string): Promise<void> {
+  await sql("delete from system_report where key = $1", [key]);
+}
+
+/** The database report as the seed left it, with another build time (days ago) and validity. */
+export async function setVulnDb(options: { builtDaysAgo: number | null; valid?: boolean }): Promise<void> {
+  const built =
+    options.builtDaysAgo === null ? null : new Date(Date.now() - options.builtDaysAgo * 86_400_000);
+  const valid = options.valid ?? true;
+  await reportStatus("vulndb", {
+    checkedAt: new Date().toISOString(),
+    valid,
+    problem: valid ? null : "missing",
+    schemaVersion: valid ? "6.1.5" : null,
+    builtAt: built ? built.toISOString() : null,
+    source: "anchore",
+    providers: valid
+      ? {
+          available: true,
+          items: [
+            {
+              name: "nvd",
+              version: "6",
+              capturedAt: built?.toISOString() ?? null,
+              records: SYSTEM.providers.nvd,
+            },
+            {
+              name: "github",
+              version: "6",
+              capturedAt: built?.toISOString() ?? null,
+              records: SYSTEM.providers.github,
+            },
+            { name: "debian", version: "6", capturedAt: null, records: null },
+          ],
+        }
+      : { available: false, items: [] },
+  });
+}
+
+/** Makes the worker's last heartbeat this many seconds old (a running worker beats every 30 seconds). */
+export async function setWorkerBeat(secondsAgo: number): Promise<void> {
+  await sql(`update worker_heartbeat set beat_at = now() - ($1 || ' seconds')::interval`, [
+    String(secondsAgo),
+  ]);
 }
 
 /** Makes every session count as signed in just now (or an hour ago), for the step-up rules. */

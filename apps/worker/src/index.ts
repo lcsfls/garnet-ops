@@ -45,6 +45,7 @@ import {
 } from "./proxmox.ts";
 import { runScan } from "./scan.ts";
 import { SCAN_QUEUE as QUEUE, startScheduler } from "./schedule.ts";
+import { startSystemReports } from "./system-report.ts";
 import {
   readCertificate as readUnifiCertificate,
   runUnifiSync,
@@ -265,6 +266,8 @@ const stopUnifiIps = startUnifiIpsPoller();
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();
 const stopUserNotifications = startUserNotificationUpkeep();
+// The heartbeat, the scanner versions and the database metadata for the System status page (ADR 0024).
+const stopSystemReports = startSystemReports();
 console.log(`worker: ready (${env.GARNETOPS_SCAN_CONCURRENCY} scan slots, nightly schedule active)`);
 
 async function shutdown() {
@@ -273,6 +276,7 @@ async function shutdown() {
   stopDirectoryReconcile();
   stopVulnDbUpdates();
   stopUserNotifications();
+  await stopSystemReports();
   clearInterval(aiSweep);
   clearInterval(wazuhSweep);
   clearInterval(attackSweep);

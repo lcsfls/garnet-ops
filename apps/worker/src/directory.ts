@@ -760,6 +760,15 @@ export async function reconcileAll(deps: DirectoryDeps = {}): Promise<void> {
     const configs = await db.select().from(schema.ldapConfig).where(eq(schema.ldapConfig.enabled, true));
     for (const config of configs) {
       const summary = await reconcileDirectory(config, deps);
+      // The System status page shows when the accounts were last checked and whether the directory could be asked (ADR 0024).
+      await db
+        .update(schema.ldapConfig)
+        .set({
+          lastReconcileAt: new Date(),
+          lastReconcileResult: summary.skipped ? "skipped" : "ok",
+          lastReconcileChecked: summary.checked,
+        })
+        .where(eq(schema.ldapConfig.organizationId, config.organizationId));
       if (summary.changed + summary.removed > 0) {
         console.log(
           `directory: checked ${summary.checked}, changed ${summary.changed}, removed ${summary.removed}`,

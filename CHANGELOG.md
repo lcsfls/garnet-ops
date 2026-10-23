@@ -10,6 +10,30 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- **System status** (ADR 0024, `docs/system-status.md`). New page **Admin → System status** (owners and admins; also in the command
+  search) answers "is everything current and running?" in one read-only place, refreshed every minute while it is open. **Scanners:**
+  grype and syft versions, read by the worker (`grype version`, `syft version`) when it starts and after every scan, and whether each
+  equals the version this release pins. **Vulnerability database:** build time and age, schema version, source (Anchore's published
+  database or imported by hand), last read, the last update attempt with its result and a short reason (never the tool's output),
+  the next update, the providers in the database with the number of advisories each (grype prints no counts; they are counted with a
+  read-only query over the database file and omitted, with a note, if that does not work). Limits: stale (amber) after 3 days,
+  outdated (vermilion) after 7; scanning with an older database stays allowed and the page says what that costs. **Local database
+  build (vunnel and grype-db):** "Not set up (planned)" with a link to the roadmap; the report shape for the future builder (per
+  provider: last run, result, records, duration) is fixed in the ADR. **GeoIP:** per dataset the release month, age (stale after 45
+  days, outdated after 90), source and the last refused load or download attempt. **Integrations:** Wazuh (sync and live feed),
+  Proxmox VE, UniFi (sync and IPS preview), directory sign-in (last account check), external exposure (stage 1, stage 2, proof of
+  control), the AI endpoint (last connection test and scope) and notification channels (last delivery): configured or not, last
+  success, last attempt and its result, and what blocks it (certificate, unacknowledged privileges, refused service account, lost
+  proof, unacknowledged external endpoint) or whether it is paused. **Worker and jobs:** heartbeat with version and start time (late
+  after 90 seconds), per queue the waiting, running and failed-in-24-hours jobs and the wait of the oldest, the last nightly run with
+  the outcome of its scans and the next run, database size and migration state. **Application:** the running version and the update
+  service's phase. Every row has a word and an icon (grey check "as expected", amber triangle, vermilion octagon, dashed circle);
+  nothing is green. One column of reading width, two from wide, three from xwide; English and German. The overview's vulnerability data
+  card gets an age badge and, for admins, a link. `GET /api/v1/system/status` (owners and admins, `no-store`): numbers, states and
+  short codes only. Migration 0023 (additive: `worker_heartbeat`, `system_report`, `ldap_config.last_reconcile_*`,
+  `ai_settings.last_probe_*`). No new dependency. Not tested against a real downloaded vulnerability database (the build environment
+  cannot reach Anchore), only against fake `grype` and `syft` binaries that print what the real ones print and a SQLite file with the
+  columns grype's schema has.
 - **External exposure monitoring** (ADR 0023, `docs/exposure.md`). New page **Infrastructure → Exposure** watches your organisation's
   own public domains, host names and single public IP addresses from the outside, run by your own installation. Up to 200 assets per
   organisation; only public names and addresses are accepted (private, loopback, link-local, shared, documentation and reserved ranges

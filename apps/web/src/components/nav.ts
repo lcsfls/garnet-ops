@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bug,
   GitBranch,
   GitPullRequest,
@@ -30,7 +31,8 @@ export type NavTo =
   | "/attacks"
   | "/settings"
   | "/team"
-  | "/audit-log";
+  | "/audit-log"
+  | "/system";
 
 /** Screens that only exist once something is connected. */
 export type NavFeature = "xdr" | "attacks";
@@ -80,6 +82,7 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
       { to: "/settings", label: "nav.settings", icon: Settings },
       { to: "/team", label: "nav.team", icon: Users, adminOnly: true },
       { to: "/audit-log", label: "nav.auditLog", icon: ScrollText, adminOnly: true },
+      { to: "/system", label: "nav.system", icon: Activity, adminOnly: true },
     ],
   },
 ];

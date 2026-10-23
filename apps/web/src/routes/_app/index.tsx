@@ -1,3 +1,4 @@
+import { levelOfFreshness, vulnDbFreshness } from "@garnetops/core/system-status";
 import type { Messages } from "@garnetops/i18n";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -26,9 +27,11 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GateBadge } from "../../components/gate-badge.tsx";
+import { isAdmin } from "../../components/nav.ts";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import { RepositoryLink } from "../../components/repository-link.tsx";
+import { StatusBadge } from "../../components/system-status.tsx";
 import { Tile } from "../../components/tile.tsx";
 import { TrendChart } from "../../components/trend-chart.tsx";
 import { Banner } from "../../components/ui/alert.tsx";
@@ -124,14 +127,14 @@ function OverviewPage() {
               <QueryStatus query={query} />
             </Card>
           ) : null}
-          <Dashboard data={data} />
+          <Dashboard data={data} admin={isAdmin(me)} />
         </>
       )}
     </>
   );
 }
 
-function Dashboard({ data }: { data: Overview }) {
+function Dashboard({ data, admin }: { data: Overview; admin: boolean }) {
   const { t } = useTranslation();
   const days = trendDays(data.trend);
   const critical = data.open.critical ?? 0;
@@ -236,7 +239,11 @@ function Dashboard({ data }: { data: Overview }) {
           <TrendCard days={days} />
         </div>
         <div className="min-w-0 @wide:[grid-area:data]">
-          <VulnerabilityData data={data.vulnerabilityData} sources={data.vulnerabilitySources} />
+          <VulnerabilityData
+            data={data.vulnerabilityData}
+            sources={data.vulnerabilitySources}
+            admin={admin}
+          />
         </div>
       </div>
     </div>
@@ -540,12 +547,45 @@ const SOURCE_NAMES: Record<string, string> = {
   mariner: "Azure Linux",
 };
 
-function VulnerabilityData({ data, sources }: { data: Overview["vulnerabilityData"]; sources: string[] }) {
+function VulnerabilityData({
+  data,
+  sources,
+  admin,
+}: {
+  data: Overview["vulnerabilityData"];
+  sources: string[];
+  admin: boolean;
+}) {
   const { t } = useTranslation();
   const versions = Object.entries(data?.scannerVersions ?? {});
+  // The same limits as the System status page (3 and 7 days); every member sees the age, admins can follow the link.
+  const freshness = data?.builtAt ? vulnDbFreshness(data.builtAt, new Date()) : null;
   return (
     <Card className="h-full">
-      <CardHeader title={t("overview.dataTitle")} description={t("overview.dataDescription")} />
+      <CardHeader
+        title={t("overview.dataTitle")}
+        description={t("overview.dataDescription")}
+        actions={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {freshness && freshness !== "unknown" ? (
+              <StatusBadge level={levelOfFreshness(freshness)}>
+                <span data-testid="overview-data-freshness">
+                  {t(`systemStatus.vulnDb.state.${freshness}`)}
+                </span>
+              </StatusBadge>
+            ) : null}
+            {admin ? (
+              <Link
+                to="/system"
+                data-testid="overview-system-status-link"
+                className="text-sm text-primary-text underline-offset-4 hover:underline"
+              >
+                {t("overview.dataStatusLink")}
+              </Link>
+            ) : null}
+          </div>
+        }
+      />
       {data ? (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1.5 px-5 pb-4 text-sm">
           <dt className="text-muted-foreground">{t("overview.dataAsOf")}</dt>

@@ -12,6 +12,7 @@ import { type SshOptions, shallowClone, sshClient } from "./git.ts";
 import { addAdvisoryDates, type ParsedReport, parseReport, scanTarget } from "./grype.ts";
 import { type CollectedManifest, collectManifests } from "./manifests.ts";
 import { buildSbom, type Inventory, readSbom } from "./syft.ts";
+import { reportScanFacts } from "./system-report.ts";
 import { type Tx, upsertVulnerabilities } from "./vulnerability-store.ts";
 
 const f = schema.finding;
@@ -350,6 +351,8 @@ async function persist(
       .where(eq(schema.repository.id, repo.id));
     await insertGateRun(tx, scanId, repo, gate);
   });
+  // For the System status page (ADR 0024); never fails a scan.
+  await reportScanFacts({ grypeVersion: parsed.grypeVersion, syftVersion: inventory?.syftVersion });
 }
 
 /**
@@ -452,4 +455,6 @@ async function persistCheck(
       .where(eq(schema.scan.id, scanId));
     await insertGateRun(tx, scanId, repo, gate);
   });
+  // For the System status page (ADR 0024); never fails a scan.
+  await reportScanFacts({ grypeVersion: parsed.grypeVersion, syftVersion: inventory?.syftVersion });
 }

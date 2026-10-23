@@ -31,7 +31,9 @@ list of the newest Wazuh attack alerts ([docs/attacks.md](docs/attacks.md)), a g
 what to look at first ([docs/grades.md](docs/grades.md)), a bell with your own notifications, toast messages and a
 matrix of what you receive in the app and by email ([docs/notifications.md](docs/notifications.md)), sign-in with your
 LDAP or Active Directory account, roles from directory groups and a second factor for everyone
-([docs/ldap.md](docs/ldap.md)), audit log, a Docker Compose stack and optional signed in-app updates.
+([docs/ldap.md](docs/ldap.md)), a read-only system status page for admins that says whether the scanners, the vulnerability
+database, GeoIP data, integrations, worker and queues are current and running ([docs/system-status.md](docs/system-status.md)),
+audit log, a Docker Compose stack and optional signed in-app updates.
 
 ## What GarnetOps is built on
 

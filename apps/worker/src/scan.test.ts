@@ -208,6 +208,15 @@ describe.skipIf(!ready)("scan with the real scanner", () => {
         commitSha: "fixture-npm-vulnerable",
       });
       expect(scan?.scannerVersions).toEqual({ grype: "0.120.1", syft: "1.55.0" });
+      // The System status page learns the scanner versions from the scan (ADR 0024).
+      const [reported] = await conn.db
+        .select()
+        .from(schema.systemReport)
+        .where(eq(schema.systemReport.key, "scanners"));
+      expect(reported?.data).toMatchObject({
+        grype: { version: "0.120.1", problem: null },
+        syft: { version: "1.55.0", problem: null },
+      });
 
       // The full inventory is stored, not only the vulnerable packages.
       const inventory = await conn.db

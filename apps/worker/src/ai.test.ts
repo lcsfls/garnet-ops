@@ -1000,6 +1000,31 @@ describe.skipIf(!adminUrl)("AI triage in the worker", () => {
       expect((await probe("test"))?.result).toMatchObject({ ok: false, error: "model-not-found" });
     });
 
+    it("keeps the outcome on the settings after the probe rows are gone (System status page)", async () => {
+      await configure("stream");
+      const before = Date.now();
+      await probe("test", { model: "stream" });
+      let [settings] = await t.db
+        .select()
+        .from(schema.aiSettings)
+        .where(eq(schema.aiSettings.organizationId, ORG));
+      expect(settings).toMatchObject({
+        lastProbeOk: true,
+        lastProbeError: null,
+        lastProbeUrl: `http://127.0.0.1:${httpPort}/v1`,
+      });
+      expect(settings?.lastProbeAt?.getTime()).toBeGreaterThanOrEqual(before - 1000);
+      await probe("test", { model: "unauthorized" });
+      [settings] = await t.db
+        .select()
+        .from(schema.aiSettings)
+        .where(eq(schema.aiSettings.organizationId, ORG));
+      expect(settings).toMatchObject({ lastProbeOk: false, lastProbeError: "auth" });
+      // A probe of an organisation without settings changes nothing and does not fail.
+      await t.db.delete(schema.aiSettings).where(eq(schema.aiSettings.organizationId, ORG));
+      await expect(probe("models")).resolves.toBeDefined();
+    });
+
     it("deletes a key that was sealed for the probe, and keeps the stored one", async () => {
       const id = "sec_temp";
       await t.db.insert(schema.secret).values({

@@ -964,6 +964,19 @@ describe.skipIf(!openssl || !adminUrl)("directory sign-in in the worker", () => 
       expect(await sessionCount("u_owner")).toBe(1);
     });
 
+    it("notes when the accounts were last checked and whether the directory could be asked (System status page)", async () => {
+      await setConfig();
+      const before = Date.now();
+      await dir.reconcileAll(deps());
+      const read = async () =>
+        (await conn.db.select().from(schema.ldapConfig).where(eq(schema.ldapConfig.organizationId, ORG)))[0];
+      expect(await read()).toMatchObject({ lastReconcileResult: "ok", lastReconcileChecked: 3 });
+      expect((await read())?.lastReconcileAt?.getTime()).toBeGreaterThanOrEqual(before - 1000);
+      await setConfig({ servers: ["ldaps://down.example.lan:1"] });
+      await dir.reconcileAll(deps());
+      expect(await read()).toMatchObject({ lastReconcileResult: "skipped", lastReconcileChecked: 0 });
+    });
+
     it("does nothing while the service account is blocked or the sign-in is off", async () => {
       expect(await dir.reconcileDirectory(await setConfig({ enabled: false }), deps())).toMatchObject({
         skipped: true,

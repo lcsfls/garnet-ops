@@ -2214,6 +2214,16 @@ export const aiSettings = pgTable("ai_settings", {
   externalAckHost: text("external_ack_host"),
   externalAckBy: text("external_ack_by").references(() => user.id, { onDelete: "set null" }),
   externalAckAt: timestamp("external_ack_at", { withTimezone: true }),
+  /**
+   * The newest "Load models" or "Test connection" (ADR 0024: shown on the System status page). The probe rows are
+   * swept after an hour; this keeps the outcome. `lastProbeUrl` is the address that was probed, so a result for an
+   * endpoint that has since been replaced is not mistaken for the current one.
+   */
+  lastProbeAt: timestamp("last_probe_at", { withTimezone: true }),
+  lastProbeOk: boolean("last_probe_ok"),
+  /** An `AiError` code; null if the probe worked. */
+  lastProbeError: text("last_probe_error"),
+  lastProbeUrl: text("last_probe_url"),
   updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
   updatedAt: updatedAt(),
 });
@@ -2399,6 +2409,11 @@ export const ldapConfig = pgTable("ldap_config", {
   testedAt: timestamp("tested_at", { withTimezone: true }),
   /** Set when the directory refused the service account's password: no further attempts until then, so GarnetOps cannot lock the account. */
   bindBlockedUntil: timestamp("bind_blocked_until", { withTimezone: true }),
+  /** The last periodic check of the directory accounts (ADR 0024: shown on the System status page). Null until the first one. */
+  lastReconcileAt: timestamp("last_reconcile_at", { withTimezone: true }),
+  /** `ok`: the directory answered for everybody; `skipped`: it could not be asked and nobody was changed. */
+  lastReconcileResult: text("last_reconcile_result", { enum: ["ok", "skipped"] }),
+  lastReconcileChecked: integer("last_reconcile_checked"),
   updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -2464,6 +2479,38 @@ export const directoryRequest = pgTable(
   },
   (t) => [index("directory_request_created_idx").on(t.createdAt)],
 );
+
+/* -------------------------------------------------------------------------- */
+/* System status (ADR 0024)                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One row per worker process, rewritten every 30 seconds while it runs. The API never runs a
+ * binary or talks to the worker; it reads this table. Rows of workers that stopped long ago are
+ * removed by the next worker that starts.
+ */
+export const workerHeartbeat = pgTable(
+  "worker_heartbeat",
+  {
+    instanceId: text("instance_id").primaryKey(),
+    version: text("version").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    beatAt: timestamp("beat_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("worker_heartbeat_beat_idx").on(t.beatAt)],
+);
+
+/**
+ * Facts the worker reports about itself and its tools, one row per key (packages/core/src/system-status.ts):
+ * `scanners`, `vulndb`, `vulndb_update` and, once a local builder exists, `vulndb_build` with a row
+ * per provider. `data` is validated on every read; an unknown or damaged value counts as "not
+ * reported". Numbers, versions and codes only, never output of a tool, a URL or a secret.
+ */
+export const systemReport = pgTable("system_report", {
+  key: text("key").primaryKey(),
+  data: jsonb("data").$type<unknown>().notNull(),
+  reportedAt: timestamp("reported_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /* -------------------------------------------------------------------------- */
 /* Audit log: append-only                                                       */

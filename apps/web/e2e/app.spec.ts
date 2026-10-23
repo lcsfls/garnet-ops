@@ -15,13 +15,18 @@ import {
   PROXMOX,
   removeGeoip,
   removeWazuh,
+  reportStatus,
+  resetSystemStatus,
   restoreGeoip,
   restoreWazuh,
   SEEDED,
   SERVERS,
+  SYSTEM,
   seed,
   setLivePoll,
   setUnifiIps,
+  setVulnDb,
+  setWorkerBeat,
   signedInAt,
   sql,
   UNIFI,
@@ -1743,6 +1748,237 @@ test.describe("servers", () => {
     await expect(page).toHaveURL(new RegExp(`/servers/${SERVERS.vulnerable.id}$`));
     await page.keyboard.press("Control+k");
     await expect(search.getByRole("option", { name: "Go to Servers" })).toBeVisible();
+  });
+});
+
+test.describe("System status", () => {
+  test.beforeEach(async () => {
+    await resetSystemStatus();
+  });
+  test.afterAll(async () => {
+    await resetSystemStatus();
+    await sql("update scan set vuln_db_built_at = null");
+  });
+
+  test("is in the admin group and in the command search", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+    const nav = page.getByRole("navigation", { name: "Main navigation" });
+    await expect(nav.getByRole("link", { name: "System status" })).toBeVisible();
+    await page.keyboard.press("Control+k");
+    const search = page.getByRole("dialog", { name: "Search" });
+    await search.getByRole("combobox", { name: "Search" }).fill("system");
+    await expect(search.getByRole("option", { name: "Go to System status" })).toBeVisible();
+    await search.getByRole("option", { name: "Go to System status" }).click();
+    await expect(page).toHaveURL(/\/system$/);
+    await expect(page.getByRole("heading", { name: "System status", level: 1 })).toBeVisible();
+  });
+
+  test("answers in one place what is current, what needs a look and what has failed", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/system");
+    await expect(page.getByRole("heading", { name: "System status", level: 1 })).toBeVisible();
+    await expect(page.getByTestId("system-summary")).toContainText(/need(s)? a look|failed/);
+
+    // The vulnerability database is four days old: stale, with the reason of the failed update and the limits.
+    const db = page.getByTestId("system-vulndb");
+    await expect(db.getByTestId("vulndb-state")).toHaveText("Stale");
+    await expect(db).toContainText("4 days ago");
+    await expect(db).toContainText("(4 days old)");
+    await expect(db).toContainText("6.1.5");
+    await expect(db).toContainText("Anchore's published database");
+    await expect(db).toContainText("Failed");
+    await expect(db).toContainText("The download did not work (network or proxy).");
+    await expect(db).toContainText("Stale after 3 days, outdated after 7 days.");
+    await expect(db.getByTestId("vulndb-scan-note")).toContainText("Scans keep running with this database");
+    await expect(db.getByRole("row", { name: /nvd.*250,000/ })).toBeVisible();
+    await expect(db.getByRole("row", { name: /github.*41,000/ })).toBeVisible();
+    await expect(db.getByRole("row", { name: /debian.*–/ })).toBeVisible();
+
+    // Scanners: grype is as pinned, syft is not.
+    await expect(page.getByTestId("scanner-grype")).toContainText("As pinned");
+    await expect(page.getByTestId("scanner-grype")).toContainText("Version 0.120.1");
+    await expect(page.getByTestId("scanner-syft")).toContainText("Differs from pinned");
+    await expect(page.getByTestId("scanner-syft")).toContainText("This release pins 1.55.0.");
+
+    // The local build is planned, not set up.
+    const build = page.getByTestId("system-local-build");
+    await expect(build.getByTestId("local-build-state")).toHaveText("Not set up (planned)");
+    await expect(build.getByRole("link", { name: "Roadmap" })).toHaveAttribute("href", /ROADMAP\.md$/);
+
+    // GeoIP: both datasets are of this month and were imported by hand.
+    await expect(page.getByTestId("geoip-country")).toContainText("Current");
+    await expect(page.getByTestId("geoip-country")).toContainText("Manual import");
+    await expect(page.getByTestId("geoip-asn")).toContainText("Current");
+
+    // Integrations: configured or not, blocked by a certificate or a privilege, with the connections named.
+    await expect(page.getByTestId("integration-proxmox")).toContainText("Blocked");
+    await expect(page.getByTestId("part-proxmox-sync")).toContainText(
+      "A certificate waits for an admin to confirm it.",
+    );
+    await expect(page.getByTestId("part-proxmox-sync")).toContainText("New lab");
+    await expect(page.getByTestId("part-proxmox-sync")).toContainText("Wide token");
+    await expect(page.getByTestId("integration-unifi")).toContainText("Blocked");
+    await expect(page.getByTestId("integration-directory")).toContainText("Not configured");
+    await expect(page.getByTestId("integration-wazuh")).toBeVisible();
+    await expect(page.getByTestId("integration-exposure")).toContainText("Proof of control");
+
+    // The worker runs; the queues are read from pg-boss; the app has its version.
+    await expect(page.getByTestId("worker-heartbeat")).toContainText("Running");
+    await expect(page.getByTestId("worker-heartbeat")).toContainText(`Version ${SYSTEM.workerVersion}`);
+    // Idle queues sit behind a click; every queue pg-boss knows is listed.
+    await expect(page.getByTestId("queue-scan.repository")).toBeAttached();
+    await expect(page.getByTestId("queue-__pgboss__send-it")).toHaveCount(0);
+    await expect(page.getByTestId("worker-nightly")).toContainText("Scheduled for");
+    await expect(page.getByTestId("worker-database")).toContainText("migrations applied");
+    await expect(page.getByTestId("app-version")).toHaveText("0.0.1 Alpha");
+
+    // Nothing the integrations keep private is on the page: no address, no fingerprint.
+    const text = (await page.getByTestId("system-status-page").textContent()) ?? "";
+    expect(text).not.toContain("example.lan");
+    expect(text).not.toMatch(/(?:[0-9A-F]{2}:){7}/);
+    expect(problems).toEqual([]);
+  });
+
+  test("states follow the data: current, outdated, no database, a late worker, and a clean bill", async ({
+    page,
+  }) => {
+    await page.goto("/system");
+    const db = page.getByTestId("system-vulndb");
+    await expect(db.getByTestId("vulndb-state")).toHaveText("Stale");
+
+    await setVulnDb({ builtDaysAgo: 1 });
+    await page.reload();
+    await expect(db.getByTestId("vulndb-state")).toHaveText("Current");
+    await expect(db.getByTestId("vulndb-scan-note")).toHaveCount(0);
+
+    await setVulnDb({ builtDaysAgo: 8 });
+    await page.reload();
+    await expect(db.getByTestId("vulndb-state")).toHaveText("Outdated");
+    await expect(db.getByTestId("vulndb-scan-note")).toBeVisible();
+    await expect(page.getByTestId("system-summary")).toContainText(/failed/);
+
+    await setVulnDb({ builtDaysAgo: null, valid: false });
+    await page.reload();
+    await expect(db.getByTestId("vulndb-state")).toHaveText("No usable database");
+    await expect(db).toContainText("Without a usable database no scan can run.");
+
+    await setVulnDb({ builtDaysAgo: 1 });
+    await setWorkerBeat(300);
+    await page.reload();
+    await expect(page.getByTestId("worker-heartbeat")).toContainText("Late");
+    await expect(page.getByTestId("worker-heartbeat")).toContainText(
+      "Scans and syncs wait until it is back.",
+    );
+    await setWorkerBeat(0);
+    await page.reload();
+    await expect(page.getByTestId("worker-heartbeat")).toContainText("Running");
+
+    // A local build that reports shows its providers.
+    await reportStatus("vulndb_build", {
+      v: 1,
+      enabled: true,
+      lastBuildAt: new Date().toISOString(),
+      providers: [
+        {
+          name: "nvd",
+          lastRunAt: new Date().toISOString(),
+          result: "ok",
+          records: 250000,
+          durationMs: 420000,
+          reason: null,
+        },
+        {
+          name: "debian",
+          lastRunAt: new Date().toISOString(),
+          result: "failed",
+          records: null,
+          durationMs: 900,
+          reason: "network",
+        },
+      ],
+    });
+    await page.reload();
+    const build = page.getByTestId("system-local-build");
+    await expect(build.getByTestId("local-build-state")).toHaveText("Set up");
+    await expect(build.getByRole("row", { name: /nvd.*Worked.*250,000/ })).toBeVisible();
+    await expect(build.getByRole("row", { name: /debian.*Failed/ })).toBeVisible();
+  });
+
+  test("looks again every minute while it is open, and a button looks now", async ({ page }) => {
+    await page.clock.install();
+    let calls = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/v1/system/status") calls++;
+    });
+    await page.goto("/system");
+    await expect(page.getByTestId("worker-heartbeat")).toContainText("Running");
+    const first = calls;
+    expect(first).toBeGreaterThan(0);
+
+    await setWorkerBeat(300);
+    await page.clock.runFor(30_000);
+    expect(calls).toBe(first); // not before a minute has passed
+    await page.clock.runFor(31_000);
+    await expect(page.getByTestId("worker-heartbeat")).toContainText("Late");
+    expect(calls).toBeGreaterThan(first);
+
+    await setWorkerBeat(0);
+    const before = calls;
+    await page.getByRole("button", { name: "Refresh now" }).click();
+    await expect(page.getByTestId("worker-heartbeat")).toContainText("Running");
+    expect(calls).toBeGreaterThan(before);
+  });
+
+  test("every row has a word and an icon, and the links lead to the settings", async ({ page }) => {
+    await page.goto("/system");
+    await expect(page.getByTestId("integration-proxmox")).toBeVisible();
+    // A badge is an icon and a word: no empty badges.
+    const badges = await page.locator("[data-testid^='integration-'] span.inline-flex").allTextContents();
+    expect(badges.length).toBeGreaterThan(5);
+    for (const text of badges) expect(text.trim().length, text).toBeGreaterThan(0);
+    expect(await page.locator("main svg[aria-hidden='true']").count()).toBeGreaterThan(10);
+
+    await page.getByTestId("settings-link-proxmox").click();
+    await expect(page).toHaveURL(/\/settings\?section=proxmox$/);
+    await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
+
+    await page.goto("/system");
+    await page.getByTestId("settings-link-unifi").click();
+    await expect(page).toHaveURL(/\/settings\?section=unifi$/);
+    await page.goto("/system");
+    await page.getByTestId("settings-link-wazuh").click();
+    await expect(page).toHaveURL(/\/settings\?section=xdr$/);
+    await page.goto("/system");
+    await page.getByTestId("settings-link-directory").click();
+    await expect(page).toHaveURL(/\/settings\?section=signin$/);
+    await page.goto("/system");
+    await page.getByTestId("settings-link-updates").click();
+    await expect(page).toHaveURL(/\/settings\?section=updates$/);
+  });
+
+  test("the overview card shows the age of the database and leads here", async ({ page }) => {
+    await sql("update scan set vuln_db_built_at = now() - interval '4 days'");
+    await page.goto("/");
+    await expect(page.getByTestId("overview-data-freshness")).toHaveText("Stale");
+    await page.getByTestId("overview-system-status-link").click();
+    await expect(page).toHaveURL(/\/system$/);
+    await sql("update scan set vuln_db_built_at = now() - interval '1 day'");
+    await page.goto("/");
+    await expect(page.getByTestId("overview-data-freshness")).toHaveText("Current");
+  });
+
+  test("German labels", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
+    await page.goto("/system");
+    await expect(page.getByRole("heading", { name: "Systemstatus", level: 1 })).toBeVisible();
+    await expect(page.getByTestId("vulndb-state")).toHaveText("Veraltet");
+    await expect(page.getByTestId("system-vulndb")).toContainText("Der Download hat nicht funktioniert");
+    await expect(page.getByTestId("scanner-syft")).toContainText("Weicht von der festgelegten ab");
+    await expect(page.getByTestId("local-build-state")).toHaveText("Nicht eingerichtet (geplant)");
+    await expect(page.getByTestId("worker-heartbeat")).toContainText("Läuft");
+    await expect(page.getByTestId("integration-directory")).toContainText("Nicht eingerichtet");
+    await expect(page.getByTestId("geoip-country")).toContainText("Manueller Import");
   });
 });
 
