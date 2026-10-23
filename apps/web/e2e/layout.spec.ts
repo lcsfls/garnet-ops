@@ -263,6 +263,8 @@ test.describe("signed in", () => {
   test("settings and the account page stay inside the content area in small windows and in German", async ({
     page,
   }) => {
+    // 21 pages at two widths, each waited for until the network is idle: more than the default 30 s.
+    test.setTimeout(120_000);
     const problems = watchForProblems(page);
     // German texts are longer; 760 px is a small window next to the wider sidebar.
     await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));

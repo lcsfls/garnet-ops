@@ -1,11 +1,11 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { LogOut, UserRound } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api.ts";
 import { authClient } from "../lib/auth-client.ts";
 import type { Me } from "../lib/session.ts";
+import { signOutAndLeave } from "../lib/session-end.ts";
 import { setTheme, THEMES, useTheme } from "../lib/theme.ts";
 import { Segmented } from "./filters.tsx";
 import { LanguagePicker } from "./language-picker.tsx";
@@ -25,8 +25,6 @@ export function initialsOf(name: string): string {
  */
 export function UserMenu({ me }: { me: Me }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -51,11 +49,7 @@ export function UserMenu({ me }: { me: Me }) {
     };
   }, [open]);
 
-  async function signOut() {
-    await authClient.signOut();
-    queryClient.clear();
-    await navigate({ to: "/sign-in" });
-  }
+  const signOut = () => signOutAndLeave(() => authClient.signOut());
 
   return (
     <div ref={root} className="relative">

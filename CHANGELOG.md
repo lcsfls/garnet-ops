@@ -546,6 +546,10 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Fixed
 
+- Signing out loads the sign-in page at once, without error messages from requests that were still
+  running. When a session ends elsewhere (expiry, another tab, signed out from the account page
+  or by an admin), the next request leads to the sign-in page with a short notice instead of
+  showing errors in place.
 - Settings → Scanning: the time and the time zone of the nightly scan sit on one line (the time field no longer drops
   below the zone's hint). The same shared form row fixes the side-by-side fields of notifications (SMTP), AI, updates,
   XDR, attack overview, the Wazuh enrollment helper and the add-server dialog.

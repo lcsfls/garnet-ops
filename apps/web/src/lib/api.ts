@@ -1,4 +1,5 @@
 import type { Problem } from "@garnetops/core";
+import { sessionEnded } from "./session-end.ts";
 
 /** An API error with the RFC 9457 problem details the server sent, if any. */
 export class ApiError extends Error {
@@ -29,6 +30,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
   if (!res.ok) {
+    if (res.status === 401) sessionEnded();
     const isProblem = res.headers.get("content-type")?.includes("json");
     throw new ApiError(
       res.status,

@@ -12,6 +12,7 @@ import { Field } from "../components/ui/field.tsx";
 import { authClient, authErrorKey, directoryMe } from "../lib/auth-client.ts";
 import { guard } from "../lib/guard.ts";
 import type { MessageKey } from "../lib/i18n.ts";
+import { signOutAndLeave } from "../lib/session-end.ts";
 
 /**
  * Mandatory TOTP enrolment (AGENTS.md rule 1): a signed-in user without a
@@ -41,11 +42,7 @@ function Enroll() {
   const [error, setError] = useState<MessageKey | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function signOut() {
-    await authClient.signOut();
-    await queryClient.invalidateQueries();
-    await navigate({ to: "/sign-in" });
-  }
+  const signOut = () => signOutAndLeave(() => authClient.signOut());
   const footer = (
     <Button variant="link" onClick={signOut}>
       {t("common.signOut")}

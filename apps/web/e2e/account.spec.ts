@@ -12,7 +12,14 @@ import {
   test,
 } from "@playwright/test";
 import { E2E } from "./env.ts";
-import { hasNoHorizontalScroll, STATE_FILE, totp, watchForProblems } from "./helpers.ts";
+import {
+  hasNoHorizontalScroll,
+  nextTotpPeriod,
+  STATE_FILE,
+  signOut,
+  totp,
+  watchForProblems,
+} from "./helpers.ts";
 import { signedInAt, sql } from "./seed.ts";
 
 /**
@@ -775,4 +782,46 @@ test("the owner finds every account action in the audit log under Account", asyn
     expect(dump).not.toContain(secretValue);
   expect(problems).toEqual([]);
   await owner.close();
+});
+
+test("signing out loads the sign-in page at once; a session ended elsewhere leads there with a notice", async () => {
+  test.setTimeout(150_000);
+  await resetRateLimits();
+  const problems = watchForProblems(page);
+  // Signing out from a page with live streams and queries: straight to the sign-in page, no
+  // error messages from requests that were still running.
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await signOut(page);
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByText("Your sign-in has expired. Sign in again.")).toHaveCount(0);
+
+  // Sign in again.
+  await page.getByLabel("Email").fill(EMAIL);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/two-factor$/);
+  await nextTotpPeriod(page);
+  await page.getByLabel("Code", { exact: true }).fill(totp(secret));
+  await page.getByRole("button", { name: "Verify" }).click();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+
+  // The session ends elsewhere (another tab, an admin, expiry): the next request answers 401
+  // and the app goes to the sign-in page and says why, instead of showing errors in place.
+  await sql("delete from session where user_id = $1", [await userId()]);
+  // Background requests (the bell, live streams) may notice it before the click does.
+  await page
+    .getByRole("link", { name: "Findings" })
+    .first()
+    .click({ timeout: 5_000 })
+    .catch(() => {});
+  await expect(page).toHaveURL(/\/sign-in\?ended=1$/);
+  await expect(page.getByText("Your sign-in has expired. Sign in again.")).toBeVisible();
+  // A plain visit to the app without a session is a normal redirect, without that notice.
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(page.getByText("Your sign-in has expired. Sign in again.")).toHaveCount(0);
+  // 401 answers are expected here; nothing else may go wrong.
+  expect(problems.filter((p) => !/401/.test(p))).toEqual([]);
 });

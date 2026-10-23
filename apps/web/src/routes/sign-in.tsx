@@ -14,8 +14,9 @@ import type { MessageKey } from "../lib/i18n.ts";
 import { PASSKEY_FAILURE_KEYS, passkeysSupported, signInWithPasskey } from "../lib/passkeys.ts";
 
 export const Route = createFileRoute("/sign-in")({
-  validateSearch: (search: Record<string, unknown>): { setup?: "done"; via?: "directory" } => ({
+  validateSearch: (search: Record<string, unknown>): { setup?: "done"; via?: "directory"; ended?: 1 } => ({
     ...(search.setup === "done" ? { setup: "done" as const } : {}),
+    ...(search.ended === 1 || search.ended === "1" ? { ended: 1 as const } : {}),
     ...(search.via === "directory" ? { via: "directory" as const } : {}),
   }),
   beforeLoad: ({ context }) => guard(context.queryClient, ["signed-out"]),
@@ -24,7 +25,7 @@ export const Route = createFileRoute("/sign-in")({
 
 function SignIn() {
   const { t } = useTranslation();
-  const { setup, via } = Route.useSearch();
+  const { setup, via, ended } = Route.useSearch();
   const options = useQuery(signInOptionsQuery);
   // A deep link to the directory form only counts while the directory sign-in is switched on.
   const directory = options.data?.directory === true;
@@ -94,6 +95,7 @@ function SignIn() {
       ) : null}
       <form className="grid gap-4" onSubmit={submit} key={mode}>
         {setup ? <Alert tone="info">{t("setup.done")}</Alert> : null}
+        {ended && !error ? <Alert tone="info">{t("errors.sessionExpired")}</Alert> : null}
         {error ? <Alert tone="error">{t(error)}</Alert> : null}
         {mode === "directory" ? (
           <>

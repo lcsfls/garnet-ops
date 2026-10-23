@@ -1,6 +1,7 @@
 import type { Role } from "@garnetops/core";
 import { queryOptions } from "@tanstack/react-query";
 import { ApiError, api } from "./api.ts";
+import { markSignedIn } from "./session-end.ts";
 
 export interface Me {
   user: {
@@ -32,7 +33,9 @@ async function loadStatus(): Promise<Status> {
   const setup = await api<{ needed: boolean }>("/setup");
   if (setup.needed) return { kind: "setup" };
   try {
-    return { kind: "ready", me: await api<Me>("/me") };
+    const me = await api<Me>("/me");
+    markSignedIn();
+    return { kind: "ready", me };
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     if (error.status === 401) return { kind: "signed-out" };
