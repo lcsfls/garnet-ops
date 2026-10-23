@@ -1400,6 +1400,214 @@ export const unifiThreatEvent = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/* External exposure (ADR 0023): the organisation's public assets, seen from outside */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Organisation-wide switches of the exposure feature. Certificate Transparency is opt-in: the domain names of verified assets
+ * are sent to a public search service, which is data leaving the network, so it is off until an owner or admin switches it on.
+ */
+export const exposureSettings = pgTable("exposure_settings", {
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  ctEnabled: boolean("ct_enabled").notNull().default(false),
+  ctEnabledBy: text("ct_enabled_by").references(() => user.id, { onDelete: "set null" }),
+  ctEnabledAt: timestamp("ct_enabled_at", { withTimezone: true }),
+  /** Queries made on `ctUsageDay` (a UTC date), for the daily budget. */
+  ctUsageDay: date("ct_usage_day"),
+  ctUsageCount: integer("ct_usage_count").notNull().default(0),
+  ctLastRequestAt: timestamp("ct_last_request_at", { withTimezone: true }),
+  /** A code from apps/worker/src/exposure-ct.ts; null if the last query worked. */
+  ctLastError: text("ct_last_error"),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * A domain, host name or public address the organisation wants watched from the outside. `verifyToken` is the proof an
+ * owner publishes (DNS TXT record or a file) before stage 2 may touch the asset; it is not a secret (it is published by design),
+ * but it is unguessable and belongs to this organisation and asset alone. `passive` and `active` hold the newest snapshot of
+ * each stage; findings, ports and runs hold the rest.
+ */
+export const exposureAsset = pgTable(
+  "exposure_asset",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["domain", "ip"] }).notNull(),
+    /** Lower-case host name without a trailing dot, or the canonical text of an IP address (packages/core/src/exposure-assets.ts). */
+    value: text("value").notNull(),
+    /** A verified domain also covers its subdomains. Off by default. */
+    includeSubdomains: boolean("include_subdomains").notNull().default(false),
+
+    verifyToken: text("verify_token").notNull(),
+    verifyState: text("verify_state", { enum: ["unverified", "verified", "lost"] })
+      .notNull()
+      .default("unverified"),
+    verifyMethod: text("verify_method", { enum: ["dns", "http"] }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifyCheckedAt: timestamp("verify_checked_at", { withTimezone: true }),
+    /** A code from EXPOSURE_ERRORS; null if the last check found the proof. */
+    verifyError: text("verify_error"),
+
+    /** Stage 1 (passive) runs daily. An admin can pause it for an asset. */
+    passiveEnabled: boolean("passive_enabled").notNull().default(true),
+
+    /** Stage 2 (light active). Off by default; needs a verified asset and an acknowledgement per target. */
+    stage2Enabled: boolean("stage2_enabled").notNull().default(false),
+    stage2Schedule: text("stage2_schedule", { enum: ["daily", "weekly"] })
+      .notNull()
+      .default("daily"),
+    stage2AcknowledgedBy: text("stage2_acknowledged_by").references(() => user.id, { onDelete: "set null" }),
+    stage2AcknowledgedAt: timestamp("stage2_acknowledged_at", { withTimezone: true }),
+
+    lastPassiveAt: timestamp("last_passive_at", { withTimezone: true }),
+    passiveError: text("passive_error"),
+    /** When the last stage 2 run started. The once-a-day limit counts from here, whoever asked for the run. */
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
+    activeError: text("active_error"),
+    passive: jsonb("passive").$type<unknown>(),
+    active: jsonb("active").$type<unknown>(),
+
+    /** The expiry warning step already announced (30, 14, 7 or 0); null after a renewal. */
+    certNotifiedLevel: integer("cert_notified_level"),
+    ctCheckedAt: timestamp("ct_checked_at", { withTimezone: true }),
+
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("exposure_asset_org_value_uq").on(t.organizationId, t.value),
+    uniqueIndex("exposure_asset_token_uq").on(t.verifyToken),
+    index("exposure_asset_org_idx").on(t.organizationId, t.value, t.id),
+    index("exposure_asset_due_idx").on(t.lastPassiveAt),
+  ],
+);
+
+/** One look at an asset: stage 1 or stage 2. At most one is queued or running per asset and stage. */
+export const exposureRun = pgTable(
+  "exposure_run",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    assetId: text("asset_id")
+      .notNull()
+      .references(() => exposureAsset.id, { onDelete: "cascade" }),
+    stage: text("stage", { enum: ["passive", "active"] }).notNull(),
+    state: text("state", { enum: ["queued", "running", "succeeded", "failed"] }).notNull(),
+    trigger: text("trigger", { enum: ["manual", "schedule", "enable"] }).notNull(),
+    requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+    /** A code from EXPOSURE_ERRORS; never output of a remote system. */
+    error: text("error"),
+    findingCounts: jsonb("finding_counts").$type<Record<string, number>>(),
+    openPorts: integer("open_ports"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("exposure_run_asset_idx").on(t.assetId, t.createdAt, t.id),
+    index("exposure_run_org_idx").on(t.organizationId, t.createdAt, t.id),
+    uniqueIndex("exposure_run_active_uq")
+      .on(t.assetId, t.stage)
+      .where(sql`${t.state} in ('queued', 'running')`),
+  ],
+);
+
+/** A thing wrong from the outside. Deduplicated per asset, rule and subject; resolved when the rule no longer fires. */
+export const exposureFinding = pgTable(
+  "exposure_finding",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    assetId: text("asset_id")
+      .notNull()
+      .references(() => exposureAsset.id, { onDelete: "cascade" }),
+    stage: text("stage", { enum: ["passive", "active"] }).notNull(),
+    /** A camelCase rule id from packages/core/src/exposure.ts. */
+    rule: text("rule").notNull(),
+    /** Tells apart several findings of one rule (a header, a port); empty when there is one. */
+    subject: text("subject").notNull().default(""),
+    severity: text("severity", { enum: ["critical", "high", "medium", "low"] }).notNull(),
+    severityRank: integer("severity_rank").notNull(),
+    state: text("state", { enum: ["open", "resolved"] }).notNull(),
+    /** Short facts for the sentence: numbers and cleaned text. */
+    params: jsonb("params").$type<Record<string, string | number>>().notNull().default({}),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    /** When a notification about this finding was sent (risky services: once per finding). */
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("exposure_finding_uq").on(t.assetId, t.rule, t.subject),
+    index("exposure_finding_asset_idx").on(t.assetId, t.state, t.severityRank, t.id),
+    index("exposure_finding_org_idx").on(t.organizationId, t.state, t.severityRank),
+  ],
+);
+
+/** A port that answered the last stage 2 run, per address. Ports that no longer answer are deleted. */
+export const exposurePort = pgTable(
+  "exposure_port",
+  {
+    assetId: text("asset_id")
+      .notNull()
+      .references(() => exposureAsset.id, { onDelete: "cascade" }),
+    address: text("address").notNull(),
+    port: integer("port").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    service: text("service").notNull(),
+    /** What the service sent first, as plain text (at most 512 bytes), or null. */
+    banner: text("banner"),
+    /** The TLS details of a TLS port (packages/core/src/exposure.ts `TlsSnapshot`). */
+    tls: jsonb("tls").$type<unknown>(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.assetId, t.address, t.port] }),
+    index("exposure_port_org_idx").on(t.organizationId, t.assetId),
+  ],
+);
+
+/**
+ * A host name found in Certificate Transparency logs or in the DNS records of an asset, under the asset's own domain. It is only a
+ * suggestion: nothing is looked at until an admin adds it as an asset.
+ */
+export const exposureDiscovery = pgTable(
+  "exposure_discovery",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    assetId: text("asset_id")
+      .notNull()
+      .references(() => exposureAsset.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    source: text("source", { enum: ["ct", "dns"] }).notNull(),
+    state: text("state", { enum: ["new", "dismissed"] })
+      .notNull()
+      .default("new"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("exposure_discovery_uq").on(t.organizationId, t.name),
+    index("exposure_discovery_asset_idx").on(t.assetId, t.name),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
 /* Wazuh (ADR 0015): read-only XDR integration                                 */
 /* -------------------------------------------------------------------------- */
 

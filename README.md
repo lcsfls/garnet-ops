@@ -21,7 +21,7 @@ with a CI check per pull request
 agent, with a setup script and pinned host keys ([docs/servers.md](docs/servers.md)), a
 read-only Proxmox VE view of nodes, VMs and containers with a pinned API certificate
 ([docs/proxmox.md](docs/proxmox.md)), a read-only view of your UniFi network devices through the official local API
-with a pinned console certificate and an optional preview of blocked threats on the globe ([docs/unifi.md](docs/unifi.md)), AI triage of findings with your own OpenAI-compatible model
+with a pinned console certificate and an optional preview of blocked threats on the globe ([docs/unifi.md](docs/unifi.md)), a view of your own public domains and addresses from the outside with proof of control before any active check ([docs/exposure.md](docs/exposure.md)), AI triage of findings with your own OpenAI-compatible model
 ([docs/ai.md](docs/ai.md)), fix proposals with pull requests that raise a vulnerable dependency to its
 fixed version, opened with a separate write token per repository and always left to your review
 ([docs/fix-prs.md](docs/fix-prs.md)), a read-only XDR page for your own Wazuh with alerts,

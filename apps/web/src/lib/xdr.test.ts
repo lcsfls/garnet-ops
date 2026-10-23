@@ -51,7 +51,7 @@ describe("navigation", () => {
     const group = navFor(me("viewer"), { xdr: true }).find((g) => g.items.some((i) => i.to === "/xdr"));
     expect(group?.label).toBe("shell.groupInfrastructure");
     // The attack overview is built from Wazuh alerts and is listed right after XDR.
-    expect(group?.items.map((i) => i.to)).toEqual(["/servers", "/xdr", "/attacks"]);
+    expect(group?.items.map((i) => i.to)).toEqual(["/servers", "/exposure", "/xdr", "/attacks"]);
     expect(items({})).not.toContain("/attacks");
     expect(navTrail("/attacks")?.item.label).toBe("nav.attacks");
   });

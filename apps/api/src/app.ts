@@ -13,6 +13,7 @@ import { aiRoutes } from "./routes/ai.ts";
 import { attackRoutes } from "./routes/attacks.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { directoryRoutes } from "./routes/directory.ts";
+import { exposureRoutes } from "./routes/exposure.ts";
 import { findingRoutes } from "./routes/findings.ts";
 import { fixRoutes } from "./routes/fixes.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
@@ -126,6 +127,7 @@ const v1 = new Hono<AppEnv>()
   .route("/hosts", hostRoutes)
   .route("/proxmox", proxmoxRoutes)
   .route("/unifi", unifiRoutes)
+  .route("/exposure", exposureRoutes)
   .route("/xdr", xdrRoutes)
   .route("/attacks", attackRoutes)
   .route("/maintenance", maintenanceRoutes)

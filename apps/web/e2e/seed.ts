@@ -154,6 +154,30 @@ export const UNIFI = {
   ipsUser: "garnetops-view",
 };
 
+/** External exposure as the worker would have left it (ADR 0023). The worker of the e2e run only handles what a test starts. */
+export const EXPOSURE = {
+  /** Verified by DNS, subdomains included, stage 2 on with a finished run: a critical and a high port, an expiring certificate. */
+  main: { id: "exa_e2eseeded0000000001", value: "example.com" },
+  /** Not verified itself, covered by the parent: a clean site. */
+  covered: { id: "exa_e2eseeded0000000002", value: "www.example.com" },
+  /** Not verified: an expired certificate and plain HTTP without a redirect. */
+  shop: { id: "exa_e2eseeded0000000003", value: "shop.example.net" },
+  /** The proof is gone; the last look failed. */
+  lost: { id: "exa_e2eseeded0000000004", value: "old.example.org" },
+  /** An address asset, with its reverse name. */
+  address: { id: "exa_e2eseeded0000000005", value: "203.0.113.20" },
+  /** Remote text that is hostile on purpose: it must stay text. */
+  hostile: { id: "exa_e2eseeded0000000006", value: "odd.example.com" },
+  total: 6,
+  attention: 3,
+  unverified: 5,
+  stage2: 1,
+  /** Open findings by severity over all assets. */
+  open: { critical: 1, high: 2, medium: 3, low: 9 },
+  token: "e2eSeededToken0123456789abcdefghijklmnopqr",
+  hostileBanner: `<img src=x onerror="document.title='pwned'">`,
+};
+
 /** Wazuh as the sync would have left it (ADR 0015). No worker runs the sync here: its part is played by these rows. */
 export const WAZUH = {
   connection: { id: "wzc_e2eseeded0000000001", name: "Lab Wazuh" },
@@ -409,6 +433,7 @@ export async function seed(): Promise<void> {
     await seedServers(client, org.id, now);
     await seedProxmox(client, org.id, now);
     await seedUnifi(client, org.id, now);
+    await seedExposure(client, org.id, now);
     await seedWazuhRows(client, org.id, now);
     await seedGeoipRows(client);
     await seedAi(client, org.id, now);
@@ -979,6 +1004,430 @@ async function seedProxmox(client: Client, orgId: string, now: Date) {
      values ('pxr_e2eseeded0000000001', $1, $2, 'succeeded', 'schedule', 3, $3, 41, '["nodeOffline"]', $4, $4, $4)`,
     [orgId, PROXMOX.main.id, PROXMOX.total, minutes(5)],
   );
+}
+
+async function seedExposure(client: Client, orgId: string, now: Date) {
+  const minutes = (n: number) => new Date(now.getTime() - n * 60_000);
+  const days = (n: number) => new Date(now.getTime() - n * 24 * 3600 * 1000);
+  const iso = (d: Date) => d.toISOString();
+  const cert = (name: string, validTo: Date, over: Record<string, unknown> = {}) => ({
+    subject: name,
+    issuer: "Example Test CA",
+    sans: [name],
+    validFrom: iso(days(60)),
+    validTo: iso(validTo),
+    fingerprint: fingerprintOfCertificate(`exposure-${name}`),
+    keyType: "ec",
+    keyBits: 256,
+    selfSigned: false,
+    ...over,
+  });
+  const tls = (
+    address: string,
+    validTo: Date,
+    over: Record<string, unknown> = {},
+    certOver: Record<string, unknown> = {},
+  ) => ({
+    address,
+    port: 443,
+    ok: true,
+    error: null,
+    protocol: "TLSv1.3",
+    cipher: "TLS_AES_256_GCM_SHA384",
+    trusted: true,
+    trustError: null,
+    nameMatches: true,
+    cert: cert(address, validTo, certOver),
+    chainLength: 2,
+    legacy: { tls10: false, tls11: false },
+    ...over,
+  });
+  const headers = {
+    "strict-transport-security": "max-age=31536000",
+    "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "permissions-policy": "geolocation=()",
+  };
+  const dnsFull = (name: string) => ({
+    failed: [],
+    a: ["203.0.113.10"],
+    aaaa: [],
+    cname: [],
+    mx: [{ priority: 10, exchange: `mail.${name}` }],
+    ns: [`ns1.${name}`, "ns.dns-provider.example.net"],
+    caa: [{ critical: false, tag: "issue", value: "ca.example.net" }],
+    caaFound: true,
+    spf: { records: 1, policy: "fail", record: "v=spf1 mx -all" },
+    dmarc: { found: true, policy: "reject", record: "v=DMARC1; p=reject; rua=mailto:dmarc@example.com" },
+    dnssec: "unknown",
+  });
+  const passive = (over: Record<string, unknown>) => ({
+    version: 1,
+    takenAt: iso(minutes(30)),
+    kind: "domain",
+    addresses: ["203.0.113.10"],
+    nonPublic: [],
+    ptr: [],
+    plain: {
+      address: "203.0.113.10",
+      status: 301,
+      location: "https://example.com/",
+      redirectsToHttps: true,
+      error: null,
+    },
+    geo: [{ address: "203.0.113.10", country: "DE", asn: 64500, org: "Example Hosting" }],
+    resolves: true,
+    httpsOpen: true,
+    ...over,
+  });
+  const http = (
+    url: string,
+    status: number,
+    hdrs: Record<string, string>,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    address: "203.0.113.10",
+    url,
+    finalUrl: url,
+    status,
+    redirects: [],
+    headers: hdrs,
+    error: null,
+    ...extra,
+  });
+  const asset = (a: { id: string; value: string }, kind: "domain" | "ip", cols: Record<string, unknown>) => {
+    const columns = Object.keys(cols);
+    return client.query(
+      `insert into exposure_asset (id, organization_id, kind, value, verify_token, ${columns.join(", ")})
+       values ($1, $2, $3, $4, $5, ${columns.map((_, i) => `$${i + 6}`).join(", ")})`,
+      [
+        a.id,
+        orgId,
+        kind,
+        a.value,
+        EXPOSURE.token + a.id.slice(-1),
+        ...columns.map((c) =>
+          typeof cols[c] === "object" && cols[c] !== null && !(cols[c] instanceof Date)
+            ? JSON.stringify(cols[c])
+            : cols[c],
+        ),
+      ],
+    );
+  };
+
+  const main = EXPOSURE.main;
+  await asset(main, "domain", {
+    include_subdomains: true,
+    verify_state: "verified",
+    verify_method: "dns",
+    verified_at: minutes(60),
+    verify_checked_at: minutes(60),
+    stage2_enabled: true,
+    stage2_schedule: "daily",
+    stage2_acknowledged_by: (await client.query<{ id: string }>('select id from "user" limit 1')).rows[0]?.id,
+    stage2_acknowledged_at: days(2),
+    last_passive_at: minutes(30),
+    last_active_at: minutes(25),
+    passive: passive({
+      name: main.value,
+      dns: dnsFull(main.value),
+      tls: [
+        tls(
+          "203.0.113.10",
+          new Date(now.getTime() + (12 * 24 + 6) * 3600 * 1000),
+          {},
+          { subject: main.value, sans: [main.value, `www.${main.value}`] },
+        ),
+      ],
+      http: http(`https://${main.value}/`, 200, { ...headers, server: "nginx/1.22.1" }),
+    }),
+    active: {
+      version: 1,
+      takenAt: iso(minutes(25)),
+      addresses: ["203.0.113.10"],
+      open: [],
+      checked: 30,
+      closed: 26,
+      noAnswer: 0,
+      stopped: null,
+    },
+    cert_notified_level: 14,
+  });
+  await asset(EXPOSURE.covered, "domain", {
+    last_passive_at: minutes(40),
+    passive: passive({
+      name: EXPOSURE.covered.value,
+      dns: dnsFull(EXPOSURE.covered.value),
+      tls: [tls("203.0.113.10", new Date(now.getTime() + 200 * 24 * 3600 * 1000))],
+      http: http(`https://${EXPOSURE.covered.value}/`, 200, headers),
+    }),
+  });
+  await asset(EXPOSURE.shop, "domain", {
+    last_passive_at: minutes(50),
+    passive: passive({
+      name: EXPOSURE.shop.value,
+      dns: { ...dnsFull(EXPOSURE.shop.value), mx: [], dmarc: { found: false, policy: null, record: null } },
+      tls: [
+        tls("203.0.113.30", new Date(now.getTime() - (4 * 24 + 18) * 3600 * 1000), {
+          trusted: false,
+          trustError: "CERT_HAS_EXPIRED",
+        }),
+      ],
+      http: http(`https://${EXPOSURE.shop.value}/`, 200, { server: "Apache/2.4.57 (Debian)" }),
+      plain: { address: "203.0.113.30", status: 200, location: null, redirectsToHttps: false, error: null },
+      addresses: ["203.0.113.30"],
+      geo: [{ address: "203.0.113.30", country: "FR", asn: 64501, org: "Example Cloud" }],
+    }),
+  });
+  await asset(EXPOSURE.lost, "domain", {
+    verify_state: "lost",
+    verify_method: "dns",
+    verified_at: days(3),
+    verify_checked_at: minutes(20),
+    verify_error: "dnsRecordMissing",
+    last_passive_at: days(2),
+    passive_error: "unexpected",
+    passive: passive({
+      name: EXPOSURE.lost.value,
+      dns: dnsFull(EXPOSURE.lost.value),
+      tls: [],
+      http: null,
+      httpsOpen: false,
+      plain: null,
+    }),
+  });
+  await asset(EXPOSURE.address, "ip", {
+    last_passive_at: minutes(70),
+    passive: passive({
+      kind: "ip",
+      name: EXPOSURE.address.value,
+      dns: null,
+      ptr: ["gateway.example.com"],
+      addresses: ["203.0.113.20"],
+      tls: [tls("203.0.113.20", new Date(now.getTime() + 90 * 24 * 3600 * 1000), { nameMatches: null })],
+      http: http("https://203.0.113.20/", 403, { ...headers }),
+      geo: [{ address: "203.0.113.20", country: null, asn: null, org: null }],
+    }),
+  });
+  await asset(EXPOSURE.hostile, "domain", {
+    last_passive_at: minutes(15),
+    passive: passive({
+      name: EXPOSURE.hostile.value,
+      dns: {
+        ...dnsFull(EXPOSURE.hostile.value),
+        cname: [EXPOSURE.hostileBanner],
+        ns: [EXPOSURE.hostileBanner],
+      },
+      tls: [
+        tls(
+          "203.0.113.10",
+          new Date(now.getTime() + 100 * 24 * 3600 * 1000),
+          {},
+          { subject: EXPOSURE.hostileBanner, issuer: EXPOSURE.hostileBanner, sans: [EXPOSURE.hostileBanner] },
+        ),
+      ],
+      http: http(`https://${EXPOSURE.hostile.value}/`, 200, {
+        ...headers,
+        server: EXPOSURE.hostileBanner,
+        "x-powered-by": "PHP/8.2.7",
+      }),
+    }),
+  });
+
+  const finding = (
+    id: number,
+    a: { id: string },
+    stage: "passive" | "active",
+    rule: string,
+    subject: string,
+    severity: "critical" | "high" | "medium" | "low",
+    params: Record<string, string | number>,
+    state: "open" | "resolved" = "open",
+  ) =>
+    client.query(
+      `insert into exposure_finding (id, organization_id, asset_id, stage, rule, subject, severity, severity_rank, state, params,
+         first_seen_at, last_seen_at, resolved_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [
+        `exf_e2eseeded${String(id).padStart(8, "0")}`,
+        orgId,
+        a.id,
+        stage,
+        rule,
+        subject,
+        severity,
+        { critical: 4, high: 3, medium: 2, low: 1 }[severity],
+        state,
+        JSON.stringify(params),
+        days(4),
+        minutes(30),
+        state === "resolved" ? days(1) : null,
+      ],
+    );
+  // example.com: a critical Docker API, a high MySQL, a medium certificate with 12 days left and a low banner with a version.
+  await finding(1, main, "active", "portExposed", "2375", "critical", {
+    port: 2375,
+    service: "docker",
+    category: "managementApi",
+    addresses: "203.0.113.10",
+  });
+  await finding(2, main, "active", "portExposed", "3306", "high", {
+    port: 3306,
+    service: "mysql",
+    category: "database",
+    addresses: "203.0.113.10",
+  });
+  await finding(3, main, "passive", "tlsExpiring", "443", "medium", {
+    port: 443,
+    address: "203.0.113.10",
+    days: 12,
+  });
+  await finding(4, main, "passive", "httpBannerVersion", "server", "low", {
+    header: "server",
+    banner: "nginx/1.22.1",
+  });
+  await finding(5, main, "passive", "httpCspMissing", "", "low", {}, "resolved");
+  // shop.example.net: high expired certificate, medium no redirect, low missing headers
+  await finding(6, EXPOSURE.shop, "passive", "tlsExpired", "443", "high", {
+    port: 443,
+    address: "203.0.113.30",
+    days: 5,
+  });
+  await finding(7, EXPOSURE.shop, "passive", "httpNoRedirectToHttps", "", "medium", { status: 200 });
+  for (const [i, rule] of [
+    "httpHstsMissing",
+    "httpCspMissing",
+    "httpNosniffMissing",
+    "httpFramingMissing",
+    "httpReferrerPolicyMissing",
+    "httpPermissionsPolicyMissing",
+  ].entries()) {
+    await finding(8 + i, EXPOSURE.shop, "passive", rule, "", "low", {});
+  }
+  // The odd one has a banner finding whose text is hostile; the address has a missing framing header; the lost one a mail finding.
+  await finding(20, EXPOSURE.hostile, "passive", "httpBannerVersion", "server", "low", {
+    header: "server",
+    banner: EXPOSURE.hostileBanner,
+  });
+  await finding(21, EXPOSURE.address, "passive", "httpFramingMissing", "", "low", {});
+  await finding(22, EXPOSURE.lost, "passive", "dnsNoDmarc", "", "medium", {});
+
+  const port = (
+    a: { id: string },
+    p: number,
+    service: string,
+    banner: string | null,
+    tlsJson: unknown | null,
+  ) =>
+    client.query(
+      `insert into exposure_port (asset_id, organization_id, address, port, service, banner, tls, first_seen_at, last_seen_at)
+       values ($1, $2, '203.0.113.10', $3, $4, $5, $6, $7, $8)`,
+      [
+        a.id,
+        orgId,
+        p,
+        service,
+        banner,
+        tlsJson === null ? null : JSON.stringify(tlsJson),
+        days(4),
+        minutes(25),
+      ],
+    );
+  await port(main, 22, "ssh", "SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u3", null);
+  await port(main, 2375, "docker", null, null);
+  await port(main, 3306, "mysql", null, null);
+  await port(
+    main,
+    8443,
+    "httpsAlt",
+    null,
+    tls("203.0.113.10", new Date(now.getTime() + 150 * 24 * 3600 * 1000), { port: 8443 }),
+  );
+  await port(main, 25, "smtp", `220 mail.example.com ESMTP ${EXPOSURE.hostileBanner}\n220 ready`, null);
+  await client.query(`update exposure_asset set active = $2 where id = $1`, [
+    main.id,
+    JSON.stringify({
+      version: 1,
+      takenAt: iso(minutes(25)),
+      addresses: ["203.0.113.10"],
+      open: [
+        { address: "203.0.113.10", port: 22 },
+        { address: "203.0.113.10", port: 25 },
+        { address: "203.0.113.10", port: 2375 },
+        { address: "203.0.113.10", port: 3306 },
+        { address: "203.0.113.10", port: 8443 },
+      ],
+      checked: 30,
+      closed: 25,
+      noAnswer: 0,
+      stopped: null,
+    }),
+  ]);
+
+  const run = (
+    id: number,
+    a: { id: string },
+    stage: "passive" | "active",
+    state: "succeeded" | "failed",
+    trigger: string,
+    ago: number,
+    error: string | null,
+    counts: Record<string, number> | null,
+    ports: number | null,
+  ) =>
+    client.query(
+      `insert into exposure_run (id, organization_id, asset_id, stage, state, trigger, error, finding_counts, open_ports, started_at, finished_at, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $10)`,
+      [
+        `exr_e2eseeded${String(id).padStart(8, "0")}`,
+        orgId,
+        a.id,
+        stage,
+        state,
+        trigger,
+        error,
+        counts ? JSON.stringify(counts) : null,
+        ports,
+        minutes(ago),
+      ],
+    );
+  await run(
+    1,
+    main,
+    "passive",
+    "succeeded",
+    "schedule",
+    30,
+    null,
+    { critical: 0, high: 0, medium: 1, low: 1 },
+    null,
+  );
+  await run(
+    2,
+    main,
+    "active",
+    "succeeded",
+    "enable",
+    25,
+    null,
+    { critical: 1, high: 1, medium: 0, low: 0 },
+    5,
+  );
+  await run(3, main, "passive", "failed", "manual", 60 * 24, "timeout", null, null);
+  await run(4, EXPOSURE.lost, "passive", "failed", "schedule", 60 * 24 * 2, "unexpected", null, null);
+
+  for (const [i, [name, source]] of [
+    ["api.example.com", "ct"],
+    ["staging.example.com", "dns"],
+    [`x${EXPOSURE.hostileBanner}.example.com`, "ct"],
+  ].entries()) {
+    await client.query(
+      `insert into exposure_discovery (id, organization_id, asset_id, name, source, state, first_seen_at, last_seen_at)
+       values ($1, $2, $3, $4, $5, 'new', $6, $6)`,
+      [`exd_e2eseeded${String(i + 1).padStart(8, "0")}`, orgId, main.id, name, source, minutes(30)],
+    );
+  }
 }
 
 async function seedUnifi(client: Client, orgId: string, now: Date) {

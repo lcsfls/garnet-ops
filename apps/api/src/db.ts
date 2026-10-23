@@ -25,6 +25,9 @@ export const QUEUES = {
   /** UniFi (ADR 0022): reading the certificate a console presents, and the read-only sync of the official local API. */
   unifiCertificate: "unifi.certificate",
   unifiSync: "unifi.sync",
+  /** External exposure (ADR 0023): checking the proof of control, and a run of stage 1 (passive) or stage 2 (light active). */
+  exposureVerify: "exposure.verify",
+  exposureRun: "exposure.run",
   /** Wazuh (ADR 0015): reading the certificate of an endpoint, the read-only sync, and the optional AI summary. */
   xdrCertificate: "xdr.certificate",
   xdrSync: "xdr.sync",

@@ -59,6 +59,10 @@ const EVENTS = [
   "unifi.certificate_changed",
   "unifi.device_offline",
   "unifi.firmware_update_available",
+  "exposure.certificate_expiring",
+  "exposure.verification_lost",
+  "exposure.new_open_port",
+  "exposure.risky_service",
   "team.invitation_accepted",
   "team.role_changed",
   "system.update_finished",
@@ -193,6 +197,67 @@ test("UniFi notifications read as sentences, with a link to the network devices,
   await expect(german.getByText("UniFi-Zertifikat geändert: Main console")).toBeVisible();
   await expect(german.getByText("UniFi-Gerät offline: ap-hall")).toBeVisible();
   await expect(german.getByText("UniFi-Firmware-Update verfügbar: <b>gateway</b>")).toBeVisible();
+  expect(problems).toEqual([]);
+});
+
+test("Exposure notifications read as sentences, with a link to the asset, in English and German", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  const link = "/exposure/exa_e2eseeded0000000001";
+  await notify({
+    titleKey: "exposureCertificateExpiring",
+    event: "exposure.certificate_expiring",
+    params: { asset: "example.com", days: 7 },
+    link,
+  });
+  await notify({
+    titleKey: "exposureCertificateExpired",
+    event: "exposure.certificate_expiring",
+    params: { asset: "shop.example.net", days: 0 },
+    link,
+  });
+  await notify({
+    titleKey: "exposureVerificationLost",
+    event: "exposure.verification_lost",
+    // A name is text: it stays text.
+    params: { asset: "<b>old</b>.example.org" },
+    link,
+  });
+  await notify({
+    titleKey: "exposureNewOpenPort",
+    event: "exposure.new_open_port",
+    params: { asset: "example.com", count: 2, ports: "3306, 5432" },
+    link,
+  });
+  await notify({
+    titleKey: "exposureRiskyService",
+    event: "exposure.risky_service",
+    params: { asset: "example.com", count: 1, port: 3306, service: "mysql" },
+    link,
+  });
+  await page.goto("/");
+  await bell(page).click();
+  const list = panel(page);
+  await expect(list.getByText("Certificate expires soon: example.com")).toBeVisible();
+  await expect(list.getByText("Days left on the certificate: 7.")).toBeVisible();
+  await expect(list.getByText("Certificate expired: shop.example.net")).toBeVisible();
+  await expect(list.getByText("Verification lost: <b>old</b>.example.org")).toBeVisible();
+  await expect(list.getByText("Open since the last run (2): 3306, 5432.")).toBeVisible();
+  await expect(list.getByText("Risky service reachable: example.com")).toBeVisible();
+  await expect(list.locator("b")).toHaveCount(0);
+  await list.getByRole("link", { name: /Risky service reachable/ }).click();
+  await expect(page).toHaveURL(/\/exposure\/exa_e2eseeded0000000001$/);
+  await expect(page.getByRole("heading", { name: "example.com", level: 1 })).toBeVisible();
+
+  await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "de");
+  await page.getByRole("button", { name: /^Benachrichtigungen/ }).click();
+  const german = page.getByRole("region", { name: "Ihre Benachrichtigungen" });
+  await expect(german.getByText("Zertifikat läuft bald ab: example.com")).toBeVisible();
+  await expect(german.getByText("Verifizierung verloren: <b>old</b>.example.org")).toBeVisible();
+  await expect(german.getByText("Riskanter Dienst erreichbar: example.com")).toBeVisible();
   expect(problems).toEqual([]);
 });
 
@@ -410,7 +475,7 @@ test.describe("the matrix on the account page", () => {
     await page.goto("/account?section=notifications");
     await expect(page.getByRole("heading", { name: "Notifications", level: 2 })).toBeVisible();
     const table = matrix(page);
-    await expect(table.getByRole("rowheader")).toHaveCount(14); // one row per event; the group rows are column groups
+    await expect(table.getByRole("rowheader")).toHaveCount(18); // one row per event; the group rows are column groups
     for (const group of ["Code", "Infrastructure", "Account and team", "System"]) {
       await expect(table.getByRole("columnheader", { name: group })).toBeVisible();
     }
@@ -419,6 +484,11 @@ test.describe("the matrix on the account page", () => {
       ["unifi.certificate_changed", "A UniFi certificate changed"],
       ["unifi.device_offline", "A UniFi device is offline"],
       ["unifi.firmware_update_available", "A UniFi firmware update is available"],
+      // The exposure events (ADR 0023) likewise.
+      ["exposure.certificate_expiring", "An exposed certificate expires soon"],
+      ["exposure.verification_lost", "An asset lost its verification"],
+      ["exposure.new_open_port", "A new port is open on an asset"],
+      ["exposure.risky_service", "A risky service is reachable from the internet"],
     ] as const) {
       const row = table.locator(`tr[data-event='${event}']`);
       await expect(row.getByRole("rowheader")).toContainText(label);

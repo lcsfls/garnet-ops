@@ -12,6 +12,7 @@ import {
   Search,
   Server,
   Sparkles,
+  Telescope,
   UserRound,
 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
@@ -36,6 +37,7 @@ interface Hits {
   repositories: { id: string; name: string }[];
   servers: { id: string; name: string }[];
   guests: { id: string; name: string; vmid: number }[];
+  assets: { id: string; value: string }[];
   vulnerabilities: { id: string }[];
   packages: { name: string; type: string }[];
 }
@@ -104,6 +106,13 @@ export function CommandSearch({ me }: { me: Me }) {
               hint: t("shell.searchKindServer"),
               icon: Server,
               go: () => navigate({ to: "/servers/$id", params: { id: s.id } }),
+            })),
+            ...hits.data.assets.map((x) => ({
+              id: `asset:${x.id}`,
+              label: x.value,
+              hint: t("shell.searchKindAsset"),
+              icon: Telescope,
+              go: () => navigate({ to: "/exposure/$id", params: { id: x.id }, search: {} }),
             })),
             ...hits.data.guests.map((g) => ({
               id: `guest:${g.id}`,
@@ -178,6 +187,16 @@ export function CommandSearch({ me }: { me: Me }) {
         label: t("shell.searchGoTo", { page: xdrName }),
         icon: Radar,
         go: () => navigate({ to: "/settings", search: { section: "xdr" } }),
+      });
+    }
+    // Settings, Exposure is a section of the settings page (owners and admins).
+    const exposureName = t("exposure.settingsPageName");
+    if (isAdmin(me) && (!q || exposureName.toLowerCase().includes(q.toLowerCase()))) {
+      pages.push({
+        id: "page:settings-exposure",
+        label: t("shell.searchGoTo", { page: exposureName }),
+        icon: Telescope,
+        go: () => navigate({ to: "/settings", search: { section: "exposure" } }),
       });
     }
     // Settings, Attack overview is a section of the settings page (owners and admins).

@@ -80,6 +80,10 @@ describe("roles", () => {
       "unifi.certificate_changed",
       "unifi.device_offline",
       "unifi.firmware_update_available",
+      "exposure.certificate_expiring",
+      "exposure.verification_lost",
+      "exposure.new_open_port",
+      "exposure.risky_service",
       "team.invitation_accepted",
       "system.update_finished",
     ] as const) {

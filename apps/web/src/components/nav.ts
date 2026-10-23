@@ -11,6 +11,7 @@ import {
   Server,
   Settings,
   ShieldCheck,
+  Telescope,
   Users,
 } from "lucide-react";
 import type { MessageKey } from "../lib/i18n.ts";
@@ -24,6 +25,7 @@ export type NavTo =
   | "/fixes"
   | "/packages"
   | "/servers"
+  | "/exposure"
   | "/xdr"
   | "/attacks"
   | "/settings"
@@ -65,6 +67,7 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     label: "shell.groupInfrastructure",
     items: [
       { to: "/servers", label: "nav.servers", icon: Server },
+      { to: "/exposure", label: "nav.exposure", icon: Telescope },
       { to: "/xdr", label: "nav.xdr", icon: Radar, feature: "xdr" },
       // Built from Wazuh's alerts, so it is listed with the XDR page: only while a Wazuh connection exists.
       // ... or while the UniFi threat events are on (ADR 0022).

@@ -155,6 +155,13 @@
       "when": 1792705875971,
       "tag": "0021_attack_summary_unifi",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792708462585,
+      "tag": "0022_exposure",
+      "breakpoints": true
     }
   ]
 }

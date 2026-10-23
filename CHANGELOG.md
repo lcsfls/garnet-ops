@@ -10,6 +10,36 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- **External exposure monitoring** (ADR 0023, `docs/exposure.md`). New page **Infrastructure → Exposure** watches your organisation's
+  own public domains, host names and single public IP addresses from the outside, run by your own installation. Up to 200 assets per
+  organisation; only public names and addresses are accepted (private, loopback, link-local, shared, documentation and reserved ranges
+  are refused). **Stage 1, from outside, daily and on request, needs no proof:** DNS (A, AAAA, CNAME, MX, NS, CAA, SPF, DMARC), the TLS
+  handshake on 443 (chain, names, expiry, key, protocol, cipher, and whether TLS 1.0 and 1.1 are still accepted), one `GET /` over HTTPS
+  (at most 3 redirects, only inside the registrable domain or to verified assets; security headers and `Server` banner kept, the body
+  read up to 64 KiB and never stored) and a look at plain HTTP, and GeoIP and ASN from the local tables. Plain-rule findings
+  (certificate expired or expiring at 30, 14 and 7 days, untrusted or wrong-name certificate, weak key, old TLS, missing HSTS and other
+  headers, a banner with a version, no redirect to HTTPS, no SPF, no DMARC or `p=none`, no CAA, a dangling CNAME), no CVE matching of
+  banners and no grade: counts by severity. **Verification:** a DNS TXT record `_garnetops-challenge.<domain>` with
+  `garnetops-verify=<token>` or the file `/.well-known/garnetops-verify.txt` (a 256-bit token per organisation and asset; not a secret,
+  stored as is); checked daily and before every stage 2 run; a proof that disappears switches stage 2 off at once and tells owners and
+  admins. A verified domain covers its subdomains only with "Include subdomains". **Stage 2, light active checks, off by default, only
+  for verified assets with an explicit, audited acknowledgement per asset** ("I am authorised to test the infrastructure behind this
+  name", shown after a warning that a verified domain does not prove ownership of the CDN, hosting or cloud behind it): a TCP connect
+  to a fixed list of 30 common ports, at most 4 at a time, at least 200 ms apart, 3 s connect timeout, at most once per 24 hours per
+  asset (daily or weekly), a banner of at most 512 bytes read in 2 s only where the service speaks first, TLS details on TLS ports;
+  nothing is ever written to a port apart from the TLS handshake. Findings for risky services (critical Docker API; high Telnet, SMB, RDP,
+  VNC, databases, Redis, Elasticsearch, Memcached, ...; medium FTP; low cleartext mail and development ports) and new open ports.
+  **Certificate Transparency** (Settings → Exposure; off by default, step-up and an acknowledgement, audited): subdomain suggestions
+  from crt.sh for verified domains, with the exact request shown; suggestions are never scanned until added. Pentesting (exploitation,
+  brute force, fuzzing, credential testing, denial of service) is out of scope and not built. Four new notification events (Account →
+  Notifications; owners and admins; app and email): `exposure.certificate_expiring`, `exposure.verification_lost`,
+  `exposure.new_open_port`, `exposure.risky_service`. Navigation entry, command search (the page, its settings section and each asset),
+  audit filter **Exposure**, English and German, layout steps at base, wide and xwide. API under `/api/v1/exposure`. Migration 0022
+  (additive: `exposure_settings`, `exposure_asset`, `exposure_run`, `exposure_finding`, `exposure_port`, `exposure_discovery`). New
+  audit actions `exposure.*`. No new dependency and no scanner binary (`node:dns`, `node:net`, `node:tls`, `node:https`). Not tested
+  against the real internet or the real crt.sh, only against local servers, throw-away certificates and a fake resolver. This is not
+  legal advice: you are responsible for what you check.
+
 - **UniFi IPS events in the attack overview's "Summarise with AI"** (ADR 0022 section 7.6, `docs/attacks.md`). The summary now
   also receives, as **numbers only**, the UniFi events of each period (blocked and alerted, source addresses, the same figures for
   the period before) and the counts per country code and AS number, in a block apart from Wazuh's so the two are never added up.
@@ -609,6 +639,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Security
 
+- **External exposure is built so that it cannot quietly become a scanner against third parties** (ADR 0023): assets must be public
+  names or addresses and every resolved address is checked again before a connection (a mixed answer means no connection at all); stage 2
+  needs a proof of control, a per-asset acknowledgement written to the audit log, a fixed port list, fixed rate and concurrency limits and
+  a once-a-day limit enforced in the worker, API and schedule; the proof is re-checked daily and before each run and a lost proof stops the
+  run between two ports; the code never writes to a port except the TLS handshake (pinned by tests that record every byte); banners,
+  headers, certificate names and DNS answers are hostile text, cleaned, cut and shown as text only; the Certificate Transparency
+  lookup is opt-in with step-up and acknowledgement.
 - UniFi integration (ADR 0022): read-only by construction (a client that can only send allow-listed `GET` requests and, for the
   optional preview, the console's login and logout); the API key and the IPS password are sealed and opened by the worker only;
   the console's certificate is pinned and checked before the first byte of any request, so neither is sent to a console that

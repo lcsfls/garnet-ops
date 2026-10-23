@@ -12,6 +12,13 @@ import {
 } from "./directory.ts";
 import { env } from "./env.ts";
 import {
+  EXPOSURE_RUN_QUEUE,
+  EXPOSURE_VERIFY_QUEUE,
+  runExposure,
+  runVerify,
+  startExposureScheduler,
+} from "./exposure.ts";
+import {
   checkWriteAccess,
   FIX_PR_CHECK_QUEUE,
   FIX_PR_QUEUE,
@@ -59,6 +66,7 @@ import { startWazuhLivePoller } from "./wazuh-live.ts";
 import { runWazuhSummary, sweepWazuhSummaries, WAZUH_SUMMARY_QUEUE } from "./wazuh-summary.ts";
 
 const AI_CONCURRENCY = 4;
+const EXPOSURE_CONCURRENCY = 2;
 const DIRECTORY_CONCURRENCY = 4;
 
 await mkdir(env.GARNETOPS_WORK_DIR, { recursive: true });
@@ -76,6 +84,8 @@ await boss.createQueue(PROXMOX_CERT_QUEUE);
 await boss.createQueue(PROXMOX_SYNC_QUEUE);
 await boss.createQueue(UNIFI_CERT_QUEUE);
 await boss.createQueue(UNIFI_SYNC_QUEUE);
+await boss.createQueue(EXPOSURE_VERIFY_QUEUE);
+await boss.createQueue(EXPOSURE_RUN_QUEUE);
 await boss.createQueue(WAZUH_CERT_QUEUE);
 await boss.createQueue(WAZUH_SYNC_QUEUE);
 await boss.createQueue(WAZUH_SUMMARY_QUEUE);
@@ -169,6 +179,21 @@ await boss.work<{ runId: string }>(UNIFI_SYNC_QUEUE, { batchSize: 1 }, async ([j
     `unifi sync ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`,
   );
 });
+// External exposure (ADR 0023): the proof of control, stage 1 (passive) and stage 2 (light active). Every outbound
+// connection to an asset is made here, after the address was checked.
+await boss.work<{ assetId: string }>(EXPOSURE_VERIFY_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await runVerify(job.data.assetId);
+});
+for (let i = 0; i < EXPOSURE_CONCURRENCY; i++) {
+  await boss.work<{ runId: string }>(EXPOSURE_RUN_QUEUE, { batchSize: 1 }, async ([job]) => {
+    if (!job) return;
+    const started = performance.now();
+    await runExposure(job.data.runId);
+    console.log(
+      `exposure ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`,
+    );
+  });
+}
 // Wazuh (ADR 0015): certificate reads, read-only syncs and the optional AI summary of the aggregates.
 await boss.work<{ endpointId: string }>(WAZUH_CERT_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await readWazuhCertificate(job.data.endpointId);
@@ -230,6 +255,7 @@ await startFixPrScheduler(boss);
 await startScheduler(boss);
 await startProxmoxScheduler(boss);
 await startUnifiScheduler(boss);
+await startExposureScheduler(boss);
 await startWazuhScheduler(boss);
 await startAttacksScheduler(boss);
 // The live attack feed (ADR 0021): a light, read-only poll of the Wazuh indexer, every 30 seconds by default.

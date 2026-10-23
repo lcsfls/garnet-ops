@@ -169,6 +169,47 @@ export const PROXMOX_SORTS = [
   "snapshot",
 ] as const;
 
+export const EXPOSURE_SORTS = [
+  "value",
+  "verification",
+  "critical",
+  "high",
+  "medium",
+  "low",
+  "certificate",
+  "stage2",
+  "lastPassive",
+  "lastActive",
+] as const;
+export const EXPOSURE_STATUSES = ["all", "attention", "unverified", "stage2"] as const;
+
+/** The Exposure page (ADR 0023): filters, sort and position of the asset list; the add dialog. */
+export const exposureSearch = z.object({
+  status: z.enum(EXPOSURE_STATUSES).optional().catch(undefined),
+  q: text(100),
+  cursor: text(512),
+  pageSize,
+  sort: sortOf(EXPOSURE_SORTS),
+  dir,
+  /** Opens the "Add asset" dialog. */
+  add: flag,
+});
+export type ExposureSearch = z.infer<typeof exposureSearch>;
+
+export const EXPOSURE_TABS = ["findings", "dns", "tls", "http", "ports", "history"] as const;
+export type ExposureTab = (typeof EXPOSURE_TABS)[number];
+
+/** One asset: the tab shown, which findings, and the dialogs that can be opened by a link. */
+export const exposureDetailSearch = z.object({
+  tab: z.enum(EXPOSURE_TABS).optional().catch(undefined),
+  findings: z.enum(["open", "resolved", "all"]).optional().catch(undefined),
+  /** Opens the verification dialog. */
+  verify: flag,
+  /** Opens the stage 2 dialog. */
+  stage2: flag,
+});
+export type ExposureDetailSearch = z.infer<typeof exposureDetailSearch>;
+
 export const XDR_AGENT_STATUSES = [
   "active",
   "disconnected",
@@ -344,6 +385,7 @@ export const AUDIT_FILTERS = [
   "notification",
   "proxmox",
   "unifi",
+  "exposure",
   "xdr",
   "attacks",
   "ai",
@@ -373,6 +415,7 @@ export const SETTINGS_SECTIONS = [
   "notifications",
   "proxmox",
   "unifi",
+  "exposure",
   "xdr",
   "attacks",
   "ai",

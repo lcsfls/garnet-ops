@@ -7,6 +7,7 @@ import { AiSettingsPanel } from "../../components/ai-settings-panel.tsx";
 import { systemQuery } from "../../components/app-shell.tsx";
 import { AttacksPanel } from "../../components/attacks-panel.tsx";
 import { DirectoryPanel } from "../../components/directory-panel.tsx";
+import { ExposurePanel } from "../../components/exposure-panel.tsx";
 import { isAdmin } from "../../components/nav.ts";
 import { NotificationsPanel } from "../../components/notifications-panel.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
@@ -49,6 +50,7 @@ const SECTION_LABELS = {
   notifications: "settings.sectionNotifications",
   proxmox: "settings.sectionProxmox",
   unifi: "settings.sectionUnifi",
+  exposure: "settings.sectionExposure",
   xdr: "settings.sectionXdr",
   attacks: "settings.sectionAttacks",
   ai: "ai.sectionName",
@@ -78,6 +80,7 @@ function SettingsPage() {
         s !== "notifications" &&
         s !== "proxmox" &&
         s !== "unifi" &&
+        s !== "exposure" &&
         s !== "xdr" &&
         s !== "attacks" &&
         s !== "ai") ||
@@ -110,6 +113,7 @@ function SettingsPage() {
           {section === "notifications" ? <NotificationsPanel me={me} /> : null}
           {section === "proxmox" ? <ProxmoxPanel me={me} /> : null}
           {section === "unifi" ? <UnifiPanel me={me} /> : null}
+          {section === "exposure" ? <ExposurePanel me={me} /> : null}
           {section === "xdr" ? <XdrPanel me={me} /> : null}
           {section === "attacks" ? <AttacksPanel me={me} /> : null}
           {section === "ai" ? <AiSettingsPanel me={me} /> : null}
@@ -145,6 +149,11 @@ const HELP: Record<SettingsSection, { title: MessageKey; text: MessageKey }[]> =
     { title: "settings.helpUnifiReadOnlyTitle", text: "settings.helpUnifiReadOnlyText" },
     { title: "settings.helpUnifiCertificateTitle", text: "settings.helpUnifiCertificateText" },
     { title: "settings.helpUnifiCloudTitle", text: "settings.helpUnifiCloudText" },
+  ],
+  exposure: [
+    { title: "settings.helpExposureOutsideTitle", text: "settings.helpExposureOutsideText" },
+    { title: "settings.helpExposureCtTitle", text: "settings.helpExposureCtText" },
+    { title: "settings.helpExposureLegalTitle", text: "settings.helpExposureLegalText" },
   ],
   xdr: [
     { title: "settings.helpXdrReadOnlyTitle", text: "settings.helpXdrReadOnlyText" },

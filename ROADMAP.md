@@ -218,6 +218,16 @@ See ADR 0002 and ADR 0004.
       Open: drill-down of single alerts in GarnetOps (the newest are listed, ADR 0021), notifications for Wazuh alerts
 - [ ] Read Wazuh's package inventory and vulnerability states into the same
       host inventory and watch list as agentless hosts
+- [~] External exposure (Infrastructure → Exposure; ADR 0023, `docs/exposure.md`): done: assets (domains, host names, single public
+      addresses; public only; 200 per organisation), stage 1 from outside (DNS with SPF, DMARC and CAA, the TLS handshake with TLS 1.0 and
+      1.1 acceptance, one `GET /` with the security headers and server banner, GeoIP and ASN from the local tables) with plain-rule
+      findings and expiry warnings at 30, 14 and 7 days, proof of control by a DNS TXT record or a file (checked daily and before every
+      run; a lost proof stops stage 2 at once), stage 2 light active checks (30 fixed ports, 4 at a time, 200 ms apart, once a day at
+      most, banners only where a service speaks first; only for verified assets with an audited acknowledgement per asset), opt-in
+      Certificate Transparency suggestions (crt.sh), four notification events, API, page, English and German. Pentesting is out of scope
+      and not built. Open: run against the real internet and the real crt.sh (local servers, throw-away certificates and a fake
+      resolver only), DNSSEC (the Node resolver interface hides it), SPF include chains, a second CT provider, a weekly digest of
+      changes, export, IPv6 address ranges, a grade if a defensible definition appears
 - [~] Attack overview (Infrastructure → Attacks; ADR 0016, `docs/attacks.md`): world map and tables of the
       aggregated source addresses from Wazuh with local GeoIP (DB-IP Lite country and ASN, CC BY 4.0: manual
       import and an opt-in monthly download, never bundled), internal addresses labelled, retention of source

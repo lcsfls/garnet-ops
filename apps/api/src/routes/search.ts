@@ -19,7 +19,7 @@ export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const pattern = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   const f = schema.finding;
   const p = schema.repositoryPackage;
-  const [repositories, vulnerabilities, packages, servers, guests] = await Promise.all([
+  const [repositories, vulnerabilities, packages, servers, guests, assets] = await Promise.all([
     db
       .select({ id: schema.repository.id, name: schema.repository.name })
       .from(schema.repository)
@@ -68,6 +68,17 @@ export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
       )
       .orderBy(asc(schema.proxmoxGuest.name))
       .limit(HITS),
+    db
+      .select({ id: schema.exposureAsset.id, value: schema.exposureAsset.value })
+      .from(schema.exposureAsset)
+      .where(
+        and(
+          eq(schema.exposureAsset.organizationId, organizationId),
+          ilike(schema.exposureAsset.value, pattern),
+        ),
+      )
+      .orderBy(asc(schema.exposureAsset.value))
+      .limit(HITS),
   ]);
   return c.json({
     repositories,
@@ -75,5 +86,6 @@ export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
     packages,
     servers,
     guests,
+    assets,
   });
 });

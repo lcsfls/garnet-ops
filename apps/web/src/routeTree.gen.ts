@@ -20,6 +20,7 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAccountRouteImport } from './routes/_app/account'
 import { Route as AppAttacksRouteImport } from './routes/_app/attacks'
 import { Route as AppAuditLogRouteImport } from './routes/_app/audit-log'
+import { Route as AppExposureRouteImport } from './routes/_app/exposure'
 import { Route as AppFindingsRouteImport } from './routes/_app/findings'
 import { Route as AppFixesRouteImport } from './routes/_app/fixes'
 import { Route as AppGatesRouteImport } from './routes/_app/gates'
@@ -29,6 +30,7 @@ import { Route as AppServersRouteImport } from './routes/_app/servers'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTeamRouteImport } from './routes/_app/team'
 import { Route as AppXdrRouteImport } from './routes/_app/xdr'
+import { Route as AppExposureIdRouteImport } from './routes/_app/exposure_.$id'
 import { Route as AppRepositoriesIdRouteImport } from './routes/_app/repositories_.$id'
 import { Route as AppServersIdRouteImport } from './routes/_app/servers_.$id'
 
@@ -86,6 +88,11 @@ const AppAuditLogRoute = AppAuditLogRouteImport.update({
   path: '/audit-log',
   getParentRoute: () => AppRoute,
 } as any)
+const AppExposureRoute = AppExposureRouteImport.update({
+  id: '/exposure',
+  path: '/exposure',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppFindingsRoute = AppFindingsRouteImport.update({
   id: '/findings',
   path: '/findings',
@@ -131,6 +138,11 @@ const AppXdrRoute = AppXdrRouteImport.update({
   path: '/xdr',
   getParentRoute: () => AppRoute,
 } as any)
+const AppExposureIdRoute = AppExposureIdRouteImport.update({
+  id: '/exposure_/$id',
+  path: '/exposure/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppRepositoriesIdRoute = AppRepositoriesIdRouteImport.update({
   id: '/repositories_/$id',
   path: '/repositories/$id',
@@ -153,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AppAccountRoute
   '/attacks': typeof AppAttacksRoute
   '/audit-log': typeof AppAuditLogRoute
+  '/exposure': typeof AppExposureRoute
   '/findings': typeof AppFindingsRoute
   '/fixes': typeof AppFixesRoute
   '/gates': typeof AppGatesRoute
@@ -162,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/team': typeof AppTeamRoute
   '/xdr': typeof AppXdrRoute
+  '/exposure/$id': typeof AppExposureIdRoute
   '/repositories/$id': typeof AppRepositoriesIdRoute
   '/servers/$id': typeof AppServersIdRoute
 }
@@ -175,6 +189,7 @@ export interface FileRoutesByTo {
   '/account': typeof AppAccountRoute
   '/attacks': typeof AppAttacksRoute
   '/audit-log': typeof AppAuditLogRoute
+  '/exposure': typeof AppExposureRoute
   '/findings': typeof AppFindingsRoute
   '/fixes': typeof AppFixesRoute
   '/gates': typeof AppGatesRoute
@@ -185,6 +200,7 @@ export interface FileRoutesByTo {
   '/team': typeof AppTeamRoute
   '/xdr': typeof AppXdrRoute
   '/': typeof AppIndexRoute
+  '/exposure/$id': typeof AppExposureIdRoute
   '/repositories/$id': typeof AppRepositoriesIdRoute
   '/servers/$id': typeof AppServersIdRoute
 }
@@ -200,6 +216,7 @@ export interface FileRoutesById {
   '/_app/account': typeof AppAccountRoute
   '/_app/attacks': typeof AppAttacksRoute
   '/_app/audit-log': typeof AppAuditLogRoute
+  '/_app/exposure': typeof AppExposureRoute
   '/_app/findings': typeof AppFindingsRoute
   '/_app/fixes': typeof AppFixesRoute
   '/_app/gates': typeof AppGatesRoute
@@ -210,6 +227,7 @@ export interface FileRoutesById {
   '/_app/team': typeof AppTeamRoute
   '/_app/xdr': typeof AppXdrRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/exposure_/$id': typeof AppExposureIdRoute
   '/_app/repositories_/$id': typeof AppRepositoriesIdRoute
   '/_app/servers_/$id': typeof AppServersIdRoute
 }
@@ -226,6 +244,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/attacks'
     | '/audit-log'
+    | '/exposure'
     | '/findings'
     | '/fixes'
     | '/gates'
@@ -235,6 +254,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/team'
     | '/xdr'
+    | '/exposure/$id'
     | '/repositories/$id'
     | '/servers/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -248,6 +268,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/attacks'
     | '/audit-log'
+    | '/exposure'
     | '/findings'
     | '/fixes'
     | '/gates'
@@ -258,6 +279,7 @@ export interface FileRouteTypes {
     | '/team'
     | '/xdr'
     | '/'
+    | '/exposure/$id'
     | '/repositories/$id'
     | '/servers/$id'
   id:
@@ -272,6 +294,7 @@ export interface FileRouteTypes {
     | '/_app/account'
     | '/_app/attacks'
     | '/_app/audit-log'
+    | '/_app/exposure'
     | '/_app/findings'
     | '/_app/fixes'
     | '/_app/gates'
@@ -282,6 +305,7 @@ export interface FileRouteTypes {
     | '/_app/team'
     | '/_app/xdr'
     | '/_app/'
+    | '/_app/exposure_/$id'
     | '/_app/repositories_/$id'
     | '/_app/servers_/$id'
   fileRoutesById: FileRoutesById
@@ -375,6 +399,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAuditLogRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/exposure': {
+      id: '/_app/exposure'
+      path: '/exposure'
+      fullPath: '/exposure'
+      preLoaderRoute: typeof AppExposureRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/findings': {
       id: '/_app/findings'
       path: '/findings'
@@ -438,6 +469,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppXdrRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/exposure_/$id': {
+      id: '/_app/exposure_/$id'
+      path: '/exposure/$id'
+      fullPath: '/exposure/$id'
+      preLoaderRoute: typeof AppExposureIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/repositories_/$id': {
       id: '/_app/repositories_/$id'
       path: '/repositories/$id'
@@ -459,6 +497,7 @@ interface AppRouteChildren {
   AppAccountRoute: typeof AppAccountRoute
   AppAttacksRoute: typeof AppAttacksRoute
   AppAuditLogRoute: typeof AppAuditLogRoute
+  AppExposureRoute: typeof AppExposureRoute
   AppFindingsRoute: typeof AppFindingsRoute
   AppFixesRoute: typeof AppFixesRoute
   AppGatesRoute: typeof AppGatesRoute
@@ -469,6 +508,7 @@ interface AppRouteChildren {
   AppTeamRoute: typeof AppTeamRoute
   AppXdrRoute: typeof AppXdrRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppExposureIdRoute: typeof AppExposureIdRoute
   AppRepositoriesIdRoute: typeof AppRepositoriesIdRoute
   AppServersIdRoute: typeof AppServersIdRoute
 }
@@ -477,6 +517,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAccountRoute: AppAccountRoute,
   AppAttacksRoute: AppAttacksRoute,
   AppAuditLogRoute: AppAuditLogRoute,
+  AppExposureRoute: AppExposureRoute,
   AppFindingsRoute: AppFindingsRoute,
   AppFixesRoute: AppFixesRoute,
   AppGatesRoute: AppGatesRoute,
@@ -487,6 +528,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeamRoute: AppTeamRoute,
   AppXdrRoute: AppXdrRoute,
   AppIndexRoute: AppIndexRoute,
+  AppExposureIdRoute: AppExposureIdRoute,
   AppRepositoriesIdRoute: AppRepositoriesIdRoute,
   AppServersIdRoute: AppServersIdRoute,
 }

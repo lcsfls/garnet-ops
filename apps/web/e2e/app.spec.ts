@@ -9,6 +9,7 @@ import {
   ATTACKS,
   addLiveEvent,
   addUnifiEvent,
+  EXPOSURE,
   FIXES,
   LIVE,
   PROXMOX,
@@ -3201,12 +3202,12 @@ test.describe("xdr", () => {
     await page.goto("/");
     const link = nav(page).getByRole("link", { name: "XDR" });
     await expect(link).toBeVisible();
-    // Under Infrastructure, right after Servers.
+    // Under Infrastructure, after Servers and Exposure.
     const infrastructure = nav(page)
       .locator("div")
       .filter({ has: page.getByText("Infrastructure", { exact: true }) })
       .first();
-    await expect(infrastructure.getByRole("link")).toHaveText(["Servers", "XDR", "Attacks"]);
+    await expect(infrastructure.getByRole("link")).toHaveText(["Servers", "Exposure", "XDR", "Attacks"]);
     await link.click();
     await expect(page).toHaveURL(/\/xdr$/);
     await expect(page.getByRole("heading", { name: "XDR", level: 1 })).toBeVisible();
@@ -5150,6 +5151,488 @@ test.describe("attacks: globe and live feed", () => {
     await expect(page.getByRole("heading", { name: "Live-Feed", level: 2 })).toBeVisible();
     await page.goto("/xdr");
     await expect(page.getByRole("heading", { name: "Neueste Alarme", level: 2 })).toBeVisible();
+  });
+});
+
+/**
+ * External exposure (ADR 0023). Seeded rows stand in for earlier runs. The worker of this run has a fake resolver and two local
+ * services and answers only what a test starts (apps/worker/test/e2e-exposure-worker.ts); the tests steer it over a control port.
+ */
+test.describe("exposure", () => {
+  const control = async (method: "GET" | "PUT" | "DELETE", path: string) => {
+    const res = await fetch(`http://127.0.0.1:${E2E.exposureControlPort}${path}`, { method });
+    return (await res.json()) as { sshPort: number; redisPort: number };
+  };
+  const NEW = "new-site.example.net";
+  const row = (page: Page, value: string) => page.locator(`tr[data-asset="${value}"]`);
+  const idOf = async (value: string) =>
+    (await sql<{ id: string }>("select id from exposure_asset where value = $1", [value]))[0]?.id as string;
+
+  test.afterAll(async () => {
+    await sql("delete from exposure_asset where id not like 'exa_e2eseeded%'");
+    await sql("delete from exposure_settings");
+    await sql("delete from user_notification where event like 'exposure.%'");
+    await control("DELETE", `/proof/${NEW}`);
+    await control("DELETE", `/resolve/${NEW}`);
+  });
+
+  test("the list shows verification, severity counts and both stages; figures, filters, sort and search lead somewhere", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/exposure");
+    await expect(page.getByRole("heading", { name: "Exposure", level: 1 })).toBeVisible();
+    await expect(page.locator("tbody tr")).toHaveCount(EXPOSURE.total);
+
+    const main = row(page, EXPOSURE.main.value);
+    await expect(main).toContainText("Verified");
+    await expect(main).toContainText("5 open ports");
+    await expect(main.getByTitle("1 open of severity Critical")).toBeVisible();
+    await expect(main.getByTitle("1 open of severity High")).toBeVisible();
+    await expect(main).toContainText("in 12 days");
+    await expect(row(page, EXPOSURE.covered.value)).toContainText("Verified by parent");
+    await expect(row(page, EXPOSURE.shop.value)).toContainText("Not verified");
+    await expect(row(page, EXPOSURE.shop.value)).toContainText("expired 5 days ago");
+    await expect(row(page, EXPOSURE.lost.value)).toContainText("Verification lost");
+    await expect(row(page, EXPOSURE.lost.value)).toContainText("Failed");
+    await expect(row(page, EXPOSURE.address.value)).toContainText("IP address");
+
+    // The key figures lead to the filtered list.
+    const figures = page.getByTestId("exposure-figures");
+    await expect(figures.getByRole("link", { name: /^Assets/ })).toContainText(String(EXPOSURE.total));
+    await figures.getByRole("link", { name: /^Need attention/ }).click();
+    await expect(page).toHaveURL(/status=attention/);
+    await expect(page.locator("tbody tr")).toHaveCount(EXPOSURE.attention);
+    const status = page.getByRole("group", { name: "Show" });
+    for (const [name, n] of [
+      ["All", EXPOSURE.total],
+      ["Needs attention", EXPOSURE.attention],
+      ["Not verified", EXPOSURE.unverified],
+      ["Stage 2 on", EXPOSURE.stage2],
+    ] as const) {
+      await expect(status.getByRole("button", { name })).toContainText(String(n));
+    }
+    await status.getByRole("button", { name: "Not verified" }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(EXPOSURE.unverified);
+    await status.getByRole("button", { name: "All" }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(EXPOSURE.total);
+
+    // Sorting by critical findings puts the Docker API first; the order is in the URL.
+    await page.getByTestId("exposure-table").getByRole("button", { name: "Critical" }).click();
+    await expect(page).toHaveURL(/sort=critical/);
+    await expect(page.locator("tbody tr").first()).toHaveAttribute("data-asset", EXPOSURE.main.value);
+    await page.getByLabel("Search assets").fill("shop");
+    await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page).toHaveURL(/q=shop/);
+
+    // The help says plainly what is done and what never is, and that this is not legal advice.
+    await page.goto("/exposure");
+    await page.getByTestId("exposure-help").locator("summary").click();
+    const help = page.getByTestId("exposure-help");
+    await expect(help).toContainText("No exploits, no password guessing");
+    await expect(help).toContainText("This is not legal advice");
+    await expect(help).toContainText("fixed list of 30 common ports");
+    expect(problems).toEqual([]);
+  });
+
+  test("an asset page shows findings with their sentences, and the DNS, TLS, HTTP, port and history details", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await page.goto(`/exposure/${EXPOSURE.main.id}`);
+    await expect(page.getByRole("heading", { name: EXPOSURE.main.value, level: 1 })).toBeVisible();
+    const summary = page.getByTestId("exposure-summary");
+    await expect(summary).toContainText("Proved by");
+    await expect(summary).toContainText("A DNS record");
+    await expect(summary).toContainText("Germany");
+    await expect(summary).toContainText("AS64500 Example Hosting");
+
+    const findings = page.getByTestId("exposure-findings");
+    await expect(findings.locator("li")).toHaveCount(4);
+    await expect(findings).toContainText("Reachable from the internet: port 2375");
+    await expect(findings).toContainText("Docker API (no TLS) (management interface) answers on port 2375");
+    await expect(findings).toContainText("it cannot tell whether the service is protected");
+    await expect(findings).toContainText("Certificate expires soon");
+    await expect(findings).toContainText("expires in 12 days");
+    await expect(findings).toContainText("Check whether this version is current");
+    await expect(findings).toContainText("not proof of a vulnerability");
+    // Resolved ones are kept apart.
+    await page
+      .getByRole("group", { name: "Findings shown" })
+      .getByRole("button", { name: /^Resolved/ })
+      .click();
+    await expect(findings.locator("li")).toHaveCount(1);
+    await expect(findings).toContainText("No Content-Security-Policy");
+
+    // The tab pane (findings have a pane of their own at this width).
+    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "Ports" }).click();
+    const ports = page.getByTestId("exposure-ports");
+    await expect(ports.locator("tbody tr")).toHaveCount(5);
+    await expect(ports).toContainText("SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u3");
+    await expect(ports).toContainText("Docker API (no TLS)");
+    await expect(ports).toContainText("MySQL or MariaDB");
+    await expect(page.getByText("30 ports checked: 5 open, 25 closed, 0 without an answer.")).toBeVisible();
+    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "DNS" }).click();
+    await expect(page.getByText("v=spf1 mx -all")).toBeVisible();
+    await expect(page.getByText("Only the listed senders may send (-all).")).toBeVisible();
+    await expect(page.getByText("Forged mail is rejected (p=reject).")).toBeVisible();
+    await expect(page.getByText("Not checked: the system resolver interface does not say")).toBeVisible();
+    const suggestions = page.getByTestId("exposure-suggestions");
+    await expect(suggestions.locator("li")).toHaveCount(3);
+    await expect(suggestions).toContainText("api.example.com");
+    await expect(suggestions).toContainText("Certificate Transparency");
+    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "TLS" }).click();
+    await expect(page.getByText("TLSv1.3 · TLS_AES_256_GCM_SHA384")).toBeVisible();
+    await expect(page.getByText("Chains to a certificate authority in the system store.")).toBeVisible();
+    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "HTTP" }).click();
+    await expect(page.getByTestId("exposure-headers")).toContainText("max-age=31536000");
+    await expect(page.getByTestId("exposure-banners")).toContainText("nginx/1.22.1");
+    await expect(
+      page.getByText("GarnetOps does not match banner versions against vulnerability data"),
+    ).toBeVisible();
+    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "History" }).click();
+    await expect(page.getByTestId("exposure-history").locator("tbody tr")).toHaveCount(3);
+    await expect(page.getByTestId("exposure-history")).toContainText(
+      "The check took too long and was stopped.",
+    );
+
+    // A subdomain says by whom it is covered; an address shows its reverse name and no certificate name check.
+    await page.goto(`/exposure/${EXPOSURE.covered.id}`);
+    await expect(page.getByTestId("exposure-summary")).toContainText("Covered by");
+    await page.goto(`/exposure/${EXPOSURE.address.id}?tab=dns`);
+    await expect(page.getByText("gateway.example.com")).toBeVisible();
+    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "TLS" }).click();
+    await expect(page.getByText("Not checked for an address.")).toBeVisible();
+    expect(problems).toEqual([]);
+  });
+
+  test("remote text stays text: banners, certificate names and DNS names cannot run anything", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    for (const tab of ["dns", "tls", "http"]) {
+      await page.goto(`/exposure/${EXPOSURE.hostile.id}?tab=${tab}`);
+      await expect(page.getByRole("heading", { name: EXPOSURE.hostile.value, level: 1 })).toBeVisible();
+      await expect(page.getByText(EXPOSURE.hostileBanner).first()).toBeVisible();
+      await expect(page.locator("main img")).toHaveCount(0);
+      expect(await page.title()).not.toBe("pwned");
+    }
+    await expect(page.getByTestId("exposure-findings")).toContainText(EXPOSURE.hostileBanner);
+    await page.goto(`/exposure/${EXPOSURE.main.id}?tab=ports`);
+    await expect(page.getByTestId("exposure-ports")).toContainText(EXPOSURE.hostileBanner);
+    await expect(page.locator("main img")).toHaveCount(0);
+    await page.goto(`/exposure/${EXPOSURE.main.id}?tab=dns`);
+    await expect(page.getByTestId("exposure-suggestions")).toContainText(EXPOSURE.hostileBanner);
+    await expect(page.locator("main img")).toHaveCount(0);
+    expect(await page.title()).not.toBe("pwned");
+    expect(problems).toEqual([]);
+  });
+
+  test("adding an asset refuses what is not public, adds the rest, and the first look runs", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await control("PUT", `/resolve/${NEW}`);
+    await page.goto("/exposure");
+    await page.getByRole("button", { name: "Add asset" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Add an asset" });
+    await expect(dialog).toContainText("DNS lookups, a TLS handshake and one request for the home page");
+    for (const [value, message] of [
+      ["10.0.0.5", "This is not a public address"],
+      ["192.0.2.10", "This is not a public address"],
+      ["169.254.169.254", "This is not a public address"],
+      ["https://example.org/x", "without https://"],
+      ["intranet", "at least two parts"],
+      ["router.lan", "not used on the public internet"],
+      ["127.1", "cannot be a number"],
+      ["*.example.com", "Wildcards are not supported"],
+    ] as const) {
+      await dialog.getByLabel("Domain, host name or public IP address").fill(value);
+      await dialog.getByRole("button", { name: "Add asset" }).click();
+      await expect(dialog.getByRole("alert")).toContainText(message);
+    }
+    await dialog.getByLabel("Domain, host name or public IP address").fill(EXPOSURE.main.value);
+    await dialog.getByRole("button", { name: "Add asset" }).click();
+    await expect(dialog.getByRole("alert")).toContainText("already on the list");
+
+    await dialog.getByLabel("Domain, host name or public IP address").fill(`  ${NEW.toUpperCase()}. `);
+    await dialog.getByLabel("Include subdomains").check();
+    await dialog.getByRole("button", { name: "Add asset" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText("Asset added. The first look is running.")).toBeVisible();
+    const added = row(page, NEW);
+    await expect(added).toContainText("Not verified");
+    // The worker makes the first look: the name resolves to a local address, nothing answers on 443 or 80.
+    await expect(added).toContainText("Done", { timeout: 30_000 });
+    const [saved] = await sql<Record<string, unknown>>(
+      "select kind, value, include_subdomains, verify_state, stage2_enabled from exposure_asset where value = $1",
+      [NEW],
+    );
+    expect(saved).toMatchObject({
+      kind: "domain",
+      value: NEW,
+      include_subdomains: true,
+      verify_state: "unverified",
+      stage2_enabled: false,
+    });
+
+    await page.goto("/audit-log?group=exposure");
+    await expect(page.getByText("Exposure asset added").first()).toBeVisible();
+    expect(problems).toEqual([]);
+  });
+
+  test("the verification dialog shows the record and the file, checks with the worker and says why a check fails", async ({
+    context,
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await signedInAt("now");
+    const id = await idOf(NEW);
+    const [{ verify_token: token } = { verify_token: "" }] = await sql<{ verify_token: string }>(
+      "select verify_token from exposure_asset where id = $1",
+      [id],
+    );
+    await page.goto(`/exposure/${id}?verify=1`);
+    const dialog = page.getByRole("dialog", { name: `Verify ${NEW}` });
+    await expect(dialog).toContainText(
+      "not the servers, CDN or hosting behind it".replace("not the", "not that you own the"),
+    );
+    await expect(dialog.getByTestId("verify-dns-name")).toHaveText(`_garnetops-challenge.${NEW}`);
+    await expect(dialog.getByTestId("verify-dns-value")).toHaveText(`garnetops-verify=${token}`);
+    await expect(dialog.getByTestId("verify-file-url")).toHaveText(
+      `https://${NEW}/.well-known/garnetops-verify.txt`,
+    );
+    await expect(dialog.getByTestId("verify-file-content")).toHaveText(`garnetops-verify=${token}`);
+    // Copy buttons put the value on the clipboard.
+    const copyOf = (testId: string) =>
+      dialog
+        .locator("fieldset")
+        .filter({ has: page.getByTestId(testId) })
+        .getByRole("button", { name: /^Copy/ });
+    await copyOf("verify-dns-name").click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`_garnetops-challenge.${NEW}`);
+    await copyOf("verify-dns-value").click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`garnetops-verify=${token}`);
+    await copyOf("verify-file-url").click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      `https://${NEW}/.well-known/garnetops-verify.txt`,
+    );
+
+    // Nothing published yet.
+    await dialog.getByRole("button", { name: "Check now" }).click();
+    await expect(dialog.getByTestId("verify-error")).toHaveText("The TXT record was not found.", {
+      timeout: 30_000,
+    });
+    // Published: the worker finds it.
+    await control("PUT", `/proof/${NEW}`);
+    await dialog.getByRole("button", { name: "Check now" }).click();
+    await expect(dialog.getByTestId("verify-state")).toContainText(
+      "The proof was found. This asset is verified",
+      { timeout: 30_000 },
+    );
+    await expect(dialog.getByTestId("verify-error")).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Close", exact: true }).first().click();
+    await page.goto("/exposure");
+    await expect(row(page, NEW)).toContainText("Verified");
+    await expect(row(page, NEW)).not.toContainText("Not verified");
+
+    // Withdrawn: the verification is lost, stage 2 would stop, owners and admins are told.
+    await control("DELETE", `/proof/${NEW}`);
+    await page.goto(`/exposure/${id}?verify=1`);
+    await page
+      .getByRole("dialog", { name: `Verify ${NEW}` })
+      .getByRole("button", { name: "Check now" })
+      .click();
+    await expect(page.getByTestId("verify-state")).toContainText("The proof is gone", { timeout: 30_000 });
+    const lost = await sql("select 1 from user_notification where title_key = 'exposureVerificationLost'");
+    expect(lost.length).toBeGreaterThan(0);
+    const [state] = await sql<{ verify_state: string }>(
+      "select verify_state from exposure_asset where id = $1",
+      [id],
+    );
+    expect(state?.verify_state).toBe("lost");
+
+    // A new code voids the old one; it needs a recent sign-in, which the owner has.
+    await page
+      .getByRole("dialog", { name: `Verify ${NEW}` })
+      .getByRole("button", { name: "New code" })
+      .click();
+    const confirm = page.getByRole("dialog", { name: "Create a new code?" });
+    await expect(confirm).toContainText("stage 2 is switched off");
+    await confirm.getByRole("button", { name: "New code" }).click();
+    await expect(confirm).toBeHidden();
+    await expect(page.getByTestId("verify-dns-value")).not.toHaveText(`garnetops-verify=${token}`);
+    expect(problems).toEqual([]);
+  });
+
+  test("stage 2 shows the warning, needs the acknowledgement, runs, and reports ports, findings and a notification", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    const id = await idOf(NEW);
+    // The new code needs to be published again.
+    await control("PUT", `/proof/${NEW}`);
+    await page.goto(`/exposure/${id}?verify=1`);
+    await page
+      .getByRole("dialog", { name: `Verify ${NEW}` })
+      .getByRole("button", { name: "Check now" })
+      .click();
+    await expect(page.getByTestId("verify-state")).toContainText("The proof was found", { timeout: 30_000 });
+
+    await page.goto(`/exposure/${id}?stage2=1`);
+    const dialog = page.getByRole("dialog", { name: `Switch on stage 2 for ${NEW}` });
+    await expect(dialog).toContainText("A verified name does not prove you own the servers behind it");
+    await expect(dialog).toContainText("did not agree to be tested");
+    await expect(dialog).toContainText("30 fixed, common ports");
+    await expect(dialog).toContainText(
+      "At most 4 connections at a time, at least 200 ms between two, and 3 seconds to connect",
+    );
+    await expect(dialog).toContainText("never checked more than once in 24 hours");
+    await expect(dialog).toContainText("It sends no payloads, tries no passwords, runs no exploits");
+    await expect(dialog).toContainText("Your own intrusion detection or firewall may flag these connections");
+    await expect(dialog).toContainText("This is not legal advice");
+    await dialog.getByText("The ports", { exact: true }).click();
+    await expect(dialog.getByTestId("stage2-ports").locator("li")).toHaveCount(30);
+    await expect(dialog.getByTestId("stage2-ports")).toContainText("2375 Docker API (no TLS)");
+
+    const on = dialog.getByRole("button", { name: "Switch on stage 2" });
+    await expect(on).toBeDisabled();
+    await dialog.getByLabel("I am authorised to test the infrastructure behind this name.").check();
+    await expect(on).toBeEnabled();
+    await on.click();
+    await expect(page.getByText("Stage 2 is on. The first run is queued.")).toBeVisible();
+    const [stored] = await sql<Record<string, unknown>>(
+      "select stage2_enabled, stage2_acknowledged_by is not null as acked from exposure_asset where id = $1",
+      [id],
+    );
+    expect(stored).toMatchObject({ stage2_enabled: true, acked: true });
+
+    // The worker connects to the two local services; the page follows it.
+    const { sshPort, redisPort } = await control("GET", "/state");
+    await page.goto(`/exposure/${id}?tab=ports`);
+    const ports = page.getByTestId("exposure-ports");
+    await expect(ports.locator("tbody tr")).toHaveCount(2, { timeout: 60_000 });
+    await expect(ports).toContainText("SSH-2.0-E2E_Service_1.0");
+    await expect(ports).toContainText(String(sshPort));
+    await expect(ports).toContainText(String(redisPort));
+    await expect(ports).toContainText("Redis");
+    await expect(page.getByText("2 ports checked: 2 open, 0 closed, 0 without an answer.")).toBeVisible();
+    await expect(page.getByTestId("exposure-findings")).toContainText(
+      `Reachable from the internet: port ${redisPort}`,
+    );
+    // Not one byte was written to a service: the silent one never saw a thing (the worker test pins this in detail).
+    const told = await sql<{ title_key: string; params: { asset: string; service: string } }>(
+      "select title_key, params from user_notification where title_key = 'exposureRiskyService'",
+    );
+    expect(told.length).toBeGreaterThan(0);
+    expect(told[0]?.params).toMatchObject({ asset: NEW, service: "redis" });
+
+    // The acknowledgement is in the audit log with who, what and which text.
+    const [entry] = await sql<{ data: Record<string, unknown>; actor_user_id: string | null }>(
+      "select data, actor_user_id from audit_log where action = 'exposure.stage2_enabled' order by id desc limit 1",
+    );
+    expect(entry?.actor_user_id).not.toBeNull();
+    expect(entry?.data).toMatchObject({
+      value: NEW,
+      acknowledgement: "exposure-stage2-v1",
+      ports: 30,
+      schedule: "daily",
+    });
+    await page.goto("/audit-log?group=exposure");
+    await expect(page.getByText("Stage 2 switched on for an asset").first()).toBeVisible();
+
+    // A run by hand is not possible within a day; switching off is.
+    await page.goto(`/exposure/${id}?stage2=1`);
+    const manage = page.getByRole("dialog", { name: `Stage 2 for ${NEW}` });
+    await expect(manage.getByRole("button", { name: "Run now" })).toBeDisabled();
+    await expect(manage).toContainText("A run by hand is possible again");
+    await manage.getByRole("button", { name: "Switch off" }).click();
+    await expect(page.getByText("Stage 2 is off.")).toBeVisible();
+    await page.goto("/exposure");
+    await expect(row(page, NEW)).toContainText("Off");
+    expect(problems).toEqual([]);
+  });
+
+  test("Certificate Transparency is off until an owner confirms what is sent where", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    await page.goto("/settings?section=exposure");
+    await expect(page.getByRole("heading", { name: "Exposure", level: 2 })).toBeVisible();
+    const section = page.getByTestId("ct-section");
+    await expect(section).toContainText("Off");
+    await expect(section.getByTestId("ct-url")).toHaveText(
+      "https://crt.sh/?q=%25.{domain}&output=json&exclude=expired",
+    );
+    await expect(section).toContainText("Domain names are sent to crt.sh");
+    await section.getByRole("button", { name: "Switch on" }).click();
+    const dialog = page.getByRole("dialog", { name: "Send domain names to crt.sh?" });
+    await expect(dialog).toContainText("That tells crt.sh which domains you watch");
+    await expect(dialog).toContainText(
+      "crt.sh publishes no terms or service level for this use that GarnetOps could confirm",
+    );
+    const confirm = dialog.getByRole("button", { name: "Switch on" });
+    await expect(confirm).toBeDisabled();
+    await dialog
+      .getByLabel("I understand that the domain names of my verified assets are sent to crt.sh.")
+      .check();
+    await confirm.click();
+    await expect(page.getByText("Certificate Transparency lookups are on.")).toBeVisible();
+    await expect(section).toContainText("On");
+    await expect(section).toContainText("Switched on by");
+    const [audited] = await sql<{ data: Record<string, unknown> }>(
+      "select data from audit_log where action = 'exposure.ct_enabled' order by id desc limit 1",
+    );
+    expect(audited?.data).toMatchObject({ provider: "crtsh" });
+    await section.getByRole("button", { name: "Switch off" }).click();
+    await expect(page.getByText("Certificate Transparency lookups are off.")).toBeVisible();
+    await page.goto("/audit-log?group=exposure");
+    await expect(page.getByText("Certificate Transparency lookups switched on").first()).toBeVisible();
+    await expect(page.getByText("Certificate Transparency lookups switched off").first()).toBeVisible();
+    expect(problems).toEqual([]);
+  });
+
+  test("the quick search finds an asset, and the page is in the menu", async ({ page }) => {
+    await page.goto("/");
+    // The shortcut listener exists once the app has rendered.
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+    await page.keyboard.press("Control+k");
+    const search = page.getByRole("dialog", { name: "Search" });
+    await search.getByRole("combobox", { name: "Search" }).fill("shop.ex");
+    await expect(search.getByRole("option", { name: /shop\.example\.net\s*External asset/ })).toBeVisible();
+    await search.getByRole("option", { name: /shop\.example\.net/ }).click();
+    await expect(page).toHaveURL(new RegExp(`/exposure/${EXPOSURE.shop.id}`));
+    // The page and its settings section are offered by name too.
+    await page.keyboard.press("Control+k");
+    await search.getByRole("combobox", { name: "Search" }).fill("exposure");
+    await expect(search.getByRole("option", { name: "Go to Exposure" })).toBeVisible();
+    await expect(search.getByRole("option", { name: "Go to Settings, Exposure" })).toBeVisible();
+    await search.getByRole("option", { name: "Go to Settings, Exposure" }).click();
+    await expect(page).toHaveURL(/\/settings\?section=exposure$/);
+  });
+
+  test("German labels", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
+    await page.goto("/exposure");
+    await expect(page.getByRole("heading", { name: "Angriffsfläche", level: 1 })).toBeVisible();
+    await expect(row(page, EXPOSURE.main.value)).toContainText("Verifiziert");
+    await expect(row(page, EXPOSURE.lost.value)).toContainText("Verifizierung verloren");
+    await page.getByRole("button", { name: "Asset hinzufügen" }).first().click();
+    await expect(page.getByRole("dialog", { name: "Asset hinzufügen" })).toContainText(
+      "DNS-Abfragen, ein TLS-Handshake",
+    );
+    await page.keyboard.press("Escape");
+    await page.goto(`/exposure/${EXPOSURE.main.id}`);
+    await expect(page.getByTestId("exposure-findings")).toContainText(
+      "Aus dem Internet erreichbar: Port 2375",
+    );
+    await expect(page.getByTestId("exposure-findings")).toContainText("Zertifikat läuft bald ab");
+    await page.goto(`/exposure/${EXPOSURE.main.id}?stage2=1`);
+    await expect(page.getByRole("dialog", { name: /^Stufe 2 für/ })).toContainText(
+      "Ein verifizierter Name beweist nicht",
+    );
+    await expect(page.getByRole("dialog")).toContainText("Das ist keine Rechtsberatung");
   });
 });
 

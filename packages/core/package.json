@@ -20,6 +20,8 @@
     "./proxmox-flags": "./src/proxmox-flags.ts",
     "./unifi": "./src/unifi.ts",
     "./unifi-ips": "./src/unifi-ips.ts",
+    "./exposure": "./src/exposure.ts",
+    "./exposure-assets": "./src/exposure-assets.ts",
     "./ai": "./src/ai.ts",
     "./ai-endpoint": "./src/ai-endpoint.ts",
     "./versions": "./src/versions.ts",

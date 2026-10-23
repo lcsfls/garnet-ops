@@ -12,10 +12,12 @@ import {
   AI,
   ATTACKS,
   addUnifiEvent,
+  EXPOSURE,
   FIXES,
   PROXMOX,
   restoreWazuh,
   setUnifiIps,
+  signedInAt,
   sql,
   UNIFI,
   WAZUH,
@@ -92,6 +94,34 @@ test.describe("signed in", () => {
       name: "unifi-filtered",
     },
     { path: "/servers?view=wazuh", heading: "Servers", name: "wazuh-agents" },
+    { path: "/exposure", heading: "Exposure", name: "exposure" },
+    {
+      path: "/exposure?status=attention&sort=critical&dir=desc",
+      heading: "Exposure",
+      name: "exposure-filtered",
+    },
+    { path: `/exposure/${EXPOSURE.main.id}`, heading: EXPOSURE.main.value, name: "exposure-asset" },
+    { path: `/exposure/${EXPOSURE.main.id}?tab=ports`, heading: EXPOSURE.main.value, name: "exposure-ports" },
+    { path: `/exposure/${EXPOSURE.main.id}?tab=tls`, heading: EXPOSURE.main.value, name: "exposure-tls" },
+    { path: `/exposure/${EXPOSURE.main.id}?tab=http`, heading: EXPOSURE.main.value, name: "exposure-http" },
+    {
+      path: `/exposure/${EXPOSURE.main.id}?tab=history`,
+      heading: EXPOSURE.main.value,
+      name: "exposure-history",
+    },
+    { path: `/exposure/${EXPOSURE.shop.id}`, heading: EXPOSURE.shop.value, name: "exposure-asset-shop" },
+    { path: `/exposure/${EXPOSURE.lost.id}`, heading: EXPOSURE.lost.value, name: "exposure-asset-lost" },
+    {
+      path: `/exposure/${EXPOSURE.address.id}`,
+      heading: EXPOSURE.address.value,
+      name: "exposure-asset-address",
+    },
+    {
+      path: `/exposure/${EXPOSURE.hostile.id}`,
+      heading: EXPOSURE.hostile.value,
+      name: "exposure-asset-hostile",
+    },
+    { path: "/settings?section=exposure", heading: "Settings", name: "settings-exposure" },
     { path: "/xdr", heading: "XDR", name: "xdr" },
     { path: "/attacks", heading: "Attacks", name: "attacks" },
     {
@@ -243,6 +273,11 @@ test.describe("signed in", () => {
       "/settings?section=proxmox",
       "/settings?section=unifi",
       "/servers?view=unifi",
+      "/exposure",
+      `/exposure/${EXPOSURE.main.id}`,
+      `/exposure/${EXPOSURE.main.id}?tab=ports`,
+      `/exposure/${EXPOSURE.shop.id}`,
+      "/settings?section=exposure",
       "/settings?section=xdr",
       "/settings?section=attacks",
       "/settings?section=ai",
@@ -267,6 +302,159 @@ test.describe("signed in", () => {
         expect(await misalignedFormRows(page), `${width} ${path}`).toEqual([]);
         expect(await sidebarFooterOnOneLine(page), `${width} ${path}`).toBe(true);
       }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("Exposure uses wide screens: more columns, figures and panes from wide on, the most from xwide on, and nothing is lost below", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    await page.goto("/exposure");
+    await expect(page.getByRole("heading", { name: "Exposure", level: 1 })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const content = await contentWidth(page);
+    const table = page.getByTestId("exposure-table");
+    const header = (name: string) => table.getByRole("columnheader", { name, exact: true });
+    for (const name of ["Asset", "Critical", "High", "Medium"]) {
+      await expect(header(name)).toBeVisible();
+    }
+    // Verification, stage 2 and last check from 48 rem (768 px) of content, stage 1, certificate and low from wide (1450 px), location from xwide (1900 px).
+    for (const [name, from] of [
+      ["Verification", 768],
+      ["Stage 2", 768],
+      ["Last check", 768],
+      ["Stage 1", 1450],
+      ["Certificate", 1450],
+      ["Low", 1450],
+      ["Location", 1900],
+    ] as const) {
+      if (content >= from) await expect(header(name)).toBeVisible();
+      else await expect(header(name)).toBeHidden();
+    }
+    // Below wide the certificate and stage 1 move under the name instead of disappearing.
+    const main = page.locator(`tr[data-asset="${EXPOSURE.main.value}"]`);
+    await expect(main).toContainText("in 12 days");
+    await expect(main).toContainText("Done");
+    // The figures are part of the wide step; more of them from xwide.
+    const figures = page.getByTestId("exposure-figures");
+    if (content >= 1450) {
+      await expect(figures.getByRole("link", { name: /^Assets/ })).toBeVisible();
+      if (content >= 1900) await expect(figures.getByRole("link", { name: /^Critical open/ })).toBeVisible();
+      else await expect(figures.getByRole("link", { name: /^Critical open/ })).toBeHidden();
+    } else {
+      await expect(figures).toBeHidden();
+    }
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+    expect(await overflowingCards(page)).toEqual([]);
+    await page.screenshot({ path: info.outputPath("exposure-columns.png"), fullPage: true });
+
+    // One asset: tabs below wide; from wide the findings have a pane of their own; from xwide everything is side by side.
+    await page.goto(`/exposure/${EXPOSURE.main.id}`);
+    await expect(page.getByRole("heading", { name: EXPOSURE.main.value, level: 1 })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const tabs = page.getByRole("group", { name: "Sections" });
+    const findings = page.getByTestId("exposure-findings");
+    const dnsCard = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "DNS", exact: true }) });
+    const portsCard = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Ports", exact: true }) });
+    if (content >= 1900) {
+      await expect(tabs).toBeHidden();
+      await expect(findings).toBeVisible();
+      await expect(dnsCard).toBeVisible();
+      await expect(portsCard).toBeVisible();
+      const [a, b, c] = await Promise.all([
+        findings.locator("xpath=ancestor::section[1]").boundingBox(),
+        dnsCard.boundingBox(),
+        portsCard.boundingBox(),
+      ]);
+      // Three columns: the cards start at the same height and sit side by side.
+      expect(Math.abs((a?.y ?? 0) - (b?.y ?? 99999))).toBeLessThan(8);
+      expect((b?.x ?? 0) > (a?.x ?? 0) + 200).toBe(true);
+      expect((c?.x ?? 0) > (b?.x ?? 0) + 200).toBe(true);
+    } else if (content >= 1450) {
+      await expect(tabs).toBeVisible();
+      await expect(tabs.getByRole("button", { name: "Findings" })).toBeHidden();
+      await expect(findings).toBeVisible();
+      await expect(dnsCard).toBeVisible();
+      const [a, b] = await Promise.all([findings.boundingBox(), dnsCard.boundingBox()]);
+      expect((b?.x ?? 0) > (a?.x ?? 0) + 200).toBe(true);
+    } else {
+      await expect(tabs.getByRole("button", { name: "Findings" })).toBeVisible();
+      await expect(findings).toBeVisible();
+      await expect(dnsCard).toBeHidden();
+      await tabs.getByRole("button", { name: "Ports" }).click();
+      await expect(page.getByTestId("exposure-ports")).toBeVisible();
+      await expect(findings).toBeHidden();
+    }
+    expect(await hasNoHorizontalScroll(page)).toBe(true);
+    expect(await overflowingCards(page)).toEqual([]);
+    await page.screenshot({ path: info.outputPath("exposure-asset-panes.png"), fullPage: true });
+    expect(problems).toEqual([]);
+  });
+
+  test("the Exposure dialogs fit the screen, in English and German: add, verify, stage 2 and Certificate Transparency", async ({
+    page,
+  }, info) => {
+    const problems = watchForProblems(page);
+    const fits = (dialog: Locator) =>
+      dialog.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return (
+          el.scrollWidth <= el.clientWidth + 1 &&
+          box.left >= 0 &&
+          box.right <= window.innerWidth &&
+          box.top >= 0 &&
+          box.bottom <= window.innerHeight + 1
+        );
+      });
+    const shown = async (name: string | RegExp, shot: string) => {
+      const dialog = page.getByRole("dialog", { name });
+      await expect(dialog).toBeVisible();
+      expect(await fits(dialog), shot).toBe(true);
+      expect(await hasNoHorizontalScroll(page), shot).toBe(true);
+      await page.screenshot({ path: info.outputPath(`${shot}.png`) });
+    };
+    await page.goto("/exposure?add=1");
+    await shown("Add an asset", "exposure-add");
+    await page.goto(`/exposure/${EXPOSURE.shop.id}?verify=1`);
+    await shown(`Verify ${EXPOSURE.shop.value}`, "exposure-verify");
+    await page.goto(`/exposure/${EXPOSURE.shop.id}?stage2=1`);
+    await shown(/^Switch on stage 2 for /, "exposure-stage2-warning");
+    await page.getByRole("dialog").getByText("The ports", { exact: true }).click();
+    await shown(/^Switch on stage 2 for /, "exposure-stage2-ports");
+    await page.goto(`/exposure/${EXPOSURE.main.id}?stage2=1`);
+    await shown(/^Stage 2 for /, "exposure-stage2-on");
+    await page.goto("/settings?section=exposure");
+    await page.getByTestId("ct-section").getByRole("button", { name: "Switch on" }).click();
+    await shown(/^Send domain names to /, "exposure-ct");
+
+    // German texts are longer.
+    await page.addInitScript(() => localStorage.setItem("garnetops.language", "de"));
+    await page.goto("/exposure?add=1");
+    await expect(page.locator("html")).toHaveAttribute("lang", "de");
+    await shown("Asset hinzufügen", "exposure-add-de");
+    await page.goto(`/exposure/${EXPOSURE.shop.id}?verify=1`);
+    await shown(`${EXPOSURE.shop.value} verifizieren`, "exposure-verify-de");
+    await page.goto(`/exposure/${EXPOSURE.shop.id}?stage2=1`);
+    await shown(/^Stufe 2 für .* einschalten$/, "exposure-stage2-warning-de");
+    await page.getByRole("dialog").getByText("Die Ports", { exact: true }).click();
+    await shown(/^Stufe 2 für .* einschalten$/, "exposure-stage2-ports-de");
+    await page.goto("/settings?section=exposure");
+    await page.getByTestId("ct-section").getByRole("button", { name: "Einschalten" }).click();
+    await shown(/^Domainnamen an .* senden\?$/, "exposure-ct-de");
+    for (const path of [
+      "/exposure",
+      `/exposure/${EXPOSURE.main.id}`,
+      `/exposure/${EXPOSURE.main.id}?tab=ports`,
+    ]) {
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+      expect(await hasNoHorizontalScroll(page), path).toBe(true);
+      expect(await overflowingCards(page), path).toEqual([]);
     }
     expect(problems).toEqual([]);
   });
@@ -391,6 +579,8 @@ test.describe("signed in", () => {
     page,
   }, info) => {
     const problems = watchForProblems(page);
+    // Adding a server needs a sign-in from the last ten minutes, and the later viewports run well after the first one.
+    await signedInAt("now");
     await page.goto("/servers?add=1");
     const wizard = page.getByRole("dialog", { name: "Add a server" });
     await expect(wizard).toBeVisible();

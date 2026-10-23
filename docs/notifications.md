@@ -84,6 +84,10 @@ vulnerability ids, package names, paths, error output or code. You only get noti
 | Infrastructure | A UniFi certificate changed | admins, owners |
 | Infrastructure | A UniFi device is offline (in two syncs in a row; once until it was online again) | admins, owners |
 | Infrastructure | A UniFi firmware update is available (once per device and firmware version) | admins, owners |
+| Infrastructure | An exposed certificate expires soon or has expired (Exposure; once at 30, 14, 7 days and when expired) | admins, owners |
+| Infrastructure | An asset lost its verification (Exposure; stage 2 stopped) | admins, owners |
+| Infrastructure | A new port is open on an asset (Exposure, stage 2; not for the first run) | admins, owners |
+| Infrastructure | A risky service is reachable from the internet (Exposure, stage 2; once while it stays open) | admins, owners |
 | Account and team | An invitation was accepted | admins, owners |
 | Account and team | Your role changed | you |
 | System | An update finished or failed | admins, owners |
