@@ -8,11 +8,22 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-10-23
+
+The first published release, an alpha. Every 0.x release is an alpha: features and screens can
+still change, and data stays when you update.
+
+### Fixed
+
+- The release build for arm64 stopped in `pnpm install`, because the development PostgreSQL's
+  arm64 package was not allowed to run its install script. Every platform of that package is
+  listed now. Because of this, 0.0.2 was tagged but never built or published; 0.0.3 contains
+  everything listed under 0.0.2.
+
 ## [0.0.2] - 2026-10-23
 
-The first tagged release, an alpha. Version 0.0.1 was never tagged; everything built until
-now is part of this release. Every 0.x release is an alpha: features and screens can still
-change, and data stays when you update.
+Tagged, but not released: the release build failed (see 0.0.3). Version 0.0.1 was never
+tagged; everything built until then is listed here.
 
 ### Added
 
@@ -834,5 +845,6 @@ change, and data stays when you update.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/lcsfls/garnet-ops/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/lcsfls/garnet-ops/releases/tag/v0.0.2

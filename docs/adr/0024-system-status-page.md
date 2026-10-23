@@ -37,7 +37,7 @@ read-only: it changes nothing and has no button that does (the one button reads 
 | GeoIP | per dataset (country, ASN): release month, age, rows, source (import or monthly download), the last refused load, the last download attempt | `geoip_dataset`, `attack_settings` |
 | Integrations | Wazuh (sync and live feed), Proxmox VE, UniFi (sync and IPS preview), directory sign-in (last account check), external exposure (stage 1, stage 2, proof of control), AI endpoint (last connection test, scope), notification channels (last delivery): configured or not, last success, last attempt and its result, and what blocks it | the integrations' own columns and run tables |
 | Worker and jobs | heartbeat with version and start time, per queue the waiting, running and failed-in-24-hours counts and the wait of the oldest job, the last nightly run and the next one, database size and migration state | `worker_heartbeat`, pg-boss tables, `scan_schedule_run`, `pg_database_size`, the migration table |
-| Application | the running version ("0.0.2 Alpha"), the update service's phase and the newest release it knows | the update sidecar, if one is set up |
+| Application | the running version ("0.0.3 Alpha"), the update service's phase and the newest release it knows | the update sidecar, if one is set up |
 
 The vulnerability data card of the overview gets a small badge with the age state and, for admins, a link here. The badge is computed in
 the browser from the build time the overview already has, with the same limits.

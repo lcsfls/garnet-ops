@@ -4,6 +4,12 @@ packages:
 
 # Dependencies may only run install scripts when listed here (supply-chain hardening).
 allowBuilds:
+  # The development PostgreSQL's binaries, one package per platform (dev only, never in the
+  # images' runtime stage). Every platform must be listed, otherwise pnpm stops the install
+  # there (the arm64 release build did).
+  '@embedded-postgres/darwin-arm64': true
+  '@embedded-postgres/darwin-x64': true
+  '@embedded-postgres/linux-arm64': true
   '@embedded-postgres/linux-x64': true
   '@embedded-postgres/windows-x64': true
   esbuild: true

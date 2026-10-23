@@ -105,7 +105,7 @@ connections that need a look are named.
 
 ## Application
 
-The running version (for example "0.0.2 Alpha") and, if the [update service](updating.md) is set up, its phase (nothing scheduled, an
+The running version (for example "0.0.3 Alpha") and, if the [update service](updating.md) is set up, its phase (nothing scheduled, an
 update scheduled, running, the last one worked or failed) and the newest release it knows. Without the service the page says that
 updates are done by hand.
 

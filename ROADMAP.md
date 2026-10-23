@@ -120,9 +120,9 @@ paginated findings, and every number on the overview leads to its details.
       reverse proxy with hybrid post-quantum TLS key exchange (X25519MLKEM768) (ADR 0007)
 - [~] In-app updates with the cicd-updater sidecar: signed releases, backup first,
       step-up sign-in, banner, journal in the audit log (ADR 0007). Still open: the first
-      signed release (v0.0.2), branch and tag protection, a published sidecar image
+      signed release (v0.0.3), branch and tag protection, a published sidecar image
 - [~] Upgrade test harness: the release smoke test upgrades from the previous release
-      through the sidecar; a real 0.0.2 to 0.0.3 update was run by hand (ADR 0007)
+      through the sidecar; a real 0.0.3 to 0.0.4 update was run by hand (ADR 0007)
 
 ## Phase 2: AI triage
 

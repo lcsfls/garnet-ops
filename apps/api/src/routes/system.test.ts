@@ -76,7 +76,7 @@ describe.skipIf(!adminUrl)("System status API", () => {
   const partOf = (status: SystemStatus, key: string, part: string) =>
     row(status, key)?.parts.find((p) => p.key === part);
 
-  const heartbeat = (beatAgoMs: number, version = "0.0.2") =>
+  const heartbeat = (beatAgoMs: number, version = "0.0.3") =>
     t.db.insert(schema.workerHeartbeat).values({
       instanceId: `wrk_${++counter}`,
       version,
@@ -171,7 +171,7 @@ describe.skipIf(!adminUrl)("System status API", () => {
     it("keeps the small public facts open to every signed-in user", async () => {
       const res = await app.request("/api/v1/system", { headers: { "x-role": "viewer", "x-org": ORG } });
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ version: "0.0.2" });
+      expect(await res.json()).toEqual({ version: "0.0.3" });
     });
 
     it("shows nothing of another organisation", async () => {
@@ -208,7 +208,7 @@ describe.skipIf(!adminUrl)("System status API", () => {
         ].sort(),
       );
       expect(r.json.refreshSeconds).toBe(60);
-      expect(r.json.app.version).toBe("0.0.2");
+      expect(r.json.app.version).toBe("0.0.3");
       expect(r.json.integrations.map((i: Json) => i.key)).toEqual([
         "wazuh",
         "proxmox",
@@ -928,12 +928,12 @@ describe.skipIf(!adminUrl)("System status API", () => {
   describe("the worker", () => {
     it("is missing without a heartbeat, running with a recent one, late after three missed beats", async () => {
       expect((await view()).worker).toMatchObject({ liveness: "missing", heartbeat: null });
-      await heartbeat(20_000, "0.0.2");
+      await heartbeat(20_000, "0.0.3");
       let s = await view();
       expect(s.worker).toMatchObject({
         liveness: "running",
         heartbeat: {
-          version: "0.0.2",
+          version: "0.0.3",
           instances: 1,
           startedAt: ago(2 * HOUR).toISOString(),
           beatAt: ago(20_000).toISOString(),
@@ -947,10 +947,10 @@ describe.skipIf(!adminUrl)("System status API", () => {
     });
 
     it("counts the workers that beat and reports the newest", async () => {
-      await heartbeat(10_000, "0.0.2");
-      await heartbeat(20_000, "0.0.2");
-      await heartbeat(HOUR, "0.0.2");
-      expect((await view()).worker.heartbeat).toMatchObject({ version: "0.0.2", instances: 2 });
+      await heartbeat(10_000, "0.0.3");
+      await heartbeat(20_000, "0.0.3");
+      await heartbeat(HOUR, "0.0.3");
+      expect((await view()).worker.heartbeat).toMatchObject({ version: "0.0.3", instances: 2 });
     });
 
     it("reports the database size and that every migration is applied", async () => {
@@ -1091,19 +1091,19 @@ describe.skipIf(!adminUrl)("System status API", () => {
     it("has no updater to report when none is set up", async () => {
       const s = await view({ configured: false, phase: null, latestAvailable: null });
       expect(s.app).toMatchObject({
-        version: "0.0.2",
+        version: "0.0.3",
         updater: { configured: false, reachable: false, level: "inactive" },
       });
     });
 
     it("reports the sidecar's phase and the newest release it knows", async () => {
-      const s = await view({ configured: true, phase: "idle", latestAvailable: "0.0.2" });
+      const s = await view({ configured: true, phase: "idle", latestAvailable: "0.0.3" });
       expect(s.app.updater).toEqual({
         configured: true,
         reachable: true,
         level: "ok",
         phase: "idle",
-        latestAvailable: "0.0.2",
+        latestAvailable: "0.0.3",
       });
       expect(
         (await view({ configured: true, phase: "failed", latestAvailable: null })).app.updater.level,
