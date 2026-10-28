@@ -50,8 +50,14 @@ function proxy(req, res) {
     },
   );
   upstream.on("error", () => {
-    if (!res.headersSent) res.writeHead(502, { "content-type": "text/plain" });
+    if (res.headersSent) return void res.destroy();
+    res.writeHead(502, { "content-type": "text/plain" });
     res.end("Bad gateway");
+  });
+  // A browser that goes away (a closed tab, an EventSource that stops) ends the request to the API too, as Caddy
+  // does; otherwise open streams pile up and the API refuses new ones.
+  res.on("close", () => {
+    if (!res.writableFinished) upstream.destroy();
   });
   req.pipe(upstream);
 }
