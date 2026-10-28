@@ -21,9 +21,6 @@
 -->
 <link rel="stylesheet" href="vendor/fonts/fonts.css">
 <script src="vendor/js/lucide.min.js"></script>
-<script src="vendor/js/d3.min.js"></script>
-<script src="vendor/js/topojson-client.min.js"></script>
-<script src="vendor/js/countries-110m.js"></script>
 <script>
   // Follow the system colour scheme before first paint, like Restow's theme module.
   document.documentElement.className = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -246,7 +243,7 @@ kbd {
 .toolbar .end { margin-left: auto; display: flex; gap: 8px; }
 
 /* KPI tiles */
-.kpis { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 16px; }
+.kpis { display: grid; gap: 16px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 16px; }
 .kpi { padding: 16px 18px; }
 .kpi .top { display: flex; align-items: center; justify-content: space-between; color: var(--muted-foreground); font-size: 14.5px; }
 .kpi .val { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 6px 0 0; line-height: 1.2; }
@@ -292,8 +289,6 @@ th.num { text-align: right; }
 .fi-grid { grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.5fr); grid-template-areas: "list detail" "list ai"; align-items: start; }
 .gt-grid { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-areas: "rules snippet" "runs runs"; align-items: start; }
 .fx-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "table" "preview"; align-items: start; }
-.ho-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "table" "insight"; align-items: start; }
-.at-grid { grid-template-columns: minmax(0, 1.4fr) minmax(360px, 1fr); grid-template-areas: "globe events" "top types"; }
 .st-grid { grid-template-columns: 200px minmax(0, 1fr); grid-template-areas: "nav form" "nav help"; align-items: start; }
 
 @container page (min-width: 1450px) {
@@ -303,13 +298,10 @@ th.num { text-align: right; }
 }
 @container page (min-width: 1900px) {
   .col-xwide { display: table-cell; }
-  .kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   .ov-grid { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "attn attn gates act" "trend trend ai data"; }
   .fi-grid { grid-template-columns: minmax(320px, 0.8fr) minmax(0, 1.25fr) minmax(380px, 1fr); grid-template-areas: "list detail ai"; }
   .gt-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 0.9fr); grid-template-areas: "rules runs snippet"; }
   .fx-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-areas: "table preview"; }
-  .ho-grid { grid-template-columns: minmax(0, 2.2fr) minmax(340px, 1fr); grid-template-areas: "table insight"; }
-  .at-grid { grid-template-columns: minmax(0, 1.4fr) minmax(380px, 1fr) minmax(300px, 0.75fr); grid-template-areas: "globe events top" "globe events types"; }
 }
 
 /* ---------- Findings ---------- */
@@ -365,22 +357,6 @@ th.num { text-align: right; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 14px; padding: 0 20px 18px; margin: 0; }
 .kv dt { color: var(--muted-foreground); }
 .kv dd { margin: 0; min-width: 0; }
-.globe-card { position: relative; height: clamp(440px, calc(100vh - 260px), 860px); display: grid; place-items: center; overflow: hidden; }
-#globe { cursor: grab; }
-.g-sphere { fill: var(--muted); stroke: var(--border); }
-.g-grat { fill: none; stroke: var(--border); stroke-width: .5; }
-.g-land { fill: color-mix(in oklch, var(--muted-foreground) 32%, var(--card)); stroke: var(--card); stroke-width: .4; }
-.g-home { fill: var(--primary); }
-.globe-legend { position: absolute; left: 18px; bottom: 14px; display: flex; gap: 14px; font-size: 13px; color: var(--muted-foreground); }
-.globe-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.ev { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-top: 1px solid var(--border); }
-.ev .cc { font-family: "IBM Plex Mono", monospace; font-size: 12px; width: 30px; height: 22px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 5px; color: var(--muted-foreground); flex: none; }
-.ev .main { min-width: 0; flex: 1; }
-.ev .t, .ev .m { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ev .t { font-weight: 500; font-size: 14.5px; }
-.ev .m { font-size: 13px; color: var(--muted-foreground); }
-.ev .score { text-align: right; font-size: 12.5px; color: var(--muted-foreground); flex: none; }
-.ev .score b { display: block; font-size: 14px; color: var(--foreground); font-weight: 600; }
 .bar-row { display: grid; grid-template-columns: 110px 1fr 48px; gap: 10px; align-items: center; font-size: 14px; padding: 6px 20px; }
 .bar { height: 8px; border-radius: 4px; background: var(--muted); overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--chart-low); border-radius: 4px; }
@@ -394,12 +370,6 @@ th.num { text-align: right; }
 .help h3 { font-size: 14px; margin: 0 0 6px; }
 .help p { margin: 0 0 12px; font-size: 14px; color: var(--muted-foreground); line-height: 1.55; }
 .mock-note { position: fixed; right: 14px; bottom: 12px; font-size: 12px; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
-
-/* ---------- XDR ---------- */
-.xd-grid { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); grid-template-areas: "alerts summary" "mitre agents"; align-items: start; }
-@container page (min-width: 1900px) {
-  .xd-grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 0.8fr); grid-template-areas: "alerts summary mitre" "alerts summary agents"; }
-}
 
 /* ---------- Dialog ---------- */
 .backdrop { position: fixed; inset: 0; display: none; place-items: center; z-index: 50; background: oklch(0.12 0.02 15 / 60%); }
@@ -441,18 +411,12 @@ code.mono { background: var(--muted); padding: 1px 5px; border-radius: 4px; font
         <div class="nav-label">Daily</div>
         <button class="nav-item active" data-view="overview"><i data-lucide="layout-grid"></i>Overview</button>
         <button class="nav-item" data-view="findings"><i data-lucide="bug"></i>Findings<span class="badge b-critical">2</span></button>
-        <button class="nav-item" data-view="attacks"><i data-lucide="globe"></i>Attacks</button>
       </div>
       <div class="nav-group">
         <div class="nav-label">Code</div>
         <button class="nav-item" data-view="repos"><i data-lucide="git-branch"></i>Repositories</button>
         <button class="nav-item" data-view="gates"><i data-lucide="shield-check"></i>Quality gates</button>
         <button class="nav-item" data-view="fixes"><i data-lucide="git-pull-request"></i>Fix proposals</button>
-      </div>
-      <div class="nav-group">
-        <div class="nav-label">Infrastructure</div>
-        <button class="nav-item" data-view="hosts"><i data-lucide="server"></i>Servers</button>
-        <button class="nav-item" data-view="xdr"><i data-lucide="radar"></i>XDR<span class="badge b-neutral">Wazuh</span></button>
       </div>
       <div class="nav-group">
         <div class="nav-label">Admin</div>
@@ -469,7 +433,7 @@ code.mono { background: var(--muted); padding: 1px 5px; border-radius: 4px; font
       <button class="btn ghost icon" aria-label="Toggle sidebar"><i data-lucide="panel-left"></i></button>
       <div class="crumbs" id="crumbs"></div>
       <div class="right">
-        <div class="search"><i data-lucide="search"></i><span>CVE, package, repository, server …</span><kbd>Ctrl K</kbd></div>
+        <div class="search"><i data-lucide="search"></i><span>CVE, package, repository …</span><kbd>Ctrl K</kbd></div>
         <button class="btn ghost icon" id="themeBtn" aria-label="Light / dark"><i data-lucide="sun-moon"></i></button>
         <button class="btn ghost icon" aria-label="Notifications"><i data-lucide="bell"></i></button>
         <div class="avatar">AD</div>
@@ -482,7 +446,7 @@ code.mono { background: var(--muted); padding: 1px 5px; border-radius: 4px; font
       <section class="view" id="view-overview">
         <div class="page-header">
           <div class="page-icon"><i data-lucide="layout-grid"></i></div>
-          <div><h1>Overview</h1><p>What needs attention today, across all repositories and servers.</p></div>
+          <div><h1>Overview</h1><p>What needs attention today, across all repositories.</p></div>
           <div class="actions"><span class="muted" style="font-size:13.5px">Updated <span class="dash-time">just now</span></span><button class="btn icon" aria-label="Refresh"><i data-lucide="refresh-cw"></i></button><button class="btn primary"><i data-lucide="scan-search"></i>Scan all</button></div>
         </div>
 
@@ -497,8 +461,6 @@ code.mono { background: var(--muted); padding: 1px 5px; border-radius: 4px; font
           <div class="card kpi"><div class="top">High open<i data-lucide="triangle-alert"></i></div><div class="val">4</div><div class="delta">— unchanged</div><div class="hint">Reachable per AI: 1</div></div>
           <div class="card kpi"><div class="top">Quality gates<i data-lucide="shield-check"></i></div><div class="val">5 / 6</div><div class="delta">passed in the last 24 h</div><div class="hint">1 blocked: billing-portal</div></div>
           <div class="card kpi"><div class="top">Open fix PRs<i data-lucide="git-pull-request"></i></div><div class="val">2</div><div class="delta">↑ 1 since yesterday</div><div class="hint">Waiting for your review</div></div>
-          <div class="card kpi"><div class="top">Servers<i data-lucide="server"></i></div><div class="val">14</div><div class="delta">all reporting</div><div class="hint">3 with pending OS updates</div></div>
-          <div class="card kpi"><div class="top">XDR alerts (24 h)<i data-lucide="radar"></i></div><div class="val">37</div><div class="delta">↑ 18 % vs. yesterday</div><div class="hint">2 at level 12 or higher</div></div>
         </div>
 
         <div class="grid ov-grid">
@@ -515,7 +477,7 @@ code.mono { background: var(--muted); padding: 1px 5px; border-radius: 4px; font
             <ul class="feed">
               <li><span class="ic"><i data-lucide="database"></i></span>Vulnerability data updated<span class="when">04:12</span></li>
               <li><span class="ic"><i data-lucide="git-merge"></i></span>PR #212 merged in restow<span class="when">1 h ago</span></li>
-              <li><span class="ic"><i data-lucide="scan-search"></i></span>Nightly scan: 6 repos, 14 servers<span class="when">03:00</span></li>
+              <li><span class="ic"><i data-lucide="scan-search"></i></span>Nightly scan: 6 repos<span class="when">03:00</span></li>
               <li><span class="ic"><i data-lucide="mail"></i></span>Weekly report sent to 2 recipients<span class="when">Mon</span></li>
               <li><span class="ic"><i data-lucide="key-round"></i></span>GitHub token renewed<span class="when">Fri</span></li>
             </ul>
@@ -620,104 +582,15 @@ code.mono { background: var(--muted); padding: 1px 5px; border-radius: 4px; font
         </div>
       </section>
 
-      <!-- ================= SERVERS ================= -->
-      <section class="view" id="view-hosts">
-        <div class="page-header">
-          <div class="page-icon"><i data-lucide="server"></i></div>
-          <div><h1>Servers</h1><p>Installed packages, known vulnerabilities and pending updates. Agentless over SSH, or from Wazuh.</p></div>
-          <div class="actions"><button class="btn"><i data-lucide="upload"></i>Import CSV</button><button class="btn primary" id="addServerBtn"><i data-lucide="plus"></i>Add server</button></div>
-        </div>
-        <div class="grid ho-grid">
-          <div class="card" style="grid-area: table"><div class="table-wrap"><table>
-            <thead><tr><th>Server</th><th>Connected via</th><th class="col-wide">System</th><th class="num">OS vulnerabilities</th><th class="num">Pending updates</th><th class="col-xwide num">Packages</th><th class="col-xwide">Host key</th><th>State</th><th>Last seen</th></tr></thead>
-            <tbody id="hostRows"></tbody>
-          </table></div></div>
-          <div class="card" style="grid-area: insight">
-            <div class="card-header"><div><h2>Worth a look today</h2><p>Summarised by the local AI.</p></div></div>
-            <div class="section" style="padding-top:0">
-              <p style="margin:0 0 10px;line-height:1.6"><b>hv-01</b> has 3 OS vulnerabilities, one of them in <code class="mono">openssl</code> with a fix in the Debian security repository since yesterday. A plain <code class="mono">apt upgrade</code> resolves all three.</p>
-              <p style="margin:0 0 14px;line-height:1.6" class="muted"><b style="color:var(--foreground)">mail-01</b> runs Debian 12 (oldstable). Plan the upgrade to Debian 13 before its security support ends.</p>
-              <p class="muted" style="font-size:13px;margin:0">Nothing is executed automatically.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= XDR ================= -->
-      <section class="view" id="view-xdr">
-        <div class="page-header">
-          <div class="page-icon"><i data-lucide="radar"></i></div>
-          <div><h1>XDR</h1><p>Security events from your Wazuh installation, read-only. Deep dives stay in the Wazuh dashboard.</p></div>
-          <div class="actions"><span class="badge b-outline"><span class="sev-dot" style="background:var(--foreground)"></span>Connected · Wazuh 5.0.0-rc1</span><span class="badge b-info">Preview adapter</span><div class="segmented"><button>1 h</button><button class="on">24 h</button><button>7 days</button></div><button class="btn"><i data-lucide="external-link"></i>Open Wazuh</button></div>
-        </div>
-        <div class="kpis">
-          <div class="card kpi"><div class="top">Alerts level 12+<i data-lucide="siren"></i></div><div class="val">2</div><div class="delta">↑ 2 vs. yesterday</div><div class="hint">Both on web-01</div></div>
-          <div class="card kpi"><div class="top">Alerts level 7–11<i data-lucide="triangle-alert"></i></div><div class="val">35</div><div class="delta">↑ 12 % vs. yesterday</div><div class="hint">Mostly authentication failures</div></div>
-          <div class="card kpi"><div class="top">Agents<i data-lucide="server"></i></div><div class="val">11 / 12</div><div class="delta">active</div><div class="hint">1 disconnected: build-02</div></div>
-          <div class="card kpi"><div class="top">File integrity events<i data-lucide="file-diff"></i></div><div class="val">6</div><div class="delta">— unchanged</div><div class="hint">4 expected (package updates)</div></div>
-          <div class="card kpi"><div class="top">Vulnerabilities (Wazuh)<i data-lucide="bug"></i></div><div class="val">19</div><div class="delta">↓ 4 vs. last week</div><div class="hint">Merged with own scan results</div></div>
-          <div class="card kpi"><div class="top">MITRE tactics seen<i data-lucide="crosshair"></i></div><div class="val">5</div><div class="delta">in 24 h</div><div class="hint">Credential Access most frequent</div></div>
-        </div>
-        <div class="grid xd-grid">
-          <div class="card" style="grid-area: alerts">
-            <div class="card-header"><div><h2>Alerts</h2><p>Level 7 and above, newest first.</p></div><div class="end"><button class="btn sm ghost">All levels</button></div></div>
-            <div class="table-wrap"><table><thead><tr><th>Time</th><th>Agent</th><th>Rule</th><th class="num">Level</th><th class="col-wide">MITRE</th><th class="col-xwide">Rule ID</th></tr></thead><tbody id="xdrRows"></tbody></table></div>
-          </div>
-          <div class="card" style="grid-area: summary">
-            <div class="card-header"><div><h2>Summary</h2><p>Local AI, from 37 alerts.</p></div></div>
-            <div class="section" style="padding-top:0">
-              <p style="margin:0 0 10px;line-height:1.6">Two level-12 alerts on <b>web-01</b>: a new user <code class="mono">deploy2</code> was added to the <code class="mono">sudo</code> group at 02:51, eight minutes after a burst of SSH failures from 37 addresses. No successful login from those addresses is recorded.</p>
-              <p style="margin:0 0 14px;line-height:1.6" class="muted">Check whether the user change was planned. If not, treat web-01 as compromised: isolate it, rotate credentials, review <code class="mono">/var/log/auth.log</code>.</p>
-              <div style="display:flex;gap:8px"><button class="btn">Mark as expected</button><button class="btn">Open in Wazuh</button></div>
-            </div>
-          </div>
-          <div class="card" style="grid-area: mitre">
-            <div class="card-header"><div><h2>MITRE ATT&amp;CK tactics</h2><p>Share of alerts, 24 h.</p></div></div>
-            <div id="mitre" style="padding-bottom:12px"></div>
-          </div>
-          <div class="card" style="grid-area: agents">
-            <div class="card-header"><div><h2>Top agents</h2><p>By alert count, 24 h.</p></div></div>
-            <div id="topAgents" style="padding-bottom:12px"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ================= ATTACKS ================= -->
-      <section class="view" id="view-attacks">
-        <div class="page-header">
-          <div class="page-icon"><i data-lucide="globe"></i></div>
-          <div><h1>Attacks</h1><p>Where access attempts on your servers come from. Location from a local GeoIP database, reputation optional via OSINT.</p></div>
-          <div class="actions"><span class="badge b-outline"><span class="sev-dot" style="background:var(--destructive)"></span>Live</span><div class="segmented"><button>1 h</button><button class="on">24 h</button><button>7 days</button></div></div>
-        </div>
-        <div class="grid at-grid">
-          <div class="card globe-card" style="grid-area: globe" id="globeWrap">
-            <svg id="globe" aria-label="Globe showing attack origins"></svg>
-            <div class="globe-legend"><span><span class="sev-dot" style="background:var(--destructive)"></span>Blocked</span><span><span class="sev-dot" style="background:var(--warning)"></span>Observed</span><span><span class="sev-dot" style="background:var(--primary)"></span>Your servers</span></div>
-          </div>
-          <div class="card" style="grid-area: events; overflow:hidden">
-            <div class="card-header"><div><h2>Recent events</h2><p>Newest first.</p></div></div>
-            <div id="events"></div>
-          </div>
-          <div class="card" style="grid-area: top">
-            <div class="card-header"><div><h2>Origin</h2><p>Share of attempts, 24 h.</p></div></div>
-            <div id="topCountries" style="padding-bottom:12px"></div>
-          </div>
-          <div class="card" style="grid-area: types">
-            <div class="card-header"><div><h2>Type</h2><p>What was attempted.</p></div></div>
-            <div id="topTypes" style="padding-bottom:12px"></div>
-          </div>
-        </div>
-      </section>
-
       <!-- ================= SETTINGS ================= -->
       <section class="view" id="view-settings">
         <div class="readable settings">
           <div class="page-header">
             <div class="page-icon"><i data-lucide="settings"></i></div>
-            <div><h1>Settings</h1><p>Local AI, vulnerability data, sign-in, integrations and email.</p></div>
+            <div><h1>Settings</h1><p>Local AI, vulnerability data, sign-in and email.</p></div>
           </div>
           <div class="grid st-grid">
-            <div class="subnav" style="grid-area: nav"><button class="on">Local AI</button><button>Vulnerability data</button><button>Sign-in &amp; SSO</button><button>Wazuh</button><button>Email</button><button>License</button></div>
+            <div class="subnav" style="grid-area: nav"><button class="on">Local AI</button><button>Vulnerability data</button><button>Sign-in &amp; SSO</button><button>Email</button><button>License</button></div>
             <div class="card" style="grid-area: form">
               <div class="card-header"><div><h2>Local AI</h2><p>Any endpoint that speaks the OpenAI API.</p></div></div>
               <div class="card-body">
@@ -744,51 +617,6 @@ code.mono { background: var(--muted); padding: 1px 5px; border-radius: 4px; font
   </div>
 </div>
 
-<!-- ================= ADD SERVER DIALOG ================= -->
-<div class="backdrop" id="serverDialog" role="dialog" aria-modal="true" aria-labelledby="sdTitle">
-  <div class="dialog">
-    <div class="dialog-head">
-      <div><h2 id="sdTitle">Add server</h2><p class="muted" id="sdStep">Step 1 of 3 · How should we connect?</p></div>
-      <button class="btn ghost icon" data-close aria-label="Close"><i data-lucide="x"></i></button>
-    </div>
-    <div class="steps"><i class="on"></i><i id="st2"></i><i id="st3"></i></div>
-
-    <div class="dialog-body" id="sdBody1">
-      <div class="choice">
-        <button class="on" data-method="ssh"><i data-lucide="terminal"></i><b>Agentless (SSH)</b><span>Read-only package inventory. Nothing to install.</span></button>
-        <button data-method="wazuh"><i data-lucide="radar"></i><b>From Wazuh</b><span>Agents already enrolled in your Wazuh appear automatically.</span></button>
-        <button data-method="csv"><i data-lucide="file-spreadsheet"></i><b>CSV import</b><span>Many servers at once: address, port, user, group.</span></button>
-      </div>
-    </div>
-
-    <div class="dialog-body" id="sdBody2" hidden>
-      <div class="field-row">
-        <div class="field" style="flex:2"><label>Address</label><input value="192.0.2.21"></div>
-        <div class="field" style="flex:1"><label>Port</label><input value="22"></div>
-      </div>
-      <div class="field-row">
-        <div class="field" style="flex:1"><label>User on the server</label><input value="garnetops-scan"><span class="hint">Unprivileged. No sudo, no root.</span></div>
-        <div class="field" style="flex:1"><label>Jump host (optional)</label><input placeholder="bastion.example.lan"></div>
-      </div>
-      <div class="field"><label>Add this line to <span class="mono">~garnetops-scan/.ssh/authorized_keys</span></label>
-        <div class="code" style="white-space:pre-wrap;word-break:break-all">from="192.0.2.50",no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="/usr/local/bin/garnetops-inventory" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK4q…Zr9 garnetops@garnetops.example.lan</div>
-        <span class="hint">The key only allows the inventory command, only from this platform's address. <a href="#" class="link">Show the inventory script</a> (read-only: dpkg-query, rpm -qa, apk info, os-release).</span>
-      </div>
-    </div>
-
-    <div class="dialog-body" id="sdBody3" hidden>
-      <div class="alert" style="margin:0 0 14px">
-        <i data-lucide="fingerprint"></i>
-        <div><b>Confirm the host key</b><span>Compare it with the output of <span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span> on the server. If it ever changes, scanning stops until an admin confirms again.</span></div>
-      </div>
-      <div class="code">ED25519 SHA256:7m2Yp0k1cQwZ1y9pV3hJxS4tq0Q8eF2nLr5uB6dC1aE</div>
-      <div class="field" style="margin-top:16px"><label>Server group</label><select><option>Production</option><option>Staging</option><option>Internal tools</option></select></div>
-    </div>
-
-    <div class="dialog-foot"><button class="btn ghost" data-close>Cancel</button><button class="btn" id="sdBack" hidden>Back</button><button class="btn primary" id="sdNext">Continue</button></div>
-  </div>
-</div>
-
 <div class="mock-note">Mockup · sample data</div>
 
 <script>
@@ -799,7 +627,7 @@ const dot = (s) => `<span class="sev-dot" style="background:${SEV[s][2]}"></span
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
 /* ---------- Navigation ---------- */
-const CRUMBS = { overview: ["Daily", "Overview"], findings: ["Daily", "Findings"], attacks: ["Daily", "Attacks"], repos: ["Code", "Repositories"], gates: ["Code", "Quality gates"], fixes: ["Code", "Fix proposals"], hosts: ["Infrastructure", "Servers"], xdr: ["Infrastructure", "XDR"], settings: ["Admin", "Settings"] };
+const CRUMBS = { overview: ["Daily", "Overview"], findings: ["Daily", "Findings"], repos: ["Code", "Repositories"], gates: ["Code", "Quality gates"], fixes: ["Code", "Fix proposals"], settings: ["Admin", "Settings"] };
 function go(view) {
   document.querySelectorAll(".nav-item[data-view]").forEach((n) => n.classList.toggle("active", n.dataset.view === view));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + view));
@@ -807,7 +635,6 @@ function go(view) {
   $("#crumbs").innerHTML = `${a}<i data-lucide="chevron-right"></i><b>${b}</b>`;
   lucide.createIcons();
   history.replaceState(null, "", "#" + view);
-  if (view === "attacks") startGlobe();
 }
 document.querySelectorAll(".nav-item[data-view]").forEach((n) => (n.onclick = () => go(n.dataset.view)));
 document.addEventListener("click", (e) => { const g = e.target.closest("[data-goto]"); if (g) go(g.dataset.goto); });
@@ -852,7 +679,7 @@ const gateRuns = [
   { repo: "booking-app", trig: "PR #31", res: "pass", why: "no blocking findings", dur: "38 s", when: "3 h ago" },
   { repo: "website", trig: "main · 9c2e1aa", res: "pass", why: "no blocking findings", dur: "22 s", when: "yesterday" },
   { repo: "ml-experiments", trig: "PR #7", res: "pass", why: "no blocking findings", dur: "29 s", when: "yesterday" },
-  { repo: "pstimex", trig: "main · 51ab0d3", res: "pass", why: "no blocking findings", dur: "17 s", when: "2 days ago" },
+  { repo: "docs-site", trig: "main · 51ab0d3", res: "pass", why: "no blocking findings", dur: "17 s", when: "2 days ago" },
 ];
 // Green means proof: only a gate that actually passed is green.
 const GATE = { pass: ["Passed", "b-success", "circle-check"], fail: ["Blocked", "b-critical", "circle-x"], warn: ["With notes", "b-medium", "circle-alert"] };
@@ -921,7 +748,7 @@ const repos = [
   { n: "booking-app", url: "git.example.lan/team/booking-app", p: "Forgejo", via: "SSH", br: "main", c: 0, h: 1, m: 0, gate: "pass", sc: ["grype"], hist: [2, 2, 2, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2], scan: "3 h ago" },
   { n: "website", url: "github.com/example-org/website", p: "GitHub", via: "GitHub App", br: "main", c: 0, h: 0, m: 0, gate: "pass", sc: ["grype", "trivy"], hist: [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], scan: "yesterday" },
   { n: "ml-experiments", url: "git.example.lan/team/ml-experiments", p: "Forgejo", via: "SSH", br: "dev", c: 0, h: 0, m: 0, gate: "pass", sc: ["grype"], hist: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], scan: "yesterday" },
-  { n: "pstimex", url: "ssh://nas-01/srv/git/pstimex.git", p: "Git over SSH", via: "Deploy key", br: "main", c: 0, h: 0, m: 0, gate: "pass", sc: ["grype"], hist: [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0], scan: "2 days ago" },
+  { n: "docs-site", url: "ssh://git.example.lan/srv/git/docs-site.git", p: "Git over SSH", via: "Deploy key", br: "main", c: 0, h: 0, m: 0, gate: "pass", sc: ["grype"], hist: [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0], scan: "2 days ago" },
 ];
 const count = (n, tone) => n ? `<span class="count ${tone}">${n}</span>` : `<span class="count zero">0</span>`;
 function spark(d) {
@@ -947,7 +774,7 @@ $("#repoRows").innerHTML = repos.map((r) => `
 const fixes = [
   { id: 1, t: "tedious 16 → 18.6, drops sprintf-js", repo: "billing-portal", by: "Local AI", tests: "pass", st: ["Waiting for review", "b-info"], when: "12 min ago", pr: "#89",
     body: "Replaces the MSSQL driver `tedious` 16.7 with 18.6. Version 18 no longer needs `sprintf-js`, which resolves CVE-2026-28112. The connection options `trustServerCertificate` and `encrypt` have different defaults in 18; they are now set explicitly so behaviour does not change.",
-    diff: ["package.json", "del|    \"tedious\": \"^16.7.1\",", "add|    \"tedious\": \"^18.6.0\",", "fn|lib/karthago/connection.ts", "ctx|  options: {", "add|    encrypt: true,", "add|    trustServerCertificate: false,"] },
+    diff: ["package.json", "del|    \"tedious\": \"^16.7.1\",", "add|    \"tedious\": \"^18.6.0\",", "fn|lib/db/connection.ts", "ctx|  options: {", "add|    encrypt: true,", "add|    trustServerCertificate: false,"] },
   { id: 2, t: "useEffectEvent instead of eslint-disable (6 places)", repo: "restow", by: "Local AI", tests: "fail", st: ["Needs a look", "b-medium"], when: "2 h ago", pr: "#214",
     body: "Replaces six `eslint-disable react-hooks/exhaustive-deps` with `useEffectEvent` (React 19.2). One test in `fetch-dialog.test.tsx` fails because it waits for the old timing.",
     diff: ["fetch-dialog.tsx", "del|  // eslint-disable-next-line react-hooks/exhaustive-deps", "del|  useEffect(() => { load(filter); }, []);", "add|  const onOpen = useEffectEvent(() => load(filter));", "add|  useEffect(() => { onOpen(); }, []);"] },
@@ -975,131 +802,7 @@ function selectFix(id) {
 }
 selectFix(1);
 
-/* ---------- Servers ---------- */
-const hosts = [
-  { n: "web-01", ip: "192.0.2.21", via: ["SSH", "Wazuh"], os: "Debian 13", cve: 1, upd: 4, pkgs: 612, key: "pinned", st: ["XDR alert", "b-critical"], seen: "1 min ago" },
-  { n: "hv-01", ip: "192.0.2.2", via: ["SSH"], os: "Proxmox VE 9.1", cve: 3, upd: 11, pkgs: 1043, key: "pinned", st: ["Updates pending", "b-medium"], seen: "6 min ago" },
-  { n: "app-01", ip: "192.0.2.119", via: ["SSH"], os: "Debian 13", cve: 0, upd: 0, pkgs: 388, key: "pinned", st: ["OK", "b-outline"], seen: "6 min ago" },
-  { n: "nas-01", ip: "192.0.2.5", via: ["Wazuh"], os: "TrueNAS 25.10", cve: 0, upd: 0, pkgs: 0, key: "–", st: ["OK", "b-outline"], seen: "1 min ago" },
-  { n: "gpu-01", ip: "192.0.2.40", via: ["SSH", "Wazuh"], os: "Ubuntu 24.04", cve: 1, upd: 2, pkgs: 905, key: "pinned", st: ["OK", "b-outline"], seen: "6 min ago" },
-  { n: "mail-01", ip: "192.0.2.25", via: ["SSH"], os: "Debian 12", cve: 2, upd: 7, pkgs: 541, key: "changed", st: ["Host key changed", "b-critical"], seen: "2 days ago" },
-];
-$("#hostRows").innerHTML = hosts.map((h) => `
-  <tr><td><div style="font-weight:500">${h.n}</div><span class="sub mono">${h.ip}</span></td>
-  <td><div style="display:flex;gap:4px">${h.via.map((v) => `<span class="badge b-neutral">${v}</span>`).join("")}</div></td>
-  <td class="col-wide">${h.os}</td>
-  <td class="num">${count(h.cve, "b-medium")}</td><td class="num">${h.upd || '<span class="muted">0</span>'}</td>
-  <td class="col-xwide num">${h.pkgs || '<span class="muted">–</span>'}</td>
-  <td class="col-xwide">${h.key === "changed" ? '<span class="badge b-critical">Changed</span>' : h.key === "pinned" ? '<span class="muted">Pinned</span>' : '<span class="muted">–</span>'}</td>
-  <td><span class="badge ${h.st[1]}">${h.st[0]}</span></td><td><span class="dash-time">${h.seen}</span></td></tr>`).join("");
-
-/* ---------- XDR ---------- */
-const alerts = [
-  { t: "02:51", a: "web-01", r: "User added to sudo group", l: 12, m: "Privilege Escalation", id: "5904" },
-  { t: "02:51", a: "web-01", r: "New user account created", l: 12, m: "Persistence", id: "5902" },
-  { t: "02:43", a: "web-01", r: "sshd: multiple authentication failures", l: 10, m: "Credential Access", id: "5720" },
-  { t: "02:40", a: "web-01", r: "sshd: brute force attempt", l: 10, m: "Credential Access", id: "5712" },
-  { t: "01:17", a: "mail-01", r: "Postfix: SASL authentication failures", l: 8, m: "Credential Access", id: "3357" },
-  { t: "00:05", a: "hv-01", r: "Integrity checksum changed: /etc/ssh/sshd_config", l: 7, m: "Defense Evasion", id: "550" },
-  { t: "Yesterday", a: "gpu-01", r: "Listened ports status changed", l: 7, m: "Discovery", id: "533" },
-];
-const lvl = (l) => l >= 12 ? "b-critical" : l >= 10 ? "b-high" : "b-medium";
-$("#xdrRows").innerHTML = alerts.map((x) => `<tr><td class="mono">${x.t}</td><td style="font-weight:500">${x.a}</td><td>${x.r}</td><td class="num"><span class="badge ${lvl(x.l)}">${x.l}</span></td><td class="col-wide muted">${x.m}</td><td class="col-xwide mono muted">${x.id}</td></tr>`).join("");
-const bars = (rows) => rows.map(([l, v]) => `<div class="bar-row"><span class="truncate">${l}</span><div class="bar"><i style="width:${v}%"></i></div><span class="muted" style="text-align:right">${v} %</span></div>`).join("");
-$("#mitre").innerHTML = bars([["Credential Access", 62], ["Defense Evasion", 14], ["Persistence", 11], ["Privilege Esc.", 8], ["Discovery", 5]]);
-$("#topAgents").innerHTML = bars([["web-01", 71], ["mail-01", 16], ["hv-01", 8], ["gpu-01", 5]]);
-
-/* ---------- Add server dialog ---------- */
-let sdStep = 1;
-const sdTitles = ["How should we connect?", "Connection details", "Confirm and save"];
-function sdShow() {
-  [1, 2, 3].forEach((n) => ($("#sdBody" + n).hidden = n !== sdStep));
-  $("#sdStep").textContent = `Step ${sdStep} of 3 · ${sdTitles[sdStep - 1]}`;
-  $("#st2").classList.toggle("on", sdStep >= 2); $("#st3").classList.toggle("on", sdStep >= 3);
-  $("#sdBack").hidden = sdStep === 1;
-  $("#sdNext").textContent = sdStep === 3 ? "Add server" : "Continue";
-}
-$("#addServerBtn").onclick = () => { sdStep = 1; sdShow(); $("#serverDialog").classList.add("open"); lucide.createIcons(); };
-$("#sdNext").onclick = () => { if (sdStep < 3) { sdStep++; sdShow(); } else $("#serverDialog").classList.remove("open"); };
-$("#sdBack").onclick = () => { sdStep--; sdShow(); };
-document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => $("#serverDialog").classList.remove("open")));
-document.querySelectorAll(".choice button").forEach((b) => (b.onclick = () => { document.querySelectorAll(".choice button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); }));
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#serverDialog").classList.remove("open"); });
-
-/* ---------- Attacks ---------- */
-const sources = [
-  { cc: "CN", c: "China", lng: 116.4, lat: 39.9, t: "SSH brute force", s: 98 },
-  { cc: "RU", c: "Russia", lng: 37.6, lat: 55.75, t: "Port scan", s: 91 },
-  { cc: "US", c: "United States", lng: -77.0, lat: 38.9, t: "WordPress login", s: 64 },
-  { cc: "BR", c: "Brazil", lng: -46.6, lat: -23.5, t: "SQL injection pattern", s: 87 },
-  { cc: "VN", c: "Vietnam", lng: 105.8, lat: 21.0, t: "SSH brute force", s: 95 },
-  { cc: "NL", c: "Netherlands", lng: 4.9, lat: 52.37, t: "Known scanner", s: 40 },
-  { cc: "IN", c: "India", lng: 77.2, lat: 28.6, t: "RDP attempt", s: 82 },
-];
-const targets = ["web-01", "mail-01", "shop.example.com", "www.example.com"];
-$("#topCountries").innerHTML = bars([["China", 38], ["Russia", 21], ["Vietnam", 11], ["United States", 9], ["Brazil", 7], ["Other", 14]]);
-$("#topTypes").innerHTML = bars([["SSH brute force", 61], ["Port scan", 18], ["Web login", 11], ["SQL injection", 6], ["RDP", 4]]);
-
-let globeStarted = false, land, svg, proj, path, rotation = [-45, -30], arcs = [], dragged = false;
-const home = { lng: 7.13, lat: 50.99 };
-function startGlobe() {
-  if (globeStarted) return; globeStarted = true;
-  land = topojson.feature(window.WORLD_ATLAS, window.WORLD_ATLAS.objects.countries);
-  drawGlobe(); requestAnimationFrame(tick);
-  for (let i = 0; i < 8; i++) addEvent(true);
-  setInterval(() => addEvent(false), 2600);
-}
-function drawGlobe() {
-  const wrap = $("#globeWrap");
-  const size = Math.min(wrap.clientWidth, wrap.clientHeight) - 40;
-  svg = d3.select("#globe").attr("width", size).attr("height", size);
-  svg.selectAll("*").remove();
-  proj = d3.geoOrthographic().scale(size / 2 - 2).translate([size / 2, size / 2]).clipAngle(90);
-  path = d3.geoPath(proj);
-  svg.append("path").datum({ type: "Sphere" }).attr("class", "g-sphere");
-  svg.append("path").datum(d3.geoGraticule10()).attr("class", "g-grat");
-  svg.append("path").datum(land).attr("class", "g-land");
-  svg.append("g").attr("class", "arcs");
-  svg.append("circle").attr("class", "g-home").attr("r", 4.5);
-  svg.call(d3.drag().on("drag", (e) => { dragged = true; rotation[0] += e.dx * 0.3; rotation[1] -= e.dy * 0.3; render(); }));
-  render();
-}
-function render() {
-  proj.rotate(rotation);
-  svg.selectAll(".g-sphere,.g-grat,.g-land").attr("d", path);
-  const hp = proj([home.lng, home.lat]); svg.select(".g-home").attr("cx", hp[0]).attr("cy", hp[1]);
-  const g = svg.select(".arcs"); g.selectAll("*").remove();
-  const now = performance.now();
-  arcs = arcs.filter((a) => now - a.t0 < 4200);
-  for (const a of arcs) {
-    const p = Math.min(1, (now - a.t0) / 1400), fade = 1 - Math.max(0, (now - a.t0 - 1400) / 2800);
-    const interp = d3.geoInterpolate([a.lng, a.lat], [home.lng, home.lat]);
-    const color = a.s > 80 ? "var(--destructive)" : "var(--warning)";
-    g.append("path").datum({ type: "LineString", coordinates: d3.range(0, p + 0.001, 0.02).map(interp) }).attr("d", path)
-      .attr("style", `fill:none;stroke:${color};stroke-width:1.6;stroke-linecap:round;opacity:${fade}`);
-    if (d3.geoDistance([a.lng, a.lat], [-rotation[0], -rotation[1]]) < Math.PI / 2) {
-      const sp = proj([a.lng, a.lat]);
-      g.append("circle").attr("cx", sp[0]).attr("cy", sp[1]).attr("r", 3).attr("style", `fill:${color};opacity:${fade}`);
-    }
-  }
-}
-function tick() {
-  if (!dragged && !matchMedia("(prefers-reduced-motion: reduce)").matches) rotation[0] = -45 + 25 * Math.sin(performance.now() / 12000);
-  render(); requestAnimationFrame(tick);
-}
-function addEvent(initial) {
-  const s = sources[Math.floor(Math.random() * sources.length)];
-  const tgt = targets[Math.floor(Math.random() * targets.length)];
-  const ip = [45, 91, 103, 185, 194, 201][Math.floor(Math.random() * 6)] + "." + [0, 0, 0].map(() => Math.floor(Math.random() * 255)).join(".");
-  if (!initial) arcs.push({ ...s, t0: performance.now() });
-  const box = $("#events");
-  box.insertAdjacentHTML("afterbegin", `<div class="ev"><span class="cc">${s.cc}</span><div class="main"><div class="t">${s.t} → ${tgt}</div><div class="m"><span class="mono">${ip}</span> · ${s.c} · ${s.s > 80 ? "blocked" : "observed"}</div></div><div class="score"><b>${s.s} %</b>Abuse score</div></div>`);
-  while (box.children.length > 12) box.lastElementChild.remove();
-}
-window.addEventListener("resize", () => globeStarted && drawGlobe());
-
-if (location.hash === "#add-server") { go("hosts"); $("#addServerBtn").click(); sdStep = 2; sdShow(); }
-else go(CRUMBS[location.hash.slice(1)] ? location.hash.slice(1) : "overview");
+go(CRUMBS[location.hash.slice(1)] ? location.hash.slice(1) : "overview");
 </script>
 </body>
 </html>

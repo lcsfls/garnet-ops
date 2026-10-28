@@ -39,9 +39,6 @@ These are vendored in `vendor/` for the throwaway mockup.
 | Inter Tight | 5.x (Fontsource) | SIL OFL 1.1 | verified | https://github.com/rsms/inter | UI text font | License file shipped |
 | IBM Plex Mono | 5.x (Fontsource) | SIL OFL 1.1 | verified | https://github.com/IBM/plex | Monospace font | License file shipped |
 | Lucide | 0.469.0 | ISC (portions MIT, Feather) | verified | https://github.com/lucide-icons/lucide | Icons | License file shipped |
-| d3 | 7.9.0 | ISC | verified | https://github.com/d3/d3 | Globe projection | License file shipped |
-| topojson-client | 3.1.0 | ISC | verified | https://github.com/topojson/topojson-client | Map data decoding | License file shipped |
-| world-atlas (countries-110m) | 2.0.2 | ISC; data Natural Earth (public domain) | verified | https://github.com/topojson/world-atlas | Globe map | License file shipped |
 
 ## In use today (application)
 
@@ -243,7 +240,8 @@ Decided in ADR 0003; components move to "In use today (application)" when they a
 | Inter, JetBrains Mono (mockup v1) | SIL OFL 1.1 | Replaced by Inter Tight and IBM Plex Mono to match Restow | 2026-10-19 |
 | unpkg / jsDelivr at runtime | n/a | Rule 3: no runtime CDNs | 2026-10-19 |
 | ldapjs (also as a test server) | MIT | Archived and deprecated by its maintainers, and its server half is not needed: the LDAP test server is built on the message classes ldapts already exports (ADR 0020) | 2026-10-22 |
-| d3-geo 3.1.1 (with d3-array 3.2.4, internmap 2.0.3, @types/d3-geo 3.1.0, @types/geojson 7946.0.16) | ISC (types: MIT) | Removed with the attack overview globe (ADR 0025). The mockup under `design/mockup/vendor/` still vendors d3 and topojson-client as a throwaway prototype | 2026-10-28 |
+| d3-geo 3.1.1 (with d3-array 3.2.4, internmap 2.0.3, @types/d3-geo 3.1.0, @types/geojson 7946.0.16) | ISC (types: MIT) | Removed with the attack overview globe (ADR 0025) | 2026-10-28 |
+| d3 7.9.0, topojson-client 3.1.0, world-atlas countries-110m 2.0.2 (mockup) | ISC; data Natural Earth (public domain) | Vendored only for the globe of the throwaway mockup; removed with its attack, server and XDR views (ADR 0025) | 2026-10-28 |
 | Natural Earth admin-0 countries 1:110m (via world-atlas 2.0.2) | public domain (data); ISC (packaging) | The world map and globe shapes were removed with the attack overview (ADR 0025); the generator script and the vendored shapes are gone | 2026-10-28 |
 | DB-IP IP to Country Lite and IP to ASN Lite | CC BY 4.0 | GeoIP data of the attack overview and external exposure, never bundled; removed with those modules (ADR 0025) | 2026-10-28 |
 | MaxMind GeoLite2, GreyNoise Community API, AbuseIPDB API | MaxMind EULA; service terms | Optional GeoIP and reputation sources of the attack overview; removed with it (ADR 0025) | 2026-10-28 |
