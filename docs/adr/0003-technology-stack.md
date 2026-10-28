@@ -1,6 +1,6 @@
 # ADR 0003: Technology stack
 
-- Status: accepted
+- Status: accepted; the "Web" row is superseded by [ADR 0027](0027-web-app-on-sveltekit.md) (SvelteKit)
 - Date: 2026-10-19
 - Decided by: maintainer, following the recommendation below
 
@@ -50,6 +50,11 @@ The API and the worker are separate processes with separate privileges. Only
 the worker runs scanners and opens SSH connections; only the worker can decrypt
 SSH private keys and forge credentials. The API can encrypt but not decrypt
 those secrets (see ADR 0004).
+
+## Amendment 2026-10-28: web app on SvelteKit
+
+The web app moved from React to SvelteKit with Svelte 5 ([ADR 0027](0027-web-app-on-sveltekit.md)). The other rows of
+the table stay as they are.
 
 ## Amendment 2026-10-21: Node.js 24
 

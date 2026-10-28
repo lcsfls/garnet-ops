@@ -49,7 +49,7 @@ linked into GarnetOps; the full list with versions and licences is in
 | Database and jobs | [PostgreSQL 17](https://www.postgresql.org), [pg-boss](https://github.com/timgit/pg-boss) | PostgreSQL, MIT | Data, and the scan queue with nightly schedules |
 | API | [Node.js 24](https://nodejs.org), [Hono](https://hono.dev), [Drizzle ORM](https://orm.drizzle.team) | MIT, MIT, Apache-2.0 | REST API under `/api/v1`, migrations |
 | Sign-in | [better-auth](https://www.better-auth.com) | MIT | Accounts, sessions, mandatory TOTP; passwords hashed with Argon2id (`node:crypto`) |
-| Web app | [React 19](https://react.dev), [TanStack Router and Query](https://tanstack.com), [Tailwind CSS](https://tailwindcss.com), [Lucide](https://lucide.dev), [i18next](https://www.i18next.com) | MIT, MIT, MIT, ISC, MIT | The interface in English and German, fonts and icons served by GarnetOps itself |
+| Web app | [SvelteKit and Svelte 5](https://svelte.dev), [TanStack Query](https://tanstack.com), [Tailwind CSS](https://tailwindcss.com), [Lucide](https://lucide.dev), [i18next](https://www.i18next.com) | MIT, MIT, MIT, ISC, MIT | The interface in English and German, fonts and icons served by GarnetOps itself |
 | Updates (optional) | [GarnetOps updater](updater/VENDORED.md), in this repository (started as [cicd-updater](https://github.com/restow-backup/cicd-updater)) | Apache-2.0 | Installs signed releases with a backup first |
 
 Secrets you store (access tokens, deploy keys) are sealed with a post-quantum hybrid

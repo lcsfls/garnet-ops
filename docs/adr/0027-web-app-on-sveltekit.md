@@ -1,6 +1,6 @@
 # ADR 0027: Web app on SvelteKit
 
-- Status: accepted (2026-10-28), in progress
+- Status: accepted (2026-10-28), implemented: the whole end-to-end suite (311 tests) passes against the SvelteKit app
 - Date: 2026-10-28
 - Decided by: maintainer
 - Supersedes in part: ADR 0003 (the "Web" row: React 19, TanStack Router, shadcn/ui, Radix, lucide-react)
@@ -31,10 +31,14 @@ acceptance test of the rewrite.
    `packages/i18n` (English source, German) stays unchanged and is read through i18next with ICU messages, wrapped in a small
    reactive store. The better-auth client comes from `better-auth/svelte`.
 4. **Strict CSP without `'unsafe-inline'`.** SvelteKit starts the app with one small inline script. SvelteKit's own CSP support in hash
-   mode (`kit.csp.mode = "hash"`) computes its SHA-256 at build time; the build writes the complete policy (our directives plus that
-   hash) to `build/csp.txt`. Caddy and `vite preview` send exactly that header. A changed or injected inline script does not match the
-   hash and does not run. Hashes are the static counterpart of nonces for a page that is the same for everyone; there is no server
-   that could mint a nonce per response.
+   mode (`csp.mode = "hash"`) computes its SHA-256 at build time; `scripts/csp.mjs` writes the complete policy (our directives plus
+   that hash) to `build/csp.txt` and, as a Caddyfile line, to `build/csp.caddy`, which the web image copies to
+   `/etc/caddy/csp.caddy` and the Caddyfile imports. The preview server of the end-to-end suite (`scripts/serve.mjs`) sends the same
+   header. A changed or injected inline script does not match the hash and does not run. Hashes are the static counterpart of nonces
+   for a page that is the same for everyone; there is no server that could mint a nonce per response. SvelteKit's visually hidden
+   route announcer has one fixed `style` attribute; `style-src-attr 'unsafe-hashes'` with the SHA-256 of exactly that value allows it
+   and nothing else (computed from SvelteKit's own source at build time, checked by `scripts/csp.mjs`). Our own components set no
+   style attributes; dynamic values go through `style:` directives, which use the CSSOM.
 5. **Framework-free code moves as is**: API client, search schemas, formatting, time zones, markdown parser, notification and toast
    queues, types. Their unit tests keep running.
 6. **One switch, no mixed app.** The rewrite is built on a branch and replaces `apps/web` in one release once the whole end-to-end
@@ -57,4 +61,8 @@ acceptance test of the rewrite.
   `@lucide/svelte`, `@tanstack/svelte-query`, `svelte-check`; MIT or ISC) and drops React, TanStack Router and lucide-react
   (`docs/COMPONENTS.md`).
 - Caddy reads the CSP header from a file the web build writes, instead of a fixed string in the Caddyfile.
+- SvelteKit 3 needs TypeScript 6 for the web app; the other packages stay on TypeScript 5.9 for now.
+- Biome lints the scripts of `.svelte` files; unused names there are found by `svelte-check`, which sees the templates too.
+- Two defects of the React app were fixed on the way: the repository list showed three columns under the wrong headers from the xwide
+  step on, and switching the nightly scan off sent the disabled time field as "null" and was refused.
 - The Go API is not part of this decision.

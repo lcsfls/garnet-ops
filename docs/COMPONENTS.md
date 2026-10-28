@@ -89,25 +89,17 @@ npm packages, so its upstream repository still has to be checked.
 | @lucide/svelte | 1.62.0 | ISC | verified | https://github.com/lucide-icons/lucide | Icons in the Svelte app (the same icon set as lucide-react) | |
 | svelte-check | 4.7.7 | MIT | verified | https://github.com/sveltejs/language-tools | Type and template checks (dev) | |
 | TypeScript (web app) | 6.0.3 | Apache-2.0 | verified | https://github.com/microsoft/TypeScript | Type checking of the Svelte app (dev); SvelteKit 3 requires it | The other packages stay on 5.9 |
-| React, react-dom | 19.3.1 | MIT | verified | https://github.com/facebook/react | Web UI | |
-| @tanstack/react-router | 1.170.45 | MIT | verified | https://github.com/TanStack/router | Routing with route guards | |
-| @tanstack/router-plugin | 1.168.47 | MIT | verified | https://github.com/TanStack/router | File-based route generation (dev) | pnpm offers "agent skills" from this package; not approved, not used |
-| @tanstack/react-query | 5.104.5 | MIT | verified | https://github.com/TanStack/query | Server state | |
 | Vite | 8.3.4 | MIT | verified | https://github.com/vitejs/vite | Build and dev server (dev) | |
-| @vitejs/plugin-react | 6.1.2 | MIT | verified | https://github.com/vitejs/vite-plugin-react | React support for Vite (dev) | |
 | Tailwind CSS, @tailwindcss/vite | 4.3.3 | MIT | verified | https://github.com/tailwindlabs/tailwindcss | Styling (dev, compiled to CSS) | |
 | clsx | 2.1.1 | MIT | verified | https://github.com/lukeed/clsx | Class names | |
 | tailwind-merge | 3.7.0 | MIT | verified | https://github.com/dcastil/tailwind-merge | Class merging (shadcn/ui convention) | |
-| lucide-react | 1.60.0 | ISC | verified | https://github.com/lucide-icons/lucide | Icons | |
 | i18next | 26.5.3 | MIT | verified | https://github.com/i18next/i18next | Localisation | |
-| react-i18next | 17.1.0 | MIT | verified | https://github.com/i18next/react-i18next | Localisation for React | |
 | i18next-icu | 2.6.1 | MIT | verified | https://github.com/i18next/i18next-icu | ICU message format | |
 | intl-messageformat | 12.1.4 | BSD-3-Clause | verified | https://github.com/formatjs/formatjs | ICU message parser (used by i18next-icu) | Notice in THIRD_PARTY_NOTICES |
 | uqr | 0.1.3 | MIT | verified | https://github.com/unjs/uqr | QR code for TOTP enrolment, rendered locally | Based on Project Nayuki's QR generator (MIT) |
 | @fontsource/inter-tight | 5.3.0 | SIL OFL 1.1 | verified | https://github.com/fontsource/font-files | UI font, bundled by Vite | Font license shipped with the build |
 | @fontsource/ibm-plex-mono | 5.3.0 | SIL OFL 1.1 | verified | https://github.com/fontsource/font-files | Monospace font, bundled by Vite | Font license shipped with the build |
 | @playwright/test | 1.64.1 | Apache-2.0 | verified | https://github.com/microsoft/playwright | End-to-end and 1080p layout tests (dev) | Downloads Chromium for tests; never shipped |
-| @types/react, @types/react-dom | 19.3.0 | MIT | verified | https://github.com/DefinitelyTyped/DefinitelyTyped | Type definitions (dev) | |
 | @restow-backup/cicd-updater (SDK) | 1.0.0 (commit b2dd4ef) | Apache-2.0 | verified | https://github.com/restow-backup/cicd-updater | Client of the optional update sidecar: API calls, journal sync, maintenance banner, en/de message catalogs (ADR 0007) | Vendored tarball built from the reviewed commit, SHA-256 in `vendor/cicd-updater/README.md`; NOTICE file shipped in the package |
 | zod (v4) | 4.6.7 | MIT | verified | https://github.com/colinhacks/zod | Runtime dependency of the cicd-updater SDK and better-call | Installed next to zod 3 used by our own code |
 
@@ -244,6 +236,7 @@ Decided in ADR 0003; components move to "In use today (application)" when they a
 
 | Component | License | Reason | Date |
 |---|---|---|---|
+| React, react-dom, @tanstack/react-router, @tanstack/router-plugin, @tanstack/react-query, @vitejs/plugin-react, lucide-react, react-i18next, @types/react, @types/react-dom | MIT, ISC | The web app moved to SvelteKit ([ADR 0027](adr/0027-web-app-on-sveltekit.md)). React and react-dom are still installed as optional peers of better-auth and the update sidecar's SDK, but nothing imports them and they are not in the build | 2026-10-28 |
 | Renovate (bundled in the product) | AGPL-3.0 (to verify) | Rule 3 forbids AGPL components inside the product (hosted offering). Customers may run their own Renovate; we can generate `renovate.json` for them. Our own version-bump PRs need a separate implementation | 2026-10-19 |
 | Semgrep Registry rules | Semgrep Rules License | Forbids use in a competing product or service | 2026-10-19 |
 | Google Fonts (CDN) | OFL fonts, but remote delivery | Rule 3: all assets self-hosted; also leaks visitor IPs to a third party | 2026-10-19 |
