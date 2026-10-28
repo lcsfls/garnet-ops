@@ -205,10 +205,11 @@ on smaller screens; it moves below or behind a click.
 ### 6. Visual language: own identity, no AI slop
 
 The product has its own colours, logo and wordmark, distinct from Restow. It
-shares Restow's quality bar and conventions (shadcn/ui, design tokens in OKLCH
-with tested contrast, self-hosted fonts, full-width data views), not its
-brand. Animations use Motion (MIT core), are short and purposeful, and
-respect `prefers-reduced-motion`.
+shares Restow's quality bar and conventions (shadcn/ui-style components, here
+written as our own Svelte components (ADR 0027), design tokens in OKLCH with
+tested contrast, self-hosted fonts, full-width data views), not its brand.
+Animations use Svelte's built-in transitions and CSS, are short and
+purposeful, and respect `prefers-reduced-motion`.
 
 - **Page widths** (same convention as Restow): `wide` for data views (full width, no cap),
   `readable` for forms and prose (reading width), `full` for multi-pane views.

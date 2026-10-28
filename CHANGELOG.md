@@ -8,6 +8,8 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-10-28
+
 ### Changed
 
 - The web app runs on SvelteKit with Svelte 5 instead of React ([ADR 0027](docs/adr/0027-web-app-on-sveltekit.md)). Pages, texts,
