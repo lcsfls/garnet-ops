@@ -19,6 +19,9 @@ export function href(path: string, search: SearchParams = {}): string {
 }
 
 /** The search parameters of `url` through `schema`; invalid values fall back to the schema's defaults. */
-export function parseSearch<S extends z.ZodTypeAny>(schema: S, url: URL | { searchParams: URLSearchParams }): z.infer<S> {
-  return schema.parse(Object.fromEntries(url.searchParams));
+export function parseSearch<S extends z.ZodTypeAny>(
+  schema: S,
+  url: { searchParams: { entries(): IterableIterator<[string, string]> } },
+): z.infer<S> {
+  return schema.parse(Object.fromEntries(url.searchParams.entries()));
 }
