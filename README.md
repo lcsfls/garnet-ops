@@ -1,9 +1,9 @@
 # GarnetOps
 
 Self-hosted security for your Git repositories, built as a developer pipeline:
-quality gates, dependency and container update checks, fix pull requests and
-AI triage on the customer's own OpenAI-compatible model, for Forgejo, Gitea,
-GitHub and plain Git. No code, finding or log leaves the customer's network.
+dependency scanning, quality gates, fix pull requests and AI triage on the
+customer's own OpenAI-compatible model, for Forgejo, Gitea, GitHub and plain Git.
+No code, finding or log leaves the customer's network.
 
 Dual-licensed: [AGPL-3.0-only](LICENSE) and a commercial license
 ([LICENSING.md](LICENSING.md)). Domain: garnetops.com.
@@ -57,10 +57,13 @@ scheme (ML-KEM-1024 and X25519, ADR 0004); only the scan worker holds the key to
 
 ## Getting started
 
-Until the first release there are no published images, so you build them from this
-repository. You need one Linux host (a VM, or an LXC container) with Docker Engine 26 or
-newer and the Compose plugin v2.24 or newer, 4 CPU cores, 8 GB RAM and about 40 GB of
-disk for the build.
+The recommended way is the signed release images: the steps, including how to verify
+them with cosign, are in [docs/installation.md](docs/installation.md). Installations from
+those images update themselves from **Settings → Updates** (optional, [docs/updating.md](docs/updating.md)).
+
+To build the images from this repository instead, you need one Linux host (a VM, or an
+LXC container) with Docker Engine 26 or newer and the Compose plugin v2.24 or newer,
+4 CPU cores, 8 GB RAM and about 40 GB of disk for the build.
 
 ```sh
 git clone https://github.com/lcsfls/garnet-ops.git /opt/garnetops
@@ -130,7 +133,7 @@ release tag:
 cd /opt/garnetops
 docker compose exec db pg_dump -U garnetops -Fc garnetops > garnetops-$(date +%F).dump
 git fetch --tags
-TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)   # the newest release, e.g. v0.0.4
+TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)   # the newest release, e.g. v0.0.8
 git checkout "$TAG"
 VERSION=$(echo "$TAG" | cut -c2-)
 docker build --target app -t garnetops:local     --build-arg VERSION="$VERSION" .
