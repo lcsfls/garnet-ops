@@ -30312,6 +30312,14 @@ async function sidecarUpgradePlan(input2) {
   const configFile = path4.join(work, "updater.yaml");
   await fs5.writeFile(configFile, (0, import_yaml2.stringify)(config2));
   const service = updater.service ?? "updater";
+  const sharedDir = config2.auth?.sharedDir ?? "/shared";
+  const sharedVolume = sharedVolumeOf(
+    await Promise.all(
+      options.composeFiles.map((file2) => fs5.readFile(path4.resolve(cwd, file2), "utf8"))
+    ),
+    service,
+    sharedDir
+  );
   return {
     feedDir,
     configFile,
@@ -30333,18 +30341,38 @@ async function sidecarUpgradePlan(input2) {
           `${feedDir}:/smoke-feed:ro`,
           `${work}:/smoke-config:ro`,
           "smoke-updater-state:/state",
-          "smoke-updater-shared:/shared"
+          `${sharedVolume ?? "smoke-updater-shared"}:${sharedDir}`
         ],
         labels: { "io.github.restow-backup.cicd-updater.role": "sidecar" }
       };
       base.volumes = {
         ...base.volumes ?? {},
         "smoke-updater-state": {},
-        "smoke-updater-shared": {}
+        ...sharedVolume ? {} : { "smoke-updater-shared": {} }
       };
       return (0, import_yaml2.stringify)(base).replace(/\n {4}environment:\n/, "\n    environment: !override\n").replace(/\n {4}volumes:\n/, "\n    volumes: !override\n");
     }
   };
+}
+function sharedVolumeOf(composeTexts, service, sharedDir) {
+  let found = null;
+  for (const text of composeTexts) {
+    const volumes = (0, import_yaml2.parse)(text)?.services?.[service]?.volumes ?? [];
+    for (const volume of volumes) {
+      let source;
+      let target;
+      if (typeof volume === "string") {
+        [source, target] = volume.split(":");
+      } else if (volume && typeof volume === "object") {
+        ({ source, target } = volume);
+        if (volume.type !== "volume") source = void 0;
+      }
+      if (target === sharedDir && typeof source === "string" && /^[A-Za-z0-9][\w.-]*$/.test(source)) {
+        found = source;
+      }
+    }
+  }
+  return found;
 }
 
 // src/cli.ts

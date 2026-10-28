@@ -28,6 +28,7 @@ import {
   runSigning,
   runSmoke,
   serializeReleaseDocument,
+  sharedVolumeOf,
   sidecarUpgradePlan,
   signBlobArgs,
   signImageArgs,
@@ -654,6 +655,86 @@ describe("smoke", () => {
       "/var/run/docker.sock:/var/run/docker.sock",
     );
     expect(override.services.updater.profiles).toEqual(["updater"]);
+    // no shared volume in the project: the smoke brings its own
+    expect(override.services.updater.volumes).toContain("smoke-updater-shared:/shared");
+    expect(override.volumes).toHaveProperty("smoke-updater-shared");
+  });
+
+  it("gives the sidecar the project's shared volume, so the app can read the token", async () => {
+    await fs.writeFile(
+      path.join(dir, "docker-compose.yml"),
+      "services:\n  api:\n    image: ${APP_IMAGE}\n    volumes:\n      - updater-shared:/run/cicd-updater:ro\n  updater:\n    image: x\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - updater-shared:/shared\nvolumes:\n  updater-shared:\n",
+    );
+    await fs.writeFile(path.join(dir, ".env.example"), "APP_IMAGE=\n");
+    await fs.writeFile(
+      path.join(dir, "updater.yaml"),
+      "version: 1\nrelease:\n  feed: { type: github, url: https://github.com/acme/notes }\nservices:\n  - { name: api, image: app, imageVar: APP_IMAGE }\n",
+    );
+    const work = path.join(dir, "work");
+    await fs.mkdir(work);
+    const updater = { configFile: "updater.yaml", image: "ghcr.io/acme/updater:1.0.0" };
+    const plan = await sidecarUpgradePlan({
+      options: { ...options(), updater },
+      updater,
+      work,
+      project: "cicd-updater-smoke-abc",
+      envFile: path.join(dir, ".cicd-updater-smoke.env"),
+    });
+    const override = parse(plan.override("services: {}\n"));
+    expect(override.services.updater.volumes).toContain("updater-shared:/shared");
+    expect(override.services.updater.volumes).not.toContain("smoke-updater-shared:/shared");
+    expect(override.volumes).not.toHaveProperty("smoke-updater-shared");
+  });
+});
+
+describe("shared volume of the sidecar", () => {
+  it("finds the named volume at the shared directory, in short and long syntax", () => {
+    expect(
+      sharedVolumeOf(
+        ['services:\n  updater:\n    volumes: ["tok:/shared"]\n'],
+        "updater",
+        "/shared",
+      ),
+    ).toBe("tok");
+    expect(
+      sharedVolumeOf(
+        [
+          "services:\n  updater:\n    volumes:\n      - { type: volume, source: tok, target: /x }\n",
+        ],
+        "updater",
+        "/x",
+      ),
+    ).toBe("tok");
+  });
+
+  it("ignores bind mounts, other targets and other services", () => {
+    expect(
+      sharedVolumeOf(
+        ['services:\n  updater:\n    volumes: ["./tok:/shared"]\n'],
+        "updater",
+        "/shared",
+      ),
+    ).toBeNull();
+    expect(
+      sharedVolumeOf(
+        [
+          "services:\n  updater:\n    volumes:\n      - { type: bind, source: tok, target: /shared }\n",
+        ],
+        "updater",
+        "/shared",
+      ),
+    ).toBeNull();
+    expect(
+      sharedVolumeOf(
+        ['services:\n  updater:\n    volumes: ["tok:/state"]\n'],
+        "updater",
+        "/shared",
+      ),
+    ).toBeNull();
+    expect(
+      sharedVolumeOf(['services:\n  api:\n    volumes: ["tok:/shared"]\n'], "updater", "/shared"),
+    ).toBeNull();
+    expect(sharedVolumeOf(["services: {}\n", ""], "updater", "/shared")).toBeNull();
   });
 });
 

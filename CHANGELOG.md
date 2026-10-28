@@ -8,6 +8,17 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-10-28
+
+0.0.5 was tagged, but its release run failed in the upgrade test, so no images were published for it; 0.0.6 contains everything
+listed under 0.0.5.
+
+### Fixed
+
+- The release's upgrade test through the update service gave the service a token volume of its own, so the app never saw the
+  service's token, kept its version to itself and the upgrade stopped with `health.version_mismatch`. The test now gives the service
+  the project's own shared volume (`updater-shared`), as a real installation does. Installations were not affected.
+
 ## [0.0.5] - 2026-10-28
 
 The first published release of the developer pipeline. 0.0.4 was tagged, but its release run failed

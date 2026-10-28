@@ -59,9 +59,9 @@ Consequences of leaving things out:
 
 ## What was changed, and why
 
-Source code under `packages/` and `actions/` is **unchanged**: `diff -r` against upstream shows no
-difference (the committed `actions/lib/release-tools.mjs` is byte-identical to upstream's and is
-reproduced by `pnpm bundle`). Changed files (Apache-2.0 section 4(b): the changes are listed
+Source code under `packages/` and `actions/` is unchanged except for the fix listed in the table:
+`diff -r` against upstream shows only that difference (the committed `actions/lib/release-tools.mjs`
+is reproduced by `pnpm bundle`). Changed files (Apache-2.0 section 4(b): the changes are listed
 here, and `NOTICE` and the Dockerfile point to this file):
 
 | File | Change | Why |
@@ -72,6 +72,7 @@ here, and `NOTICE` and the Dockerfile point to this file):
 | `docker/Dockerfile` | Node.js base image taken from one `ARG NODE_IMAGE` with the root `Dockerfile`'s pin (`node:24.22.1-alpine3.24@sha256:...`, was 24.21); pnpm through corepack 0.36.0 as the root Dockerfile does; image labels name GarnetOps, this repository and `docs/updating.md`; header comments. The Docker CLI and cosign images keep upstream's digest pins | one Node.js pin to review and update; parity with the root build; correct provenance labels |
 | `.dockerignore` | trimmed to the directories that exist here; the build context is `updater/` | |
 | `NOTICE` | three lines saying that this copy is maintained in GarnetOps | Apache-2.0 4(d): notices may be added |
+| `packages/release-tools/src/smoke.ts`, its test, `actions/lib/release-tools.mjs` (rebuilt) | the release smoke test mounts the project's own named volume at the sidecar's shared directory (`sharedVolumeOf`) instead of a volume of its own | with a separate volume the app never saw the sidecar's token, so it did not report its version and the upgrade test failed with `health.version_mismatch` (GarnetOps 0.0.5) |
 | `scripts/third-party-notices.ts`, `THIRD_PARTY_NOTICES` | the image name in the text (`ghcr.io/lcsfls/garnetops-updater`); regenerated | the notice names the image that ships |
 
 Changes outside `updater/`: the root `.gitignore` (the pattern `build/` would hide
@@ -126,7 +127,7 @@ git -C /tmp/cicd-updater-upstream checkout b2dd4efd8ff10a5d29ddcfeda762a0ced9a87
 for d in packages actions schemas; do
   diff -r --exclude node_modules --exclude dist --exclude coverage --exclude LICENSE --exclude NOTICE \
     "/tmp/cicd-updater-upstream/$d" "updater/$d"
-done   # no output: the sources are unchanged
+done   # only the smoke-test fix in the table above (smoke.ts, its test, the rebuilt bundle)
 for f in docker/Dockerfile package.json pnpm-workspace.yaml NOTICE .dockerignore \
   scripts/third-party-notices.ts; do
   diff "/tmp/cicd-updater-upstream/$f" "updater/$f"

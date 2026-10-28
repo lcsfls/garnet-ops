@@ -162,10 +162,10 @@ export function parseVersionOutput(output: string): string | null {
 
 /**
  * The running build's version. Release images bake it in at build time, so it always names the
- * code that runs; builds without a version (development, tests) report the current 0.0.5 alpha.
+ * code that runs; builds without a version (development, tests) report the current 0.0.6 alpha.
  */
 export function appVersionOf(value: string | undefined): string {
-  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value ?? "") ? (value as string) : "0.0.5";
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value ?? "") ? (value as string) : "0.0.6";
 }
 
 /* -------------------------------------------------------------------------- */

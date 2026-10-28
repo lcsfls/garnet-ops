@@ -64,7 +64,7 @@ RUN mkdir -p /opt/scanners \
 
 # ---------------------------------------------------------------- app: API and worker
 FROM ${NODE_IMAGE} AS app
-ARG VERSION=0.0.5
+ARG VERSION=0.0.6
 # git (GPL-2.0) and OpenSSH run as separate programs for clones, never linked (AGENTS.md rule 3).
 # npm and corepack are not needed at run time.
 RUN apk add --no-cache git openssh-client \
@@ -93,7 +93,7 @@ CMD ["node", "apps/api/src/index.ts"]
 
 # ---------------------------------------------------------------- web: the edge
 FROM ${CADDY_IMAGE} AS web
-ARG VERSION=0.0.5
+ARG VERSION=0.0.6
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=web-build /src/apps/web/dist /srv
 # Caddy listens on 8080 and 8443 as an unprivileged user, so its file capability to bind

@@ -500,6 +500,17 @@ export async function sidecarUpgradePlan(input: {
   const configFile = path.join(work, "updater.yaml");
   await fs.writeFile(configFile, stringify(config));
   const service = updater.service ?? "updater";
+  // The sidecar writes its token into the shared directory, and the app reads it from the
+  // same volume to tell the sidecar its version. A volume of the smoke's own would leave the
+  // app without the token, so the upgrade fails with health.version_mismatch.
+  const sharedDir: string = config.auth?.sharedDir ?? "/shared";
+  const sharedVolume = sharedVolumeOf(
+    await Promise.all(
+      options.composeFiles.map((file) => fs.readFile(path.resolve(cwd, file), "utf8")),
+    ),
+    service,
+    sharedDir,
+  );
   return {
     feedDir,
     configFile,
@@ -524,14 +535,14 @@ export async function sidecarUpgradePlan(input: {
           `${feedDir}:/smoke-feed:ro`,
           `${work}:/smoke-config:ro`,
           "smoke-updater-state:/state",
-          "smoke-updater-shared:/shared",
+          `${sharedVolume ?? "smoke-updater-shared"}:${sharedDir}`,
         ],
         labels: { "io.github.restow-backup.cicd-updater.role": "sidecar" },
       };
       base.volumes = {
         ...(base.volumes ?? {}),
         "smoke-updater-state": {},
-        "smoke-updater-shared": {},
+        ...(sharedVolume ? {} : { "smoke-updater-shared": {} }),
       };
       // Replace (not merge) the sidecar's environment and volumes of the project's
       // Compose file: its PROJECT_DIR mount, registry auth file and other overrides
@@ -541,4 +552,38 @@ export async function sidecarUpgradePlan(input: {
         .replace(/\n {4}volumes:\n/, "\n    volumes: !override\n");
     },
   };
+}
+
+/**
+ * The named volume that the project's Compose files mount at the sidecar's shared directory,
+ * or null when they mount none there (a bind mount does not count: it belongs to the host).
+ */
+export function sharedVolumeOf(
+  composeTexts: readonly string[],
+  service: string,
+  sharedDir: string,
+): string | null {
+  let found: string | null = null;
+  for (const text of composeTexts) {
+    const volumes = ((parse(text) as YamlMap | null)?.services?.[service]?.volumes ??
+      []) as unknown[];
+    for (const volume of volumes) {
+      let source: unknown;
+      let target: unknown;
+      if (typeof volume === "string") {
+        [source, target] = volume.split(":");
+      } else if (volume && typeof volume === "object") {
+        ({ source, target } = volume as { source?: unknown; target?: unknown });
+        if ((volume as { type?: unknown }).type !== "volume") source = undefined;
+      }
+      if (
+        target === sharedDir &&
+        typeof source === "string" &&
+        /^[A-Za-z0-9][\w.-]*$/.test(source)
+      ) {
+        found = source;
+      }
+    }
+  }
+  return found;
 }
