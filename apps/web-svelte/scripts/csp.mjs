@@ -23,5 +23,9 @@ for (const directive of policy.split(";").map((d) => d.trim())) {
 if (!/script-src[^;]*'sha256-/.test(policy)) throw new Error(`The policy has no script hash: ${policy}`);
 const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>/g)].length;
 if (inline !== 1) throw new Error(`Expected exactly one inline script in build/index.html, found ${inline}`);
-writeFileSync(new URL("../build/csp.txt", import.meta.url), `${policy}; frame-ancestors 'none'\n`);
+const header = `${policy}; frame-ancestors 'none'`;
+if (header.includes('"')) throw new Error("The policy cannot contain a double quote");
+writeFileSync(new URL("../build/csp.txt", import.meta.url), `${header}\n`);
+// The same header as a Caddyfile line, imported by deploy/Caddyfile in the web image (ADR 0027).
+writeFileSync(new URL("../build/csp.caddy", import.meta.url), `Content-Security-Policy "${header}"\n`);
 console.log(`csp.txt: ${policy}; frame-ancestors 'none'`);

@@ -20,7 +20,9 @@
 
 (app_headers) {
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		# Written by the web build (apps/web/scripts/csp.mjs, ADR 0027): 'self' plus the SHA-256 of the app's one
+		# start script and of SvelteKit's announcer style; never 'unsafe-inline'.
+		import /etc/caddy/csp.caddy
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "no-referrer"
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
