@@ -6,7 +6,7 @@ import {
   isKnownZone,
   setPreferredTimeZone,
   timeZoneChoices,
-} from "./time-zone.ts";
+} from "./time-zone.svelte.ts";
 
 afterEach(() => setPreferredTimeZone(null));
 

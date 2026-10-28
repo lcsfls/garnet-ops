@@ -45,6 +45,5 @@ apps/web/playwright-report/
 # TLS certificates of the web edge (docs/installation.md)
 certs/
 
-# SvelteKit (apps/web-svelte)
+# SvelteKit (apps/web); its build/ output is covered by build/ above
 .svelte-kit/
-apps/web-svelte/build/

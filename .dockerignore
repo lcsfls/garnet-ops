@@ -1,6 +1,8 @@
 # Only sources go into the build context; never local state or secrets (AGENTS.md rule 1).
 **/node_modules
 **/dist
+**/.svelte-kit
+apps/web/build
 .data
 .tools
 .git

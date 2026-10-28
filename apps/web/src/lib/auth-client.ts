@@ -1,6 +1,6 @@
+import { createAuthClient } from "better-auth/client";
 import { twoFactorClient } from "better-auth/client/plugins";
-import { createAuthClient } from "better-auth/react";
-import type { MessageKey } from "./i18n.ts";
+import type { MessageKey } from "./i18n.svelte.ts";
 
 export const authClient = createAuthClient({
   baseURL: window.location.origin,

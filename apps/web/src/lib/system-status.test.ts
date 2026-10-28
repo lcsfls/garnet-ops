@@ -1,6 +1,6 @@
 import { STATUS_LEVELS } from "@garnetops/core/system-status";
 import { describe, expect, it } from "vitest";
-import { navFor, navTrail } from "../components/nav.ts";
+import { navFor, navTrail } from "./nav.ts";
 import { SETTINGS_SECTIONS } from "./search.ts";
 import type { Me } from "./session.ts";
 import { camelState, canOpenSection, INTEGRATION_SECTION, LEVEL_TONE, queueKey } from "./system-status.ts";

@@ -95,7 +95,9 @@ CMD ["node", "apps/api/src/index.ts"]
 FROM ${CADDY_IMAGE} AS web
 ARG VERSION=0.0.7
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
-COPY --from=web-build /src/apps/web/dist /srv
+COPY --from=web-build /src/apps/web/build /srv
+# The Content Security Policy with the hashes of this build (ADR 0027), imported by the Caddyfile.
+COPY --from=web-build /src/apps/web/build/csp.caddy /etc/caddy/csp.caddy
 # Caddy listens on 8080 and 8443 as an unprivileged user, so its file capability to bind
 # low ports is dropped (a copy loses it); with it, exec fails under no-new-privileges.
 RUN cp /usr/bin/caddy /usr/bin/caddy.plain && mv /usr/bin/caddy.plain /usr/bin/caddy \

@@ -6,7 +6,7 @@
  */
 import type { StatusLevel } from "@garnetops/core/system-status";
 import type { IntegrationKey } from "@garnetops/core/system-status-view";
-import type { BadgeTone } from "../components/ui/badge.tsx";
+import type { BadgeTone } from "./components/ui/tones.ts";
 import type { SettingsSection } from "./search.ts";
 
 export const LEVEL_TONE: Record<StatusLevel, BadgeTone> = {

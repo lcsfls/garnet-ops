@@ -32,11 +32,7 @@
         "noLabelWithoutControl": {
           "level": "error",
           "options": {
-            "inputComponents": [
-              "Checkbox",
-              "Radio",
-              "Select"
-            ]
+            "inputComponents": ["Checkbox", "Radio", "Select"]
           }
         }
       }
@@ -59,9 +55,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "**/*.svelte"
-      ],
+      "includes": ["**/*.svelte"],
       "linter": {
         "rules": {
           "correctness": {

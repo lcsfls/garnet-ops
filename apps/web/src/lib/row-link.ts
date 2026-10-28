@@ -1,5 +1,3 @@
-import type { MouseEvent } from "react";
-
 /**
  * Click handler for a table row that opens something (mockup: whole rows are clickable).
  * The row's own link stays the keyboard and screen-reader path; this only adds the
@@ -7,7 +5,7 @@ import type { MouseEvent } from "react";
  * the link) and text selection are left alone.
  */
 export function rowClick(open: () => void) {
-  return (event: MouseEvent<HTMLElement>) => {
+  return (event: MouseEvent) => {
     if (event.defaultPrevented || event.button !== 0) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target as HTMLElement;

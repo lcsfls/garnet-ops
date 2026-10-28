@@ -1,5 +1,5 @@
 /** Small helpers for the Fix proposals page and the repository's fix pull request settings (ADR 0014). */
-import type { BadgeTone } from "../components/ui/badge.tsx";
+import type { BadgeTone } from "./components/ui/tones.ts";
 import type { FixPrState } from "./types.ts";
 
 /** "edit-complex-range" -> "editComplexRange": the key of a reason code in the message catalogue. */

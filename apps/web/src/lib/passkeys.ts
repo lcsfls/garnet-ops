@@ -4,7 +4,7 @@ import {
   startRegistration,
   WebAuthnError,
 } from "@simplewebauthn/browser";
-import type { MessageKey } from "./i18n.ts";
+import type { MessageKey } from "./i18n.svelte.ts";
 
 /**
  * The browser side of passkeys (ADR 0017). The server is better-auth's passkey plugin; the

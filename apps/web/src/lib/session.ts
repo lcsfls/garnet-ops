@@ -1,5 +1,5 @@
 import type { Role } from "@garnetops/core";
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/svelte-query";
 import { ApiError, api } from "./api.ts";
 import { markSignedIn } from "./session-end.ts";
 

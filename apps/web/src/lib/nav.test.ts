@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NAV, navFor, navTrail } from "../components/nav.ts";
+import { NAV, navFor, navTrail } from "./nav.ts";
 import type { Me } from "./session.ts";
 
 const me = (role: Me["role"]) => ({ role }) as Me;

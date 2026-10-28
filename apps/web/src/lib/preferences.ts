@@ -1,6 +1,6 @@
 import { resolveLanguage } from "@garnetops/i18n";
-import { i18n, setLanguage } from "./i18n.ts";
-import { setPreferredTimeZone } from "./time-zone.ts";
+import { language, setLanguage } from "./i18n.svelte.ts";
+import { setPreferredTimeZone } from "./time-zone.svelte.ts";
 
 let localeApplied = false;
 
@@ -14,7 +14,7 @@ export async function applyPreferences(preferences: { locale: string | null; tim
   setPreferredTimeZone(preferences.timeZone);
   if (localeApplied) return;
   localeApplied = true;
-  if (preferences.locale && resolveLanguage(preferences.locale) !== i18n.language) {
+  if (preferences.locale && resolveLanguage(preferences.locale) !== language()) {
     await setLanguage(resolveLanguage(preferences.locale));
   }
 }

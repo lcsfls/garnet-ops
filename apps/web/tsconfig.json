@@ -1,13 +1,21 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "$app/tsconfig",
   "compilerOptions": {
-    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
     "allowImportingTsExtensions": true,
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "jsx": "react-jsx",
-    "types": ["vite/client"]
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "sourceMap": true,
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true,
+    "types": ["$app/types", "vite/client"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "test", "*"],
+  "exclude": ["src/service-worker"]
 }

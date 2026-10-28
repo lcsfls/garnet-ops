@@ -10,7 +10,7 @@ import type {
   DirectoryTlsTrust,
   GroupRole,
 } from "@garnetops/core/directory";
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/svelte-query";
 import { api } from "./api.ts";
 
 export interface DirectorySettings {
