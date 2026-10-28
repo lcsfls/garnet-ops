@@ -98,6 +98,8 @@ paginated findings, and every number on the overview leads to its details.
 - [x] Overview: key figures, "fix first" list, recent scans; every tile links
       to its filtered view
 - [x] Overview: 30-day trend chart, changes against last week, vulnerability data card
+- [x] Statistics page: found, resolved, time to fix, gate results, fix pull requests and failed scans over
+      30, 90 or 365 days in the viewer's calendar days; rankings of today's open findings (`docs/statistics.md`)
 - [x] Repository page: trend, scan history and patch history per repository
 - [x] Findings export (CSV, XLSX, PDF, text) with the active filters, per repository
 - [~] Grades A to F per repository, display only: Grade column, reason note with a link to the findings,

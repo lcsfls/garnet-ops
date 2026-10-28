@@ -99,7 +99,7 @@ The rows of Wazuh (XDR), Proxmox VE, UniFi, external exposure and the GeoIP data
 
 ## Application
 
-The running version (for example "0.0.6 Alpha") and, if the [update service](updating.md) is set up, its phase (nothing scheduled, an
+The running version (for example "0.0.7 Alpha") and, if the [update service](updating.md) is set up, its phase (nothing scheduled, an
 update scheduled, running, the last one worked or failed) and the newest release it knows. Without the service the page says that
 updates are done by hand.
 

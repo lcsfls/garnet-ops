@@ -22,6 +22,7 @@ describe("navigation of the developer pipeline", () => {
     expect(items("viewer")).toEqual([
       "/",
       "/findings",
+      "/statistics",
       "/repositories",
       "/gates",
       "/fixes",
@@ -34,6 +35,7 @@ describe("navigation of the developer pipeline", () => {
     expect(navTrail("/repositories")?.item.label).toBe("nav.repositories");
     expect(navTrail("/repositories/repo_1")?.item.label).toBe("nav.repositories");
     expect(navTrail("/system")?.group).toBe("shell.groupAdmin");
+    expect(navTrail("/statistics")?.group).toBe("shell.groupDaily");
     expect(navTrail("/servers")).toBeNull();
   });
 });

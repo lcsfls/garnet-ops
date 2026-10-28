@@ -30,6 +30,8 @@ matrix of what you receive in the app and by email ([docs/notifications.md](docs
 LDAP or Active Directory account, roles from directory groups and a second factor for everyone
 ([docs/ldap.md](docs/ldap.md)), a read-only system status page for admins that says whether the scanners, the vulnerability
 database, integrations, worker and queues are current and running ([docs/system-status.md](docs/system-status.md)),
+a statistics page with found and resolved findings, time to fix and gate results over 30, 90 or 365 days
+([docs/statistics.md](docs/statistics.md)),
 audit log, a Docker Compose stack and optional signed in-app updates.
 
 ## What GarnetOps is built on
@@ -63,8 +65,8 @@ disk for the build.
 ```sh
 git clone https://github.com/lcsfls/garnet-ops.git /opt/garnetops
 cd /opt/garnetops
-docker build --target app -t garnetops:local     --build-arg VERSION=0.0.6 .
-docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.6 .
+docker build --target app -t garnetops:local     --build-arg VERSION=0.0.7 .
+docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.7 .
 
 sh deploy/install.sh garnetops.example.com garnetops:local garnetops-web:local
 echo 'UPDATER_URL=' >> .env    # in-app updates need signed releases; off for local builds

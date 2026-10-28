@@ -87,6 +87,8 @@ test.describe("signed in", () => {
     { path: "/repositories/repo_e2eseeded000000001", heading: "seeded-app", name: "repository" },
     { path: "/audit-log", heading: "Audit log", name: "audit-log" },
     { path: "/system", heading: "System status", name: "system" },
+    { path: "/statistics", heading: "Statistics", name: "statistics" },
+    { path: "/statistics?days=365", heading: "Statistics", name: "statistics-365" },
     { path: "/team", heading: "Team", name: "team" },
   ]) {
     test(`${name} fits without horizontal scrolling`, async ({ page }, info) => {
@@ -192,6 +194,7 @@ test.describe("signed in", () => {
       "/settings?section=updates",
       "/settings?section=about",
       "/system",
+      "/statistics",
       "/account",
       "/account?section=password",
       "/account?section=authenticator",

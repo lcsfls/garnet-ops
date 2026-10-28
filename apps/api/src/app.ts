@@ -21,6 +21,7 @@ import { meRoutes } from "./routes/me.ts";
 import { notificationRoutes } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
 import { overviewRoutes } from "./routes/overview.ts";
+import { statisticsRoutes } from "./routes/statistics.ts";
 import { packageRoutes } from "./routes/packages.ts";
 import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
@@ -101,6 +102,7 @@ const v1 = new Hono<AppEnv>()
   .route("/me", userNotificationRoutes)
   .route("/account", accountRoutes)
   .route("/overview", overviewRoutes)
+  .route("/statistics", statisticsRoutes)
   .route("/repositories", repositoryRoutes)
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)

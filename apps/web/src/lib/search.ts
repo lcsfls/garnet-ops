@@ -154,6 +154,18 @@ export const auditSearch = z.object({
 });
 export type AuditSearch = z.infer<typeof auditSearch>;
 
+/** The ranges the statistics page offers (STATISTICS_RANGES in packages/db). */
+export const STATISTICS_RANGES = [30, 90, 365] as const;
+export type StatisticsRange = (typeof STATISTICS_RANGES)[number];
+export const statisticsSearch = z.object({
+  days: z.coerce
+    .number()
+    .refine((n): n is StatisticsRange => (STATISTICS_RANGES as readonly number[]).includes(n))
+    .optional()
+    .catch(undefined),
+});
+export type StatisticsSearch = z.infer<typeof statisticsSearch>;
+
 export const gateSearch = z.object({
   cursor: text(512),
   pageSize,

@@ -8,6 +8,16 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-10-28
+
+### Added
+
+- **Statistics** (Daily → Statistics): what was found and resolved, the median time to fix per severity, gate results, merged fix pull
+  requests and failed scans over the last 30, 90 or 365 days, counted in your own calendar days (daily bars for 30 days, weekly bars
+  from Monday for longer ranges). It also ranks today's open findings by repository and package and lists the oldest open critical and
+  high findings. Every number links to the list behind it, and every chart can be shown as a table
+  ([docs/statistics.md](docs/statistics.md)). The same data is available as `GET /api/v1/statistics`.
+
 ## [0.0.6] - 2026-10-28
 
 0.0.5 was tagged, but its release run failed in the upgrade test, so no images were published for it; 0.0.6 contains everything

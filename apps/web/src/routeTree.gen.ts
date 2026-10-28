@@ -25,6 +25,7 @@ import { Route as AppGatesRouteImport } from './routes/_app/gates'
 import { Route as AppPackagesRouteImport } from './routes/_app/packages'
 import { Route as AppRepositoriesRouteImport } from './routes/_app/repositories'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppStatisticsRouteImport } from './routes/_app/statistics'
 import { Route as AppSystemRouteImport } from './routes/_app/system'
 import { Route as AppTeamRouteImport } from './routes/_app/team'
 import { Route as AppRepositoriesIdRouteImport } from './routes/_app/repositories_.$id'
@@ -108,6 +109,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppStatisticsRoute = AppStatisticsRouteImport.update({
+  id: '/statistics',
+  path: '/statistics',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSystemRoute = AppSystemRouteImport.update({
   id: '/system',
   path: '/system',
@@ -140,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/packages': typeof AppPackagesRoute
   '/repositories': typeof AppRepositoriesRoute
   '/settings': typeof AppSettingsRoute
+  '/statistics': typeof AppStatisticsRoute
   '/system': typeof AppSystemRoute
   '/team': typeof AppTeamRoute
   '/repositories/$id': typeof AppRepositoriesIdRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/packages': typeof AppPackagesRoute
   '/repositories': typeof AppRepositoriesRoute
   '/settings': typeof AppSettingsRoute
+  '/statistics': typeof AppStatisticsRoute
   '/system': typeof AppSystemRoute
   '/team': typeof AppTeamRoute
   '/': typeof AppIndexRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/_app/packages': typeof AppPackagesRoute
   '/_app/repositories': typeof AppRepositoriesRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/statistics': typeof AppStatisticsRoute
   '/_app/system': typeof AppSystemRoute
   '/_app/team': typeof AppTeamRoute
   '/_app/': typeof AppIndexRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/packages'
     | '/repositories'
     | '/settings'
+    | '/statistics'
     | '/system'
     | '/team'
     | '/repositories/$id'
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/packages'
     | '/repositories'
     | '/settings'
+    | '/statistics'
     | '/system'
     | '/team'
     | '/'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/_app/packages'
     | '/_app/repositories'
     | '/_app/settings'
+    | '/_app/statistics'
     | '/_app/system'
     | '/_app/team'
     | '/_app/'
@@ -374,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/statistics': {
+      id: '/_app/statistics'
+      path: '/statistics'
+      fullPath: '/statistics'
+      preLoaderRoute: typeof AppStatisticsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/system': {
       id: '/_app/system'
       path: '/system'
@@ -407,6 +426,7 @@ interface AppRouteChildren {
   AppPackagesRoute: typeof AppPackagesRoute
   AppRepositoriesRoute: typeof AppRepositoriesRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppStatisticsRoute: typeof AppStatisticsRoute
   AppSystemRoute: typeof AppSystemRoute
   AppTeamRoute: typeof AppTeamRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -422,6 +442,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPackagesRoute: AppPackagesRoute,
   AppRepositoriesRoute: AppRepositoriesRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppStatisticsRoute: AppStatisticsRoute,
   AppSystemRoute: AppSystemRoute,
   AppTeamRoute: AppTeamRoute,
   AppIndexRoute: AppIndexRoute,

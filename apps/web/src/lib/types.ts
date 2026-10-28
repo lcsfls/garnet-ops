@@ -392,3 +392,48 @@ export interface FindingNote {
   createdAt: string;
   author: string | null;
 }
+
+/** GET /statistics (apps/api/src/routes/statistics.ts, packages/db/src/statistics.ts). */
+export interface StatisticsBucket {
+  start: string;
+  end: string;
+  open: SeverityCounts;
+  opened: SeverityCounts;
+  resolved: SeverityCounts;
+  gates: { passed: number; notes: number; blocked: number };
+}
+
+export interface StatisticsRanking {
+  open: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface Statistics {
+  range: { days: number; from: string; to: string; timeZone: string; granularity: "day" | "week" };
+  buckets: StatisticsBucket[];
+  totals: {
+    opened: number;
+    resolved: number;
+    previous: { opened: number; resolved: number };
+    gates: { passed: number; notes: number; blocked: number };
+    scans: { succeeded: number; failed: number };
+    fixPrs: { opened: number; merged: number };
+  };
+  timeToFix: { severity: Severity; resolved: number; medianDays: number | null }[];
+  repositories: ({ id: string; name: string } & StatisticsRanking)[];
+  packages: ({ name: string; type: string; repositories: number } & StatisticsRanking)[];
+  oldest: {
+    id: string;
+    severity: Severity;
+    vulnerabilityId: string;
+    packageName: string;
+    packageVersion: string;
+    repositoryId: string;
+    repositoryName: string;
+    firstSeenAt: string;
+  }[];
+  generatedAt: string;
+}

@@ -1,6 +1,7 @@
 import {
   Activity,
   Bug,
+  ChartColumn,
   GitBranch,
   GitPullRequest,
   LayoutGrid,
@@ -17,6 +18,7 @@ import type { Me } from "../lib/session.ts";
 export type NavTo =
   | "/"
   | "/findings"
+  | "/statistics"
   | "/repositories"
   | "/gates"
   | "/fixes"
@@ -40,6 +42,7 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     items: [
       { to: "/", label: "nav.overview", icon: LayoutGrid },
       { to: "/findings", label: "nav.findings", icon: Bug },
+      { to: "/statistics", label: "nav.statistics", icon: ChartColumn },
     ],
   },
   {

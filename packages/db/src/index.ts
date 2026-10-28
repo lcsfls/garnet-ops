@@ -6,6 +6,7 @@ import * as schema from "./schema.ts";
 
 export * from "./directory.ts";
 export * from "./schedule.ts";
+export * from "./statistics.ts";
 export * from "./system.ts";
 export * from "./trend.ts";
 export * from "./user-notifications.ts";

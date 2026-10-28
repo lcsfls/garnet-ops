@@ -49,6 +49,36 @@ test("overview tiles lead to the filtered list", async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
+test("statistics: found, resolved and time to fix over a range, with links to the lists behind them", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  await page.goto("/");
+  await page.getByRole("navigation").getByRole("link", { name: "Statistics" }).click();
+  await expect(page).toHaveURL(/\/statistics$/);
+  await expect(page.getByRole("heading", { name: "Statistics", exact: true })).toBeVisible();
+  // 30 open findings plus the one an upgrade fixed, all first seen in the last 30 days.
+  await expect(page.getByRole("link", { name: /^Found .*Previous/ })).toContainText(String(SEEDED.total + 1));
+  await expect(page.getByRole("link", { name: /^Resolved .*Previous/ })).toContainText("1");
+  await expect(page.getByRole("link", { name: /^Gates passed/ })).toContainText("0 of 1 gate run");
+  // Seen ten days ago, resolved three days ago.
+  await expect(page.getByRole("row", { name: /High/ })).toContainText("7 days");
+  await expect(page.getByRole("row", { name: /Critical/ })).toContainText("None resolved");
+  await expect(page.getByText(SEEDED.hostileId)).toBeVisible();
+  await expect(page.getByText(SEEDED.repositoryName).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "90 days" }).click();
+  await expect(page).toHaveURL(/days=90/);
+  await expect(page.getByText("At the end of each week, by severity.")).toBeVisible();
+  await page.getByText("Show as table").first().click();
+  await expect(page.getByRole("columnheader", { name: "Period" }).first()).toBeVisible();
+
+  await page.getByRole("link", { name: /^Resolved .*Previous/ }).click();
+  await expect(page).toHaveURL(/\/findings\?state=resolved$/);
+  await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText("1 entry");
+  expect(problems).toEqual([]);
+});
+
 test("findings paginate with the position in the URL", async ({ page }) => {
   await page.goto("/findings");
   const pager = page.getByRole("navigation", { name: "Pagination" });
@@ -1436,7 +1466,7 @@ test.describe("System status", () => {
     await expect(page.getByTestId("queue-__pgboss__send-it")).toHaveCount(0);
     await expect(page.getByTestId("worker-nightly")).toContainText("Scheduled for");
     await expect(page.getByTestId("worker-database")).toContainText("migrations applied");
-    await expect(page.getByTestId("app-version")).toHaveText("0.0.6 Alpha");
+    await expect(page.getByTestId("app-version")).toHaveText("0.0.7 Alpha");
 
     // Nothing the integrations keep private is on the page: no address, no fingerprint.
     const text = (await page.getByTestId("system-status-page").textContent()) ?? "";

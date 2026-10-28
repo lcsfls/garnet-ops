@@ -10,6 +10,7 @@ export function Tile({
   label,
   icon,
   value,
+  display,
   delta,
   hint,
   to,
@@ -18,9 +19,11 @@ export function Tile({
   label: string;
   icon?: ReactNode;
   value: number;
+  /** The value as text when a plain number does not fit, e.g. a percentage. */
+  display?: string;
   delta?: ReactNode;
   hint?: ReactNode;
-  to: "/findings" | "/repositories";
+  to: "/findings" | "/repositories" | "/gates" | "/fixes";
   search: LinkProps["search"];
 }) {
   return (
@@ -34,7 +37,7 @@ export function Tile({
         {icon}
       </div>
       <div className="mt-1.5 text-[28px] leading-tight font-semibold tracking-[-0.02em]">
-        {formatNumber(value)}
+        {display ?? formatNumber(value)}
       </div>
       {delta ? <div className="text-[13px] text-muted-foreground">{delta}</div> : null}
       {hint ? <div className="mt-0.5 text-[13px] text-muted-foreground">{hint}</div> : null}
