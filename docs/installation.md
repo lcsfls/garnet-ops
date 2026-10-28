@@ -27,11 +27,11 @@ air-gapped operation, what runs) applies to both.
 sudo mkdir -p /opt/garnetops && cd /opt/garnetops
 # The files of the release you install (same tag for all of them):
 for f in docker-compose.yml updater.yaml .env.example deploy/Caddyfile deploy/install.sh; do
-  sudo curl -fsSL --create-dirs -o "$f" "https://raw.githubusercontent.com/lcsfls/garnet-ops/v0.0.3/$f"
+  sudo curl -fsSL --create-dirs -o "$f" "https://raw.githubusercontent.com/lcsfls/garnet-ops/v0.0.4/$f"
 done
 sudo sh deploy/install.sh garnetops.example.lan \
-  "ghcr.io/lcsfls/garnetops:0.0.3@sha256:<app digest from the release>" \
-  "ghcr.io/lcsfls/garnetops-web:0.0.3@sha256:<web digest from the release>"
+  "ghcr.io/lcsfls/garnetops:0.0.4@sha256:<app digest from the release>" \
+  "ghcr.io/lcsfls/garnetops-web:0.0.4@sha256:<web digest from the release>"
 sudo docker compose up -d
 sudo docker compose logs api   # prints the one-time setup token
 ```
@@ -46,8 +46,8 @@ set up its second factor.
 Release images are signed; check them before the first start:
 
 ```sh
-cosign verify ghcr.io/lcsfls/garnetops:0.0.3@sha256:<digest> \
-  --certificate-identity "https://github.com/lcsfls/garnet-ops/.github/workflows/release.yml@refs/tags/v0.0.3" \
+cosign verify ghcr.io/lcsfls/garnetops:0.0.4@sha256:<digest> \
+  --certificate-identity "https://github.com/lcsfls/garnet-ops/.github/workflows/release.yml@refs/tags/v0.0.4" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 

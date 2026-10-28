@@ -8,6 +8,8 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-10-28
+
 GarnetOps is now a pure **developer pipeline**: security for Git repositories across Forgejo, Gitea and GitHub, self-hosted
 ([ADR 0025](docs/adr/0025-focus-on-the-developer-pipeline.md)). Everything about infrastructure is removed from the product. It stays
 available in the git history and in the tag `v0.0.3`.
@@ -904,6 +906,7 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/lcsfls/garnet-ops/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/lcsfls/garnet-ops/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/lcsfls/garnet-ops/releases/tag/v0.0.2
