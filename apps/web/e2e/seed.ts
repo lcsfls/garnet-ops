@@ -144,8 +144,14 @@ export async function seed(): Promise<void> {
         ],
       );
     }
-    // A finding that an upgrade fixed: seen ten days ago, resolved three days ago.
+    // A finding that an upgrade fixed: seen ten days ago, resolved three days ago. At noon UTC, which is
+    // the same calendar day in Berlin all year, so the patch history counts 7 days also across a DST change.
     const day = 24 * 3600 * 1000;
+    const noonUtc = (daysAgo: number) => {
+      const at = new Date(now.getTime() - daysAgo * day);
+      at.setUTCHours(12, 0, 0, 0);
+      return at;
+    };
     await client.query(
       `insert into vulnerability (id, severity, cvss_score, description, urls, aliases, known_exploited)
        values ($1, 'high', 7.5, 'Fixed test vulnerability.', '[]', '[]', false)`,
@@ -163,9 +169,9 @@ export async function seed(): Promise<void> {
         SEEDED.fixedId,
         `${repoId}|${SEEDED.fixedId}|npm|pkg-fixed`,
         scanId,
-        new Date(now.getTime() - 10 * day),
-        new Date(now.getTime() - 4 * day),
-        new Date(now.getTime() - 3 * day),
+        noonUtc(10),
+        noonUtc(4),
+        noonUtc(3),
       ],
     );
     // Inventory: every vulnerable package plus one without findings and the upgraded one.
