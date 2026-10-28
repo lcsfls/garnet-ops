@@ -15,7 +15,9 @@
       "!design/mockup",
       "!updater",
       "!**/drizzle/meta",
-      "!**/routeTree.gen.ts"
+      "!**/routeTree.gen.ts",
+      "!**/.svelte-kit",
+      "!**/build"
     ]
   },
   "formatter": {
@@ -30,7 +32,11 @@
         "noLabelWithoutControl": {
           "level": "error",
           "options": {
-            "inputComponents": ["Checkbox", "Radio", "Select"]
+            "inputComponents": [
+              "Checkbox",
+              "Radio",
+              "Select"
+            ]
           }
         }
       }
@@ -45,5 +51,29 @@
     "parser": {
       "tailwindDirectives": true
     }
-  }
+  },
+  "html": {
+    "formatter": {
+      "indentScriptAndStyle": true
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "**/*.svelte"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          },
+          "style": {
+            "useConst": "off",
+            "useImportType": "off"
+          }
+        }
+      }
+    }
+  ]
 }

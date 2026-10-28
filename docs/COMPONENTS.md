@@ -81,6 +81,14 @@ npm packages, so its upstream repository still has to be checked.
 | grype | 0.120.1 | Apache-2.0 | verified | https://github.com/anchore/grype | Dependency scanning (SCA), separate binary run by the worker | Downloaded by `scripts/fetch-scanners.mjs` with pinned SHA-256 checksums. The pinned version is repeated in `packages/core/src/system-status.ts` for the System status page; a test keeps both equal |
 | syft | 1.55.0 | Apache-2.0 | verified | https://github.com/anchore/syft | SBOM / package inventory of every scan, separate binary run by the worker | Downloaded by `scripts/fetch-scanners.mjs` with pinned SHA-256 checksums from the release checksums file (its sigstore bundle not verified yet: no cosign on the dev machine); network lookups disabled |
 | git | system | GPL-2.0 | n/a | https://git-scm.com | Shallow clone of linked repositories | Invoked as a separate binary, never linked |
+| Svelte | 5.57.3 | MIT | verified | https://github.com/sveltejs/svelte | Web UI (ADR 0027), compiled to plain JavaScript | |
+| @sveltejs/kit | 3.1.0 | MIT | verified | https://github.com/sveltejs/kit | Routing, build and the hashed Content Security Policy of the web app (ADR 0027) | Single-page app, no server at run time |
+| @sveltejs/adapter-static | 4.0.0 | MIT | verified | https://github.com/sveltejs/kit | Builds the web app as static files for Caddy (dev) | |
+| @sveltejs/vite-plugin-svelte | 7.3.1 | MIT | verified | https://github.com/sveltejs/vite-plugin-svelte | Svelte support for Vite (dev) | |
+| @tanstack/svelte-query | 6.3.6 | MIT | verified | https://github.com/TanStack/query | Server state in the Svelte app | |
+| @lucide/svelte | 1.62.0 | ISC | verified | https://github.com/lucide-icons/lucide | Icons in the Svelte app (the same icon set as lucide-react) | |
+| svelte-check | 4.7.7 | MIT | verified | https://github.com/sveltejs/language-tools | Type and template checks (dev) | |
+| TypeScript (web app) | 6.0.3 | Apache-2.0 | verified | https://github.com/microsoft/TypeScript | Type checking of the Svelte app (dev); SvelteKit 3 requires it | The other packages stay on 5.9 |
 | React, react-dom | 19.3.1 | MIT | verified | https://github.com/facebook/react | Web UI | |
 | @tanstack/react-router | 1.170.45 | MIT | verified | https://github.com/TanStack/router | Routing with route guards | |
 | @tanstack/router-plugin | 1.168.47 | MIT | verified | https://github.com/TanStack/router | File-based route generation (dev) | pnpm offers "agent skills" from this package; not approved, not used |

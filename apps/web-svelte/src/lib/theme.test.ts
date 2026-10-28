@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+const css = readFileSync(new URL("../app.css", import.meta.url), "utf8");
 
 /** The declarations of the first rule that starts with `selector {`, normalised. */
 function declarations(selector: string): string[] {
