@@ -8,7 +8,47 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-10-28
+
+The first published release of the developer pipeline. 0.0.4 was tagged, but its release run failed
+(the external update-sidecar image did not exist), so no images were published for it; 0.0.5
+contains everything listed under 0.0.4.
+
+### Added
+
+- The update service (the optional sidecar behind **Settings → Updates**) is now part of this repository (`updater/`, Apache-2.0,
+  [ADR 0026](docs/adr/0026-maintain-the-update-sidecar-in-this-repository.md)) and is published with each release as
+  `ghcr.io/lcsfls/garnetops-updater:<version>`, signed like the other two images, with an SBOM. Its signed digest is in `release.json`
+  (`images.updater`). Set it up with `CICD_UPDATER_IMAGE=ghcr.io/lcsfls/garnetops-updater:<version>@sha256:<digest from the release>`
+  as described in [docs/updating.md](docs/updating.md#set-it-up). Releases that complete from now on carry it (the release of 0.0.4 did not complete).
+
+### Changed
+
+- `CICD_UPDATER_IMAGE` in `.env.example` points to the GarnetOps image instead of `ghcr.io/restow-backup/cicd-updater`. If you set the
+  old value, replace it with the verified GarnetOps image; the old one never existed on the registry.
+- The release workflow builds the update service, runs the upgrade test from the previous release on that very image, and uses the
+  build, smoke, publish and release.json actions from this repository instead of an external commit.
+- `docs/updating.md` and `docs/installation.md`: the commands no longer use `sudo`, the update service is verified against the identity
+  of this project's release workflow, and the runbook links point to a fixed commit of the original project.
+- CI checks the update service (lint, types, tests, the action bundle, the vendored SDK against its source, the image build for amd64).
+
+### Fixed
+
+- A release could not be made, and in-app updates could not be set up, because the update service image named in the guide
+  (`ghcr.io/restow-backup/cicd-updater:1.0.0`) was never published: the release of 0.0.4 stopped in the smoke test with "manifest
+  unknown", and installations got "denied". The release no longer depends on an external image.
+
+### Security
+
+- The update service holds the Docker socket and is root-equivalent on the host. Its supply chain now has the same review as the
+  application: frozen lockfile, install scripts only for the bundler, a minimum age for new package versions, base images pinned by digest,
+  a signed image with an SBOM, and an upgrade test on the exact image that ships. The same release identity now signs the service and the
+  releases it installs; the service still never updates itself and runs only the digest you verified and pinned
+  ([threat model](docs/adr/0026-maintain-the-update-sidecar-in-this-repository.md#threat-model)).
+
 ## [0.0.4] - 2026-10-28
+
+Tagged, but not released (see 0.0.5).
 
 GarnetOps is now a pure **developer pipeline**: security for Git repositories across Forgejo, Gitea and GitHub, self-hosted
 ([ADR 0025](docs/adr/0025-focus-on-the-developer-pipeline.md)). Everything about infrastructure is removed from the product. It stays
@@ -906,7 +946,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/lcsfls/garnet-ops/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/lcsfls/garnet-ops/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/lcsfls/garnet-ops/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/lcsfls/garnet-ops/releases/tag/v0.0.2

@@ -1,0 +1,10 @@
+# Only what docker/Dockerfile copies; everything else stays out of the context.
+# The build context is updater/ (updater/VENDORED.md).
+**/node_modules
+**/dist
+**/coverage
+**/.env
+.git
+docs
+actions
+schemas

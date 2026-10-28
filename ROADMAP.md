@@ -120,9 +120,10 @@ paginated findings, and every number on the overview leads to its details.
       open: notifications when something stops, history
 - [x] Docker Compose stack, non-root containers, pinned digests, health checks;
       reverse proxy with hybrid post-quantum TLS key exchange (X25519MLKEM768) (ADR 0007)
-- [~] In-app updates with the cicd-updater sidecar: signed releases, backup first,
-      step-up sign-in, banner, journal in the audit log (ADR 0007). Still open: the first
-      signed release (v0.0.3), branch and tag protection, a published sidecar image
+- [~] In-app updates with the update sidecar (cicd-updater, maintained in `updater/`): signed
+      releases, backup first, step-up sign-in, banner, journal in the audit log (ADR 0007, ADR 0026).
+      The sidecar image is built, smoke-tested and signed with each release. Still open: the first
+      release that publishes it, making its package public, branch and tag protection
 - [~] Upgrade test harness: the release smoke test upgrades from the previous release
       through the sidecar; a real 0.0.3 to 0.0.4 update was run by hand (ADR 0007)
 

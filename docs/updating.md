@@ -39,8 +39,11 @@ digest.
 
 ### In the app (optional update service)
 
-The update service is the [cicd-updater](https://github.com/restow-backup/cicd-updater)
-sidecar (ADR 0007). With it, owners and admins update from **Settings → Updates**:
+The update service is a small sidecar container (ADR 0007). It is maintained in this
+repository (`updater/`, ADR 0026; it started as
+[cicd-updater](https://github.com/restow-backup/cicd-updater)) and published with every release
+as `ghcr.io/lcsfls/garnetops-updater`, signed like the other images. With it, owners and admins
+update from **Settings → Updates**:
 
 1. GarnetOps shows the running version and the newest release it may install, with a
    link to its release notes. Releases the service refuses are listed with the reason.
@@ -58,18 +61,34 @@ Every step is written to the audit log (filter **Updates**), with who asked for 
 
 #### Set it up
 
+Run the commands as root, or as a user who may write `/opt/garnetops` and use Docker.
+`<version>` is the release you run, for example `0.1.0`. The service image is published with
+every release from the one that the [changelog](../CHANGELOG.md) names first; older releases
+have none, and their installations keep updating by hand.
+
 ```sh
 cd /opt/garnetops
-# Verify the sidecar image and pin the verified digest in .env:
-cosign verify ghcr.io/restow-backup/cicd-updater:1.0.0 \
-  --certificate-identity-regexp '^https://github.com/restow-backup/cicd-updater/' \
+VERSION=<version>
+# The digest of the sidecar image is in the signed release.json of the release:
+curl -fsSL "https://github.com/lcsfls/garnet-ops/releases/download/v$VERSION/release.json" \
+  | jq -r '.images.updater.digest'
+# Verify the image against the release workflow of this project, at the release tag:
+cosign verify "ghcr.io/lcsfls/garnetops-updater:$VERSION@sha256:<digest>" \
+  --certificate-identity "https://github.com/lcsfls/garnet-ops/.github/workflows/release.yml@refs/tags/v$VERSION" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-#   CICD_UPDATER_IMAGE=ghcr.io/restow-backup/cicd-updater:1.0.0@sha256:<verified digest>
-chown root:root updater.yaml && chmod 644 updater.yaml   # as root on the host
+# Pin the verified digest in .env:
+#   CICD_UPDATER_IMAGE=ghcr.io/lcsfls/garnetops-updater:<version>@sha256:<digest from the release>
+chown root:root updater.yaml && chmod 644 updater.yaml
 docker compose run --rm --no-deps updater config check
 docker compose --profile updater up -d
 docker compose exec updater cicd-updater doctor
 ```
+
+The service never updates itself, because its container holds the Docker socket. To use a newer
+service image, repeat the verification for that release and change `CICD_UPDATER_IMAGE`; a
+release that needs a newer service is refused with a clear reason until you do. Leave
+`selfCheck` in `updater.yaml` switched off: it would look at the release list of the original
+cicd-updater project, not at ours.
 
 Put `COMPOSE_PROFILES=updater` into `.env` so a plain `docker compose up -d` keeps the
 service running.
@@ -109,7 +128,8 @@ banner say so.
    run any.
 2. Decide: forward (fix the cause, start the new version) or back (restore the backup,
    start the previous images). The service's runbook explains both:
-   [a run ended in needs_attention](https://github.com/restow-backup/cicd-updater/blob/main/docs/backups-and-recovery.md#runbook-a-run-ended-in-needs_attention).
+   [a run ended in needs_attention](https://github.com/restow-backup/cicd-updater/blob/b2dd4efd8ff10a5d29ddcfeda762a0ced9a87874/docs/backups-and-recovery.md#runbook-a-run-ended-in-needs_attention)
+   (the original project's documentation at the commit that `updater/` was taken from).
 3. Only when GarnetOps runs again, acknowledge the result on the Updates page.
 
 If you need help, write to the address in [SECURITY.md](../SECURITY.md) for security

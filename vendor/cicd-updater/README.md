@@ -2,7 +2,7 @@
 
 `restow-backup-cicd-updater-1.0.0.tgz` is the npm package `@restow-backup/cicd-updater`
 1.0.0 (Apache-2.0, same copyright holder as GarnetOps), the client SDK of the optional update sidecar
-(ADR 0007). The project has not published a release yet, so the package is built from a
+(ADR 0007). The upstream project has not published a release, so the package is built from a
 reviewed commit and kept here. `pnpm-lock.yaml` pins its integrity hash.
 
 | Field | Value |
@@ -25,5 +25,10 @@ cd packages/sdk && corepack pnpm pack
 sha256sum restow-backup-cicd-updater-1.0.0.tgz
 ```
 
-Once cicd-updater publishes signed releases, replace this file with the release asset
-(and its SHA256SUMS and Sigstore bundle) or the npm package, and delete this directory.
+The sidecar and this SDK's sources are maintained in this repository since ADR 0026
+(`updater/packages/sdk`, same commit; see `updater/VENDORED.md`). The tarball stays here so that
+the root `pnpm install --frozen-lockfile` needs no build step; CI (job `updater`) builds the
+source and checks that every file of `dist/` equals the one in this tarball. Rebuild the tarball
+from `updater/` (`pnpm --filter @cicd-updater/protocol --filter @cicd-updater/feed
+--filter @restow-backup/cicd-updater build`, then `pnpm pack` in `updater/packages/sdk`) whenever
+the SDK source changes, and update the SHA-256 above and the lockfile.

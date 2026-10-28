@@ -49,3 +49,110 @@ jobs:
           docker run --rm -v "$PWD:/repo" -w /repo
           zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
           git . --no-banner --redact --log-opts="--all"
+
+  # The update sidecar (updater/, ADR 0026) is an isolated pnpm workspace with its own lockfile
+  # and its own lint, types and tests; the root workspace does not include it.
+  updater:
+    name: Update sidecar (updater/)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: updater
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.22.1"
+
+      # pnpm 12 needs a newer corepack than Node.js 24 ships.
+      - name: pnpm
+        run: npm install --global corepack@0.36.0 && corepack enable
+
+      - name: Install
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Lint and format
+        run: corepack pnpm lint
+
+      - name: Types
+        run: corepack pnpm typecheck
+
+      - name: Tests with the coverage gate
+        run: corepack pnpm test:coverage
+
+      - name: Actions (pins, declared inputs, script syntax)
+        run: corepack pnpm lint:actions
+
+      - name: THIRD_PARTY_NOTICES equals the lockfile
+        run: corepack pnpm check:notices
+
+      - name: The action bundle equals its sources
+        run: |
+          corepack pnpm bundle
+          if ! git diff --exit-code -- actions/lib; then
+            echo "::error::updater/actions/lib/release-tools.mjs is out of date: run pnpm bundle and commit it."
+            exit 1
+          fi
+
+      - name: The sidecar builds and runs, and updater.yaml passes its config check
+        env:
+          CICD_UPDATER_COMPOSE__PROJECT_DIR: /srv/garnetops
+        run: |
+          corepack pnpm --filter @cicd-updater/sidecar build
+          node packages/sidecar/dist/cicd-updater.mjs version
+          node packages/sidecar/dist/cicd-updater.mjs config check --file ../updater.yaml > /dev/null
+
+      # The SDK in vendor/cicd-updater/ (used by the API and the web app) is a tarball built from
+      # these sources; every file of its dist/ must equal a fresh build (updater/VENDORED.md).
+      - name: The vendored SDK equals packages/sdk
+        run: |
+          set -euo pipefail
+          corepack pnpm --filter @cicd-updater/protocol --filter @cicd-updater/feed \
+            --filter @restow-backup/cicd-updater build
+          rm -rf "$RUNNER_TEMP/sdk-built" "$RUNNER_TEMP/sdk-vendored"
+          mkdir -p "$RUNNER_TEMP/sdk-built" "$RUNNER_TEMP/sdk-vendored"
+          (cd packages/sdk && corepack pnpm pack --pack-destination "$RUNNER_TEMP/sdk-built")
+          tar -xzf "$RUNNER_TEMP"/sdk-built/restow-backup-cicd-updater-*.tgz -C "$RUNNER_TEMP/sdk-built"
+          tar -xzf ../vendor/cicd-updater/restow-backup-cicd-updater-*.tgz -C "$RUNNER_TEMP/sdk-vendored"
+          diff -r "$RUNNER_TEMP/sdk-built/package/dist" "$RUNNER_TEMP/sdk-vendored/package/dist"
+
+  # The image is only built here (not pushed); the release workflow builds it per architecture,
+  # smoke-tests it and signs it. A broken Dockerfile shows up in the pull request, not in a release.
+  updater-image:
+    name: Update sidecar image (amd64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: updater
+          file: updater/docker/Dockerfile
+          platforms: linux/amd64
+          build-args: |
+            VERSION=0.0.0-ci
+            REVISION=${{ github.sha }}
+          tags: garnetops-updater:ci
+          load: true
+          push: false
+
+      - name: The tools run and updater.yaml passes config check inside the image
+        run: |
+          set -euo pipefail
+          docker run --rm garnetops-updater:ci version
+          docker run --rm --entrypoint cosign garnetops-updater:ci version
+          docker run --rm --entrypoint age garnetops-updater:ci --version
+          docker run --rm -v "$PWD/updater.yaml:/config/updater.yaml:ro" \
+            -e CICD_UPDATER_COMPOSE__PROJECT_DIR=/srv/garnetops \
+            garnetops-updater:ci config check --file /config/updater.yaml > /dev/null
+          docker image inspect garnetops-updater:ci --format '{{json .Config.Labels}}'

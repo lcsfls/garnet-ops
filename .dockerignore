@@ -13,4 +13,5 @@ apps/web/test-results
 apps/web/playwright-report
 design
 docs
+updater
 *.log

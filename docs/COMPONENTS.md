@@ -114,10 +114,42 @@ software of their base system under its own licenses; nothing of it is linked in
 | Caddy (official image, Alpine) | 2.11.7-alpine | Apache-2.0 | to verify | https://github.com/caddyserver/caddy | Web edge: TLS, static web app, reverse proxy, maintenance page during updates | Digest `sha256:d8542f48…`; runs as uid 1000 without file capabilities |
 | PostgreSQL (official image, Alpine) | 17.11-alpine3.24 | PostgreSQL License | to verify | https://hub.docker.com/_/postgres | Database of the Compose stack | Digest `sha256:b0f9560a…` |
 | Alpine packages git, openssh-client | from Alpine 3.24 | GPL-2.0 (git), BSD-style (OpenSSH) | to verify | https://pkgs.alpinelinux.org | Clones in the worker | Separate programs, never linked (rule 3) |
-| cicd-updater sidecar image | 1.0.0 | Apache-2.0 | to verify | https://github.com/restow-backup/cicd-updater | Optional update service (profile `updater`), integration | Operator pins a verified digest in `CICD_UPDATER_IMAGE`; bundles Docker CLI, Compose, cosign, age under their licenses |
-| cicd-updater GitHub Actions | commit b2dd4ef | Apache-2.0 | verified | https://github.com/restow-backup/cicd-updater/tree/main/actions | Release workflow: build, smoke, sign (keyless), release.json | CI only |
+| GarnetOps updater image (cicd-updater, maintained in `updater/`) | sidecar 1.0.0; image tag = release version | Apache-2.0 | to verify | https://github.com/lcsfls/garnet-ops/tree/main/updater (origin: https://github.com/restow-backup/cicd-updater, commit b2dd4ef) | Optional update service (profile `updater`), ghcr.io/lcsfls/garnetops-updater | Built, smoke-tested, signed (keyless) and listed in `release.json` by our release workflow (ADR 0026); the operator pins a verified digest in `CICD_UPDATER_IMAGE`. Its components are in [the update sidecar](#in-use-today-update-sidecar-updater) |
+| GitHub Actions in `updater/actions` (build, smoke, publish, release-json) | commit b2dd4ef | Apache-2.0 | verified | https://github.com/restow-backup/cicd-updater/tree/main/actions | Release workflow: build, smoke, sign (keyless), release.json | In this repository, no longer referenced externally; CI only. They use docker/setup-buildx-action v4.4.1, docker/setup-qemu-action v4.4.0, docker/login-action v4.6.0, docker/build-push-action v7.4.0 (Apache-2.0), sigstore/cosign-installer v4.1.2 (Apache-2.0), anchore/sbom-action/download-syft v0.24.2 (Apache-2.0), all pinned by commit SHA |
 | actions/checkout, actions/setup-node, actions/upload-artifact, actions/download-artifact | v7.0.1, v6.5.0, v7.0.1, v8.0.1 | MIT | to verify | https://github.com/actions | CI and release workflows | Pinned by commit SHA |
 | gitleaks (image) | 8.30.1 | MIT | to verify | https://github.com/gitleaks/gitleaks | Secret scan of every change in CI | Digest `sha256:c00b6bd0…`; CI only |
+
+## In use today (update sidecar, `updater/`)
+
+The optional update sidecar is maintained in this repository (ADR 0026, `updater/VENDORED.md`),
+an isolated pnpm workspace with its own lockfile. It is Apache-2.0 code; the lists below are what
+its image runs and what builds it. The full licence texts of the shipped packages are in
+`updater/THIRD_PARTY_NOTICES` (generated from the lockfile; CI fails when it drifts, and the
+generator fails on a licence outside MIT, ISC, Apache-2.0, BSD-2-Clause, BSD-3-Clause and 0BSD).
+
+**Runtime of the image** (bundled into one file; no `node_modules` in the image):
+
+| Component | Version | License | Check | Source | Use | Notes |
+|---|---|---|---|---|---|---|
+| Hono | 4.13.12 | MIT | verified | https://github.com/honojs/hono | HTTP API of the sidecar | Text in `updater/THIRD_PARTY_NOTICES` |
+| @hono/node-server | 2.1.3 | MIT | verified | https://github.com/honojs/node-server | Node adapter for Hono | |
+| yaml | 2.9.1 | ISC | verified | https://github.com/eemeli/yaml | `updater.yaml` and Compose files | |
+| zod | 4.6.5 | MIT | verified | https://github.com/colinhacks/zod | Validation of protocol, configuration and release documents | A second copy next to the application's zod (the SDK uses 4.6.7) |
+| Node.js (official image, Alpine) | 24.22.1-alpine3.24 | MIT; Alpine packages under their own licenses | to verify | https://hub.docker.com/_/node | Base of the updater image | Same digest as the application image (`NODE_IMAGE`); npm and corepack removed from the runtime stage |
+| BusyBox (Alpine base system) | from Alpine 3.24 | GPL-2.0-only | to verify | https://busybox.net | `tar` for volume backups | Unmodified, run as a separate program, never linked (rule 3). The base system of every Alpine image we ship |
+| Docker CLI, Buildx, Compose | from `docker:29.8.2-cli` | Apache-2.0 | to verify | https://github.com/docker/cli, https://github.com/docker/buildx, https://github.com/docker/compose | The sidecar drives the host's Docker engine | Copied from the official image, pinned by digest; separate programs |
+| cosign | v3.1.3 | Apache-2.0 | to verify | https://github.com/sigstore/cosign | Verifies the signatures of `release.json` and images before an update | Copied from the official image, pinned by digest |
+| age | Alpine 3.24 package | BSD-3-Clause | to verify | https://github.com/FiloSottile/age | Optional encryption of database backups | Separate program |
+| tini | Alpine 3.24 package | MIT | to verify | https://github.com/krallin/tini | Init process of the container | |
+| ca-certificates | Alpine 3.24 package | MPL-2.0 (certificate data), MIT | to verify | https://pkgs.alpinelinux.org/package/v3.24/main/x86_64/ca-certificates | TLS trust store | Unmodified data |
+
+**Build and test tooling** (`updater/package.json`, dev only, never shipped): @biomejs/biome 2.5.15
+(MIT OR Apache-2.0), tsup 8.5.1, tsx 4.23.15, vitest 5.0.3, @vitest/coverage-v8 5.0.3, ajv 8.20.0,
+ajv-formats 3.0.1, fast-check 4.10.2, @types/node 22.20.4 (all MIT), typescript 6.0.3 (Apache-2.0).
+All 101 packages of the lockfile that install on Linux x64 were checked with `pnpm licenses list`:
+MIT, Apache-2.0, BSD-3-Clause, ISC, MIT OR Apache-2.0, and MPL-2.0 for lightningcss (a transitive
+dev dependency of vite, unmodified, not shipped; the application's lockfile has it too). Nothing
+is outside the allowed list.
 
 ## Planned: scanning and vulnerability data
 
@@ -197,7 +229,7 @@ Decided in ADR 0003; components move to "In use today (application)" when they a
 | Component | Version | License | Check | Source | Status | Use |
 |---|---|---|---|---|---|---|
 | Docker / Compose spec | n/a | Apache-2.0 | to verify | https://github.com/compose-spec/compose-spec | in use | Deployment (`docker-compose.yml`) |
-| cosign | 3.x | Apache-2.0 | to verify | https://github.com/sigstore/cosign | in use | Keyless signing of images and release.json, run by the cicd-updater actions in the release workflow |
+| cosign | 3.x | Apache-2.0 | to verify | https://github.com/sigstore/cosign | in use | Keyless signing of images and release.json, run by the actions in `updater/actions` in the release workflow; also inside the updater image (v3.1.3) |
 | Dependabot | n/a (GitHub service) | n/a | n/a | https://docs.github.com/code-security/dependabot | candidate | Dependency updates for our own repo, if hosted on GitHub |
 
 ## Rejected or removed

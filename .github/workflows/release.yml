@@ -1,17 +1,17 @@
 # Release of GarnetOps (ADR 0007): runs when a tag v* is pushed.
 #
-#   build    (per architecture, native runners): build the app and web images from the
-#            Dockerfile, push them by digest without a tag, smoke-test the digests with the
-#            production Compose file, including the upgrade from the previous release
-#            through the update sidecar
+#   build    (per architecture, native runners): build the app, web and update sidecar
+#            images (the sidecar from updater/, ADR 0026), push them by digest without a
+#            tag, smoke-test the digests with the production Compose file, including the
+#            upgrade from the previous release through the sidecar just built
 #   release  (after every build and smoke passed): tag and sign the multi-arch images
 #            (keyless, this workflow's identity), attach SBOMs, write and sign release.json,
 #            publish the GitHub release
 #
 # Nothing is tagged and no release is public before the smoke tests passed. The sidecar
 # on every installation trusts exactly this file at the release tag (updater.yaml:
-# trust.keyless.github), so keep its name. The cicd-updater actions are pinned to the
-# reviewed commit (vendor/cicd-updater/README.md).
+# trust.keyless.github), so keep its name. The build, smoke, publish and release-json
+# actions are the ones in updater/actions (updater/VENDORED.md), not external code.
 
 name: Release
 
@@ -29,8 +29,7 @@ permissions:
 env:
   APP_REPOSITORY: ghcr.io/lcsfls/garnetops
   WEB_REPOSITORY: ghcr.io/lcsfls/garnetops-web
-  # Used for the upgrade test only; pin it by digest once cicd-updater publishes it.
-  CICD_UPDATER_IMAGE: ghcr.io/restow-backup/cicd-updater:1.0.0
+  UPDATER_REPOSITORY: ghcr.io/lcsfls/garnetops-updater
 
 jobs:
   build:
@@ -56,7 +55,7 @@ jobs:
 
       - name: Build the app image (API and worker)
         id: app
-        uses: restow-backup/cicd-updater/actions/build@b2dd4efd8ff10a5d29ddcfeda762a0ced9a87874 # main, 2026-10-02
+        uses: ./updater/actions/build
         with:
           image: ${{ env.APP_REPOSITORY }}
           target: app
@@ -65,15 +64,27 @@ jobs:
 
       - name: Build the web image (edge)
         id: web
-        uses: restow-backup/cicd-updater/actions/build@b2dd4efd8ff10a5d29ddcfeda762a0ced9a87874 # main, 2026-10-02
+        uses: ./updater/actions/build
         with:
           image: ${{ env.WEB_REPOSITORY }}
           target: web
           platforms: ${{ matrix.platform }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build the update sidecar image
+        id: updater
+        uses: ./updater/actions/build
+        with:
+          image: ${{ env.UPDATER_REPOSITORY }}
+          context: updater
+          file: updater/docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            REVISION=${{ github.sha }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Smoke test, with the upgrade from the previous release through the sidecar
-        uses: restow-backup/cicd-updater/actions/smoke@b2dd4efd8ff10a5d29ddcfeda762a0ced9a87874 # main, 2026-10-02
+        uses: ./updater/actions/smoke
         with:
           compose-files: docker-compose.yml,docker-compose.smoke.yml
           images: >-
@@ -84,7 +95,8 @@ jobs:
           health-url: http://127.0.0.1:3000/api/healthz
           upgrade-from: previous
           updater-config: updater.yaml
-          updater-image: ${{ env.CICD_UPDATER_IMAGE }}
+          # The sidecar image built above, by digest: the upgrade test runs on the sidecar that ships.
+          updater-image: ${{ env.UPDATER_REPOSITORY }}@${{ steps.updater.outputs.digest }}
           # Throwaway values for the variables the Compose file requires.
           env: |
             PUBLIC_URL=https://localhost:8443
@@ -100,11 +112,13 @@ jobs:
         env:
           APP_DIGEST: ${{ steps.app.outputs.digest }}
           WEB_DIGEST: ${{ steps.web.outputs.digest }}
+          UPDATER_DIGEST: ${{ steps.updater.outputs.digest }}
           ARCH: ${{ matrix.arch }}
         run: |
           mkdir -p digests
           printf '%s' "$APP_DIGEST" > "digests/app-$ARCH"
           printf '%s' "$WEB_DIGEST" > "digests/web-$ARCH"
+          printf '%s' "$UPDATER_DIGEST" > "digests/updater-$ARCH"
 
       - name: Upload the digests
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -137,13 +151,14 @@ jobs:
       - name: The platform digests per image
         id: digests
         run: |
-          printf 'images={"app": {"repository": "%s", "digests": ["%s", "%s"]}, "web": {"repository": "%s", "digests": ["%s", "%s"]}}\n' \
+          printf 'images={"app": {"repository": "%s", "digests": ["%s", "%s"]}, "web": {"repository": "%s", "digests": ["%s", "%s"]}, "updater": {"repository": "%s", "digests": ["%s", "%s"]}}\n' \
             "$APP_REPOSITORY" "$(cat digests/app-amd64)" "$(cat digests/app-arm64)" \
-            "$WEB_REPOSITORY" "$(cat digests/web-amd64)" "$(cat digests/web-arm64)" >> "$GITHUB_OUTPUT"
+            "$WEB_REPOSITORY" "$(cat digests/web-amd64)" "$(cat digests/web-arm64)" \
+            "$UPDATER_REPOSITORY" "$(cat digests/updater-amd64)" "$(cat digests/updater-arm64)" >> "$GITHUB_OUTPUT"
 
       - name: Tag, sign and attach SBOMs
         id: publish
-        uses: restow-backup/cicd-updater/actions/publish@b2dd4efd8ff10a5d29ddcfeda762a0ced9a87874 # main, 2026-10-02
+        uses: ./updater/actions/publish
         with:
           images: ${{ steps.digests.outputs.images }}
           signing: keyless
@@ -151,7 +166,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: release.json and the release
-        uses: restow-backup/cicd-updater/actions/release-json@b2dd4efd8ff10a5d29ddcfeda762a0ced9a87874 # main, 2026-10-02
+        uses: ./updater/actions/release-json
         with:
           images: ${{ steps.publish.outputs.images }}
           signing: keyless

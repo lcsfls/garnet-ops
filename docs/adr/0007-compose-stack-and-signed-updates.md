@@ -5,6 +5,9 @@
 - Decided by: maintainer (pending)
 - Amends: ROADMAP Phase 1 ("Docker Compose stack", "Upgrade test harness"), ADR 0003
   (production runtime)
+- Superseded in part by: ADR 0026 (the update sidecar is maintained in this repository and its
+  image is built, signed and released with GarnetOps; this replaces decision 4's workflow actions
+  pinned to an external commit, and the consequence about the operator building the image)
 
 ## Context
 

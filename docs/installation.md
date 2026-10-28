@@ -17,23 +17,27 @@ updates (the worker) and release checks (the optional update service).
 ## Install
 
 Signed release images are published since 0.0.3 (GitHub Releases, `ghcr.io/lcsfls/garnetops`
-and `ghcr.io/lcsfls/garnetops-web`). You can also build the images from this repository as
-described in the [README](../README.md#getting-started); the rest of this page (HTTPS,
+and `ghcr.io/lcsfls/garnetops-web`; the releases that carry the optional update service also
+publish `ghcr.io/lcsfls/garnetops-updater`, the [changelog](../CHANGELOG.md) names the first
+one). You can also build the images from this repository as described in the
+[README](../README.md#getting-started); the rest of this page (HTTPS,
 air-gapped operation, what runs) applies to both.
 
 ### With release images
 
+Run the commands as root, or as a user who may write `/opt/garnetops` and use Docker.
+
 ```sh
-sudo mkdir -p /opt/garnetops && cd /opt/garnetops
+mkdir -p /opt/garnetops && cd /opt/garnetops
 # The files of the release you install (same tag for all of them):
 for f in docker-compose.yml updater.yaml .env.example deploy/Caddyfile deploy/install.sh; do
-  sudo curl -fsSL --create-dirs -o "$f" "https://raw.githubusercontent.com/lcsfls/garnet-ops/v0.0.4/$f"
+  curl -fsSL --create-dirs -o "$f" "https://raw.githubusercontent.com/lcsfls/garnet-ops/v0.0.5/$f"
 done
-sudo sh deploy/install.sh garnetops.example.lan \
-  "ghcr.io/lcsfls/garnetops:0.0.4@sha256:<app digest from the release>" \
-  "ghcr.io/lcsfls/garnetops-web:0.0.4@sha256:<web digest from the release>"
-sudo docker compose up -d
-sudo docker compose logs api   # prints the one-time setup token
+sh deploy/install.sh garnetops.example.lan \
+  "ghcr.io/lcsfls/garnetops:0.0.5@sha256:<app digest from the release>" \
+  "ghcr.io/lcsfls/garnetops-web:0.0.5@sha256:<web digest from the release>"
+docker compose up -d
+docker compose logs api   # prints the one-time setup token
 ```
 
 `deploy/install.sh` writes `.env` (mode 0600) with a random database password and session
@@ -46,10 +50,15 @@ set up its second factor.
 Release images are signed; check them before the first start:
 
 ```sh
-cosign verify ghcr.io/lcsfls/garnetops:0.0.4@sha256:<digest> \
-  --certificate-identity "https://github.com/lcsfls/garnet-ops/.github/workflows/release.yml@refs/tags/v0.0.4" \
+cosign verify ghcr.io/lcsfls/garnetops:0.0.5@sha256:<digest> \
+  --certificate-identity "https://github.com/lcsfls/garnet-ops/.github/workflows/release.yml@refs/tags/v0.0.5" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
+
+The optional update service is another image of the same release, verified the same way
+(`ghcr.io/lcsfls/garnetops-updater:<version>@sha256:<digest from the release>`, with the same
+`--certificate-identity`). Its set-up is in [updating.md](updating.md#set-it-up); leave
+`COMPOSE_PROFILES` and `CICD_UPDATER_IMAGE` alone until you do that.
 
 ## HTTPS
 
@@ -87,6 +96,6 @@ Our own database build (vunnel) follows on the roadmap.
 | `worker` | `garnetops` | clones into a RAM disk, runs syft and grype; holds the vault private key |
 | `db` | `postgres:17` | data in the `db-data` volume |
 | `init` | `garnetops` | creates the vault key pair once, then exits |
-| `updater` | `cicd-updater` | optional (profile `updater`), see [updating.md](updating.md) |
+| `updater` | `garnetops-updater` | optional (profile `updater`), see [updating.md](updating.md) |
 
 Back up the volumes `db-data` and `vault` together with `.env`.

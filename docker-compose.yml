@@ -144,6 +144,7 @@ services:
 
   updater:
     profiles: ["updater"] # opt-in
+    # The GarnetOps update sidecar, ghcr.io/lcsfls/garnetops-updater (ADR 0026, built from updater/).
     # Never one of the image variables the updater writes. Verify it with cosign and pin it
     # by digest (docs/updating.md).
     image: ${CICD_UPDATER_IMAGE:?set CICD_UPDATER_IMAGE in .env}

@@ -1,5 +1,7 @@
-# Configuration of the optional update sidecar (cicd-updater, ADR 0007, docs/updating.md).
-# Reference: https://github.com/restow-backup/cicd-updater/blob/main/docs/configuration.md
+# Configuration of the optional update sidecar (ADR 0007 and ADR 0026, docs/updating.md).
+# The sidecar is maintained in updater/. Reference of every key (upstream documentation at the
+# commit that updater/ was taken from):
+# https://github.com/restow-backup/cicd-updater/blob/b2dd4efd8ff10a5d29ddcfeda762a0ced9a87874/docs/configuration.md
 # compose.projectDir comes from CICD_UPDATER_COMPOSE__PROJECT_DIR (docker-compose.yml).
 # Keep this file owned by root and not writable by the app. Validate it with:
 #   docker compose run --rm --no-deps updater config check

@@ -1,0 +1,14 @@
+# gitleaks configuration for CI (.github/workflows/ci.yml): the default rules, plus one reviewed
+# exception. Everything else that looks like a secret fails the build.
+title = "GarnetOps"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake credentials in three tests of the update sidecar (updater/VENDORED.md): they check that tokens and registry logins are redacted from logs and that auth files are read"
+paths = [
+  '''^updater/packages/feed/test/check\.test\.ts$''',
+  '''^updater/packages/engine/test/units\.test\.ts$''',
+  '''^updater/packages/sidecar/test/verifier\.test\.ts$''',
+]

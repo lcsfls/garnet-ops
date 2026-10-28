@@ -48,7 +48,7 @@ linked into GarnetOps; the full list with versions and licences is in
 | API | [Node.js 24](https://nodejs.org), [Hono](https://hono.dev), [Drizzle ORM](https://orm.drizzle.team) | MIT, MIT, Apache-2.0 | REST API under `/api/v1`, migrations |
 | Sign-in | [better-auth](https://www.better-auth.com) | MIT | Accounts, sessions, mandatory TOTP; passwords hashed with Argon2id (`node:crypto`) |
 | Web app | [React 19](https://react.dev), [TanStack Router and Query](https://tanstack.com), [Tailwind CSS](https://tailwindcss.com), [Lucide](https://lucide.dev), [i18next](https://www.i18next.com) | MIT, MIT, MIT, ISC, MIT | The interface in English and German, fonts and icons served by GarnetOps itself |
-| Updates (optional) | [cicd-updater](https://github.com/restow-backup/cicd-updater) | Apache-2.0 | Installs signed releases with a backup first, once releases exist |
+| Updates (optional) | [GarnetOps updater](updater/VENDORED.md), in this repository (started as [cicd-updater](https://github.com/restow-backup/cicd-updater)) | Apache-2.0 | Installs signed releases with a backup first |
 
 Secrets you store (access tokens, deploy keys) are sealed with a post-quantum hybrid
 scheme (ML-KEM-1024 and X25519, ADR 0004); only the scan worker holds the key to open them.
@@ -63,8 +63,8 @@ disk for the build.
 ```sh
 git clone https://github.com/lcsfls/garnet-ops.git /opt/garnetops
 cd /opt/garnetops
-docker build --target app -t garnetops:local     --build-arg VERSION=0.0.4 .
-docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.4 .
+docker build --target app -t garnetops:local     --build-arg VERSION=0.0.5 .
+docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.5 .
 
 sh deploy/install.sh garnetops.example.com garnetops:local garnetops-web:local
 echo 'UPDATER_URL=' >> .env    # in-app updates need signed releases; off for local builds

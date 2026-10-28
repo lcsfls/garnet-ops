@@ -15,7 +15,9 @@ GarnetOps is dual-licensed:
    IT Systeme Flores UG for terms; pricing on request.
 
 Third-party components keep their own licenses; see
-[`docs/COMPONENTS.md`](docs/COMPONENTS.md).
+[`docs/COMPONENTS.md`](docs/COMPONENTS.md). The directory [`updater/`](updater/VENDORED.md) (the
+optional update sidecar, taken from an Apache-2.0 project of the same copyright holder) stays under
+the Apache-2.0 license in [`updater/LICENSE`](updater/LICENSE); the AGPL does not apply to it.
 
 The names "GarnetOps" and the GarnetOps logo and wordmark are not licensed
 under the AGPL; see [`TRADEMARKS.md`](TRADEMARKS.md).

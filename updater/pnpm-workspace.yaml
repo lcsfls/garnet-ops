@@ -1,0 +1,14 @@
+packages:
+  - "packages/*"
+
+# Same supply-chain hardening as the root workspace (../pnpm-workspace.yaml); this workspace is
+# isolated from it (VENDORED.md).
+
+# Dependencies may only run install scripts when listed here. esbuild (tsup, the bundler of the
+# sidecar and of the action bundle) is the only one that needs it.
+allowBuilds:
+  esbuild: true
+
+# Do not install package versions younger than one day (minutes). Compromised releases are
+# usually caught within hours. No silent exclusions: an exception needs a comment with the reason.
+minimumReleaseAge: 1440
