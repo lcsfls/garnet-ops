@@ -67,23 +67,14 @@ describe("preferences", () => {
   });
 
   it("ignore a scope on events that cannot be limited", () => {
-    expect(resolvePreference("infra.sync_blocked", { scope: "mine" }).scope).toBe("all");
+    expect(resolvePreference("infra.certificate_changed", { scope: "mine" }).scope).toBe("all");
   });
 });
 
 describe("roles", () => {
   it("send admin-only events to owners and admins", () => {
     for (const event of [
-      "infra.host_key_changed",
       "infra.certificate_changed",
-      "infra.sync_blocked",
-      "unifi.certificate_changed",
-      "unifi.device_offline",
-      "unifi.firmware_update_available",
-      "exposure.certificate_expiring",
-      "exposure.verification_lost",
-      "exposure.new_open_port",
-      "exposure.risky_service",
       "team.invitation_accepted",
       "system.update_finished",
     ] as const) {

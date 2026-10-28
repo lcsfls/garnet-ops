@@ -1,5 +1,5 @@
 /**
- * Grades A to F for repositories and servers (ADR 0018). Pure and shared by the API (reason
+ * Grades A to F for repositories (ADR 0018). Pure and shared by the API (reason
  * texts, filters) and the web app.
  *
  * A grade is display only. It never changes a gate result, a notification or anything else
@@ -16,7 +16,7 @@
  * - B: any other open finding (low severity, or without a fix and not covered above)
  * - A: no open findings
  *
- * A repository or server that was never scanned has no grade at all (`null`), not A.
+ * A repository that was never scanned has no grade at all (`null`), not A.
  */
 export const GRADES = ["A", "B", "C", "D", "E", "F"] as const;
 export type Grade = (typeof GRADES)[number];
@@ -100,7 +100,7 @@ export interface GradeResult {
   count: number;
 }
 
-/** The grade of one repository or server from the counts of its open findings. */
+/** The grade of one repository from the counts of its open findings. */
 export function gradeOf(counts: GradeCounts): GradeResult {
   const decided = (rule: GradeRule, count: number): GradeResult => ({
     grade: GRADE_OF_RULE[rule],

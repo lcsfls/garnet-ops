@@ -169,16 +169,6 @@ async function loadFacts(
         sql`${f.repositoryId} <> ${row.finding.repositoryId}`,
       ),
     );
-  const [servers] = await db
-    .select({ n: sql<number>`count(distinct ${schema.hostFinding.hostId})::int` })
-    .from(schema.hostFinding)
-    .where(
-      and(
-        eq(schema.hostFinding.organizationId, organizationId),
-        eq(schema.hostFinding.vulnerabilityId, row.finding.vulnerabilityId),
-        eq(schema.hostFinding.state, "open"),
-      ),
-    );
   const urls = row.vulnerability.urls ?? [];
   return {
     urls,
@@ -202,7 +192,6 @@ async function loadFacts(
       repositoryName: row.repository.name,
       branch: row.repository.branch,
       otherRepositories: others?.n ?? 0,
-      affectedServers: servers?.n ?? 0,
     },
   };
 }

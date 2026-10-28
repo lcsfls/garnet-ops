@@ -7,27 +7,20 @@ elsewhere contradicts this file, this file wins.
 
 ## What we are building
 
-GarnetOps is a self-hostable security platform (AGPL-3.0-only plus a commercial license) for SecOps teams and
-everyday sysadmins. It runs as a Docker Compose stack inside the customer's
-network and combines:
+GarnetOps is a self-hostable developer pipeline for security (AGPL-3.0-only plus a commercial license): security for
+Git repositories across Forgejo, Gitea and GitHub, for SecOps teams and everyday sysadmins. It runs as a Docker Compose
+stack inside the customer's network and combines:
 
 - **Dependency scanning (SCA)** of linked repositories and container images
   (grype, fed by a locally built vulnerability database from vunnel).
 - **Code and config scanning** (SAST, IaC, secrets) via permissively licensed
   engines and rules.
-- **Host overview** (Infrastructure → Servers): agentless, read-only package
-  inventory over SSH with a restricted key, matched against the same local
-  vulnerability database. See `docs/adr/0002-host-connectivity-and-wazuh.md`.
-- **XDR via Wazuh** (Infrastructure → XDR): optional, read-only integration with
-  a customer-run Wazuh 4.x or 5.x over the manager REST API and the indexer
-  API. We do not build our own SIEM or agent.
 - **Quality gates** for Forgejo, Gitea, GitHub and plain Git (SSH/HTTPS/token).
 - **AI-assisted triage and remediation** through any OpenAI-compatible endpoint
   the customer runs locally (vLLM, Ollama, LiteLLM, LM Studio), streamed via SSE.
 - **Fix pull requests** (AI-generated, or plain version bumps) that a human
   always reviews. Renovate is AGPL-3.0 and therefore not bundled; customers
   who run their own Renovate can let us generate its configuration.
-- **Attack overview** with local GeoIP and optional OSINT enrichment.
 - **Notifications** via SMTP or Microsoft Graph `sendMail` (alerts, weekly digest).
 - **Multi-user** from the first release: organizations, roles, invitations,
   audit trail per user (better-auth, as in Restow).
@@ -43,9 +36,9 @@ network and combines:
 The core promise: **no customer code, finding or log leaves the customer's
 network** unless the customer explicitly configures it.
 
-**Modules.** Repository quality gates, dependency/container update checks and
-host monitoring are modules that can be switched on independently, in every
-edition including the free Community edition.
+**Modules.** Repository quality gates and dependency/container update checks
+are modules that can be switched on independently, in every edition including
+the free Community edition.
 
 **Relationship to Restow.** A separate product from Restow (self-hosted
 backup): own name, identity, logo, login and release cycle. Foundations may be

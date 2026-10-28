@@ -1,6 +1,8 @@
 # ADR 0004: SSH key vault, NetBird networks and Linux firewall monitoring
 
-- Status: accepted
+> **Status: partly superseded by ADR 0025.** The parts about servers (the SSH access key for servers, the installation of the key on a server, NetBird networks and Linux firewall monitoring) are superseded by ADR 0025 (removed in 0.0.4). The vault itself (sealing, key hierarchy, purposes for repositories, the AI key, notifications and the directory) stays.
+
+- Status: accepted; partly superseded by ADR 0025 (removed in 0.0.4)
 - Date: 2026-10-19
 - Decided by: maintainer
 - Extends: ADR 0002

@@ -10,7 +10,7 @@
  *   the connection is dropped if the server refuses or the handshake fails. No bind, no search
  *   and no password goes over an unencrypted connection.
  * - Trust is one of: the system's certificate store, only the configured CA certificate(s), or
- *   the pinned leaf certificate (SHA-256) like Proxmox (ADR 0012). The decision is made before
+ *   the pinned leaf certificate (SHA-256). The decision is made before
  *   the first LDAP byte is written; ldapts is handed a socket that is already trusted.
  * - Connect and handshake are bounded by a timeout.
  */
@@ -18,10 +18,10 @@ import { X509Certificate } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP, connect as tcpConnect } from "node:net";
 import { type TLSSocket, connect as tlsConnect } from "node:tls";
+import { certificateFingerprint, certificateName } from "@garnetops/core/certificates";
 import type { CertificateFacts, DirectoryProblem } from "@garnetops/core/directory";
-import { checkHostAddress } from "@garnetops/core/hosts";
+import { checkHostAddress } from "@garnetops/core/net-address";
 import { isForbiddenAddress } from "@garnetops/core/notifications";
-import { certificateFingerprint, certificateName } from "@garnetops/core/proxmox";
 import { Client, ExtendedRequest, MessageParser } from "ldapts";
 
 /** A failure with a reason an admin can act on. The message never contains a password or directory content. */

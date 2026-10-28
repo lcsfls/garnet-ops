@@ -1,6 +1,8 @@
 # ADR 0002: How hosts are connected; Wazuh as XDR integration
 
-- Status: accepted (details of the Wazuh 5.x adapter pending its GA release)
+> **Status: superseded by ADR 0025 (removed in 0.0.4).** The module was removed when GarnetOps became a pure developer pipeline. The text below is kept as the record of the decision; it describes the last version that has the module, the tag `v0.0.3`.
+
+- Status: superseded by ADR 0025 (removed in 0.0.4). Earlier status: accepted (details of the Wazuh 5.x adapter pending its GA release)
 - Date: 2026-10-19
 - Decided by: maintainer
 

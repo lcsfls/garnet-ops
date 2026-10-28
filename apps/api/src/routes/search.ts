@@ -1,5 +1,5 @@
 import { schema } from "@garnetops/db";
-import { and, asc, eq, ilike, min, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, min } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
@@ -9,9 +9,9 @@ const HITS = 5;
 const query = z.object({ q: z.string().trim().min(2).max(100) });
 
 /**
- * Quick search for the top bar (Ctrl K): a few repositories, servers, Proxmox guests, vulnerabilities and
- * packages of the caller's organisation whose name contains the text. Every hit opens
- * a list or page the caller can already see; nothing here is new information.
+ * Quick search for the top bar (Ctrl K): a few repositories, vulnerabilities and packages of the
+ * caller's organisation whose name contains the text. Every hit opens a list or page the caller can
+ * already see; nothing here is new information.
  */
 export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const { organizationId } = c.get("actor");
@@ -19,7 +19,7 @@ export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const pattern = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   const f = schema.finding;
   const p = schema.repositoryPackage;
-  const [repositories, vulnerabilities, packages, servers, guests, assets] = await Promise.all([
+  const [repositories, vulnerabilities, packages] = await Promise.all([
     db
       .select({ id: schema.repository.id, name: schema.repository.name })
       .from(schema.repository)
@@ -42,50 +42,6 @@ export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
       .groupBy(p.name)
       .orderBy(asc(p.name))
       .limit(HITS),
-    db
-      .select({ id: schema.host.id, name: schema.host.name })
-      .from(schema.host)
-      .where(
-        and(
-          eq(schema.host.organizationId, organizationId),
-          or(ilike(schema.host.name, pattern), ilike(schema.host.address, pattern)),
-        ),
-      )
-      .orderBy(asc(schema.host.name))
-      .limit(HITS),
-    db
-      .select({ id: schema.proxmoxGuest.id, name: schema.proxmoxGuest.name, vmid: schema.proxmoxGuest.vmid })
-      .from(schema.proxmoxGuest)
-      .where(
-        and(
-          eq(schema.proxmoxGuest.organizationId, organizationId),
-          or(
-            ilike(schema.proxmoxGuest.name, pattern),
-            sql`${schema.proxmoxGuest.vmid}::text like ${pattern}`,
-            sql`${schema.proxmoxGuest.ips}::text ilike ${pattern}`,
-          ),
-        ),
-      )
-      .orderBy(asc(schema.proxmoxGuest.name))
-      .limit(HITS),
-    db
-      .select({ id: schema.exposureAsset.id, value: schema.exposureAsset.value })
-      .from(schema.exposureAsset)
-      .where(
-        and(
-          eq(schema.exposureAsset.organizationId, organizationId),
-          ilike(schema.exposureAsset.value, pattern),
-        ),
-      )
-      .orderBy(asc(schema.exposureAsset.value))
-      .limit(HITS),
   ]);
-  return c.json({
-    repositories,
-    vulnerabilities,
-    packages,
-    servers,
-    guests,
-    assets,
-  });
+  return c.json({ repositories, vulnerabilities, packages });
 });

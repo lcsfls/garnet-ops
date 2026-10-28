@@ -1,5 +1,7 @@
 # ADR 0020: LDAP and Active Directory sign-in
 
+> **Note (ADR 0025).** This ADR refers to the Proxmox VE and servers modules as the pattern for pinning and the address policy. Those modules were removed in 0.0.4; the code the directory sign-in shares with them now lives in `packages/core/src/net-address.ts` and `packages/core/src/certificates.ts`.
+
 - Status: accepted (2026-10-22)
 - Date: 2026-10-22
 - Decided by: maintainer (sign-in with LDAP and Active Directory, owners only to configure; accounts only for people in

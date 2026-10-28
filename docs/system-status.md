@@ -62,16 +62,9 @@ Shows **Not set up (planned)** with a link to the roadmap. GarnetOps does not bu
 exists it reports, per provider, the last run, the result, the number of records and the duration, and this row turns into that table.
 The report's shape is fixed now so that the builder can arrive without a breaking change (see below).
 
-## GeoIP data
-
-The country and network (ASN) datasets of the [attack overview](attacks.md): release month, age, number of ranges and source (manual
-import or monthly download), the last refused load, and the last download attempt. A release comes out once a month and its date is the
-first of that month: more than 45 days old is stale, more than 90 outdated. Nothing loaded is "not loaded" (not active), because the
-attack overview works without it, with sources shown without country and network.
-
 ## Integrations
 
-One row for each of Wazuh (XDR), Proxmox VE, UniFi, directory sign-in, external exposure, the AI endpoint and the notification channels:
+One row for each of the directory sign-in, the AI endpoint and the notification channels:
 whether it is configured, when it last worked, the last attempt and its result, and what blocks it. A link leads to its settings
 (the directory settings are for owners).
 
@@ -79,22 +72,23 @@ whether it is configured, when it last worked, the last attempt and its result, 
 | --- | --- |
 | Not configured | Nothing is set up. |
 | Paused | An admin switched it off (or paused it). Not counted. |
-| Blocked | Nothing happens until an admin acts: a certificate waits for confirmation or changed, the account can do more than read and nobody acknowledged it, the directory refused the service account, an asset lost its proof of control, an external AI endpoint was not acknowledged. |
+| Blocked | Nothing happens until an admin acts: a certificate of a directory server waits for confirmation or changed, the directory refused the service account, an external AI endpoint was not acknowledged. |
 | Failed | The last attempt failed. The reason is shown in your language. |
-| Stale | The last success is older than three of its own intervals (15 minutes for the syncs and the directory check, one day for the exposure runs, the poll interval for the live feed and the IPS preview). |
+| Stale | The last success is older than three of its own intervals (15 minutes for the directory check). |
 | Waiting for a first result | Set up, but no attempt has finished yet. |
 | Current | The last attempt worked and is recent. |
 
-Parts: Wazuh has the *sync* and the *live feed*; UniFi the *sync* and the *IPS preview* (off unless switched on); the directory the
-*account check* (every 15 minutes, with the number of accounts checked); exposure *stage 1*, *stage 2* and the *proof of control*
-(verified, lost, not yet proven); the AI endpoint the last *connection test* and where the endpoint is (inside or outside your network);
-the notification channels their last *delivery*. For several connections of one kind the worst state stands for the row and up to five
-connections that need a look are named.
+Parts: the directory has the *account check* (every 15 minutes, with the number of accounts checked); the AI endpoint the last *connection
+test* and where the endpoint is (inside or outside your network); the notification channels their last *delivery*. For several channels
+the worst state stands for the row and up to five that need a look are named.
+
+The rows of Wazuh (XDR), Proxmox VE, UniFi, external exposure and the GeoIP data existed up to version 0.0.3 and were removed in 0.0.4
+([ADR 0025](adr/0025-focus-on-the-developer-pipeline.md)).
 
 ## Worker and jobs
 
 - **Worker:** running, late (no heartbeat for 90 seconds) or not running. It writes its heartbeat, with its version and start time, every
-  30 seconds, and removes it when it stops cleanly. If it is late or not running, scans, syncs and checks wait. Check `docker compose
+  30 seconds, and removes it when it stops cleanly. If it is late or not running, scans and checks wait. Check `docker compose
   logs worker`.
 - **Nightly scan:** the schedule, the last run (how many repositories were queued and how those scans ended) and the next run. On the two
   days a year when the local time is skipped or read twice (daylight saving time, [ADR 0005](adr/0005-time-and-time-zones.md)) the next
@@ -112,7 +106,7 @@ updates are done by hand.
 ## API
 
 `GET /api/v1/system/status` (owners and admins; 403 for everyone else; `Cache-Control: no-store`). The answer has the keys `generatedAt`,
-`refreshSeconds`, `overall`, `app`, `scanners`, `vulnDb`, `localBuild`, `geoip`, `integrations` and `worker`. It contains numbers,
+`refreshSeconds`, `overall`, `app`, `scanners`, `vulnDb`, `localBuild`, `integrations` and `worker`. It contains numbers,
 states and short codes only: no secret, no address of an integration and no output of a tool. Fields are added over time and never
 change their meaning (within `/api/v1`). The type is `SystemStatus` in `packages/core/src/system-status-view.ts`.
 

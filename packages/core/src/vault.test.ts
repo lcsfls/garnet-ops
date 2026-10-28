@@ -23,8 +23,8 @@ describe("vault", () => {
   it("lets the holder of the private key seal for itself", () => {
     const own = vaultPublicKeyOf(priv);
     expect(own.id).toBe(priv.id);
-    const sealed = seal("worker-generated-secret", { ...binding, purpose: "host-ssh-key" }, own);
-    expect(open(sealed, { ...binding, purpose: "host-ssh-key" }, priv).toString("utf8")).toBe(
+    const sealed = seal("worker-generated-secret", { ...binding, purpose: "ldap-user-password" }, own);
+    expect(open(sealed, { ...binding, purpose: "ldap-user-password" }, priv).toString("utf8")).toBe(
       "worker-generated-secret",
     );
   });

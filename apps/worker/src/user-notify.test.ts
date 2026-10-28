@@ -17,7 +17,6 @@ import { MAIL_MAX_AGE_MS, MAIL_MIN_INTERVAL_MS } from "@garnetops/core/user-noti
 import { generateVaultKeyPair } from "@garnetops/core/vault";
 import { schema } from "@garnetops/db";
 import { createTestDatabase, devDatabaseUrl, type TestDatabase } from "@garnetops/db/testing";
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const adminUrl = devDatabaseUrl();
@@ -95,7 +94,6 @@ describe.skipIf(!adminUrl || !openssl)("personal notifications in the worker", (
   let t: TestDatabase;
   let mod: typeof import("./user-notify.ts");
   let notify: typeof import("./notify.ts");
-  let px: typeof import("./proxmox.ts");
   let smtp: Awaited<ReturnType<typeof startSmtp>>;
   let ca = "";
 
@@ -209,7 +207,6 @@ describe.skipIf(!adminUrl || !openssl)("personal notifications in the worker", (
     });
     mod = await import("./user-notify.ts");
     notify = await import("./notify.ts");
-    px = await import("./proxmox.ts");
     for (const level of ["error", "warn"] as const) vi.spyOn(console, level).mockImplementation(() => {});
   }, 60_000);
 
@@ -291,44 +288,20 @@ describe.skipIf(!adminUrl || !openssl)("personal notifications in the worker", (
       ]);
     });
 
-    it("tell owners and admins once when a Proxmox VE certificate changes", async () => {
-      await t.db.insert(schema.proxmoxCluster).values({
-        id: "pxc_1",
+    it("tell owners and admins when the certificate of the directory server changes", async () => {
+      await mod.tellUsers({
         organizationId: ORG,
-        name: "Lab cluster",
-        apiUrl: "https://pve.example.lan:8006",
-        host: "pve.example.lan",
-        tokenId: "garnetops@pve!inventory",
-        certStatus: "confirmed",
-        certFingerprint: "AA:AA",
+        titleKey: "certificateChangedDirectory",
+        params: { name: "ldaps://dc.example.lan" },
+        link: "/settings?section=signin",
       });
-      const load = async () => {
-        const [row] = await t.db
-          .select()
-          .from(schema.proxmoxCluster)
-          .where(eq(schema.proxmoxCluster.id, "pxc_1"));
-        return row as NonNullable<typeof row>;
-      };
-      const seen = {
-        fingerprint: "BB:BB",
-        subject: "CN=pve.example.lan",
-        issuer: "CN=pve.example.lan",
-        validFrom: T0,
-        validTo: new Date(T0.getTime() + 86_400_000),
-        caTrusted: false,
-      };
-      await px.applyObservedCertificate(await load(), seen);
       expect((await rows()).map((r) => r.userId).sort()).toEqual(["u_admin", "u_owner"]);
       expect((await rows())[0]).toMatchObject({
-        titleKey: "certificateChangedProxmox",
-        params: { name: "Lab cluster" },
-        link: "/settings?section=proxmox",
+        event: "infra.certificate_changed",
+        titleKey: "certificateChangedDirectory",
+        params: { name: "ldaps://dc.example.lan" },
+        link: "/settings?section=signin",
       });
-      // The same certificate again is not news; another one is.
-      await px.applyObservedCertificate(await load(), seen);
-      expect(await rows()).toHaveLength(2);
-      await px.applyObservedCertificate(await load(), { ...seen, fingerprint: "CC:CC" });
-      expect(await rows()).toHaveLength(4);
     });
 
     it("never fail the work they report", async () => {

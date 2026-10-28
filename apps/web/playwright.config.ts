@@ -170,19 +170,6 @@ export default defineConfig({
         E2E_DIRECTORY_CONTROL_PORT: String(E2E.directoryControlPort),
       },
     },
-    // The exposure part of the worker (ADR 0023) with a fake resolver and two local services; the tests steer it over a control port.
-    {
-      command: "corepack pnpm --filter @garnetops/worker exec tsx test/e2e-exposure-worker.ts",
-      url: `http://127.0.0.1:${E2E.exposureControlPort}/state`,
-      reuseExistingServer: false,
-      timeout: 60_000,
-      env: {
-        ...E2E.dev,
-        NODE_ENV: "test",
-        DATABASE_URL: E2E.databaseUrl,
-        E2E_EXPOSURE_CONTROL_PORT: String(E2E.exposureControlPort),
-      },
-    },
     {
       command: `corepack pnpm exec vite build && corepack pnpm exec vite preview --port ${E2E.webPort}`,
       url: E2E.publicUrl,

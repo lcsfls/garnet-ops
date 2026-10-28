@@ -3,14 +3,7 @@ import { describe, expect, it } from "vitest";
 import { navFor, navTrail } from "../components/nav.ts";
 import { SETTINGS_SECTIONS } from "./search.ts";
 import type { Me } from "./session.ts";
-import {
-  camelState,
-  canOpenSection,
-  INTEGRATION_SECTION,
-  LEVEL_TONE,
-  monthLabel,
-  queueKey,
-} from "./system-status.ts";
+import { camelState, canOpenSection, INTEGRATION_SECTION, LEVEL_TONE, queueKey } from "./system-status.ts";
 
 const me = (role: Me["role"]) => ({ role }) as Me;
 
@@ -30,7 +23,7 @@ describe("links to settings", () => {
   it("leave the directory to owners, who are the only ones who see that section", () => {
     expect(canOpenSection("signin", "owner")).toBe(true);
     expect(canOpenSection("signin", "admin")).toBe(false);
-    expect(canOpenSection("xdr", "admin")).toBe(true);
+    expect(canOpenSection("ai", "admin")).toBe(true);
   });
 });
 
@@ -41,14 +34,6 @@ describe("keys", () => {
     expect(queueKey("fix-pr.create")).toBe("fixPrCreate");
     expect(camelState("not_configured")).toBe("notConfigured");
     expect(camelState("current")).toBe("current");
-  });
-});
-
-describe("GeoIP month", () => {
-  it("reads a release as a month and year in the UI language", () => {
-    expect(monthLabel("2026-10", "en")).toBe("October 2026");
-    expect(monthLabel("2026-10", "de")).toBe("Oktober 2026");
-    expect(monthLabel("soon", "en")).toBe("soon");
   });
 });
 

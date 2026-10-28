@@ -11,9 +11,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { PgBoss } from "pg-boss";
 import { AI_PROBE_QUEUE, AI_QUEUE, runGeneration, runProbe } from "../src/ai.ts";
 import { setModelTestHooks } from "../src/ai-client.ts";
-import { ATTACK_SUMMARY_QUEUE, runAttackSummary } from "../src/attack-summary.ts";
 import { env } from "../src/env.ts";
-import { runWazuhSummary, WAZUH_SUMMARY_QUEUE } from "../src/wazuh-summary.ts";
 
 const port = Number(process.env.E2E_MODEL_PORT ?? 8092);
 const KEY = "e2e-secret-key";
@@ -136,8 +134,6 @@ boss.on("error", (error) => console.error("queue:", error.message));
 await boss.start();
 await boss.createQueue(AI_QUEUE);
 await boss.createQueue(AI_PROBE_QUEUE);
-await boss.createQueue(WAZUH_SUMMARY_QUEUE);
-await boss.createQueue(ATTACK_SUMMARY_QUEUE);
 for (let i = 0; i < 2; i++) {
   await boss.work<{ messageId: string }>(AI_QUEUE, { batchSize: 1 }, async ([job]) => {
     if (job) await runGeneration(job.data.messageId);
@@ -145,13 +141,5 @@ for (let i = 0; i < 2; i++) {
 }
 await boss.work<{ probeId: string }>(AI_PROBE_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await runProbe(job.data.probeId);
-});
-// The XDR page's "Summarise with AI" (ADR 0015) goes through the same model and the same address policy.
-await boss.work<{ summaryId: string }>(WAZUH_SUMMARY_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await runWazuhSummary(job.data.summaryId);
-});
-// The Attacks page's "Summarise with AI" (ADR 0016): numbers per country and network, never an address.
-await boss.work<{ summaryId: string }>(ATTACK_SUMMARY_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await runAttackSummary(job.data.summaryId);
 });
 console.log("e2e: AI worker ready");

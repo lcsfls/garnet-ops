@@ -363,8 +363,8 @@ describe.skipIf(!adminUrl)("personal notifications", () => {
       // A role-limited event: only owners and admins of ORG are told.
       await notifyUsers(t.db, {
         organizationId: ORG,
-        titleKey: "certificateChangedProxmox",
-        params: { name: "Lab" },
+        titleKey: "certificateChangedDirectory",
+        params: { name: "ldaps://dc.example.lan" },
         link: "/settings",
       });
       expect(await mine.next(500)).toBeNull();
@@ -442,12 +442,11 @@ describe.skipIf(!adminUrl)("personal notifications", () => {
       });
       const admin = await get({ user: "u_admin", role: "admin" });
       expect(admin.json?.canManageChannels).toBe(true);
-      expect(admin.json?.events).toHaveLength(18);
+      expect(admin.json?.events).toHaveLength(9);
       expect(admin.json?.events.map((e: Json) => e.group)).toEqual([
         ...Array(5).fill("code"),
-        // Host key, certificate, blocked sync, the three UniFi events (ADR 0022) and the four exposure events (ADR 0023).
-        ...Array(10).fill("infrastructure"),
-        ...Array(2).fill("account"),
+        // The directory's certificate, an accepted invitation and a changed role.
+        ...Array(3).fill("account"),
         "system",
       ]);
       const fix = admin.json?.events.find((e: Json) => e.event === "fix_pr.merged");
@@ -479,7 +478,7 @@ describe.skipIf(!adminUrl)("personal notifications", () => {
 
     it("refuses events the role cannot receive, repeats, and unknown names", async () => {
       const wrongRole = await put(
-        [{ event: "infra.sync_blocked", inApp: true, email: false, scope: "all" }],
+        [{ event: "infra.certificate_changed", inApp: true, email: false, scope: "all" }],
         {
           user: "u_member",
         },

@@ -17,7 +17,7 @@ For the conversation about one finding:
 - the package: name, installed version, ecosystem, the versions that fix it, and the paths
   inside the repository where it was found;
 - the repository name and branch;
-- how many other repositories and servers have the same vulnerability (numbers only);
+- how many other repositories have the same vulnerability (numbers only);
 - your questions, and the earlier answers of the same conversation.
 
 Under **What the model saw** in every conversation you can read exactly what was sent,
@@ -65,7 +65,7 @@ reachability poorly. Reasoning models work: their `<think>` blocks are hidden.
 | Loopback, link-local, unspecified, multicast, reserved | never |
 
 Why not plain http on your LAN? The request contains the list of vulnerabilities of your
-repositories and servers. Over http, anyone who can sniff or ARP-spoof on that network
+repositories. Over http, anyone who can sniff or ARP-spoof on that network
 segment can read it (and change the answer). On the same host, nothing leaves the machine; in
 a WireGuard-based VPN every packet is encrypted. For a model on another machine of your
 network, put a reverse proxy with a certificate in front of it. A Caddy example (the

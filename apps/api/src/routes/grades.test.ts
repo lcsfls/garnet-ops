@@ -1,5 +1,5 @@
 /**
- * Grades A to F for repositories and servers (ADR 0018) against a throw-away PostgreSQL
+ * Grades A to F for repositories (ADR 0018) against a throw-away PostgreSQL
  * database on the development server: the rules at query time (accepted risks while valid and
  * after they expire, known exploited, findings without a fix), never scanned and failed last
  * scan, sorting and filtering by grade through all pages, the reason with its example package,
@@ -34,9 +34,6 @@ vi.mock("../db.ts", async () => {
       fixPrCreate: "fix-pr.create",
       fixPrCheck: "fix-pr.check",
       fixPrRefresh: "fix-pr.refresh",
-      hostAccessKey: "host.access-key",
-      hostKeyscan: "host.keyscan",
-      hostInventory: "host.inventory",
     },
   };
 });
@@ -148,62 +145,9 @@ describe.skipIf(!adminUrl)("grades API", () => {
     return id;
   }
 
-  async function addHost(
-    name: string,
-    findings: Spec[],
-    options: { inventoried?: boolean; org?: string; lastError?: string | null; runs?: string[] } = {},
-  ): Promise<string> {
-    const org = options.org ?? ORG;
-    const id = `host_gr${String(++counter).padStart(8, "0")}`;
-    const inventoried = options.inventoried ?? true;
-    await t.db.insert(schema.host).values({
-      id,
-      organizationId: org,
-      name,
-      address: `${name}.example.lan`,
-      lastInventoryAt: inventoried ? new Date(Date.now() - DAY) : null,
-      lastError: options.lastError ?? null,
-    });
-    let n = 0;
-    for (const state of options.runs ?? []) {
-      await t.db.insert(schema.hostInventoryRun).values({
-        id: `hrun_gr_${id}_${++n}`,
-        organizationId: org,
-        hostId: id,
-        state: state as never,
-        trigger: "manual",
-        createdAt: new Date(Date.now() - (10 - n) * 1000),
-      });
-    }
-    for (const spec of findings) {
-      const vulnerabilityId = await vulnerability(spec);
-      const pkg = spec.pkg ?? `pkg-${counter}`;
-      await t.db.insert(schema.hostFinding).values({
-        id: `hfnd_gr${String(counter).padStart(8, "0")}`,
-        organizationId: org,
-        hostId: id,
-        vulnerabilityId,
-        dedupKey: `${id}|${vulnerabilityId}|deb|${pkg}`,
-        packageName: pkg,
-        packageVersion: "1.0.0",
-        packageType: "deb",
-        fixedIn: spec.fixed ? ["1.0.1"] : [],
-        severity: spec.severity,
-        severityRank: 1,
-        state: spec.state === "resolved" ? "resolved" : "open",
-        firstSeenRunId: "run_x",
-        lastSeenRunId: "run_x",
-        firstSeenAt: new Date(),
-        lastSeenAt: new Date(),
-      });
-    }
-    return id;
-  }
-
   beforeAll(async () => {
     const { handleError } = await import("../lib/problem.ts");
     const { repositoryRoutes } = await import("./repositories.ts");
-    const { hostRoutes } = await import("./hosts.ts");
     t = queue.db as TestDatabase;
     await t.db.insert(schema.organization).values([
       { id: ORG, name: "A" },
@@ -226,7 +170,6 @@ describe.skipIf(!adminUrl)("grades API", () => {
       await next();
     });
     v1.route("/repositories", repositoryRoutes as never);
-    v1.route("/hosts", hostRoutes as never);
     app = new Hono().onError(handleError).route("/api/v1", v1) as unknown as Hono;
   }, 60_000);
 
@@ -496,144 +439,6 @@ describe.skipIf(!adminUrl)("grades API", () => {
       const theirs = await get("/api/v1/repositories/grades?q=g-other-org", OTHER);
       expect(theirs.json?.F).toBe(1);
       expect(itemsOf(await get("/api/v1/repositories?grade=F&pageSize=100&q=g-other", ORG)).length).toBe(0);
-    });
-  });
-
-  describe("servers", () => {
-    const listedHost = async (name: string, org = ORG): Promise<Json> => {
-      const res = await get(`/api/v1/hosts?pageSize=100&q=${encodeURIComponent(name)}`, org);
-      const row = itemsOf(res).find((r) => r.name === name);
-      if (!row) throw new Error(`${name} is not in the list`);
-      return row;
-    };
-
-    it("grades from the open host findings, with the same rules", async () => {
-      const cases: [string, Spec[], Grade, string, number][] = [
-        ["h-clean", [], "A", "none", 0],
-        ["h-resolved", [{ severity: "critical", fixed: true, state: "resolved" }], "A", "none", 0],
-        ["h-low", [{ severity: "low", fixed: true }], "B", "other-open", 1],
-        ["h-medium-fix", [{ severity: "medium", fixed: true }], "C", "medium-with-fix", 1],
-        ["h-high-nofix", [{ severity: "high" }], "C", "high-without-fix", 1],
-        ["h-high-fix", [{ severity: "high", fixed: true }], "D", "high-with-fix", 1],
-        ["h-critical-nofix", [{ severity: "critical" }], "D", "critical-without-fix", 1],
-        [
-          "h-critical-fix",
-          [{ severity: "critical", fixed: true, pkg: "openssl" }],
-          "E",
-          "critical-with-fix",
-          1,
-        ],
-        [
-          "h-kev-fix",
-          [{ severity: "medium", fixed: true, kev: true, pkg: "sudo" }],
-          "F",
-          "known-exploited-with-fix",
-          1,
-        ],
-      ];
-      for (const [name, findings] of cases) await addHost(name, findings);
-      for (const [name, , grade, rule, count] of cases) {
-        const row = await listedHost(name);
-        expect(row.grade, name).toBe(grade);
-        expect(row.gradeReason.rule, name).toBe(rule);
-        expect(row.gradeReason.count, name).toBe(count);
-        expect(row.gradeStale, name).toBe(false);
-      }
-      expect((await listedHost("h-critical-fix")).gradeReason.example).toBe("openssl");
-      expect((await listedHost("h-kev-fix")).gradeReason.example).toBe("sudo");
-    });
-
-    it("has no grade before the first successful inventory", async () => {
-      const id = await addHost("h-never", [], { inventoried: false });
-      const row = await listedHost("h-never");
-      expect(row.grade).toBeNull();
-      expect(row.gradeReason).toBeNull();
-      const detail = await get(`/api/v1/hosts/${id}`);
-      expect(detail.json?.grade).toBeNull();
-    });
-
-    it("keeps the grade of the last good inventory when the latest run failed, marked stale", async () => {
-      const id = await addHost("h-failed", [{ severity: "critical", fixed: true }], {
-        lastError: "unreachable",
-        runs: ["succeeded", "failed"],
-      });
-      const row = await listedHost("h-failed");
-      expect(row.grade).toBe("E");
-      expect(row.gradeStale).toBe(true);
-      expect((await get(`/api/v1/hosts/${id}`)).json?.gradeStale).toBe(true);
-      // First inventory failed: still nothing to grade.
-      await addHost("h-first-failed", [], { inventoried: false, lastError: "unreachable", runs: ["failed"] });
-      expect((await listedHost("h-first-failed")).grade).toBeNull();
-    });
-
-    it("sorts and filters by grade, and keeps organisations apart", async () => {
-      // More servers than a page holds, so the sort has to continue across pages.
-      const bulk: Spec[][] = [
-        [],
-        [{ severity: "low" }],
-        [{ severity: "high" }],
-        [{ severity: "high", fixed: true }],
-      ];
-      for (let i = 0; i < 30; i++) await addHost(`h-bulk-${String(i).padStart(2, "0")}`, bulk[i % 4] ?? []);
-      const sorted = itemsOf(await get("/api/v1/hosts?q=h-&sort=grade&pageSize=100"));
-      expect(sorted.length).toBeGreaterThan(25);
-      const rank = (r: Json) => (r.grade === null ? -1 : "ABCDEF".indexOf(r.grade as string));
-      for (let i = 1; i < sorted.length; i++) {
-        const [a, b] = [sorted[i - 1], sorted[i]];
-        if (a && b) expect(rank(a)).toBeGreaterThanOrEqual(rank(b));
-      }
-      expect(sorted[0]?.name).toBe("h-kev-fix");
-      expect(sorted[sorted.length - 1]?.grade).toBeNull();
-
-      const paged: string[] = [];
-      let cursor: string | null = null;
-      do {
-        const res: { json: Json | null } = await get(
-          `/api/v1/hosts?q=h-&sort=grade&pageSize=25${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
-        );
-        paged.push(...itemsOf(res).map((r) => r.id));
-        cursor = res.json?.next ?? null;
-      } while (cursor);
-      expect(paged).toEqual(sorted.map((r) => r.id));
-
-      const ed = itemsOf(await get("/api/v1/hosts?q=h-&grade=F,E&pageSize=100"))
-        .map(nameOf)
-        .sort();
-      expect(ed).toEqual(["h-critical-fix", "h-failed", "h-kev-fix"]);
-      expect(
-        itemsOf(await get("/api/v1/hosts?q=h-&grade=none&pageSize=100"))
-          .map(nameOf)
-          .sort(),
-      ).toEqual(["h-first-failed", "h-never"]);
-      expect((await get("/api/v1/hosts?grade=Z")).status).toBe(422);
-
-      await addHost("h-other-org", [{ severity: "critical", fixed: true, kev: true }], { org: OTHER });
-      expect(itemsOf(await get("/api/v1/hosts?q=h-other-org&pageSize=100")).length).toBe(0);
-      expect((await listedHost("h-other-org", OTHER)).grade).toBe("F");
-      const mine = await get("/api/v1/hosts/grades?q=h-other-org");
-      expect(Object.values(mine.json ?? {}).every((n) => n === 0)).toBe(true);
-    });
-
-    it("the findings of a server can be limited to those with a fix or to known exploited ones", async () => {
-      const id = await addHost("h-links", [
-        { severity: "high", fixed: true, pkg: "a" },
-        { severity: "high", fixed: false, pkg: "b" },
-        { severity: "medium", fixed: true, kev: true, pkg: "c" },
-      ]);
-      const names = async (query: string) => {
-        const res = await get(`/api/v1/hosts/${id}/findings?${query}`);
-        return {
-          names: itemsOf(res)
-            .map((r) => r.packageName as string)
-            .sort(),
-          total: res.json?.total,
-        };
-      };
-      expect(await names("")).toEqual({ names: ["a", "b", "c"], total: 3 });
-      expect(await names("fixable=1")).toEqual({ names: ["a", "c"], total: 2 });
-      expect(await names("severity=high&fixable=1")).toEqual({ names: ["a"], total: 1 });
-      expect(await names("kev=1&fixable=1")).toEqual({ names: ["c"], total: 1 });
-      expect((await get(`/api/v1/hosts/${id}/findings?fixable=2`)).status).toBe(422);
     });
   });
 });

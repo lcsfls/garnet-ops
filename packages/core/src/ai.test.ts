@@ -63,7 +63,6 @@ const facts: TriageFacts = {
   repositoryName: "billing-portal",
   branch: "main",
   otherRepositories: 2,
-  affectedServers: 1,
 };
 
 describe("context builder", () => {
@@ -76,7 +75,6 @@ describe("context builder", () => {
     expect(a.prompt).toContain("CVE-2099-0001");
     expect(a.prompt).toContain("billing-portal");
     expect(a.prompt).toContain("4.17.21");
-    expect(a.prompt).toContain('"serversWithThisVulnerability": 1');
     expect(a.prompt).toContain('Write "summary" and "recommendation" in English');
   });
 

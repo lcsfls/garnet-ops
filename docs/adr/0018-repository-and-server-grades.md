@@ -1,6 +1,8 @@
 # ADR 0018: Repository and server grades
 
-- Status: accepted (2026-10-22)
+> **Status: partly superseded by ADR 0025.** The grades of servers are superseded by ADR 0025 (removed in 0.0.4). The grades of repositories stay as described.
+
+- Status: accepted (2026-10-22); partly superseded by ADR 0025 (removed in 0.0.4)
 - Date: 2026-10-22
 - Decided by: maintainer (the rules A to F below; a grade is display only)
 - Implements: a grade per repository and per server on the lists and detail pages

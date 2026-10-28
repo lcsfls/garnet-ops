@@ -332,7 +332,7 @@ function RepositoryRowView({
         </div>
       </td>
       <td className="px-2 py-3">
-        <GradeBadge row={repo} kind="repository" id={repo.id} />
+        <GradeBadge row={repo} id={repo.id} />
       </td>
       <td className="hidden px-3 py-3 @3xl:table-cell">
         <div className="flex items-start gap-2.5">

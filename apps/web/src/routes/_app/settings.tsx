@@ -5,13 +5,10 @@ import { type FormEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AiSettingsPanel } from "../../components/ai-settings-panel.tsx";
 import { systemQuery } from "../../components/app-shell.tsx";
-import { AttacksPanel } from "../../components/attacks-panel.tsx";
 import { DirectoryPanel } from "../../components/directory-panel.tsx";
-import { ExposurePanel } from "../../components/exposure-panel.tsx";
 import { isAdmin } from "../../components/nav.ts";
 import { NotificationsPanel } from "../../components/notifications-panel.tsx";
 import { Card, CardHeader, PageHeader } from "../../components/page-header.tsx";
-import { ProxmoxPanel } from "../../components/proxmox-panel.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import { SectionNav, sectionLinkClass } from "../../components/section-nav.tsx";
 import { Alert } from "../../components/ui/alert.tsx";
@@ -19,9 +16,7 @@ import { Button } from "../../components/ui/button.tsx";
 import { Checkbox } from "../../components/ui/checkbox.tsx";
 import { Field, FormField, FormRow } from "../../components/ui/field.tsx";
 import { Select } from "../../components/ui/select.tsx";
-import { UnifiPanel } from "../../components/unifi-panel.tsx";
 import { UpdatesPanel } from "../../components/updates-panel.tsx";
-import { XdrPanel } from "../../components/xdr-panel.tsx";
 import { ApiError, api } from "../../lib/api.ts";
 import { formatCalendarDate, formatDateTime } from "../../lib/format.ts";
 import type { MessageKey } from "../../lib/i18n.ts";
@@ -48,11 +43,6 @@ const SECTION_LABELS = {
   scanning: "settings.sectionScanning",
   signin: "settings.sectionSignin",
   notifications: "settings.sectionNotifications",
-  proxmox: "settings.sectionProxmox",
-  unifi: "settings.sectionUnifi",
-  exposure: "settings.sectionExposure",
-  xdr: "settings.sectionXdr",
-  attacks: "settings.sectionAttacks",
   ai: "ai.sectionName",
   updates: "settings.sectionUpdates",
   about: "settings.sectionAbout",
@@ -71,20 +61,12 @@ function SettingsPage() {
   const { me } = Route.useRouteContext();
   const search = Route.useSearch();
   const admin = isAdmin(me);
-  // Updates, notifications, Proxmox, XDR, attacks and AI are an installation matter: only owners and admins see
+  // Updates, notifications and AI are an installation matter: only owners and admins see
   // them. Sign-in (the directory) is for owners alone (ADR 0020).
   const sections = SETTINGS_SECTIONS.filter(
     (s) =>
       (s === "signin" ? me.role === "owner" : true) &&
-      ((s !== "updates" &&
-        s !== "notifications" &&
-        s !== "proxmox" &&
-        s !== "unifi" &&
-        s !== "exposure" &&
-        s !== "xdr" &&
-        s !== "attacks" &&
-        s !== "ai") ||
-        admin),
+      ((s !== "updates" && s !== "notifications" && s !== "ai") || admin),
   );
   const section = search.section && sections.includes(search.section) ? search.section : "scanning";
 
@@ -111,11 +93,6 @@ function SettingsPage() {
           {section === "scanning" ? <ScanningSection canEdit={admin} /> : null}
           {section === "signin" ? <DirectoryPanel me={me} /> : null}
           {section === "notifications" ? <NotificationsPanel me={me} /> : null}
-          {section === "proxmox" ? <ProxmoxPanel me={me} /> : null}
-          {section === "unifi" ? <UnifiPanel me={me} /> : null}
-          {section === "exposure" ? <ExposurePanel me={me} /> : null}
-          {section === "xdr" ? <XdrPanel me={me} /> : null}
-          {section === "attacks" ? <AttacksPanel me={me} /> : null}
           {section === "ai" ? <AiSettingsPanel me={me} /> : null}
           {section === "updates" ? <UpdatesPanel me={me} /> : null}
           {section === "about" ? <AboutSection /> : null}
@@ -140,30 +117,6 @@ const HELP: Record<SettingsSection, { title: MessageKey; text: MessageKey }[]> =
   notifications: [
     { title: "settings.helpNotifyContentTitle", text: "settings.helpNotifyContentText" },
     { title: "settings.helpNotifyDiscordTitle", text: "settings.helpNotifyDiscordText" },
-  ],
-  proxmox: [
-    { title: "settings.helpProxmoxReadOnlyTitle", text: "settings.helpProxmoxReadOnlyText" },
-    { title: "settings.helpProxmoxCertificateTitle", text: "settings.helpProxmoxCertificateText" },
-  ],
-  unifi: [
-    { title: "settings.helpUnifiReadOnlyTitle", text: "settings.helpUnifiReadOnlyText" },
-    { title: "settings.helpUnifiCertificateTitle", text: "settings.helpUnifiCertificateText" },
-    { title: "settings.helpUnifiCloudTitle", text: "settings.helpUnifiCloudText" },
-  ],
-  exposure: [
-    { title: "settings.helpExposureOutsideTitle", text: "settings.helpExposureOutsideText" },
-    { title: "settings.helpExposureCtTitle", text: "settings.helpExposureCtText" },
-    { title: "settings.helpExposureLegalTitle", text: "settings.helpExposureLegalText" },
-  ],
-  xdr: [
-    { title: "settings.helpXdrReadOnlyTitle", text: "settings.helpXdrReadOnlyText" },
-    { title: "settings.helpXdrCertificateTitle", text: "settings.helpXdrCertificateText" },
-    { title: "settings.helpXdrLicenseTitle", text: "settings.helpXdrLicenseText" },
-  ],
-  attacks: [
-    { title: "attacks.settings.helpLocalTitle", text: "attacks.settings.helpLocalText" },
-    { title: "attacks.settings.helpOptInTitle", text: "attacks.settings.helpOptInText" },
-    { title: "attacks.settings.helpLicenseTitle", text: "attacks.settings.helpLicenseText" },
   ],
   ai: [
     { title: "ai.helpDataTitle", text: "ai.helpDataText" },

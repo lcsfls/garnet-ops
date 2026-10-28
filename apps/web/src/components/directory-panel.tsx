@@ -682,15 +682,15 @@ function Facts({
         {facts.fingerprint}
       </code>
       <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
-        <dt className="text-muted-foreground">{t("proxmox.certSubject")}</dt>
+        <dt className="text-muted-foreground">{t("directory.certSubject")}</dt>
         <dd className="font-mono break-all">{facts.subject || "–"}</dd>
-        <dt className="text-muted-foreground">{t("proxmox.certIssuer")}</dt>
+        <dt className="text-muted-foreground">{t("directory.certIssuer")}</dt>
         <dd className="font-mono break-all">{facts.issuer || "–"}</dd>
-        <dt className="text-muted-foreground">{t("proxmox.certValid")}</dt>
+        <dt className="text-muted-foreground">{t("directory.certValid")}</dt>
         <dd>
           {formatDate(facts.validFrom)} – {formatDate(facts.validTo)}
           {new Date(facts.validTo) < new Date() ? (
-            <span className="ml-2 text-destructive-text">{t("proxmox.certExpired")}</span>
+            <span className="ml-2 text-destructive-text">{t("directory.certExpired")}</span>
           ) : null}
         </dd>
       </dl>
@@ -775,7 +775,7 @@ function CertificateBadge({ server }: { server: DirectoryServerView }) {
 }
 
 /**
- * Confirming a certificate (ADR 0020), as for Proxmox and Wazuh: the owner compares the
+ * Confirming a certificate (ADR 0020): the owner compares the
  * fingerprint GarnetOps read with the one the directory server shows, and the API pins exactly the
  * fingerprint that was shown. A change is a security event, so the dialog says so and shows both.
  */

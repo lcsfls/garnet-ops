@@ -104,14 +104,12 @@ export function GradeLetter({
 
 /** Where the findings behind a grade are listed. */
 function GradeLink({
-  kind,
   id,
   reason,
   className,
   children,
   label,
 }: {
-  kind: "repository" | "server";
   id: string;
   reason: NonNullable<GradeFields["gradeReason"]>;
   className?: string;
@@ -120,46 +118,20 @@ function GradeLink({
 }) {
   const filter = gradeFindingFilter(reason.rule);
   if (!filter) return <span className={className}>{children}</span>;
-  if (kind === "repository") {
-    return (
-      <Link to="/findings" search={{ repositoryId: id, ...filter }} aria-label={label} className={className}>
-        {children}
-      </Link>
-    );
-  }
   return (
-    <Link
-      to="/servers/$id"
-      params={{ id }}
-      search={{
-        findingSeverity: filter.severity,
-        findingFixable: filter.fixable,
-        findingKev: filter.kev,
-      }}
-      hash="findings"
-      aria-label={label}
-      className={className}
-    >
+    <Link to="/findings" search={{ repositoryId: id, ...filter }} aria-label={label} className={className}>
       {children}
     </Link>
   );
 }
 
 /**
- * The grade of a repository or server in a list: the letter, and on hover or keyboard focus
+ * The grade of a repository in a list: the letter, and on hover or keyboard focus
  * the reason in plain words with a link to the findings behind it. Escape closes the note.
  * The grade is display only; the note says so. The note opens beside the letter, not under or
  * over it, so it never covers the column header or the letters of the other rows.
  */
-export function GradeBadge({
-  row,
-  kind,
-  id,
-}: {
-  row: GradeFields;
-  kind: "repository" | "server";
-  id: string;
-}) {
+export function GradeBadge({ row, id }: { row: GradeFields; id: string }) {
   const { t } = useTranslation();
   const line = useGradeLine();
   const [open, setOpen] = useState(false);
@@ -173,16 +145,14 @@ export function GradeBadge({
     return () => document.removeEventListener("keydown", close);
   }, [open]);
   const text = line(row);
-  const notGraded = t(kind === "repository" ? "grades.notGradedRepository" : "grades.notGradedServer");
-  const stale = row.gradeStale
-    ? t(kind === "repository" ? "grades.staleRepository" : "grades.staleServer")
-    : null;
+  const notGraded = t("grades.notGradedRepository");
+  const stale = row.gradeStale ? t("grades.staleRepository") : null;
   const name = text ? [text, stale].filter(Boolean).join(". ") : notGraded;
 
   // A grade with findings behind it is a link to them; A and "not scanned" have nothing to link to.
   const trigger =
     row.grade && row.gradeReason && gradeFindingFilter(row.gradeReason.rule) ? (
-      <GradeLink kind={kind} id={id} reason={row.gradeReason} label={name} className="inline-flex rounded-md">
+      <GradeLink id={id} reason={row.gradeReason} label={name} className="inline-flex rounded-md">
         <GradeLetter grade={row.grade} stale={row.gradeStale} />
       </GradeLink>
     ) : null;
@@ -229,7 +199,6 @@ export function GradeBadge({
             {stale ? <span className="mt-1 block text-muted-foreground">{stale}</span> : null}
             {row.gradeReason && gradeFindingFilter(row.gradeReason.rule) ? (
               <GradeLink
-                kind={kind}
                 id={id}
                 reason={row.gradeReason}
                 className="mt-1.5 inline-block text-primary-text underline-offset-2 hover:underline"
@@ -245,23 +214,13 @@ export function GradeBadge({
   );
 }
 
-/** The grade under the title of a repository or server page: letter, reason and link. */
-export function GradeSummary({
-  row,
-  kind,
-  id,
-}: {
-  row: GradeFields;
-  kind: "repository" | "server";
-  id: string;
-}) {
+/** The grade under the title of a repository page: letter, reason and link. */
+export function GradeSummary({ row, id }: { row: GradeFields; id: string }) {
   const { t } = useTranslation();
   const line = useGradeLine();
   const text = line(row);
-  const notGraded = t(kind === "repository" ? "grades.notGradedRepository" : "grades.notGradedServer");
-  const stale = row.gradeStale
-    ? t(kind === "repository" ? "grades.staleRepository" : "grades.staleServer")
-    : null;
+  const notGraded = t("grades.notGradedRepository");
+  const stale = row.gradeStale ? t("grades.staleRepository") : null;
   return (
     <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="grade-summary">
       <span className="text-sm text-muted-foreground">{t("grades.detailLabel")}</span>
@@ -271,7 +230,6 @@ export function GradeSummary({
           <span className="min-w-0 break-words">{text}</span>
           {gradeFindingFilter(row.gradeReason.rule) ? (
             <GradeLink
-              kind={kind}
               id={id}
               reason={row.gradeReason}
               className="text-sm text-primary-text underline-offset-2 hover:underline"
@@ -288,7 +246,7 @@ export function GradeSummary({
   );
 }
 
-/** What the grades mean, one click away; the same on the repositories and servers lists. */
+/** What the grades mean, one click away; the same on the repositories list. */
 export function GradeHelp() {
   const { t } = useTranslation();
   return (

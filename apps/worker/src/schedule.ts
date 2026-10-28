@@ -1,7 +1,6 @@
-import { startDueNightlyRuns, strandedQueuedHostRuns, strandedQueuedScans } from "@garnetops/db";
+import { startDueNightlyRuns, strandedQueuedScans } from "@garnetops/db";
 import type { PgBoss } from "pg-boss";
 import { db } from "./db.ts";
-import { HOST_INVENTORY_JOB, HOST_INVENTORY_QUEUE } from "./hosts.ts";
 
 export const SCAN_QUEUE = "scan.repository";
 export const TICK_QUEUE = "scan.schedule-tick";
@@ -20,28 +19,12 @@ export async function scheduleTick(boss: PgBoss): Promise<void> {
     for (const scan of run.scans) {
       await boss.send(SCAN_QUEUE, { scanId: scan.scanId }, { ...SCAN_JOB, singletonKey: scan.repositoryId });
     }
-    for (const hostRun of run.hostRuns) {
-      await boss.send(
-        HOST_INVENTORY_QUEUE,
-        { runId: hostRun.runId },
-        { ...HOST_INVENTORY_JOB, singletonKey: hostRun.hostId },
-      );
-    }
-    console.log(
-      `schedule: ${run.organizationId} ${run.localDate}: ${run.scans.length} scans, ${run.hostRuns.length} server inventories queued`,
-    );
+    console.log(`schedule: ${run.organizationId} ${run.localDate}: ${run.scans.length} scans queued`);
   }
   // Re-send jobs that may have been lost between queueing and sending; a worker
   // only claims a scan that is still queued, so a duplicate job does nothing.
   for (const scan of await strandedQueuedScans(db)) {
     await boss.send(SCAN_QUEUE, { scanId: scan.scanId }, { ...SCAN_JOB, singletonKey: scan.repositoryId });
-  }
-  for (const hostRun of await strandedQueuedHostRuns(db)) {
-    await boss.send(
-      HOST_INVENTORY_QUEUE,
-      { runId: hostRun.runId },
-      { ...HOST_INVENTORY_JOB, singletonKey: hostRun.hostId },
-    );
   }
 }
 

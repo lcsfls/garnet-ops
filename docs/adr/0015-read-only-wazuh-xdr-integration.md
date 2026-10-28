@@ -1,6 +1,8 @@
 # ADR 0015: Read-only Wazuh XDR integration
 
-- Status: accepted (2026-10-22)
+> **Status: superseded by ADR 0025 (removed in 0.0.4).** The module was removed when GarnetOps became a pure developer pipeline. The text below is kept as the record of the decision; it describes the last version that has the module, the tag `v0.0.3`.
+
+- Status: superseded by ADR 0025 (removed in 0.0.4). Earlier status: accepted (2026-10-22)
 - Date: 2026-10-22
 - Decided by: maintainer (ROADMAP Phase 4, "XDR page backed by a customer-run Wazuh")
 - Builds on: ADR 0002 (host connectivity and Wazuh), ADR 0004 (vault), ADR 0011 (servers),

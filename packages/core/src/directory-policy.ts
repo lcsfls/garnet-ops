@@ -1,7 +1,7 @@
-import { checkHostAddress } from "./hosts.ts";
+import { checkHostAddress } from "./net-address.ts";
 
 /**
- * The address policy for directory servers (ADR 0020): the same one servers and Proxmox use.
+ * The address policy for directory servers (ADR 0020).
  * Loopback, link-local (cloud metadata), unspecified and multicast addresses and numeric
  * oddities such as `127.1` are refused; private networks are allowed, because a directory
  * normally lives in one. Returns the normalised host, or null.

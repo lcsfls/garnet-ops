@@ -28,14 +28,6 @@ export const SCANNER_NAMES = Object.keys(PINNED_SCANNERS) as ScannerName[];
 export const VULNDB_STALE_AFTER_DAYS = 3;
 export const VULNDB_OUTDATED_AFTER_DAYS = 7;
 
-/**
- * Staleness of the GeoIP datasets. DB-IP publishes one release per month; the dataset's date is the
- * first day of its month, so a normal one is up to about a month old. Amber after 45 days (a
- * month was skipped), vermilion after 90.
- */
-export const GEOIP_STALE_AFTER_DAYS = 45;
-export const GEOIP_OUTDATED_AFTER_DAYS = 90;
-
 /** The worker writes its heartbeat this often and is "late" after three missed beats. */
 export const HEARTBEAT_INTERVAL_SECONDS = 30;
 export const HEARTBEAT_LATE_AFTER_SECONDS = 3 * HEARTBEAT_INTERVAL_SECONDS;
@@ -129,19 +121,10 @@ export function freshnessOf(
 export const vulnDbFreshness = (builtAt: Date | string | null | undefined, now: Date): Freshness =>
   freshnessOf(builtAt, now, VULNDB_STALE_AFTER_DAYS, VULNDB_OUTDATED_AFTER_DAYS);
 
-export const geoipFreshness = (date: Date | string | null | undefined, now: Date): Freshness =>
-  freshnessOf(date, now, GEOIP_STALE_AFTER_DAYS, GEOIP_OUTDATED_AFTER_DAYS);
-
 export function levelOfFreshness(freshness: Freshness): StatusLevel {
   if (freshness === "current") return "ok";
   if (freshness === "outdated") return "failed";
   return "attention";
-}
-
-/** The first day (UTC) of a `YYYY-MM` dataset month, or null for anything else. */
-export function monthStart(month: string | null | undefined): Date | null {
-  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month ?? "");
-  return match ? new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)) : null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -214,13 +197,7 @@ export function queueLevel(q: { failed24h: number; oldestQueuedSeconds: number |
 /* -------------------------------------------------------------------------- */
 
 /** What stops an integration until an admin acts. */
-export const BLOCK_REASONS = [
-  "certificate",
-  "privileges",
-  "credentials",
-  "verification",
-  "acknowledgement",
-] as const;
+export const BLOCK_REASONS = ["certificate", "credentials", "acknowledgement"] as const;
 export type BlockReason = (typeof BLOCK_REASONS)[number];
 
 export const INTEGRATION_STATES = [

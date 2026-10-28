@@ -1,10 +1,5 @@
-import {
-  GEOIP_OUTDATED_AFTER_DAYS,
-  GEOIP_STALE_AFTER_DAYS,
-  type StatusLevel,
-} from "@garnetops/core/system-status";
+import type { StatusLevel } from "@garnetops/core/system-status";
 import type {
-  GeoipDatasetStatus,
   InstanceStatus,
   IntegrationPartStatus,
   IntegrationStatus,
@@ -15,24 +10,18 @@ import { Link } from "@tanstack/react-router";
 import { CircleCheck, CircleDashed, ExternalLink, OctagonX, RefreshCw, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { geoipReasonKey } from "../lib/attacks.ts";
 import { cn } from "../lib/cn.ts";
 import { formatBytes, formatDateTime, formatDuration, formatNumber, formatRelative } from "../lib/format.ts";
 import type { MessageKey } from "../lib/i18n.ts";
-import { useProxmoxErrorText } from "../lib/proxmox.ts";
 import {
   camelState,
   canOpenSection,
   INTEGRATION_SECTION,
   LEVEL_TONE,
-  monthLabel,
   queueKey,
   SOURCE_KEY,
 } from "../lib/system-status.ts";
-import { useUnifiErrorText } from "../lib/unifi.ts";
 import { displayVersion } from "../lib/version.ts";
-import { useWazuhCodeText, useWazuhErrorText } from "../lib/xdr.ts";
-import { useExposureError } from "./exposure-parts.tsx";
 import { Card, CardHeader } from "./page-header.tsx";
 import { Badge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
@@ -125,27 +114,10 @@ const ExternalLinkIcon = () => <ExternalLink aria-hidden="true" className="ml-1 
 /** One text for every reason family the page shows. Unknown values appear as they are. */
 function useReasonText(): (reason: Reason | null) => string | null {
   const { t, i18n } = useTranslation();
-  const proxmox = useProxmoxErrorText();
-  const wazuh = useWazuhErrorText();
-  const wazuhCode = useWazuhCodeText();
-  const unifi = useUnifiErrorText();
-  const exposure = useExposureError();
   return (reason) => {
     if (!reason) return null;
     const { family, value } = reason;
     switch (family) {
-      case "proxmox":
-        return proxmox(value);
-      case "wazuh":
-        return wazuh(value);
-      case "wazuh-code":
-        return wazuhCode(value);
-      case "unifi":
-        return unifi(value);
-      case "exposure":
-        return exposure(value);
-      case "geoip":
-        return t(geoipReasonKey(value));
       case "ai": {
         const key = `ai.error.${camel(value)}`;
         return i18n.exists(key) ? t(key as MessageKey) : value;
@@ -485,94 +457,6 @@ export function LocalBuildCard({ build }: { build: SystemStatus["localBuild"] })
 }
 
 /* -------------------------------------------------------------------------- */
-/* GeoIP                                                                       */
-/* -------------------------------------------------------------------------- */
-
-function GeoipRow({ dataset }: { dataset: GeoipDatasetStatus }) {
-  const { t, i18n } = useTranslation();
-  const reasonText = useReasonText();
-  const stateKey = dataset.state === "none" ? "none" : dataset.freshness;
-  return (
-    <Row
-      testId={`geoip-${dataset.kind}`}
-      title={t(`systemStatus.geoip.kind.${dataset.kind}`)}
-      badge={<StatusBadge level={dataset.level}>{t(`systemStatus.geoip.state.${stateKey}`)}</StatusBadge>}
-    >
-      {dataset.state === "loaded" ? (
-        <span>
-          {dataset.month
-            ? t("systemStatus.geoip.dataset", { month: monthLabel(dataset.month, i18n.language) })
-            : null}
-          {dataset.loadedAt
-            ? ` · ${t("systemStatus.geoip.loaded", { when: formatRelative(dataset.loadedAt) })}`
-            : null}
-          {dataset.rows !== null ? ` · ${t("systemStatus.geoip.ranges", { count: dataset.rows })}` : null}
-          {dataset.source ? ` · ${t(`systemStatus.geoip.source.${dataset.source}`)}` : null}
-        </span>
-      ) : (
-        <span>{t("systemStatus.geoip.notLoaded")}</span>
-      )}
-      {dataset.failure ? (
-        <span>
-          {t("systemStatus.geoip.failure", {
-            source: t(`systemStatus.geoip.source.${dataset.failure.source}`),
-            when: formatRelative(dataset.failure.at),
-            reason: reasonText({ family: "geoip", value: dataset.failure.error }) ?? "",
-          })}
-        </span>
-      ) : null}
-    </Row>
-  );
-}
-
-export function GeoipCard({ geoip, role }: { geoip: SystemStatus["geoip"]; role: string }) {
-  const { t } = useTranslation();
-  const reasonText = useReasonText();
-  const { download } = geoip;
-  const downloadReason = reasonText(download.reason);
-  return (
-    <Card>
-      <CardHeader title={t("systemStatus.geoip.title")} description={t("systemStatus.geoip.description")} />
-      <ul>
-        {geoip.datasets.map((d) => (
-          <GeoipRow key={d.kind} dataset={d} />
-        ))}
-      </ul>
-      <div className="grid gap-1 border-t px-5 py-3 text-sm text-muted-foreground">
-        <p>{download.enabled ? t("systemStatus.geoip.downloadOn") : t("systemStatus.geoip.downloadOff")}</p>
-        {download.enabled ? (
-          <p>
-            {download.lastAttemptAt
-              ? downloadReason
-                ? t("systemStatus.geoip.lastAttemptFailed", {
-                    when: formatRelative(download.lastAttemptAt),
-                    reason: downloadReason,
-                  })
-                : t("systemStatus.geoip.lastAttempt", { when: formatRelative(download.lastAttemptAt) })
-              : t("systemStatus.geoip.noAttempt")}
-          </p>
-        ) : null}
-        <p>
-          {t("systemStatus.geoip.thresholds", {
-            stale: GEOIP_STALE_AFTER_DAYS,
-            outdated: GEOIP_OUTDATED_AFTER_DAYS,
-          })}{" "}
-          {canOpenSection("attacks", role) ? (
-            <Link
-              to="/settings"
-              search={{ section: "attacks" }}
-              className="text-primary-text underline-offset-4 hover:underline"
-            >
-              {t("systemStatus.settingsLink")}
-            </Link>
-          ) : null}
-        </p>
-      </div>
-    </Card>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
 /* Integrations                                                                */
 /* -------------------------------------------------------------------------- */
 
@@ -601,15 +485,6 @@ function PartLine({ integration, part }: { integration: IntegrationStatus; part:
   const reason = reasonText(part.reason);
   const detail = part.detail;
   const extra: string[] = [];
-  if (integration.key === "exposure" && part.key === "verification" && !off) {
-    extra.push(
-      t("systemStatus.integrations.proof", {
-        verified: Number(detail.verified ?? 0),
-        lost: Number(detail.lost ?? 0),
-        unverified: Number(detail.unverified ?? 0),
-      }),
-    );
-  }
   if (integration.key === "ai" && typeof detail.scope === "string") {
     extra.push(
       t("systemStatus.integrations.scope", {
@@ -628,7 +503,7 @@ function PartLine({ integration, part }: { integration: IntegrationStatus; part:
       }),
     );
   }
-  const showFacts = !off && part.key !== "verification";
+  const showFacts = !off;
   return (
     <li className="grid gap-0.5" data-testid={`part-${integration.key}-${part.key}`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

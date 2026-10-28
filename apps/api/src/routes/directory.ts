@@ -6,6 +6,7 @@
  * sent beyond what the connection test shows an owner.
  */
 import { newId } from "@garnetops/core";
+import { normalizeFingerprint } from "@garnetops/core/certificates";
 import {
   checkDirectorySettings,
   checkUsername,
@@ -19,7 +20,6 @@ import {
   TLS_TRUSTS,
 } from "@garnetops/core/directory";
 import { directoryHostPolicy } from "@garnetops/core/directory-policy";
-import { normalizeFingerprint } from "@garnetops/core/proxmox";
 import { seal } from "@garnetops/core/vault";
 import { applyDirectoryRole, schema } from "@garnetops/db";
 import { and, count, eq, inArray, sql } from "drizzle-orm";

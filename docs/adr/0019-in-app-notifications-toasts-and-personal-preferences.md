@@ -1,6 +1,8 @@
 # ADR 0019: In-app notifications, toasts and personal preferences
 
-- Status: accepted (2026-10-22)
+> **Status: partly superseded by ADR 0025.** The event types of the removed modules (server host keys, Proxmox VE, Wazuh, UniFi, exposure) are superseded by ADR 0025 (removed in 0.0.4). The mechanism, the other events and `infra.certificate_changed` (now used by the directory sign-in, in the group "Account and team") stay.
+
+- Status: accepted (2026-10-22); partly superseded by ADR 0025 (removed in 0.0.4)
 - Date: 2026-10-22
 - Decided by: maintainer (a bell with notifications per person, toast messages for the results of actions, and a
   per-person matrix of what to receive; organisation channels stay as ADR 0010 made them)

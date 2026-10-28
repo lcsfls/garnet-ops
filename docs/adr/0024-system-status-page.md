@@ -1,6 +1,8 @@
 # ADR 0024: System status page
 
-- Status: accepted (2026-10-23)
+> **Status: partly superseded by ADR 0025.** The rows of the removed modules (GeoIP, Wazuh, Proxmox VE, UniFi, external exposure) are superseded by ADR 0025 (removed in 0.0.4). The page keeps scanners, the vulnerability database, the local build, the directory, AI and notification channels, the worker and the application.
+
+- Status: accepted (2026-10-23); partly superseded by ADR 0025 (removed in 0.0.4)
 - Date: 2026-10-23
 - Decided by: maintainer (one read-only place that answers "is everything current and running?")
 - Builds on: ADR 0005 (time and time zones), ADR 0007 (updates), ADR 0012, 0015, 0020, 0022 and 0023 (the integrations), ADR 0013 (AI

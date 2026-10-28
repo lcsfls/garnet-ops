@@ -79,7 +79,7 @@ describe("helpers", () => {
   it("turns event names into message keys", () => {
     expect(eventMessageKey("finding.new_critical")).toBe("findingNewCritical");
     expect(eventMessageKey("fix_pr.merged")).toBe("fixPrMerged");
-    expect(eventMessageKey("infra.host_key_changed")).toBe("infraHostKeyChanged");
+    expect(eventMessageKey("infra.certificate_changed")).toBe("infraCertificateChanged");
     expect(eventMessageKey("gate.blocked")).toBe("gateBlocked");
   });
 });

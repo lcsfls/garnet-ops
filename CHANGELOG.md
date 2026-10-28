@@ -8,6 +8,59 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+GarnetOps is now a pure **developer pipeline**: security for Git repositories across Forgejo, Gitea and GitHub, self-hosted
+([ADR 0025](docs/adr/0025-focus-on-the-developer-pipeline.md)). Everything about infrastructure is removed from the product. It stays
+available in the git history and in the tag `v0.0.3`.
+
+### Removed
+
+- **Servers.** The agentless SSH inventory of servers (Infrastructure → Servers), the add-server wizard, the host setup script and its
+  one-time links, host key confirmation, server packages, findings, runs and grades, and the CSV import. The repository SSH deploy keys
+  and pinned host keys are not part of this and stay.
+- **Proxmox VE.** The read-only view of nodes, VMs and containers and its settings section.
+- **UniFi.** The network devices view, the IPS preview and its settings section.
+- **Wazuh / XDR.** The XDR page, the sync, the live alert feed, the agent enrollment helper and the settings section.
+- **Attack overview.** The Attacks page with the globe and the world map, the local GeoIP data (DB-IP import and download), the
+  optional AbuseIPDB lookup, the home location, the attack AI summary and the retention job. The map shapes and the d3-geo dependency
+  are gone.
+- **External exposure.** The Exposure page and assets, proof of control, stage 1 and 2 checks and Certificate Transparency suggestions.
+- The **Infrastructure** navigation group, the settings sections Proxmox, UniFi, Exposure, XDR / Wazuh and Attack overview, their rows on
+  the System status page (and the GeoIP card), their command search entries, their notification events and settings, and the server
+  count in the AI triage context.
+- API routes `/api/v1/hosts`, `/host-setup`, `/proxmox`, `/unifi`, `/exposure`, `/xdr` and `/attacks`, and the `servers`, `guests` and
+  `assets` fields of `/api/v1/search`. This breaks the API of 0.0.3 within a 0.x line, on purpose.
+- Dependencies d3-geo, d3-array, internmap, @types/d3-geo and @types/geojson; `scripts/build-world-map.mjs`; the DB-IP, Natural Earth,
+  AbuseIPDB, crt.sh and MaxMind entries of `docs/COMPONENTS.md`.
+
+**Your data.** Migration 0024 **deletes the data of the removed modules** when you update: every row of their tables (servers, inventories,
+findings, Proxmox, UniFi, Wazuh and exposure data, GeoIP tables, stored attack events and source IP addresses, OSINT results), and the
+personal notifications and notification choices of the removed event types. No table or column is dropped (that waits for 1.0). If you need anything from those modules, export it or take a database backup **before** updating,
+while the version that has them still runs; the in-app update takes a backup, and `v0.0.3` is the last version that can read it. Old audit
+log entries of the removed actions stay and keep readable labels.
+
+After updating, revoke the credentials you created at the source systems for these modules (the Proxmox API token, the UniFi API key and
+IPS user, the two Wazuh users, the public key of the server access key in `authorized_keys` on your servers). GarnetOps no longer has
+them, but they still exist there.
+
+### Changed
+
+- The preference matrix of personal notifications has the groups Code, Account and team, and System. The event "A certificate changed"
+  now means the certificate of a directory server and is in Account and team; your choice for it is kept.
+- The audit log filter lists only groups that still exist. Entries of the removed modules show under **All**.
+- The worker removes the job queues and schedules of the removed modules on start.
+- Grades are for repositories only.
+- Documentation: `docs/servers.md`, `proxmox.md`, `unifi.md`, `xdr.md`, `attacks.md` and `exposure.md` are deleted; the ADRs of the
+  removed modules are marked as superseded and stay.
+
+### Security
+
+- The stored credentials of the removed integrations are deleted from the database by migration 0024: the SSH key for servers, the
+  Proxmox token, the UniFi API key and IPS password, both Wazuh passwords and the OSINT API key. Repository deploy keys, forge tokens, the
+  AI key, notification secrets and the directory secrets are not touched.
+- Stored source IP addresses, attack events and reputation results (personal data) are deleted.
+- The attack surface shrinks: no more outbound connections to servers, Proxmox, UniFi, Wazuh or the public internet scanners, and no SSH key
+  that reaches servers.
+
 ## [0.0.3] - 2026-10-23
 
 The first published release, an alpha. Every 0.x release is an alpha: features and screens can

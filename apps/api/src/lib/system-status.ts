@@ -9,20 +9,15 @@
  * connections are the labels an admin gave them, which the settings pages show to admins as well.
  */
 import { endpointHost } from "@garnetops/core/ai-endpoint";
-import { isExposureError } from "@garnetops/core/exposure";
-import { privilegesAcknowledged as proxmoxPrivilegesAcknowledged } from "@garnetops/core/proxmox";
-import { PROXMOX_SYNC_INTERVAL_MINUTES } from "@garnetops/core/proxmox-flags";
 import {
   ageDays,
   type BlockReason,
   buildProviderLevel,
-  geoipFreshness,
   type IntegrationState,
   integrationState,
   levelOfFreshness,
   levelOfIntegration,
   levelOfWorker,
-  monthStart,
   overallLevel,
   PINNED_SCANNERS,
   queueLevel,
@@ -51,18 +46,12 @@ import type {
   Reason,
   SystemStatus,
 } from "@garnetops/core/system-status-view";
-import { UNIFI_SYNC_INTERVAL_MINUTES } from "@garnetops/core/unifi";
-import {
-  WAZUH_SYNC_INTERVAL_MINUTES,
-  privilegesAcknowledged as wazuhPrivilegesAcknowledged,
-} from "@garnetops/core/wazuh";
-import { databaseState, datasetStatus, nextNightlyRun, schema } from "@garnetops/db";
+import { databaseState, nextNightlyRun, schema } from "@garnetops/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../db.ts";
 import { APP_VERSION } from "../version.ts";
 
 const MINUTE = 60_000;
-const DAY = 86_400_000;
 /** Connections named for the reader per part. */
 const MAX_INSTANCES = 5;
 /** The directory check runs every 15 minutes (apps/worker/src/directory.ts). */
@@ -147,26 +136,6 @@ const STATE_ORDER: IntegrationState[] = [
 ];
 const stateOrder = (state: IntegrationState) => STATE_ORDER.indexOf(state);
 
-/** A part for something that is not set up or switched off as a whole. */
-function idlePart(
-  key: string,
-  state: "not_configured" | "paused",
-  detail: IntegrationPartStatus["detail"] = {},
-): IntegrationPartStatus {
-  return {
-    key,
-    state,
-    level: "inactive",
-    lastSuccessAt: null,
-    lastAttemptAt: null,
-    lastAttemptOk: null,
-    blocked: null,
-    reason: null,
-    detail,
-    instances: [],
-  };
-}
-
 function integration(
   key: IntegrationStatus["key"],
   configured: boolean,
@@ -180,159 +149,9 @@ function integration(
   return { key, state, level: levelOfIntegration(state), configured: true, count, parts };
 }
 
-/** The last finished sync run of every connection of a run table. */
-async function latestRuns(
-  table: "proxmox_sync_run" | "unifi_sync_run" | "wazuh_sync_run",
-  idColumn: "cluster_id" | "connection_id",
-  organizationId: string,
-): Promise<Map<string, { ok: boolean; at: Date | null; error: string | null }>> {
-  const result = await db.execute<{ id: string; state: string; at: Date | null; error: string | null }>(sql`
-    select distinct on (${sql.raw(idColumn)}) ${sql.raw(idColumn)} as id, state, finished_at as at, error
-    from ${sql.raw(table)}
-    where organization_id = ${organizationId} and state in ('succeeded', 'failed')
-    order by ${sql.raw(idColumn)}, finished_at desc nulls last, created_at desc`);
-  return new Map(
-    result.rows.map((r) => [
-      r.id,
-      { ok: r.state === "succeeded", at: r.at ? new Date(r.at) : null, error: r.error },
-    ]),
-  );
-}
-
-type RunFact = { ok: boolean; at: Date | null; error: string | null } | undefined;
-
-/** Whether the last attempt worked, from the run table and the connection's own columns. */
-function attemptOk(run: RunFact, lastError: string | null, lastSyncAt: Date | null): boolean | null {
-  if (run) return run.ok;
-  if (lastError) return false;
-  return lastSyncAt ? true : null;
-}
-
 /* -------------------------------------------------------------------------- */
 /* Integrations                                                                */
 /* -------------------------------------------------------------------------- */
-
-async function wazuh(organizationId: string, now: Date): Promise<IntegrationStatus> {
-  const [connections, endpoints, live, runs] = await Promise.all([
-    db.select().from(schema.wazuhConnection).where(eq(schema.wazuhConnection.organizationId, organizationId)),
-    db.select().from(schema.wazuhEndpoint).where(eq(schema.wazuhEndpoint.organizationId, organizationId)),
-    db.select().from(schema.wazuhLiveState).where(eq(schema.wazuhLiveState.organizationId, organizationId)),
-    latestRuns("wazuh_sync_run", "connection_id", organizationId),
-  ]);
-  const blockedOf = (c: (typeof connections)[number]): BlockReason | null => {
-    if (endpoints.some((e) => e.connectionId === c.id && e.certStatus !== "confirmed")) return "certificate";
-    if (!wazuhPrivilegesAcknowledged(c.extraPrivileges, c.acknowledgedPrivileges)) return "privileges";
-    return null;
-  };
-  const sync = connections.map((c): InstanceFacts => {
-    const run = runs.get(c.id);
-    const error = run && !run.ok ? (run.error ?? c.lastError) : c.lastError;
-    return {
-      name: c.name,
-      enabled: c.enabled,
-      blocked: blockedOf(c),
-      lastSuccessAt: c.lastSyncAt,
-      lastAttemptAt: run?.at ?? c.lastSyncAt,
-      lastAttemptOk: attemptOk(run, c.lastError, c.lastSyncAt),
-      expectedEveryMs: WAZUH_SYNC_INTERVAL_MINUTES * MINUTE,
-      reason: error ? { family: "wazuh", value: error } : null,
-    };
-  });
-  const liveFacts = connections.flatMap((c): InstanceFacts[] => {
-    const state = live.find((l) => l.connectionId === c.id);
-    if (!state) return [];
-    const ok = state.lastPollAt ? state.lastError === null : null;
-    return [
-      {
-        name: c.name,
-        enabled: c.enabled && state.enabled,
-        blocked: blockedOf(c),
-        lastSuccessAt: ok ? state.lastPollAt : null,
-        lastAttemptAt: state.lastPollAt,
-        lastAttemptOk: ok,
-        expectedEveryMs: state.intervalSeconds * 1000,
-        reason: state.lastError ? { family: "wazuh-code", value: state.lastError } : null,
-      },
-    ];
-  });
-  return integration("wazuh", connections.length > 0, connections.length, [
-    part("sync", sync, now),
-    liveFacts.length > 0 ? part("live", liveFacts, now) : idlePart("live", "not_configured"),
-  ]);
-}
-
-async function proxmox(organizationId: string, now: Date): Promise<IntegrationStatus> {
-  const [clusters, runs] = await Promise.all([
-    db.select().from(schema.proxmoxCluster).where(eq(schema.proxmoxCluster.organizationId, organizationId)),
-    latestRuns("proxmox_sync_run", "cluster_id", organizationId),
-  ]);
-  const sync = clusters.map((c): InstanceFacts => {
-    const run = runs.get(c.id);
-    const error = run && !run.ok ? (run.error ?? c.lastError) : c.lastError;
-    return {
-      name: c.name,
-      enabled: c.enabled,
-      blocked:
-        c.certStatus !== "confirmed"
-          ? "certificate"
-          : !proxmoxPrivilegesAcknowledged(c.extraPrivileges, c.acknowledgedPrivileges)
-            ? "privileges"
-            : null,
-      lastSuccessAt: c.lastSyncAt,
-      lastAttemptAt: run?.at ?? c.lastSyncAt,
-      lastAttemptOk: attemptOk(run, c.lastError, c.lastSyncAt),
-      expectedEveryMs: PROXMOX_SYNC_INTERVAL_MINUTES * MINUTE,
-      reason: error ? { family: "proxmox", value: error } : null,
-    };
-  });
-  return integration("proxmox", clusters.length > 0, clusters.length, [part("sync", sync, now)]);
-}
-
-async function unifi(organizationId: string, now: Date): Promise<IntegrationStatus> {
-  const [connections, runs] = await Promise.all([
-    db.select().from(schema.unifiConnection).where(eq(schema.unifiConnection.organizationId, organizationId)),
-    latestRuns("unifi_sync_run", "connection_id", organizationId),
-  ]);
-  const sync = connections.map((c): InstanceFacts => {
-    const run = runs.get(c.id);
-    const error = run && !run.ok ? (run.error ?? c.lastError) : c.lastError;
-    return {
-      name: c.name,
-      enabled: c.enabled,
-      blocked: c.certStatus !== "confirmed" ? "certificate" : null,
-      lastSuccessAt: c.lastSyncAt,
-      lastAttemptAt: run?.at ?? c.lastSyncAt,
-      lastAttemptOk: attemptOk(run, c.lastError, c.lastSyncAt),
-      expectedEveryMs: UNIFI_SYNC_INTERVAL_MINUTES * MINUTE,
-      reason: error ? { family: "unifi", value: error } : null,
-    };
-  });
-  // The IPS preview is off unless an admin switched it on for a console.
-  const ips = connections
-    .filter((c) => c.ipsEnabled)
-    .map((c): InstanceFacts => {
-      const reported = c.ipsRights;
-      const acknowledged = new Set(c.ipsRightsAcknowledged);
-      const rightsOpen =
-        reported.length > 0 &&
-        !(reported.length === acknowledged.size && reported.every((r) => acknowledged.has(r)));
-      const ok = c.ipsLastPollAt ? c.ipsLastError === null : null;
-      return {
-        name: c.name,
-        enabled: c.enabled,
-        blocked: c.certStatus !== "confirmed" ? "certificate" : rightsOpen ? "privileges" : null,
-        lastSuccessAt: ok ? c.ipsLastPollAt : null,
-        lastAttemptAt: c.ipsLastPollAt,
-        lastAttemptOk: ok,
-        expectedEveryMs: c.ipsIntervalSeconds * 1000,
-        reason: c.ipsLastError ? { family: "unifi", value: c.ipsLastError } : null,
-      };
-    });
-  return integration("unifi", connections.length > 0, connections.length, [
-    part("sync", sync, now),
-    ips.length > 0 ? part("ips", ips, now) : idlePart("ips", "not_configured"),
-  ]);
-}
 
 async function directory(organizationId: string, now: Date): Promise<IntegrationStatus> {
   const [config] = await db
@@ -363,79 +182,6 @@ async function directory(organizationId: string, now: Date): Promise<Integration
   };
   return integration("directory", true, config.servers.length, [
     part("reconcile", [facts], now, { accountsChecked: config.lastReconcileChecked }),
-  ]);
-}
-
-async function exposure(organizationId: string, now: Date): Promise<IntegrationStatus> {
-  const assets = await db
-    .select()
-    .from(schema.exposureAsset)
-    .where(eq(schema.exposureAsset.organizationId, organizationId));
-  const code = (value: string | null): Reason | null =>
-    value ? { family: "exposure", value: isExposureError(value) ? value : "unexpected" } : null;
-  const stage1 = assets.map(
-    (a): InstanceFacts => ({
-      name: a.value,
-      enabled: a.passiveEnabled,
-      blocked: null,
-      lastSuccessAt: a.lastPassiveAt && !a.passiveError ? a.lastPassiveAt : null,
-      lastAttemptAt: a.lastPassiveAt,
-      lastAttemptOk: a.lastPassiveAt ? a.passiveError === null : null,
-      expectedEveryMs: DAY,
-      reason: code(a.passiveError),
-    }),
-  );
-  const stage2 = assets
-    .filter((a) => a.stage2Enabled)
-    .map(
-      (a): InstanceFacts => ({
-        name: a.value,
-        enabled: a.verifyState === "verified",
-        blocked: null,
-        lastSuccessAt: a.lastActiveAt && !a.activeError ? a.lastActiveAt : null,
-        lastAttemptAt: a.lastActiveAt,
-        lastAttemptOk: a.lastActiveAt ? a.activeError === null : null,
-        expectedEveryMs: (a.stage2Schedule === "weekly" ? 7 : 1) * DAY,
-        reason: code(a.activeError),
-      }),
-    );
-  const lost = assets.filter((a) => a.verifyState === "lost");
-  const verified = assets.filter((a) => a.verifyState === "verified").length;
-  const verification: IntegrationPartStatus = lost.length
-    ? {
-        key: "verification",
-        state: "blocked",
-        level: "attention",
-        lastSuccessAt: iso(newest(assets.map((a) => a.verifiedAt))),
-        lastAttemptAt: iso(newest(assets.map((a) => a.verifyCheckedAt))),
-        lastAttemptOk: false,
-        blocked: "verification",
-        reason: null,
-        detail: { lost: lost.length, verified, unverified: assets.length - verified - lost.length },
-        instances: lost.slice(0, MAX_INSTANCES).map((a) => ({
-          name: a.value,
-          state: "blocked",
-          lastSuccessAt: iso(a.verifiedAt),
-          reason: code(a.verifyError),
-          blocked: "verification",
-        })),
-      }
-    : {
-        key: "verification",
-        state: assets.length ? "current" : "not_configured",
-        level: assets.length ? "ok" : "inactive",
-        lastSuccessAt: iso(newest(assets.map((a) => a.verifiedAt))),
-        lastAttemptAt: iso(newest(assets.map((a) => a.verifyCheckedAt))),
-        lastAttemptOk: assets.some((a) => a.verifyCheckedAt) ? true : null,
-        blocked: null,
-        reason: null,
-        detail: { lost: 0, verified, unverified: assets.length - verified },
-        instances: [],
-      };
-  return integration("exposure", assets.length > 0, assets.length, [
-    part("stage1", stage1, now),
-    stage2.length > 0 ? part("stage2", stage2, now) : idlePart("stage2", "not_configured"),
-    verification,
   ]);
 }
 
@@ -606,18 +352,12 @@ export async function buildSystemStatus(
   const [
     reports,
     lastScan,
-    geoipDatasets,
-    attackSettings,
     heartbeats,
     queues,
     nextRun,
     lastRun,
     database,
-    wazuhRow,
-    proxmoxRow,
-    unifiRow,
     directoryRow,
-    exposureRow,
     aiRow,
     notificationsRow,
   ] = await Promise.all([
@@ -632,12 +372,6 @@ export async function buildSystemStatus(
       .where(and(eq(schema.scan.organizationId, organizationId), eq(schema.scan.state, "succeeded")))
       .orderBy(desc(schema.scan.finishedAt), desc(schema.scan.id))
       .limit(1),
-    datasetStatus(db),
-    db
-      .select()
-      .from(schema.attackSettings)
-      .where(eq(schema.attackSettings.organizationId, organizationId))
-      .limit(1),
     db.select().from(schema.workerHeartbeat).orderBy(desc(schema.workerHeartbeat.beatAt)).limit(20),
     readQueues(),
     nextNightlyRun(db, organizationId, now),
@@ -648,11 +382,7 @@ export async function buildSystemStatus(
       .orderBy(desc(schema.scanScheduleRun.createdAt))
       .limit(1),
     databaseState(db),
-    wazuh(organizationId, now),
-    proxmox(organizationId, now),
-    unifi(organizationId, now),
     directory(organizationId, now),
-    exposure(organizationId, now),
     ai(organizationId, now),
     notifications(organizationId),
   ]);
@@ -740,37 +470,6 @@ export async function buildSystemStatus(
     providers: buildProviders,
   };
 
-  /* GeoIP */
-  const settings = attackSettings[0];
-  const datasets = geoipDatasets.map((d): SystemStatus["geoip"]["datasets"][number] => {
-    const start = monthStart(d.active?.month);
-    const freshnessOfDataset = d.active ? geoipFreshness(start ?? d.active.loadedAt, now) : "unknown";
-    const failure = d.lastFailure
-      ? { source: d.lastFailure.source, error: d.lastFailure.error, at: d.lastFailure.at.toISOString() }
-      : null;
-    const level: StatusLevel = d.active
-      ? worstLevel([levelOfFreshness(freshnessOfDataset), failure ? "attention" : "ok"])
-      : failure
-        ? "failed"
-        : "inactive";
-    return {
-      kind: d.kind,
-      level,
-      state: d.active ? "loaded" : "none",
-      month: d.active?.month ?? null,
-      ageDays: d.active ? ageDays(start ?? d.active.loadedAt, now) : null,
-      freshness: freshnessOfDataset,
-      loadedAt: iso(d.active?.loadedAt),
-      rows: d.active?.rows ?? null,
-      source: d.active?.source ?? null,
-      failure,
-    };
-  });
-  const downloadReason = settings?.geoipDownloadLastError
-    ? { family: "geoip" as const, value: settings.geoipDownloadLastError }
-    : null;
-  const geoipLevel = worstLevel([...datasets.map((d) => d.level), downloadReason ? "attention" : "inactive"]);
-
   /* Worker */
   const beat = heartbeats[0];
   const liveness = workerLiveness(beat?.beatAt ?? null, now);
@@ -815,14 +514,12 @@ export async function buildSystemStatus(
         ? "failed"
         : "ok";
 
-  const integrations = [wazuhRow, proxmoxRow, unifiRow, directoryRow, aiRow, exposureRow, notificationsRow];
+  const integrations = [directoryRow, aiRow, notificationsRow];
 
   // The rows the overall verdict counts: one per thing the page shows a level for.
   const levels: StatusLevel[] = [
     ...scannerItems.map((s) => s.level),
     vulnDb.level,
-    ...datasets.map((d) => d.level),
-    downloadReason ? "attention" : "inactive",
     ...integrations.map((i) => i.level),
     levelOfWorker(liveness),
     ...queues.items.map((q) => q.level),
@@ -851,15 +548,6 @@ export async function buildSystemStatus(
     scanners: { level: worstLevel(scannerItems.map((s) => s.level)), items: scannerItems },
     vulnDb,
     localBuild,
-    geoip: {
-      level: geoipLevel,
-      datasets,
-      download: {
-        enabled: settings?.geoipDownloadEnabled ?? false,
-        lastAttemptAt: iso(settings?.geoipDownloadLastAttemptAt),
-        reason: downloadReason,
-      },
-    },
     integrations,
     worker: {
       level: worstLevel([levelOfWorker(liveness), queuesLevel, databaseLevel]),

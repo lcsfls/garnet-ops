@@ -1,6 +1,6 @@
 # Grades
 
-Every repository and every server gets a grade from **A** to **F** on its list and on its own page. It answers
+Every repository gets a grade from **A** to **F** on the list and on its own page. It answers
 one question: which ones do I look at first? (ADR 0018.)
 
 **A grade is display only.** It never changes a quality gate result, a notification, an alert, a scan or
@@ -43,28 +43,25 @@ F and E vermilion, D orange, C amber, B grey. The letter is always shown; colour
 
 ## Not scanned, and failed scans
 
-- A repository that has **never been scanned successfully** has no grade ("Not scanned yet"), not an A. The same
-  goes for a server that has never been inventoried successfully ("Not read yet"). A server whose host key
-  has not been confirmed has not been read.
-- If the **latest scan or inventory failed**, the grade of the last successful run stays, marked with a small
+- A repository that has **never been scanned successfully** has no grade ("Not scanned yet"), not an A.
+- If the **latest scan failed**, the grade of the last successful run stays, marked with a small
   clock and a sentence in the note ("The latest scan failed. This is the grade of the last successful scan.").
   The failure itself is shown as before. Checks of pull requests never affect a repository's grade.
 
 ## Where to see it
 
-- **Repositories** and **Servers**: a Grade column right after the name. Hover or focus the letter (or tap it on
+- **Repositories**: a Grade column right after the name. Hover or focus the letter (or tap it on
   a touch screen) for a note such as *D: 2 high vulnerabilities with a fix (lodash)*, with a link to the findings
-  behind it: for a repository the Findings page filtered to this repository, severity and fixes; for a server its
-  page, scrolled to the vulnerabilities with the same filters. Escape closes the note.
+  behind it: the Findings page filtered to this repository, severity and fixes. Escape closes the note.
 - Click the **Grade** column header to sort (F first; click again to reverse). The grade drop-down next to the
   search filters by one grade or by "Not graded", with the number in each.
-- The page of a repository or server shows the grade and its reason under the title.
-- **How grades work** above each table repeats the rules.
+- The page of a repository shows the grade and its reason under the title.
+- **How grades work** above the table repeats the rules.
 
 ## For scripts
 
-The API adds three fields to repositories and servers (`GET /api/v1/repositories`, `/repositories/{id}`,
-`/hosts`, `/hosts/{id}`); existing fields are unchanged:
+The API adds three fields to repositories (`GET /api/v1/repositories`, `/repositories/{id}`); existing fields are
+unchanged:
 
 ```json
 {
@@ -77,5 +74,7 @@ The API adds three fields to repositories and servers (`GET /api/v1/repositories
 `grade` is `null` when nothing was scanned yet (then `gradeReason` is `null` too). `rule` is one of
 `known-exploited-with-fix`, `critical-with-fix`, `high-with-fix`, `critical-without-fix`, `medium-with-fix`,
 `high-without-fix`, `other-open` and `none`. The lists take `sort=grade` and `grade=F,E,none`;
-`GET /api/v1/repositories/grades` and `GET /api/v1/hosts/grades` return the number per grade. Please do not build
+`GET /api/v1/repositories/grades` returns the number per grade. Please do not build
 a pipeline decision on a grade; use a gate for that.
+
+Server grades existed up to version 0.0.3; the servers were removed in 0.0.4 ([ADR 0025](adr/0025-focus-on-the-developer-pipeline.md)).

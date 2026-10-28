@@ -3,8 +3,7 @@
  * computes their inputs at query time, so accepted risks that expired count again without any
  * job having to reopen them first, and so lists can be sorted and filtered by grade.
  *
- * The same code serves repositories (`finding`) and servers (`host_finding`). Table and column
- * names below are constants, never user input.
+ * Table and column names below are constants, never user input.
  */
 import {
   emptyGradeCounts,
@@ -22,7 +21,7 @@ import { type SQL, sql } from "drizzle-orm";
 
 interface FindingSource {
   table: SQL;
-  /** The column that points at the repository or server. */
+  /** The column that points at the repository. */
   owner: SQL;
   /** Which rows are open for grading, over the alias `f`. */
   open: SQL;
@@ -39,13 +38,6 @@ export const REPOSITORY_FINDINGS: FindingSource = {
   open: sql.raw(
     "(f.state = 'open' or (f.state = 'accepted' and f.accepted_until is not null and f.accepted_until <= now()))",
   ),
-};
-
-/** Server findings have no accepted state. */
-export const HOST_FINDINGS: FindingSource = {
-  table: sql.raw("host_finding"),
-  owner: sql.raw("host_id"),
-  open: sql.raw("f.state = 'open'"),
 };
 
 const hasFix = sql.raw("jsonb_array_length(coalesce(f.fixed_in, '[]'::jsonb)) > 0");
@@ -70,7 +62,7 @@ const findingRank = sql`(case
   else 1 end)`;
 
 /**
- * The grade rank of one repository or server: 0 (A) to 5 (F) from its worst open finding,
+ * The grade rank of one repository: 0 (A) to 5 (F) from its worst open finding,
  * or -1 when it was never scanned. `owner` is the id column of the outer row, `scanned` a
  * condition over the outer row that is true once a scan or inventory succeeded.
  */
@@ -91,7 +83,7 @@ export function gradeFilterSql(rank: SQL<number>, values: readonly GradeFilterVa
   )})`;
 }
 
-/** Open findings per repository or server, in the buckets the grade rules read. */
+/** Open findings per repository, in the buckets the grade rules read. */
 export async function gradeCounts(
   db: Database,
   source: FindingSource,
@@ -169,19 +161,19 @@ async function examplePackages(
   return new Map(result.rows.map((row) => [row.owner_id, row.package_name]));
 }
 
-/** What the API adds to a repository or server (additive fields, ADR 0018). */
+/** What the API adds to a repository (additive fields, ADR 0018). */
 export interface GradeFields {
   /** Null: never scanned, so there is nothing to grade. */
   grade: Grade | null;
   gradeReason: { rule: GradeRule; count: number; example: string | null } | null;
-  /** The latest scan or inventory failed: the grade is that of the last successful one. */
+  /** The latest scan failed: the grade is that of the last successful one. */
   gradeStale: boolean;
 }
 
 const EXAMPLE_MAX = 200;
 
 /**
- * The grade fields of the repositories or servers on one page. `scanned` is false before the
+ * The grade fields of the repositories on one page. `scanned` is false before the
  * first successful scan, `failed` when the latest attempt after it failed.
  */
 export async function gradeFieldsOf(
@@ -228,8 +220,8 @@ export async function gradeFieldsOf(
 }
 
 /**
- * How many repositories or servers have each grade, and how many none. `rank` is the grade
- * rank expression over the owner table `from`, `where` its filter.
+ * How many repositories have each grade, and how many none. `rank` is the grade
+ * rank expression over the repository table `from`, `where` its filter.
  */
 export async function gradeDistribution(
   db: Database,

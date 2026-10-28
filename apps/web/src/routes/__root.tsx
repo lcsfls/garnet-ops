@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
+import { createRootRouteWithContext, Link, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { AuthLayout } from "../components/auth-layout.tsx";
@@ -9,7 +9,23 @@ import { Button } from "../components/ui/button.tsx";
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: Outlet,
   errorComponent: RootError,
+  notFoundComponent: NotFound,
 });
+
+/** An address that does not exist, such as a bookmark to a module removed in 0.0.4 (ADR 0025). */
+function NotFound() {
+  const { t } = useTranslation();
+  return (
+    <AuthLayout title={t("notFound.title")}>
+      <div className="grid gap-4">
+        <p>{t("notFound.text")}</p>
+        <Link to="/" className="text-primary-text underline-offset-4 hover:underline">
+          {t("notFound.back")}
+        </Link>
+      </div>
+    </AuthLayout>
+  );
+}
 
 function RootError({ reset }: { reset: () => void }) {
   const { t } = useTranslation();

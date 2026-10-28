@@ -7,14 +7,10 @@ import {
   buildProviderLevel,
   cleanVersion,
   freshnessOf,
-  GEOIP_OUTDATED_AFTER_DAYS,
-  GEOIP_STALE_AFTER_DAYS,
-  geoipFreshness,
   HEARTBEAT_LATE_AFTER_SECONDS,
   integrationState,
   levelOfFreshness,
   levelOfIntegration,
-  monthStart,
   overallLevel,
   PINNED_SCANNERS,
   parseVersionOutput,
@@ -85,24 +81,6 @@ describe("vulnerability database freshness", () => {
 
   it("works with any limits", () => {
     expect(freshnessOf(ago(2 * DAY), NOW, 1, 5)).toBe("stale");
-  });
-});
-
-describe("GeoIP freshness", () => {
-  it("reads the month of the dataset as its first day (UTC)", () => {
-    expect(monthStart("2026-10")?.toISOString()).toBe("2026-10-01T00:00:00.000Z");
-    expect(monthStart("2026-13")).toBeNull();
-    expect(monthStart("October")).toBeNull();
-    expect(monthStart(null)).toBeNull();
-  });
-
-  it("is current within 45 days, stale after, outdated after 90", () => {
-    expect([GEOIP_STALE_AFTER_DAYS, GEOIP_OUTDATED_AFTER_DAYS]).toEqual([45, 90]);
-    // October's dataset on 23 October is 22 days old; September's is 52 days old; July's is 114.
-    expect(geoipFreshness(monthStart("2026-10"), NOW)).toBe("current");
-    expect(geoipFreshness(monthStart("2026-09"), NOW)).toBe("stale");
-    expect(geoipFreshness(monthStart("2026-07"), NOW)).toBe("outdated");
-    expect(geoipFreshness(null, NOW)).toBe("unknown");
   });
 });
 
@@ -208,7 +186,7 @@ describe("integration state", () => {
   });
 
   it("is paused when switched off, even when blocked, and not configured without a connection", () => {
-    expect(integrationState({ ...base, enabled: false, blocked: "privileges" }, NOW)).toBe("paused");
+    expect(integrationState({ ...base, enabled: false, blocked: "credentials" }, NOW)).toBe("paused");
     expect(integrationState({ ...base, configured: false }, NOW)).toBe("not_configured");
   });
 

@@ -15,25 +15,6 @@ export const QUEUES = {
   scanRepository: "scan.repository",
   /** One job per channel and notification, so a retry never repeats a delivery that worked (ADR 0010). */
   notify: "notify.deliver",
-  /** Servers (ADR 0011): the organisation's SSH access key, host key scans and inventories. */
-  hostAccessKey: "host.access-key",
-  hostKeyscan: "host.keyscan",
-  hostInventory: "host.inventory",
-  /** Proxmox VE (ADR 0012): reading the certificate a server presents, and the read-only sync. */
-  proxmoxCertificate: "proxmox.certificate",
-  proxmoxSync: "proxmox.sync",
-  /** UniFi (ADR 0022): reading the certificate a console presents, and the read-only sync of the official local API. */
-  unifiCertificate: "unifi.certificate",
-  unifiSync: "unifi.sync",
-  /** External exposure (ADR 0023): checking the proof of control, and a run of stage 1 (passive) or stage 2 (light active). */
-  exposureVerify: "exposure.verify",
-  exposureRun: "exposure.run",
-  /** Wazuh (ADR 0015): reading the certificate of an endpoint, the read-only sync, and the optional AI summary. */
-  xdrCertificate: "xdr.certificate",
-  xdrSync: "xdr.sync",
-  xdrSummary: "xdr.summary",
-  /** Attack overview (ADR 0016): the optional AI summary of the aggregates. */
-  attackSummary: "attacks.summary",
   /** Directory sign-in (ADR 0020): a request only the worker can answer, because only it opens the service account's password. */
   directory: "directory.request",
   /** AI triage (ADR 0013): one job per answer, and probes for "load models" and "test connection". */

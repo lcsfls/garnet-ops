@@ -80,7 +80,7 @@ function RepositoryPage() {
         icon={GitBranch}
         title={data?.name ?? t("common.loading")}
         description={data?.url ?? ""}
-        meta={data ? <GradeSummary row={data} kind="repository" id={id} /> : null}
+        meta={data ? <GradeSummary row={data} id={id} /> : null}
         actions={
           data ? (
             <>

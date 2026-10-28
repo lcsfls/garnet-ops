@@ -10,23 +10,18 @@ import { type AppEnv, requireActor } from "./lib/context.ts";
 import { handleError, ProblemError } from "./lib/problem.ts";
 import { accountRoutes } from "./routes/account.ts";
 import { aiRoutes } from "./routes/ai.ts";
-import { attackRoutes } from "./routes/attacks.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { directoryRoutes } from "./routes/directory.ts";
-import { exposureRoutes } from "./routes/exposure.ts";
 import { findingRoutes } from "./routes/findings.ts";
 import { fixRoutes } from "./routes/fixes.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
 import { gateRoutes } from "./routes/gates.ts";
-import { hostSetupPublicRoutes } from "./routes/host-setup.ts";
-import { hostRoutes } from "./routes/hosts.ts";
 import { invitationRoutes } from "./routes/invitations.ts";
 import { meRoutes } from "./routes/me.ts";
 import { notificationRoutes } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
 import { overviewRoutes } from "./routes/overview.ts";
 import { packageRoutes } from "./routes/packages.ts";
-import { proxmoxRoutes } from "./routes/proxmox.ts";
 import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
 import { searchRoutes } from "./routes/search.ts";
@@ -34,10 +29,8 @@ import { setupRoutes } from "./routes/setup.ts";
 import { signInOptionsRoutes } from "./routes/sign-in-options.ts";
 import { systemRoutes } from "./routes/system.ts";
 import { teamRoutes } from "./routes/team.ts";
-import { unifiRoutes } from "./routes/unifi.ts";
 import { maintenanceRoutes, updateRoutes } from "./routes/updates.ts";
 import { userNotificationRoutes } from "./routes/user-notifications.ts";
-import { xdrRoutes } from "./routes/xdr.ts";
 import { APP_VERSION } from "./version.ts";
 
 const publicOrigin = new URL(env.PUBLIC_URL).origin;
@@ -99,8 +92,6 @@ export const app = new Hono()
   .route("/api/v1/setup", setupRoutes)
   // The sign-in page asks what it may offer (the directory) before anyone is signed in (ADR 0020).
   .route("/api/v1/sign-in-options", signInOptionsRoutes)
-  // The host setup script is downloaded by a server, which has no session (ADR 0011).
-  .route("/api/v1/host-setup", hostSetupPublicRoutes)
   // Accepting an invitation happens before the person has an account (ADR 0009).
   .route("/api/v1/invitations", invitationRoutes);
 
@@ -124,12 +115,6 @@ const v1 = new Hono<AppEnv>()
   .route("/team", teamRoutes)
   .route("/directory", directoryRoutes)
   .route("/notifications", notificationRoutes)
-  .route("/hosts", hostRoutes)
-  .route("/proxmox", proxmoxRoutes)
-  .route("/unifi", unifiRoutes)
-  .route("/exposure", exposureRoutes)
-  .route("/xdr", xdrRoutes)
-  .route("/attacks", attackRoutes)
   .route("/maintenance", maintenanceRoutes)
   .route("/updates", updateRoutes);
 

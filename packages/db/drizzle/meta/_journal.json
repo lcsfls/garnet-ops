@@ -169,6 +169,13 @@
       "when": 1792763179755,
       "tag": "0023_system_status",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793203602237,
+      "tag": "0024_focus_developer_pipeline",
+      "breakpoints": true
     }
   ]
 }

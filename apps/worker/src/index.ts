@@ -1,8 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { PgBoss } from "pg-boss";
 import { AI_PROBE_QUEUE, AI_QUEUE, runGeneration, runProbe, sweepAi } from "./ai.ts";
-import { ATTACK_SUMMARY_QUEUE, runAttackSummary, sweepAttackSummaries } from "./attack-summary.ts";
-import { startAttacksScheduler } from "./attacks.ts";
 import { pool } from "./db.ts";
 import {
   DIRECTORY_QUEUE,
@@ -12,13 +10,6 @@ import {
 } from "./directory.ts";
 import { env } from "./env.ts";
 import {
-  EXPOSURE_RUN_QUEUE,
-  EXPOSURE_VERIFY_QUEUE,
-  runExposure,
-  runVerify,
-  startExposureScheduler,
-} from "./exposure.ts";
-import {
   checkWriteAccess,
   FIX_PR_CHECK_QUEUE,
   FIX_PR_QUEUE,
@@ -27,47 +18,15 @@ import {
   runFixPr,
   startFixPrScheduler,
 } from "./fix-pr.ts";
-import {
-  ensureHostAccessKey,
-  HOST_ACCESS_KEY_QUEUE,
-  HOST_INVENTORY_QUEUE,
-  HOST_KEYSCAN_QUEUE,
-  runHostInventory,
-  scanHost,
-} from "./hosts.ts";
 import { deliver, eventsForScan, NOTIFY_QUEUE, queueNotifications } from "./notify.ts";
-import {
-  PROXMOX_CERT_QUEUE,
-  PROXMOX_SYNC_QUEUE,
-  readCertificate,
-  runProxmoxSync,
-  startProxmoxScheduler,
-} from "./proxmox.ts";
+import { removeRetiredQueues } from "./retired-queues.ts";
 import { runScan } from "./scan.ts";
 import { SCAN_QUEUE as QUEUE, startScheduler } from "./schedule.ts";
 import { startSystemReports } from "./system-report.ts";
-import {
-  readCertificate as readUnifiCertificate,
-  runUnifiSync,
-  startUnifiScheduler,
-  UNIFI_CERT_QUEUE,
-  UNIFI_SYNC_QUEUE,
-} from "./unifi.ts";
-import { startUnifiIpsPoller } from "./unifi-ips.ts";
 import { startUserNotificationUpkeep, tellAboutScan } from "./user-notify.ts";
 import { startVulnDbUpdates } from "./vulndb.ts";
-import {
-  readCertificate as readWazuhCertificate,
-  runWazuhSync,
-  startWazuhScheduler,
-  WAZUH_CERT_QUEUE,
-  WAZUH_SYNC_QUEUE,
-} from "./wazuh.ts";
-import { startWazuhLivePoller } from "./wazuh-live.ts";
-import { runWazuhSummary, sweepWazuhSummaries, WAZUH_SUMMARY_QUEUE } from "./wazuh-summary.ts";
 
 const AI_CONCURRENCY = 4;
-const EXPOSURE_CONCURRENCY = 2;
 const DIRECTORY_CONCURRENCY = 4;
 
 await mkdir(env.GARNETOPS_WORK_DIR, { recursive: true });
@@ -78,23 +37,13 @@ await boss.createQueue(QUEUE);
 await boss.createQueue(NOTIFY_QUEUE);
 await boss.createQueue(AI_QUEUE);
 await boss.createQueue(AI_PROBE_QUEUE);
-await boss.createQueue(HOST_KEYSCAN_QUEUE);
-await boss.createQueue(HOST_INVENTORY_QUEUE);
-await boss.createQueue(HOST_ACCESS_KEY_QUEUE);
-await boss.createQueue(PROXMOX_CERT_QUEUE);
-await boss.createQueue(PROXMOX_SYNC_QUEUE);
-await boss.createQueue(UNIFI_CERT_QUEUE);
-await boss.createQueue(UNIFI_SYNC_QUEUE);
-await boss.createQueue(EXPOSURE_VERIFY_QUEUE);
-await boss.createQueue(EXPOSURE_RUN_QUEUE);
-await boss.createQueue(WAZUH_CERT_QUEUE);
-await boss.createQueue(WAZUH_SYNC_QUEUE);
-await boss.createQueue(WAZUH_SUMMARY_QUEUE);
-await boss.createQueue(ATTACK_SUMMARY_QUEUE);
 await boss.createQueue(FIX_PR_QUEUE);
 await boss.createQueue(FIX_PR_CHECK_QUEUE);
 await boss.createQueue(FIX_PR_REFRESH_QUEUE);
 await boss.createQueue(DIRECTORY_QUEUE);
+// Queues and schedules of the modules removed in 0.0.4 (ADR 0025) would otherwise stay in the database.
+const retired = await removeRetiredQueues(boss);
+if (retired.length > 0) console.log(`worker: removed ${retired.length} retired queues`);
 
 for (let i = 0; i < env.GARNETOPS_SCAN_CONCURRENCY; i++) {
   await boss.work<{ scanId: string }>(QUEUE, { batchSize: 1 }, async ([job]) => {
@@ -139,87 +88,6 @@ const aiSweep = setInterval(
   60_000,
 );
 sweepAi().catch((error: Error) => console.error("ai sweep:", error.name));
-// Servers (ADR 0011): the organisation's access key, host key scans and inventories.
-await boss.work<{ organizationId: string }>(HOST_ACCESS_KEY_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await ensureHostAccessKey(job.data.organizationId);
-});
-await boss.work<{ hostId: string }>(HOST_KEYSCAN_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await scanHost(job.data.hostId);
-});
-for (let i = 0; i < env.GARNETOPS_SCAN_CONCURRENCY; i++) {
-  await boss.work<{ runId: string }>(HOST_INVENTORY_QUEUE, { batchSize: 1 }, async ([job]) => {
-    if (!job) return;
-    const started = performance.now();
-    await runHostInventory(job.data.runId);
-    console.log(
-      `host inventory ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`,
-    );
-  });
-}
-// Proxmox VE (ADR 0012): certificate reads and read-only syncs; one sync at a time per worker slot.
-await boss.work<{ clusterId: string }>(PROXMOX_CERT_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await readCertificate(job.data.clusterId);
-});
-await boss.work<{ runId: string }>(PROXMOX_SYNC_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (!job) return;
-  const started = performance.now();
-  await runProxmoxSync(job.data.runId);
-  console.log(
-    `proxmox sync ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`,
-  );
-});
-// UniFi (ADR 0022): certificate reads and read-only syncs of the official local API.
-await boss.work<{ connectionId: string }>(UNIFI_CERT_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await readUnifiCertificate(job.data.connectionId);
-});
-await boss.work<{ runId: string }>(UNIFI_SYNC_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (!job) return;
-  const started = performance.now();
-  await runUnifiSync(job.data.runId);
-  console.log(
-    `unifi sync ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`,
-  );
-});
-// External exposure (ADR 0023): the proof of control, stage 1 (passive) and stage 2 (light active). Every outbound
-// connection to an asset is made here, after the address was checked.
-await boss.work<{ assetId: string }>(EXPOSURE_VERIFY_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await runVerify(job.data.assetId);
-});
-for (let i = 0; i < EXPOSURE_CONCURRENCY; i++) {
-  await boss.work<{ runId: string }>(EXPOSURE_RUN_QUEUE, { batchSize: 1 }, async ([job]) => {
-    if (!job) return;
-    const started = performance.now();
-    await runExposure(job.data.runId);
-    console.log(
-      `exposure ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`,
-    );
-  });
-}
-// Wazuh (ADR 0015): certificate reads, read-only syncs and the optional AI summary of the aggregates.
-await boss.work<{ endpointId: string }>(WAZUH_CERT_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await readWazuhCertificate(job.data.endpointId);
-});
-await boss.work<{ runId: string }>(WAZUH_SYNC_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (!job) return;
-  const started = performance.now();
-  await runWazuhSync(job.data.runId);
-  console.log(`xdr sync ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`);
-});
-await boss.work<{ summaryId: string }>(WAZUH_SUMMARY_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await runWazuhSummary(job.data.summaryId);
-});
-const wazuhSweep = setInterval(
-  () => sweepWazuhSummaries().catch((error: Error) => console.error("xdr sweep:", error.name)),
-  60_000,
-);
-// Attack overview (ADR 0016): the optional AI summary of the aggregates; GeoIP download, OSINT and retention run below.
-await boss.work<{ summaryId: string }>(ATTACK_SUMMARY_QUEUE, { batchSize: 1 }, async ([job]) => {
-  if (job) await runAttackSummary(job.data.summaryId);
-});
-const attackSweep = setInterval(
-  () => sweepAttackSummaries().catch((error: Error) => console.error("attack sweep:", error.name)),
-  60_000,
-);
 // Directory sign-in (ADR 0020): the worker is the only process that opens the service account's password, so it
 // makes every connection to the directory. A person waits for the answer, so this queue is polled twice a second.
 for (let i = 0; i < DIRECTORY_CONCURRENCY; i++) {
@@ -254,15 +122,6 @@ await boss.work<{ organizationId?: string; repositoryId?: string }>(
 );
 await startFixPrScheduler(boss);
 await startScheduler(boss);
-await startProxmoxScheduler(boss);
-await startUnifiScheduler(boss);
-await startExposureScheduler(boss);
-await startWazuhScheduler(boss);
-await startAttacksScheduler(boss);
-// The live attack feed (ADR 0021): a light, read-only poll of the Wazuh indexer, every 30 seconds by default.
-const stopWazuhLive = startWazuhLivePoller();
-// The UniFi IPS preview (ADR 0022): off unless an admin switches it on for a console; a light poll every 60 seconds by default.
-const stopUnifiIps = startUnifiIpsPoller();
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();
 const stopUserNotifications = startUserNotificationUpkeep();
@@ -271,15 +130,11 @@ const stopSystemReports = startSystemReports();
 console.log(`worker: ready (${env.GARNETOPS_SCAN_CONCURRENCY} scan slots, nightly schedule active)`);
 
 async function shutdown() {
-  stopWazuhLive();
-  stopUnifiIps();
   stopDirectoryReconcile();
   stopVulnDbUpdates();
   stopUserNotifications();
   await stopSystemReports();
   clearInterval(aiSweep);
-  clearInterval(wazuhSweep);
-  clearInterval(attackSweep);
   clearInterval(directorySweep);
   await boss.stop({ graceful: true, timeout: 30_000 }).catch(() => {});
   await pool.end().catch(() => {});

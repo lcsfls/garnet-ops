@@ -43,29 +43,18 @@ export type SecretPurpose =
   | "forge-token"
   | "ssh-private-key"
   | "ai-api-key"
-  | "netbird-token"
   | "smtp-password"
   | "webhook-url"
   | "graph-client-secret"
-  | "host-ssh-key"
-  | "proxmox-token"
   /** The token for opening fix pull requests: separate from the read credential, one repository (ADR 0014). */
   | "forge-write-token"
-  /** Wazuh (ADR 0015): the password of the read-only manager API user and of the read-only indexer user. */
-  | "wazuh-api-password"
-  | "wazuh-indexer-password"
-  /** The customer's own API key for an OSINT provider such as AbuseIPDB (ADR 0016); opened by the worker only. */
-  | "osint-api-key"
   /**
    * The read-only service account of the directory sign-in (ADR 0020). Sealed by the API, opened only by the
    * worker, which makes every directory connection: the web-facing API never holds this password in the clear.
    */
   | "ldap-bind-password"
   /** A directory password typed at sign-in, sealed for the worker for the length of one request and then deleted. */
-  | "ldap-user-password"
-  /** UniFi (ADR 0022): the API key of the official local UniFi Network API, and the password of the view-only IPS preview user. */
-  | "unifi-api-key"
-  | "unifi-ips-password";
+  | "ldap-user-password";
 
 export interface SecretBinding {
   organizationId: string;
@@ -276,7 +265,7 @@ export function loadVaultPrivateKey(pem: string): VaultPrivateKey {
 
 /**
  * The public half of a vault private key. The worker holds the private key and uses this to
- * seal secrets it generates itself, such as the SSH access key for servers (ADR 0011), without
+ * seal secrets it handles itself, such as a directory password typed at sign-in (ADR 0020), without
  * a second key file. Sealing needs no secret material beyond what the worker already holds.
  */
 export function vaultPublicKeyOf(vault: VaultPrivateKey): VaultPublicKey {

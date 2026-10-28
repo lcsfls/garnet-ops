@@ -52,18 +52,18 @@ describe.skipIf(!adminUrl)("notifyUsers", () => {
   it("tells the people the role allows, in one organisation only", async () => {
     const result = await notifyUsers(t.db, {
       organizationId: ORG,
-      titleKey: "certificateChangedProxmox",
-      params: { name: "Lab cluster" },
-      link: "/settings?section=proxmox",
+      titleKey: "certificateChangedDirectory",
+      params: { name: "Example directory" },
+      link: "/settings?section=directory",
     });
     expect(result).toEqual({ inApp: 2, mail: 0 });
     expect(await told()).toEqual(["u_admin", "u_owner"]);
     const [row] = await rows();
     expect(row).toMatchObject({
       event: "infra.certificate_changed",
-      titleKey: "certificateChangedProxmox",
-      params: { name: "Lab cluster" },
-      link: "/settings?section=proxmox",
+      titleKey: "certificateChangedDirectory",
+      params: { name: "Example directory" },
+      link: "/settings?section=directory",
       inApp: true,
       readAt: null,
       mailState: "none",

@@ -9,7 +9,6 @@ import { PageHeader } from "../../components/page-header.tsx";
 import { QueryStatus } from "../../components/query-state.tsx";
 import {
   AppCard,
-  GeoipCard,
   IntegrationsCard,
   LocalBuildCard,
   ScannersCard,
@@ -75,9 +74,6 @@ function SystemStatusPage() {
             </Cell>
             <Cell testId="system-local-build">
               <LocalBuildCard build={status.localBuild} />
-            </Cell>
-            <Cell testId="system-geoip">
-              <GeoipCard geoip={status.geoip} role={me.role} />
             </Cell>
             <Cell testId="system-integrations">
               <IntegrationsCard integrations={status.integrations} role={me.role} />

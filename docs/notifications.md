@@ -67,7 +67,7 @@ New notifications appear while GarnetOps is open, without a reload, and also sho
 This uses one server-sent event stream per tab (at most four per person). If it cannot be opened, for example behind a
 proxy that buffers it, the bell checks every 30 seconds instead and says so at the bottom of the panel.
 
-A notification holds a summary and a link, never details: a repository, server or cluster name, a count, a version. No
+A notification holds a summary and a link, never details: a repository or directory server name, a count, a version. No
 vulnerability ids, package names, paths, error output or code. You only get notifications about what your role may see.
 
 ### What you can be told about
@@ -78,23 +78,16 @@ vulnerability ids, package names, paths, error output or code. You only get noti
 | Code | A quality gate blocked | everyone |
 | Code | A scan failed | members, admins, owners |
 | Code | A fix pull request was merged, or failed | members, admins, owners (default: only requests you made or repositories you added) |
-| Infrastructure | A server's SSH host key changed | admins, owners |
-| Infrastructure | A Proxmox VE or Wazuh certificate changed | admins, owners |
-| Infrastructure | A Proxmox VE or Wazuh sync, or the UniFi IPS preview, is blocked because the token or user can do more than read | admins, owners |
-| Infrastructure | A UniFi certificate changed | admins, owners |
-| Infrastructure | A UniFi device is offline (in two syncs in a row; once until it was online again) | admins, owners |
-| Infrastructure | A UniFi firmware update is available (once per device and firmware version) | admins, owners |
-| Infrastructure | An exposed certificate expires soon or has expired (Exposure; once at 30, 14, 7 days and when expired) | admins, owners |
-| Infrastructure | An asset lost its verification (Exposure; stage 2 stopped) | admins, owners |
-| Infrastructure | A new port is open on an asset (Exposure, stage 2; not for the first run) | admins, owners |
-| Infrastructure | A risky service is reachable from the internet (Exposure, stage 2; once while it stays open) | admins, owners |
+| Account and team | The certificate of a directory server changed (sign-in through it stops until an admin confirms the new one) | admins, owners |
 | Account and team | An invitation was accepted | admins, owners |
 | Account and team | Your role changed | you |
 | System | An update finished or failed | admins, owners |
 
-The first three are also events of the organisation channels; the others are only for the people in the app. Changes in
-infrastructure are announced **once per change**, not on every sync. "Update available" and new vulnerabilities on
-servers are not announced yet.
+The first three are also events of the organisation channels; the others are only for the people in the app. A changed
+directory certificate is announced **once per change**. "Update available" is not announced yet.
+
+Notifications about servers, Proxmox VE, UniFi, Wazuh and external exposure existed up to version 0.0.3. They were
+removed in 0.0.4 with those modules (ADR 0025), and the stored notifications and choices for them were deleted.
 
 ### The matrix: Account → Notifications
 

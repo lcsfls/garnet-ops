@@ -96,9 +96,16 @@ function AuditLog() {
 
 function EntryRow({ entry }: { entry: Entry }) {
   const { t, i18n } = useTranslation();
-  const actionKey = `audit.actions.${entry.action.replace(/\./g, "_")}`;
+  const actionName = entry.action.replace(/\./g, "_");
+  const actionKey = `audit.actions.${actionName}`;
+  // Entries of modules removed in 0.0.4 (ADR 0025) keep their labels in a small legacy block.
+  const legacyKey = `audit.legacy.actions.${actionName}`;
   // Unknown actions (e.g. from a newer version) still show, with their raw name.
-  const actionLabel = i18n.exists(actionKey) ? t(actionKey as never) : entry.action;
+  const actionLabel = i18n.exists(actionKey)
+    ? t(actionKey as never)
+    : i18n.exists(legacyKey)
+      ? t(legacyKey as never)
+      : entry.action;
   const { outcome, ...details } = entry.data ?? {};
   const outcomeKey = typeof outcome === "string" ? `audit.outcome.${outcome}` : null;
 
@@ -152,7 +159,9 @@ function Details({ data }: { data: Record<string, unknown> }) {
   return (
     <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-sm">
       {entries.map(([key, value]) => {
-        const labelKey = `audit.details.${key}`;
+        const labelKey = i18n.exists(`audit.details.${key}`)
+          ? `audit.details.${key}`
+          : `audit.legacy.details.${key}`;
         return (
           <div key={key} className="contents">
             {/* Keys written by a newer version still show, under their raw name. */}

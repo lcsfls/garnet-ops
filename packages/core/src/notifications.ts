@@ -29,7 +29,7 @@ export interface NotifyPayload {
  * unspecified, multicast, broadcast, and every IPv6 notation of the same (IPv4-mapped in hex,
  * NAT64, 6to4, IPv4-compatible). Private networks are allowed, because an internal chat server
  * is a normal target. The parsing is shared with the AI endpoint policy (ai-endpoint.ts), so
- * webhooks, servers and Proxmox refuse exactly the same addresses.
+ * webhooks and directory servers refuse exactly the same addresses.
  */
 export function isForbiddenAddress(address: string): boolean {
   return classifyAddress(address) === "forbidden";

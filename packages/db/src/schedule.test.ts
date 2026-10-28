@@ -6,7 +6,7 @@
  */
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { startDueNightlyRuns, strandedQueuedHostRuns, strandedQueuedScans } from "./schedule.ts";
+import { startDueNightlyRuns, strandedQueuedScans } from "./schedule.ts";
 import * as schema from "./schema.ts";
 import { createTestDatabase, devDatabaseUrl, type TestDatabase } from "./testing.ts";
 
@@ -145,67 +145,11 @@ describe.skipIf(!adminUrl)("nightly scan schedule", () => {
     expect(stranded).toContainEqual({ scanId: `${id}_old`, repositoryId: `${id}_r1` });
   });
 
-  describe("server inventories (ADR 0011)", () => {
-    async function server(id: string, n: number, hostKeyStatus: "pending" | "confirmed" | "changed") {
-      await t.db.insert(schema.host).values({
-        id: `${id}_h${n}`,
-        organizationId: id,
-        name: `h${n}`,
-        address: `h${n}.example.test`,
-        hostKeyStatus,
-      });
-    }
-
-    it("queues an inventory for every server with a confirmed host key, and only those", async () => {
-      const id = await org();
-      await server(id, 1, "confirmed");
-      await server(id, 2, "pending");
-      await server(id, 3, "changed");
-      const [run] = await runsOf(id, "2026-06-13T00:45:00Z");
-      expect(run?.hostRuns.map((r) => r.hostId)).toEqual([`${id}_h1`]);
-      const rows = await t.db
-        .select()
-        .from(schema.hostInventoryRun)
-        .where(eq(schema.hostInventoryRun.organizationId, id));
-      expect(rows.map((r) => [r.hostId, r.trigger, r.state])).toEqual([[`${id}_h1`, "schedule", "queued"]]);
-      // Repository scans are unchanged by it.
-      expect(run?.scans).toHaveLength(2);
-    });
-
-    it("does not queue a second inventory for a server that is already being read", async () => {
-      const id = await org();
-      await server(id, 1, "confirmed");
-      await server(id, 2, "confirmed");
-      await t.db.insert(schema.hostInventoryRun).values({
-        id: `${id}_busy`,
-        organizationId: id,
-        hostId: `${id}_h1`,
-        state: "running",
-        trigger: "manual",
-      });
-      const [run] = await runsOf(id, "2026-06-14T00:45:00Z");
-      expect(run?.hostRuns.map((r) => r.hostId)).toEqual([`${id}_h2`]);
-    });
-
-    it("runs once even when several workers tick together", async () => {
-      const id = await org();
-      await server(id, 1, "confirmed");
-      const results = await Promise.all(Array.from({ length: 4 }, () => runsOf(id, "2026-06-15T00:45:00Z")));
-      expect(results.flat().flatMap((r) => r.hostRuns)).toHaveLength(1);
-    });
-
-    it("finds queued inventories whose job may have been lost", async () => {
-      const id = await org();
-      await server(id, 1, "confirmed");
-      await t.db.insert(schema.hostInventoryRun).values({
-        id: `${id}_old`,
-        organizationId: id,
-        hostId: `${id}_h1`,
-        state: "queued",
-        trigger: "schedule",
-        createdAt: new Date(Date.now() - 20 * 60_000),
-      });
-      expect(await strandedQueuedHostRuns(t.db)).toContainEqual({ runId: `${id}_old`, hostId: `${id}_h1` });
-    });
+  it("runs once even when several workers tick together", async () => {
+    const id = await org();
+    const results = await Promise.all(Array.from({ length: 4 }, () => runsOf(id, "2026-06-15T00:45:00Z")));
+    expect(results.flat()).toHaveLength(1);
+    const scans = await t.db.select().from(schema.scan).where(eq(schema.scan.organizationId, id));
+    expect(scans).toHaveLength(2);
   });
 });

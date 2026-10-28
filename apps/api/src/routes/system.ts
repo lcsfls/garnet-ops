@@ -22,7 +22,7 @@ export const systemRoutes = new Hono<AppEnv>()
   .get("/", (c) => c.json({ version: APP_VERSION }))
   /**
    * Is everything current and running? One read-only view for owners and admins (ADR 0024):
-   * scanners, the vulnerability database, GeoIP, the integrations, the worker and its queues,
+   * scanners, the vulnerability database, the integrations, the worker and its queues,
    * the database and the app. Numbers, states and short codes only; nothing here runs a binary
    * or contacts an integration, it reads what the worker has reported.
    */

@@ -80,7 +80,7 @@ export const preferencesQuery = queryOptions({
 
 export interface PreferenceRow {
   event: string;
-  group: "code" | "infrastructure" | "account" | "system";
+  group: "code" | "account" | "system";
   scoped: boolean;
   scopeKind: "repositories" | "requests";
   preference: { inApp: boolean; email: boolean; scope: "all" | "mine" };

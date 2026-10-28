@@ -3,16 +3,12 @@ import {
   Bug,
   GitBranch,
   GitPullRequest,
-  Globe,
   LayoutGrid,
   type LucideIcon,
   Package,
-  Radar,
   ScrollText,
-  Server,
   Settings,
   ShieldCheck,
-  Telescope,
   Users,
 } from "lucide-react";
 import type { MessageKey } from "../lib/i18n.ts";
@@ -25,26 +21,16 @@ export type NavTo =
   | "/gates"
   | "/fixes"
   | "/packages"
-  | "/servers"
-  | "/exposure"
-  | "/xdr"
-  | "/attacks"
   | "/settings"
   | "/team"
   | "/audit-log"
   | "/system";
-
-/** Screens that only exist once something is connected. */
-export type NavFeature = "xdr" | "attacks";
-export type NavFeatures = Partial<Record<NavFeature, boolean>>;
 
 export interface NavItem {
   to: NavTo;
   label: MessageKey;
   icon: LucideIcon;
   adminOnly?: boolean;
-  /** Listed only while one of these features is available (XDR: a Wazuh connection exists). */
-  feature?: NavFeature | NavFeature[];
 }
 
 /** Only screens that exist are listed; nothing is shown as a teaser. */
@@ -66,17 +52,6 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "shell.groupInfrastructure",
-    items: [
-      { to: "/servers", label: "nav.servers", icon: Server },
-      { to: "/exposure", label: "nav.exposure", icon: Telescope },
-      { to: "/xdr", label: "nav.xdr", icon: Radar, feature: "xdr" },
-      // Built from Wazuh's alerts, so it is listed with the XDR page: only while a Wazuh connection exists.
-      // ... or while the UniFi threat events are on (ADR 0022).
-      { to: "/attacks", label: "nav.attacks", icon: Globe, feature: ["xdr", "attacks"] },
-    ],
-  },
-  {
     label: "shell.groupAdmin",
     items: [
       { to: "/settings", label: "nav.settings", icon: Settings },
@@ -89,15 +64,11 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
 
 export const isAdmin = (me: Me) => me.role === "owner" || me.role === "admin";
 
-/** The navigation as this user sees it, with the screens of the connected features. */
-export function navFor(me: Me, features: NavFeatures = {}) {
+/** The navigation as this user sees it. */
+export function navFor(me: Me) {
   return NAV.map((group) => ({
     ...group,
-    items: group.items.filter(
-      (item) =>
-        (!item.adminOnly || isAdmin(me)) &&
-        (!item.feature || [item.feature].flat().some((feature) => features[feature] === true)),
-    ),
+    items: group.items.filter((item) => !item.adminOnly || isAdmin(me)),
   })).filter((group) => group.items.length > 0);
 }
 

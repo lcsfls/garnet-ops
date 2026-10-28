@@ -347,20 +347,12 @@ export const secret = pgTable(
         "forge-token",
         "ssh-private-key",
         "ai-api-key",
-        "netbird-token",
         "smtp-password",
         "webhook-url",
         "graph-client-secret",
-        "host-ssh-key",
-        "proxmox-token",
         "forge-write-token",
-        "wazuh-api-password",
-        "wazuh-indexer-password",
-        "osint-api-key",
         "ldap-bind-password",
         "ldap-user-password",
-        "unifi-api-key",
-        "unifi-ips-password",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -739,10 +731,12 @@ export const fixPr = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* Servers: agentless inventory over SSH (ADR 0011)                            */
+/* Removed in 0.0.4 (ADR 0025): servers, agentless inventory over SSH           */
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * The SSH key pair an organisation's worker uses to read its servers. The worker generates it;
  * the private half is sealed in the vault (`secret`, purpose "host-ssh-key") and never leaves
  * the platform, the public half is stored in clear and rendered into the host setup script.
@@ -771,7 +765,11 @@ export const hostAccessKey = pgTable(
   (t) => [uniqueIndex("host_access_key_active_uq").on(t.organizationId).where(sql`${t.state} = 'active'`)],
 );
 
-/** A one-time download link for the host setup script. Only the token's hash is stored. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * A one-time download link for the host setup script. Only the token's hash is stored.
+ */
 export const hostSetupLink = pgTable(
   "host_setup_link",
   {
@@ -798,6 +796,7 @@ export const hostSetupLink = pgTable(
   ],
 );
 
+/** Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0. */
 export const host = pgTable(
   "host",
   {
@@ -862,7 +861,11 @@ export const host = pgTable(
   ],
 );
 
-/** Current packages of a server: the whole list of its last successful inventory, replaced as a whole. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * Current packages of a server: the whole list of its last successful inventory, replaced as a whole.
+ */
 export const hostPackage = pgTable(
   "host_package",
   {
@@ -891,6 +894,7 @@ export const hostPackage = pgTable(
   ],
 );
 
+/** Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0. */
 export const hostInventoryRun = pgTable(
   "host_inventory_run",
   {
@@ -923,7 +927,11 @@ export const hostInventoryRun = pgTable(
   ],
 );
 
-/** A vulnerability matched against a package of a server: same shape as `finding` for repositories. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * A vulnerability matched against a package of a server: same shape as `finding` for repositories.
+ */
 export const hostFinding = pgTable(
   "host_finding",
   {
@@ -965,10 +973,12 @@ export const hostFinding = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* Proxmox VE (ADR 0012): read-only inventory of clusters, nodes and guests     */
+/* Removed in 0.0.4 (ADR 0025): Proxmox VE                                    */
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * A connection to one Proxmox VE cluster (or stand-alone node). The API token secret is sealed
  * in `secret` (purpose proxmox-token); the API only seals it, the worker opens it. The
  * certificate is pinned on first contact like an SSH host key: `certStatus` is `pending` until an
@@ -1044,6 +1054,7 @@ export const proxmoxCluster = pgTable(
   ],
 );
 
+/** Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0. */
 export const proxmoxNode = pgTable(
   "proxmox_node",
   {
@@ -1072,6 +1083,7 @@ export const proxmoxNode = pgTable(
   (t) => [uniqueIndex("proxmox_node_cluster_name_uq").on(t.clusterId, t.name)],
 );
 
+/** Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0. */
 export const proxmoxGuest = pgTable(
   "proxmox_guest",
   {
@@ -1117,6 +1129,7 @@ export const proxmoxGuest = pgTable(
   ],
 );
 
+/** Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0. */
 export const proxmoxStorage = pgTable(
   "proxmox_storage",
   {
@@ -1139,6 +1152,7 @@ export const proxmoxStorage = pgTable(
   (t) => [uniqueIndex("proxmox_storage_cluster_uq").on(t.clusterId, t.node, t.name)],
 );
 
+/** Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0. */
 export const proxmoxSyncRun = pgTable(
   "proxmox_sync_run",
   {
@@ -1170,10 +1184,12 @@ export const proxmoxSyncRun = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* UniFi (ADR 0022): read-only network device inventory, optional IPS preview   */
+/* Removed in 0.0.4 (ADR 0025): UniFi                                         */
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * A connection to one UniFi console (UniFi OS console or a self-hosted Network Application). The API key of the
  * official local UniFi Network API is sealed in `secret` (purpose unifi-api-key); the API only seals it, the worker
  * opens it. The certificate is pinned on first contact exactly like a Proxmox node: `certStatus` is `pending` until
@@ -1269,7 +1285,11 @@ export const unifiConnection = pgTable(
   ],
 );
 
-/** A site of a console. The client count is a number only: no client is ever stored (privacy, ADR 0022). */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * A site of a console. The client count is a number only: no client is ever stored (privacy, ADR 0022).
+ */
 export const unifiSite = pgTable(
   "unifi_site",
   {
@@ -1290,6 +1310,7 @@ export const unifiSite = pgTable(
   (t) => [uniqueIndex("unifi_site_connection_uq").on(t.connectionId, t.unifiId)],
 );
 
+/** Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0. */
 export const unifiDevice = pgTable(
   "unifi_device",
   {
@@ -1332,6 +1353,7 @@ export const unifiDevice = pgTable(
   ],
 );
 
+/** Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0. */
 export const unifiSyncRun = pgTable(
   "unifi_sync_run",
   {
@@ -1362,6 +1384,8 @@ export const unifiSyncRun = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * Threat events read from the console's internal API (the IPS preview, ADR 0022): a sibling of
  * `wazuh_attack_event`. The sequence number comes from the same sequence, so the live stream orders and resumes the
  * events of both sources with one number. Only what the attack overview needs is kept: when, the source address, what
@@ -1400,10 +1424,12 @@ export const unifiThreatEvent = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* External exposure (ADR 0023): the organisation's public assets, seen from outside */
+/* Removed in 0.0.4 (ADR 0025): external exposure                            */
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * Organisation-wide switches of the exposure feature. Certificate Transparency is opt-in: the domain names of verified assets
  * are sent to a public search service, which is data leaving the network, so it is off until an owner or admin switches it on.
  */
@@ -1424,6 +1450,8 @@ export const exposureSettings = pgTable("exposure_settings", {
 });
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * A domain, host name or public address the organisation wants watched from the outside. `verifyToken` is the proof an
  * owner publishes (DNS TXT record or a file) before stage 2 may touch the asset; it is not a secret (it is published by design),
  * but it is unguessable and belongs to this organisation and asset alone. `passive` and `active` hold the newest snapshot of
@@ -1487,7 +1515,11 @@ export const exposureAsset = pgTable(
   ],
 );
 
-/** One look at an asset: stage 1 or stage 2. At most one is queued or running per asset and stage. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * One look at an asset: stage 1 or stage 2. At most one is queued or running per asset and stage.
+ */
 export const exposureRun = pgTable(
   "exposure_run",
   {
@@ -1519,7 +1551,11 @@ export const exposureRun = pgTable(
   ],
 );
 
-/** A thing wrong from the outside. Deduplicated per asset, rule and subject; resolved when the rule no longer fires. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * A thing wrong from the outside. Deduplicated per asset, rule and subject; resolved when the rule no longer fires.
+ */
 export const exposureFinding = pgTable(
   "exposure_finding",
   {
@@ -1553,7 +1589,11 @@ export const exposureFinding = pgTable(
   ],
 );
 
-/** A port that answered the last stage 2 run, per address. Ports that no longer answer are deleted. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * A port that answered the last stage 2 run, per address. Ports that no longer answer are deleted.
+ */
 export const exposurePort = pgTable(
   "exposure_port",
   {
@@ -1580,6 +1620,8 @@ export const exposurePort = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * A host name found in Certificate Transparency logs or in the DNS records of an asset, under the asset's own domain. It is only a
  * suggestion: nothing is looked at until an admin adds it as an asset.
  */
@@ -1608,10 +1650,12 @@ export const exposureDiscovery = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* Wazuh (ADR 0015): read-only XDR integration                                 */
+/* Removed in 0.0.4 (ADR 0025): Wazuh XDR                                     */
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * The connection to a customer-run Wazuh (one per organisation today; the tables carry the
  * connection id so more can follow without a migration of the data). The two service users'
  * passwords live in `wazuh_endpoint` as vault references; the API seals them, only the worker
@@ -1658,6 +1702,8 @@ export const wazuhConnection = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * One of the two endpoints of a connection: the manager REST API (JWT, port 55000) or the
  * indexer (port 9200). The certificate is pinned on first contact like an SSH host key
  * (trust `pin`), or verified against a certificate authority the admin uploaded (trust `ca`,
@@ -1711,7 +1757,11 @@ export const wazuhEndpoint = pgTable(
   (t) => [uniqueIndex("wazuh_endpoint_connection_kind_uq").on(t.connectionId, t.kind)],
 );
 
-/** An agent as the manager lists it. Replaced by every sync; the link to a server survives. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * An agent as the manager lists it. Replaced by every sync; the link to a server survives.
+ */
 export const wazuhAgent = pgTable(
   "wazuh_agent",
   {
@@ -1762,7 +1812,11 @@ export const wazuhAgent = pgTable(
   ],
 );
 
-/** The latest alert aggregates of a connection (packages/core/src/wazuh.ts, `Snapshot`): numbers only. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * The latest alert aggregates of a connection (packages/core/src/wazuh.ts, `Snapshot`): numbers only.
+ */
 export const wazuhSnapshot = pgTable("wazuh_snapshot", {
   connectionId: text("connection_id")
     .primaryKey()
@@ -1774,7 +1828,11 @@ export const wazuhSnapshot = pgTable("wazuh_snapshot", {
   syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
 });
 
-/** A small bounded sample of the latest file integrity events. Replaced as a whole by every sync. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * A small bounded sample of the latest file integrity events. Replaced as a whole by every sync.
+ */
 export const wazuhFimEvent = pgTable(
   "wazuh_fim_event",
   {
@@ -1797,6 +1855,8 @@ export const wazuhFimEvent = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * Source addresses of authentication failures and attacks, top 100 per window with their counts,
  * first and last alert and the agents they attacked: the data of the attack overview (ADR 0016).
  * Source addresses can be personal data, so they are replaced by every sync and deleted after the
@@ -1829,6 +1889,8 @@ export const wazuhSourceIp = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * Attack numbers per window (ADR 0016): all attack and authentication-failure alerts, distinct
  * sources, the targeted agents, and the previous period (with its source addresses, for the
  * change in countries). Replaced window by window by the sync, like `wazuh_source_ip`.
@@ -1856,6 +1918,8 @@ export const wazuhAttackWindow = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * The live attack feed of a connection (ADR 0021): its settings (on or off, how often to ask, from which rule level
  * on) and where it stands (the cursor, when it asked last, when the newest event happened, the last problem as a
  * short code). One row per connection, created by the worker or when an admin changes a setting. Nothing here is a
@@ -1895,6 +1959,8 @@ export const wazuhLiveState = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * The latest attack alerts the live feed read (ADR 0021): at most 500 per connection, and gone after the retention
  * period of the attack overview, because source addresses are personal data. Only the fields the page shows are kept;
  * never the log line. Description and agent name are text written by whoever attacks: stored cut and cleaned, shown as
@@ -1931,6 +1997,7 @@ export const wazuhAttackEvent = pgTable(
   ],
 );
 
+/** Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0. */
 export const wazuhSyncRun = pgTable(
   "wazuh_sync_run",
   {
@@ -1961,6 +2028,8 @@ export const wazuhSyncRun = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * "Summarise with AI" on the XDR page. The worker (the only process that opens the model's API
  * key) builds the prompt from the stored aggregates, calls the model and stores the answer here.
  * The content is an AI suggestion: untrusted text, rendered by the safe Markdown renderer.
@@ -1994,12 +2063,14 @@ export const wazuhSummary = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* Attack overview (ADR 0016): local GeoIP, retention, optional OSINT           */
+/* Removed in 0.0.4 (ADR 0025): attack overview, GeoIP, OSINT                 */
 /* -------------------------------------------------------------------------- */
 
 const inet = customType<{ data: string }>({ dataType: () => "inet" });
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * One load of a DB-IP CSV file (CC BY 4.0, never bundled): by an admin or by the opt-in monthly
  * download. A load runs in one transaction: its row is `loading` only inside that transaction, and
  * becomes `active` when the ranges have been validated and stored (the previous active dataset of
@@ -2029,7 +2100,11 @@ export const geoipDataset = pgTable(
   (t) => [uniqueIndex("geoip_dataset_active_uq").on(t.kind).where(sql`${t.state} = 'active'`)],
 );
 
-/** Address ranges to country codes. Non-overlapping within a dataset, so one index lookup finds an address. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * Address ranges to country codes. Non-overlapping within a dataset, so one index lookup finds an address.
+ */
 export const geoipCountryRange = pgTable(
   "geoip_country_range",
   {
@@ -2043,7 +2118,11 @@ export const geoipCountryRange = pgTable(
   (t) => [index("geoip_country_range_lookup").on(t.datasetId, t.rangeStart)],
 );
 
-/** Address ranges to autonomous system number and organisation. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * Address ranges to autonomous system number and organisation.
+ */
 export const geoipAsnRange = pgTable(
   "geoip_asn_range",
   {
@@ -2059,6 +2138,8 @@ export const geoipAsnRange = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * Settings of the attack overview, one row per organisation: how long source addresses are kept,
  * the opt-in monthly GeoIP download and the optional OSINT enrichment. Everything that sends data
  * out is off by default. The OSINT API key lives in the vault (`secret`, purpose `osint-api-key`);
@@ -2119,7 +2200,11 @@ export const attackSettings = pgTable(
   ],
 );
 
-/** What a provider said about a public source address, kept for 24 hours and then looked up again; score, count and date only. */
+/**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
+ * What a provider said about a public source address, kept for 24 hours and then looked up again; score, count and date only.
+ */
 export const attackOsintResult = pgTable(
   "attack_osint_result",
   {
@@ -2142,6 +2227,8 @@ export const attackOsintResult = pgTable(
 );
 
 /**
+ * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
+ *
  * "Summarise with AI" on the Attacks page. Same life cycle as `wazuh_summary`; the model sees
  * numbers per country and AS only, never an address (packages/core/src/attack-summary.ts).
  */

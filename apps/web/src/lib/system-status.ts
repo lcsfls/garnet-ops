@@ -18,11 +18,7 @@ export const LEVEL_TONE: Record<StatusLevel, BadgeTone> = {
 
 /** The settings section where an integration is set up. */
 export const INTEGRATION_SECTION: Record<IntegrationKey, SettingsSection> = {
-  wazuh: "xdr",
-  proxmox: "proxmox",
-  unifi: "unifi",
   directory: "signin",
-  exposure: "exposure",
   ai: "ai",
   notifications: "notifications",
 };
@@ -39,15 +35,6 @@ export const camelState = <S extends string>(state: S): Camel<S> =>
 
 /** Message key part of a vulnerability database source (`local-build` -> `localBuild`). */
 export const SOURCE_KEY = { anchore: "anchore", manual: "manual", "local-build": "localBuild" } as const;
-
-/** The `YYYY-MM` of a GeoIP release as "October 2026" in the UI language; anything else is shown as it is. */
-export function monthLabel(month: string, language: string): string {
-  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
-  if (!match) return month;
-  return new Intl.DateTimeFormat(language, { month: "long", year: "numeric", timeZone: "UTC" }).format(
-    new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)),
-  );
-}
 
 /** Whether the current user can open a settings section from this page. The directory is for owners alone (ADR 0020). */
 export const canOpenSection = (section: SettingsSection, role: string): boolean =>

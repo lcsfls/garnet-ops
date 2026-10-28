@@ -14,9 +14,7 @@
       "!.tools",
       "!design/mockup",
       "!**/drizzle/meta",
-      "!**/routeTree.gen.ts",
-      "!apps/web/src/assets/world-map.ts",
-      "!apps/web/src/assets/world-geo.ts"
+      "!**/routeTree.gen.ts"
     ]
   },
   "formatter": {

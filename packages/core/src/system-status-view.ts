@@ -20,12 +20,6 @@ import type {
  */
 export interface Reason {
   family:
-    | "proxmox"
-    | "wazuh"
-    | "wazuh-code"
-    | "unifi"
-    | "exposure"
-    | "geoip"
     | "ai"
     | "vulndb-update"
     /** A reason of the status page itself, such as "the directory could not be asked". */
@@ -61,23 +55,7 @@ export interface BuildProviderStatus {
   reason: string | null;
 }
 
-export interface GeoipDatasetStatus {
-  kind: "country" | "asn";
-  level: StatusLevel;
-  /** `none`: nothing loaded. */
-  state: "loaded" | "none";
-  /** `YYYY-MM` of the DB-IP release. */
-  month: string | null;
-  ageDays: number | null;
-  freshness: Freshness;
-  loadedAt: string | null;
-  rows: number | null;
-  source: "import" | "download" | null;
-  /** The last refused load, if it is newer than the loaded dataset. */
-  failure: { source: "import" | "download"; error: string; at: string } | null;
-}
-
-/** One connection (a cluster, a console, a channel) that needs a look. */
+/** One connection (a directory, a channel) that needs a look. */
 export interface InstanceStatus {
   name: string;
   state: IntegrationState;
@@ -87,7 +65,7 @@ export interface InstanceStatus {
 }
 
 export interface IntegrationPartStatus {
-  /** `sync`, `live`, `ips`, `reconcile`, `stage1`, `stage2`, `verification`, `probe`, `delivery`. */
+  /** `reconcile`, `probe`, `delivery`. */
   key: string;
   state: IntegrationState;
   level: StatusLevel;
@@ -97,27 +75,20 @@ export interface IntegrationPartStatus {
   lastAttemptOk: boolean | null;
   blocked: BlockReason | null;
   reason: Reason | null;
-  /** Counts that explain the state: assets lost, channels failed, the endpoint scope. */
+  /** Counts that explain the state: channels failed, the endpoint scope. */
   detail: Record<string, number | string | boolean | null>;
   /** The connections behind the part, worst first, at most five. */
   instances: InstanceStatus[];
 }
 
-export type IntegrationKey =
-  | "wazuh"
-  | "proxmox"
-  | "unifi"
-  | "directory"
-  | "exposure"
-  | "ai"
-  | "notifications";
+export type IntegrationKey = "directory" | "ai" | "notifications";
 
 export interface IntegrationStatus {
   key: IntegrationKey;
   state: IntegrationState;
   level: StatusLevel;
   configured: boolean;
-  /** Connections, channels or assets behind it. */
+  /** Connections or channels behind it. */
   count: number;
   parts: IntegrationPartStatus[];
 }
@@ -174,11 +145,6 @@ export interface SystemStatus {
     state: "not_set_up" | "set_up";
     lastBuildAt: string | null;
     providers: BuildProviderStatus[];
-  };
-  geoip: {
-    level: StatusLevel;
-    datasets: GeoipDatasetStatus[];
-    download: { enabled: boolean; lastAttemptAt: string | null; reason: Reason | null };
   };
   integrations: IntegrationStatus[];
   worker: {

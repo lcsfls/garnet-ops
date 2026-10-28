@@ -21,7 +21,7 @@ import { Checkbox } from "../ui/checkbox.tsx";
 import { Select } from "../ui/select.tsx";
 
 type Draft = Record<string, PreferenceRow["preference"]>;
-const GROUPS = ["code", "infrastructure", "account", "system"] as const;
+const GROUPS = ["code", "account", "system"] as const;
 
 const toDraft = (data: NotificationPreferences): Draft =>
   Object.fromEntries(data.events.map((row) => [row.event, row.preference]));

@@ -11,9 +11,6 @@ updates (the worker) and release checks (the optional update service).
 - A host name your users open, for example `garnetops.example.lan`
 - Outbound HTTPS from the host to your Git servers, and to `grype.anchore.io` if the
   worker should update the vulnerability database itself (`GARNETOPS_GRYPE_DB_UPDATE=auto`)
-- Only if you switch them on in Settings, Attack overview: outbound HTTPS from the worker to
-  `download.db-ip.com` (monthly download of the location data) and to `api.abuseipdb.com` (reputation
-  lookup). Both are off by default; the data can also be imported by hand ([attacks.md](attacks.md))
 - Only if you switch it on in Settings, Sign-in: LDAPS (usually port 636) or LDAP with StartTLS (port 389) from the
   **worker** to your directory servers ([ldap.md](ldap.md)). The browser never talks to the directory.
 

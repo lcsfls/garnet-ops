@@ -1,6 +1,8 @@
 # ADR 0023: External exposure monitoring with domain verification
 
-- Status: accepted (2026-10-22)
+> **Status: superseded by ADR 0025 (removed in 0.0.4).** The module was removed when GarnetOps became a pure developer pipeline. The text below is kept as the record of the decision; it describes the last version that has the module, the tag `v0.0.3`.
+
+- Status: superseded by ADR 0025 (removed in 0.0.4). Earlier status: accepted (2026-10-22)
 - Date: 2026-10-22
 - Decided by: maintainer (watching the organisation's own public assets from the outside, in two stages, the second only for assets
   whose control was proved)

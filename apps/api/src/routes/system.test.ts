@@ -53,7 +53,6 @@ const MIN = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const ago = (ms: number) => new Date(NOW.getTime() - ms);
-const FP = Array.from({ length: 32 }, (_, i) => (i + 16).toString(16).toUpperCase()).join(":");
 
 describe.skipIf(!adminUrl)("System status API", () => {
   let t: TestDatabase;
@@ -146,10 +145,8 @@ describe.skipIf(!adminUrl)("System status API", () => {
   });
 
   beforeEach(async () => {
-    await t.pool.query(`truncate worker_heartbeat, system_report, geoip_dataset, attack_settings, scan,
-      scan_schedule_run, proxmox_cluster, proxmox_sync_run, unifi_connection, unifi_sync_run, wazuh_connection,
-      wazuh_endpoint, wazuh_live_state, wazuh_sync_run, ldap_config, exposure_asset, ai_settings,
-      notification_channel, notification_delivery, repository cascade`);
+    await t.pool.query(`truncate worker_heartbeat, system_report, scan, scan_schedule_run, ldap_config,
+      ai_settings, notification_channel, notification_delivery, repository cascade`);
     held.updaterUrl = "";
     await t.db
       .update(schema.organization)
@@ -175,18 +172,27 @@ describe.skipIf(!adminUrl)("System status API", () => {
     });
 
     it("shows nothing of another organisation", async () => {
-      await t.db.insert(schema.proxmoxCluster).values({
-        id: "pxc_other",
+      await t.db.insert(schema.notificationChannel).values({
+        id: "nch_other",
         organizationId: OTHER,
-        name: "Other cluster",
-        apiUrl: "https://px-other.example.lan:8006",
-        host: "px-other.example.lan",
-        tokenId: "user@pve!t",
+        name: "Other channel",
+        kind: "webhook",
+        events: [],
+        config: {},
+      });
+      await t.db.insert(schema.notificationDelivery).values({
+        id: "ndl_other",
+        organizationId: OTHER,
+        channelId: "nch_other",
+        event: "scan.failed",
+        status: "failed",
+        error: "timeout",
       });
       const r = await call("admin", ORG);
-      expect(r.text).not.toContain("Other cluster");
+      expect(r.text).not.toContain("Other channel");
       const other = await call("admin", OTHER);
-      expect(other.json.integrations.find((i: Json) => i.key === "proxmox").count).toBe(1);
+      expect(other.json.integrations.find((i: Json) => i.key === "notifications").count).toBe(1);
+      expect(other.text).toContain("Other channel");
     });
   });
 
@@ -197,7 +203,6 @@ describe.skipIf(!adminUrl)("System status API", () => {
         [
           "app",
           "generatedAt",
-          "geoip",
           "integrations",
           "localBuild",
           "overall",
@@ -209,31 +214,12 @@ describe.skipIf(!adminUrl)("System status API", () => {
       );
       expect(r.json.refreshSeconds).toBe(60);
       expect(r.json.app.version).toBe("0.0.3");
-      expect(r.json.integrations.map((i: Json) => i.key)).toEqual([
-        "wazuh",
-        "proxmox",
-        "unifi",
-        "directory",
-        "ai",
-        "exposure",
-        "notifications",
-      ]);
+      expect(r.json.integrations.map((i: Json) => i.key)).toEqual(["directory", "ai", "notifications"]);
       expect(r.json.scanners.items.map((s: Json) => s.name)).toEqual(["grype", "syft"]);
       expect(r.json.vulnDb.thresholds).toEqual({ staleAfterDays: 3, outdatedAfterDays: 7 });
     });
 
     it("never carries a secret, an address or a fingerprint", async () => {
-      await t.db.insert(schema.proxmoxCluster).values({
-        id: "pxc_secret",
-        organizationId: ORG,
-        name: "Lab cluster",
-        apiUrl: "https://px-secret.example.lan:8006",
-        host: "px-secret.example.lan",
-        tokenId: "garnetops@pve!inventory",
-        certStatus: "changed",
-        certFingerprint: FP,
-        candidateFingerprint: FP,
-      });
       await t.db.insert(schema.notificationChannel).values({
         id: "nch_secret",
         organizationId: ORG,
@@ -241,17 +227,37 @@ describe.skipIf(!adminUrl)("System status API", () => {
         kind: "smtp",
         events: [],
         config: { host: "smtp-secret.example.lan", recipients: ["ops@example.test"] },
+        secretId: null,
+      });
+      await t.db.insert(schema.notificationDelivery).values({
+        id: "ndl_secret",
+        organizationId: ORG,
+        channelId: "nch_secret",
+        event: "scan.failed",
+        status: "failed",
+        error: "refused address",
+      });
+      await t.db.insert(schema.ldapConfig).values({
+        organizationId: ORG,
+        enabled: true,
+        preset: "openldap",
+        bindDn: "cn=reader,dc=example,dc=lan",
+        userBaseDn: "ou=people,dc=example,dc=lan",
+        userFilter: "(uid={{username}})",
+        uniqueIdAttribute: "entryUUID",
+        groupMode: "member-of",
+        servers: [{ url: "ldaps://dc1.example.lan", pin: null, candidate: null, certStatus: "changed" }],
       });
       const r = await call();
-      expect(r.text).toContain("Lab cluster");
+      expect(r.text).toContain("Ops mail");
       for (const forbidden of [
         "example.lan",
         "example.test",
-        FP,
-        "inventory",
+        "cn=reader",
         "secretId",
         "password",
         "apiKey",
+        "fingerprint",
       ]) {
         expect(r.text, forbidden).not.toContain(forbidden);
       }
@@ -430,83 +436,6 @@ describe.skipIf(!adminUrl)("System status API", () => {
     });
   });
 
-  describe("GeoIP", () => {
-    const dataset = (
-      kind: "country" | "asn",
-      month: string,
-      extra: Partial<typeof schema.geoipDataset.$inferInsert> = {},
-    ) =>
-      t.db.insert(schema.geoipDataset).values({
-        id: `geo_${++counter}`,
-        kind,
-        state: "active",
-        source: "import",
-        datasetMonth: month,
-        rowCount: 900_000,
-        createdAt: ago(DAY),
-        finishedAt: ago(DAY),
-        ...extra,
-      });
-
-    it("is inactive when nothing was loaded", async () => {
-      const s = await view();
-      expect(s.geoip.level).toBe("inactive");
-      expect(s.geoip.datasets.map((d) => [d.kind, d.state, d.level])).toEqual([
-        ["country", "none", "inactive"],
-        ["asn", "none", "inactive"],
-      ]);
-    });
-
-    it("is current in its month, stale after 45 days and outdated after 90", async () => {
-      await dataset("country", "2026-10");
-      await dataset("asn", "2026-09");
-      let s = await view();
-      expect(s.geoip.datasets[0]).toMatchObject({
-        freshness: "current",
-        level: "ok",
-        month: "2026-10",
-        ageDays: 22,
-        rows: 900_000,
-        source: "import",
-      });
-      expect(s.geoip.datasets[1]).toMatchObject({ freshness: "stale", level: "attention", month: "2026-09" });
-      await t.pool.query("delete from geoip_dataset where kind = 'asn'");
-      await dataset("asn", "2026-06");
-      s = await view();
-      expect(s.geoip.datasets[1]).toMatchObject({ freshness: "outdated", level: "failed" });
-      expect(s.geoip.level).toBe("failed");
-    });
-
-    it("shows a refused load and the last download attempt", async () => {
-      await dataset("country", "2026-10");
-      await t.db.insert(schema.geoipDataset).values({
-        id: "geo_failed",
-        kind: "country",
-        state: "failed",
-        source: "download",
-        error: "corrupt",
-        createdAt: ago(HOUR),
-        finishedAt: ago(HOUR),
-      });
-      await t.db.insert(schema.attackSettings).values({
-        organizationId: ORG,
-        geoipDownloadEnabled: true,
-        geoipDownloadLastAttemptAt: ago(HOUR),
-        geoipDownloadLastError: "unreachable",
-      });
-      const s = await view();
-      expect(s.geoip.datasets[0]).toMatchObject({
-        level: "attention",
-        failure: { source: "download", error: "corrupt" },
-      });
-      expect(s.geoip.download).toEqual({
-        enabled: true,
-        lastAttemptAt: ago(HOUR).toISOString(),
-        reason: { family: "geoip", value: "unreachable" },
-      });
-    });
-  });
-
   describe("integrations", () => {
     it("are all not configured on a fresh installation", async () => {
       const s = await view();
@@ -519,202 +448,6 @@ describe.skipIf(!adminUrl)("System status API", () => {
           parts: [],
         });
       }
-    });
-
-    const proxmox = (name: string, extra: Partial<typeof schema.proxmoxCluster.$inferInsert> = {}) =>
-      t.db.insert(schema.proxmoxCluster).values({
-        id: `pxc_${++counter}`,
-        organizationId: ORG,
-        name,
-        apiUrl: `https://px${counter}.example.lan:8006`,
-        host: `px${counter}.example.lan`,
-        tokenId: "user@pve!t",
-        certStatus: "confirmed",
-        certFingerprint: FP,
-        lastSyncAt: ago(5 * MIN),
-        ...extra,
-      });
-
-    it("shows a fresh sync as current", async () => {
-      await proxmox("Lab");
-      const s = await view();
-      expect(row(s, "proxmox")).toMatchObject({ state: "current", level: "ok", configured: true, count: 1 });
-      expect(partOf(s, "proxmox", "sync")).toMatchObject({
-        state: "current",
-        lastSuccessAt: ago(5 * MIN).toISOString(),
-        instances: [],
-      });
-    });
-
-    it("shows a sync that stopped as stale, a failed one with its reason, and one waiting for an admin as blocked", async () => {
-      await proxmox("Quiet", { lastSyncAt: ago(2 * HOUR) });
-      let p = partOf(await view(), "proxmox", "sync");
-      expect(p).toMatchObject({ state: "stale", level: "attention" });
-      expect(p?.instances).toEqual([
-        {
-          name: "Quiet",
-          state: "stale",
-          lastSuccessAt: ago(2 * HOUR).toISOString(),
-          reason: null,
-          blocked: null,
-        },
-      ]);
-
-      await proxmox("Broken", { lastError: "The Proxmox server did not answer in time." });
-      p = partOf(await view(), "proxmox", "sync");
-      expect(p).toMatchObject({
-        state: "failed",
-        level: "failed",
-        lastAttemptOk: false,
-        reason: { family: "proxmox", value: "The Proxmox server did not answer in time." },
-      });
-      expect(p?.instances.map((i) => [i.name, i.state])).toEqual([
-        ["Broken", "failed"],
-        ["Quiet", "stale"],
-      ]);
-
-      await proxmox("Changed", {
-        certStatus: "changed",
-        lastError: "The certificate of the Proxmox server changed.",
-      });
-      await proxmox("Privileged", { extraPrivileges: ["Sys.Modify"], acknowledgedPrivileges: [] });
-      const s = await view();
-      p = partOf(s, "proxmox", "sync");
-      expect(p?.instances.find((i) => i.name === "Changed")).toMatchObject({
-        state: "blocked",
-        blocked: "certificate",
-      });
-      expect(p?.instances.find((i) => i.name === "Privileged")).toMatchObject({
-        state: "blocked",
-        blocked: "privileges",
-      });
-      // Blocked outranks a failure it explains, and failed outranks blocked as a whole.
-      expect(row(s, "proxmox")).toMatchObject({ state: "failed", level: "failed", count: 4 });
-    });
-
-    it("uses the finished run for the time of the last attempt", async () => {
-      const id = "pxc_runs";
-      await proxmox("Runs", {
-        id,
-        lastSyncAt: ago(3 * HOUR),
-        lastError: "The Proxmox server could not be reached.",
-      });
-      await t.db.insert(schema.proxmoxSyncRun).values({
-        id: "pxr_1",
-        organizationId: ORG,
-        clusterId: id,
-        state: "failed",
-        trigger: "schedule",
-        error: "The Proxmox server could not be reached.",
-        finishedAt: ago(10 * MIN),
-      });
-      expect(partOf(await view(), "proxmox", "sync")).toMatchObject({
-        lastAttemptAt: ago(10 * MIN).toISOString(),
-        lastSuccessAt: ago(3 * HOUR).toISOString(),
-        lastAttemptOk: false,
-      });
-    });
-
-    it("keeps a paused connection quiet", async () => {
-      await proxmox("Paused", {
-        enabled: false,
-        lastSyncAt: ago(30 * DAY),
-        lastError: "The Proxmox server could not be reached.",
-      });
-      expect(row(await view(), "proxmox")).toMatchObject({ state: "paused", level: "inactive" });
-    });
-
-    it("reads Wazuh: the sync, the live feed, and a pinned certificate that is waiting", async () => {
-      const connection = {
-        id: "wzc_1",
-        organizationId: ORG,
-        name: "Wazuh",
-        lastSyncAt: ago(4 * MIN),
-      };
-      await t.db.insert(schema.wazuhConnection).values(connection);
-      const endpoint = (kind: "manager" | "indexer", certStatus: "confirmed" | "changed") =>
-        t.db.insert(schema.wazuhEndpoint).values({
-          id: `wze_${kind}`,
-          organizationId: ORG,
-          connectionId: "wzc_1",
-          kind,
-          apiUrl: `https://wz-${kind}.example.lan`,
-          host: `wz-${kind}.example.lan`,
-          port: 55000,
-          username: "reader",
-          certStatus,
-        });
-      await endpoint("manager", "confirmed");
-      await endpoint("indexer", "confirmed");
-      await t.db.insert(schema.wazuhLiveState).values({
-        connectionId: "wzc_1",
-        organizationId: ORG,
-        intervalSeconds: 30,
-        lastPollAt: ago(MIN),
-      });
-      let s = await view();
-      expect(row(s, "wazuh")).toMatchObject({ state: "current", level: "ok" });
-      expect(partOf(s, "wazuh", "live")).toMatchObject({ state: "current", lastAttemptOk: true });
-
-      await t.db.update(schema.wazuhLiveState).set({ lastError: "indexerUnreachable" });
-      s = await view();
-      expect(partOf(s, "wazuh", "live")).toMatchObject({
-        state: "failed",
-        reason: { family: "wazuh-code", value: "indexerUnreachable" },
-      });
-      expect(partOf(s, "wazuh", "sync")?.state).toBe("current");
-
-      await t.db.update(schema.wazuhEndpoint).set({ certStatus: "changed" });
-      s = await view();
-      expect(partOf(s, "wazuh", "sync")).toMatchObject({ state: "blocked", blocked: "certificate" });
-      expect(partOf(s, "wazuh", "live")).toMatchObject({ state: "blocked", blocked: "certificate" });
-    });
-
-    it("reads Wazuh privileges that nobody acknowledged as blocked", async () => {
-      await t.db.insert(schema.wazuhConnection).values({
-        id: "wzc_2",
-        organizationId: ORG,
-        name: "Wazuh",
-        lastSyncAt: ago(MIN),
-        extraPrivileges: ["agent:delete"],
-        acknowledgedPrivileges: [],
-      });
-      expect(partOf(await view(), "wazuh", "sync")).toMatchObject({
-        state: "blocked",
-        blocked: "privileges",
-      });
-    });
-
-    it("reads UniFi: the sync, and the IPS preview only when it is on", async () => {
-      await t.db.insert(schema.unifiConnection).values({
-        id: "ufc_1",
-        organizationId: ORG,
-        name: "Office",
-        apiUrl: "https://uf.example.lan:443",
-        host: "uf.example.lan",
-        certStatus: "confirmed",
-        lastSyncAt: ago(MIN),
-      });
-      let s = await view();
-      expect(row(s, "unifi")).toMatchObject({ state: "current" });
-      expect(partOf(s, "unifi", "ips")).toMatchObject({ state: "not_configured", level: "inactive" });
-
-      await t.db.update(schema.unifiConnection).set({
-        ipsEnabled: true,
-        ipsLastPollAt: ago(MIN),
-        ipsRights: ["admin"],
-        ipsRightsAcknowledged: [],
-      });
-      s = await view();
-      expect(partOf(s, "unifi", "ips")).toMatchObject({ state: "blocked", blocked: "privileges" });
-
-      await t.db.update(schema.unifiConnection).set({
-        ipsRights: [],
-        ipsLastError: "The console rejected the login of the IPS user.",
-      });
-      s = await view();
-      expect(partOf(s, "unifi", "ips")).toMatchObject({ state: "failed", level: "failed" });
-      expect(row(s, "unifi")?.level).toBe("failed");
     });
 
     it("reads the directory check: ok, never run, could not ask, and a blocked service account", async () => {
@@ -757,58 +490,6 @@ describe.skipIf(!adminUrl)("System status API", () => {
 
       await t.db.update(schema.ldapConfig).set({ enabled: false });
       expect(row(await view(), "directory")).toMatchObject({ state: "paused", level: "inactive" });
-    });
-
-    it("reads exposure: both stages, the proof of control, and what was lost", async () => {
-      const asset = (value: string, extra: Partial<typeof schema.exposureAsset.$inferInsert> = {}) =>
-        t.db.insert(schema.exposureAsset).values({
-          id: `exa_${++counter}`,
-          organizationId: ORG,
-          kind: "domain",
-          value,
-          verifyToken: `token-${counter}-${"x".repeat(40)}`,
-          lastPassiveAt: ago(2 * HOUR),
-          ...extra,
-        });
-      await asset("a.example.com", {
-        verifyState: "verified",
-        verifiedAt: ago(DAY),
-        verifyCheckedAt: ago(HOUR),
-      });
-      let s = await view();
-      expect(partOf(s, "exposure", "stage1")).toMatchObject({ state: "current" });
-      expect(partOf(s, "exposure", "stage2")).toMatchObject({ state: "not_configured" });
-      expect(partOf(s, "exposure", "verification")).toMatchObject({
-        state: "current",
-        detail: { lost: 0, verified: 1 },
-      });
-
-      await asset("b.example.com", {
-        verifyState: "lost",
-        verifyError: "dnsNoMatch",
-        stage2Enabled: true,
-        lastActiveAt: ago(10 * DAY),
-        passiveError: "timeout",
-      });
-      s = await view();
-      expect(partOf(s, "exposure", "verification")).toMatchObject({
-        state: "blocked",
-        blocked: "verification",
-        detail: { lost: 1, verified: 1, unverified: 0 },
-        instances: [
-          { name: "b.example.com", state: "blocked", reason: { family: "exposure", value: "dnsNoMatch" } },
-        ],
-      });
-      expect(partOf(s, "exposure", "stage1")).toMatchObject({
-        state: "failed",
-        reason: { family: "exposure", value: "timeout" },
-      });
-      // An error text this version does not know is shown as the generic one, never as it was stored.
-      await t.db.update(schema.exposureAsset).set({ passiveError: "some free text from elsewhere" });
-      expect(partOf(await view(), "exposure", "stage1")?.reason).toEqual({
-        family: "exposure",
-        value: "unexpected",
-      });
     });
 
     it("reads the AI endpoint: tested, failed, replaced since, and external without acknowledgement", async () => {
@@ -1150,16 +831,22 @@ describe.skipIf(!adminUrl)("System status API", () => {
       s = await view();
       expect(s.overall).toEqual({ level: "attention", attention: 1, failed: 0 });
 
-      await t.db.insert(schema.proxmoxCluster).values({
-        id: "pxc_v",
+      await t.db.insert(schema.notificationChannel).values({
+        id: "nch_v",
         organizationId: ORG,
-        name: "Lab",
-        apiUrl: "https://pxv.example.lan:8006",
-        host: "pxv.example.lan",
-        tokenId: "user@pve!t",
-        certStatus: "confirmed",
-        lastSyncAt: ago(MIN),
-        lastError: "The Proxmox server did not answer in time.",
+        name: "Chat",
+        kind: "webhook",
+        events: [],
+        config: {},
+      });
+      await t.db.insert(schema.notificationDelivery).values({
+        id: "ndl_v",
+        organizationId: ORG,
+        channelId: "nch_v",
+        event: "scan.failed",
+        status: "failed",
+        error: "timeout",
+        createdAt: ago(MIN),
       });
       s = await view();
       expect(s.overall).toEqual({ level: "failed", attention: 1, failed: 1 });

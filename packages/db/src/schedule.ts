@@ -8,8 +8,6 @@ export interface StartedRun {
   /** Intended local date of the run in the organisation's zone, "YYYY-MM-DD". */
   localDate: string;
   scans: { scanId: string; repositoryId: string }[];
-  /** Server inventories queued by the same run (ADR 0011). */
-  hostRuns: { runId: string; hostId: string }[];
 }
 
 /**
@@ -23,9 +21,8 @@ export interface StartedRun {
  * - several workers ticking at once start each run exactly once.
  * Organisations with a zone PostgreSQL does not know are skipped, not fatal.
  *
- * Queues a scan for each repository without a queued or running scan, and an
- * inventory for each server with a confirmed host key and no queued or running
- * one, in the same transaction. The caller sends the jobs after this returns.
+ * Queues a scan for each repository without a queued or running scan in the
+ * same transaction. The caller sends the jobs after this returns.
  */
 export async function startDueNightlyRuns(db: Database, asOf?: Date): Promise<StartedRun[]> {
   const at = asOf ? sql`${asOf.toISOString()}::timestamptz` : sql`now()`;
@@ -94,40 +91,7 @@ export async function startDueNightlyRuns(db: Database, asOf?: Date): Promise<St
           ),
         );
 
-      const hosts = await tx
-        .select({ id: schema.host.id })
-        .from(schema.host)
-        .where(
-          and(
-            eq(schema.host.organizationId, row.organization_id),
-            eq(schema.host.hostKeyStatus, "confirmed"),
-            notExists(
-              tx
-                .select({ one: sql`1` })
-                .from(schema.hostInventoryRun)
-                .where(
-                  and(
-                    eq(schema.hostInventoryRun.hostId, schema.host.id),
-                    inArray(schema.hostInventoryRun.state, ["queued", "running"]),
-                  ),
-                ),
-            ),
-          ),
-        );
-      const hostRuns = hosts.map((h) => ({ runId: newId("hrun"), hostId: h.id }));
-      if (hostRuns.length) {
-        await tx.insert(schema.hostInventoryRun).values(
-          hostRuns.map((r) => ({
-            id: r.runId,
-            organizationId: row.organization_id,
-            hostId: r.hostId,
-            state: "queued" as const,
-            trigger: "schedule" as const,
-            createdAt,
-          })),
-        );
-      }
-      runs.push({ organizationId: row.organization_id, localDate: row.local_date, scans, hostRuns });
+      runs.push({ organizationId: row.organization_id, localDate: row.local_date, scans });
     }
     return runs;
   });
@@ -147,21 +111,5 @@ export async function strandedQueuedScans(
     .from(schema.scan)
     .where(
       and(eq(schema.scan.state, "queued"), sql`${schema.scan.createdAt} < now() - ${olderThan}::interval`),
-    );
-}
-
-/** The same for server inventories: queued for a while, so their job may have been lost. */
-export async function strandedQueuedHostRuns(
-  db: Database,
-  olderThan = "10 minutes",
-): Promise<{ runId: string; hostId: string }[]> {
-  return db
-    .select({ runId: schema.hostInventoryRun.id, hostId: schema.hostInventoryRun.hostId })
-    .from(schema.hostInventoryRun)
-    .where(
-      and(
-        eq(schema.hostInventoryRun.state, "queued"),
-        sql`${schema.hostInventoryRun.createdAt} < now() - ${olderThan}::interval`,
-      ),
     );
 }

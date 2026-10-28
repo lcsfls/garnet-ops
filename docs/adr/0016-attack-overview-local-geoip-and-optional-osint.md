@@ -1,6 +1,8 @@
 # ADR 0016: Attack overview with local GeoIP and optional OSINT
 
-- Status: proposed (2026-10-22), for review by the maintainer
+> **Status: superseded by ADR 0025 (removed in 0.0.4).** The module was removed when GarnetOps became a pure developer pipeline. The text below is kept as the record of the decision; it describes the last version that has the module, the tag `v0.0.3`.
+
+- Status: superseded by ADR 0025 (removed in 0.0.4). Earlier status: proposed (2026-10-22), for review by the maintainer
 - Date: 2026-10-22
 - Implements: ROADMAP Phase 4 "Attack overview: local GeoIP (DB-IP Lite), optional OSINT enrichment";
   mockup view "Attacks"

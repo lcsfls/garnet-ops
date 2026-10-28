@@ -151,8 +151,6 @@ export interface TriageFacts {
   branch: string | null;
   /** Other repositories of the organisation with the same vulnerability (a count, not names). */
   otherRepositories: number;
-  /** Servers with the same vulnerability (a count, not names). */
-  affectedServers: number;
 }
 
 export const SYSTEM_PROMPT = [
@@ -223,7 +221,6 @@ function dataBlock(facts: TriageFacts, boundary: string): string {
     },
     elsewhere: {
       otherRepositoriesWithThisVulnerability: facts.otherRepositories,
-      serversWithThisVulnerability: facts.affectedServers,
     },
   };
   // Neither marker can appear inside: JSON escapes nothing about them, so they are removed outright.

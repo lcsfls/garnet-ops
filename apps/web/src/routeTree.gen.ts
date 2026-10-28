@@ -18,22 +18,16 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAccountRouteImport } from './routes/_app/account'
-import { Route as AppAttacksRouteImport } from './routes/_app/attacks'
 import { Route as AppAuditLogRouteImport } from './routes/_app/audit-log'
-import { Route as AppExposureRouteImport } from './routes/_app/exposure'
 import { Route as AppFindingsRouteImport } from './routes/_app/findings'
 import { Route as AppFixesRouteImport } from './routes/_app/fixes'
 import { Route as AppGatesRouteImport } from './routes/_app/gates'
 import { Route as AppPackagesRouteImport } from './routes/_app/packages'
 import { Route as AppRepositoriesRouteImport } from './routes/_app/repositories'
-import { Route as AppServersRouteImport } from './routes/_app/servers'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSystemRouteImport } from './routes/_app/system'
 import { Route as AppTeamRouteImport } from './routes/_app/team'
-import { Route as AppXdrRouteImport } from './routes/_app/xdr'
-import { Route as AppExposureIdRouteImport } from './routes/_app/exposure_.$id'
 import { Route as AppRepositoriesIdRouteImport } from './routes/_app/repositories_.$id'
-import { Route as AppServersIdRouteImport } from './routes/_app/servers_.$id'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -79,19 +73,9 @@ const AppAccountRoute = AppAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAttacksRoute = AppAttacksRouteImport.update({
-  id: '/attacks',
-  path: '/attacks',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppAuditLogRoute = AppAuditLogRouteImport.update({
   id: '/audit-log',
   path: '/audit-log',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppExposureRoute = AppExposureRouteImport.update({
-  id: '/exposure',
-  path: '/exposure',
   getParentRoute: () => AppRoute,
 } as any)
 const AppFindingsRoute = AppFindingsRouteImport.update({
@@ -119,11 +103,6 @@ const AppRepositoriesRoute = AppRepositoriesRouteImport.update({
   path: '/repositories',
   getParentRoute: () => AppRoute,
 } as any)
-const AppServersRoute = AppServersRouteImport.update({
-  id: '/servers',
-  path: '/servers',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -139,24 +118,9 @@ const AppTeamRoute = AppTeamRouteImport.update({
   path: '/team',
   getParentRoute: () => AppRoute,
 } as any)
-const AppXdrRoute = AppXdrRouteImport.update({
-  id: '/xdr',
-  path: '/xdr',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppExposureIdRoute = AppExposureIdRouteImport.update({
-  id: '/exposure_/$id',
-  path: '/exposure/$id',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppRepositoriesIdRoute = AppRepositoriesIdRouteImport.update({
   id: '/repositories_/$id',
   path: '/repositories/$id',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppServersIdRoute = AppServersIdRouteImport.update({
-  id: '/servers_/$id',
-  path: '/servers/$id',
   getParentRoute: () => AppRoute,
 } as any)
 
@@ -169,22 +133,16 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
   '/account': typeof AppAccountRoute
-  '/attacks': typeof AppAttacksRoute
   '/audit-log': typeof AppAuditLogRoute
-  '/exposure': typeof AppExposureRoute
   '/findings': typeof AppFindingsRoute
   '/fixes': typeof AppFixesRoute
   '/gates': typeof AppGatesRoute
   '/packages': typeof AppPackagesRoute
   '/repositories': typeof AppRepositoriesRoute
-  '/servers': typeof AppServersRoute
   '/settings': typeof AppSettingsRoute
   '/system': typeof AppSystemRoute
   '/team': typeof AppTeamRoute
-  '/xdr': typeof AppXdrRoute
-  '/exposure/$id': typeof AppExposureIdRoute
   '/repositories/$id': typeof AppRepositoriesIdRoute
-  '/servers/$id': typeof AppServersIdRoute
 }
 export interface FileRoutesByTo {
   '/enroll': typeof EnrollRoute
@@ -194,23 +152,17 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
   '/account': typeof AppAccountRoute
-  '/attacks': typeof AppAttacksRoute
   '/audit-log': typeof AppAuditLogRoute
-  '/exposure': typeof AppExposureRoute
   '/findings': typeof AppFindingsRoute
   '/fixes': typeof AppFixesRoute
   '/gates': typeof AppGatesRoute
   '/packages': typeof AppPackagesRoute
   '/repositories': typeof AppRepositoriesRoute
-  '/servers': typeof AppServersRoute
   '/settings': typeof AppSettingsRoute
   '/system': typeof AppSystemRoute
   '/team': typeof AppTeamRoute
-  '/xdr': typeof AppXdrRoute
   '/': typeof AppIndexRoute
-  '/exposure/$id': typeof AppExposureIdRoute
   '/repositories/$id': typeof AppRepositoriesIdRoute
-  '/servers/$id': typeof AppServersIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -222,23 +174,17 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute
   '/two-factor': typeof TwoFactorRoute
   '/_app/account': typeof AppAccountRoute
-  '/_app/attacks': typeof AppAttacksRoute
   '/_app/audit-log': typeof AppAuditLogRoute
-  '/_app/exposure': typeof AppExposureRoute
   '/_app/findings': typeof AppFindingsRoute
   '/_app/fixes': typeof AppFixesRoute
   '/_app/gates': typeof AppGatesRoute
   '/_app/packages': typeof AppPackagesRoute
   '/_app/repositories': typeof AppRepositoriesRoute
-  '/_app/servers': typeof AppServersRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/system': typeof AppSystemRoute
   '/_app/team': typeof AppTeamRoute
-  '/_app/xdr': typeof AppXdrRoute
   '/_app/': typeof AppIndexRoute
-  '/_app/exposure_/$id': typeof AppExposureIdRoute
   '/_app/repositories_/$id': typeof AppRepositoriesIdRoute
-  '/_app/servers_/$id': typeof AppServersIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -251,22 +197,16 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/two-factor'
     | '/account'
-    | '/attacks'
     | '/audit-log'
-    | '/exposure'
     | '/findings'
     | '/fixes'
     | '/gates'
     | '/packages'
     | '/repositories'
-    | '/servers'
     | '/settings'
     | '/system'
     | '/team'
-    | '/xdr'
-    | '/exposure/$id'
     | '/repositories/$id'
-    | '/servers/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/enroll'
@@ -276,23 +216,17 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/two-factor'
     | '/account'
-    | '/attacks'
     | '/audit-log'
-    | '/exposure'
     | '/findings'
     | '/fixes'
     | '/gates'
     | '/packages'
     | '/repositories'
-    | '/servers'
     | '/settings'
     | '/system'
     | '/team'
-    | '/xdr'
     | '/'
-    | '/exposure/$id'
     | '/repositories/$id'
-    | '/servers/$id'
   id:
     | '__root__'
     | '/_app'
@@ -303,23 +237,17 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/two-factor'
     | '/_app/account'
-    | '/_app/attacks'
     | '/_app/audit-log'
-    | '/_app/exposure'
     | '/_app/findings'
     | '/_app/fixes'
     | '/_app/gates'
     | '/_app/packages'
     | '/_app/repositories'
-    | '/_app/servers'
     | '/_app/settings'
     | '/_app/system'
     | '/_app/team'
-    | '/_app/xdr'
     | '/_app/'
-    | '/_app/exposure_/$id'
     | '/_app/repositories_/$id'
-    | '/_app/servers_/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -397,25 +325,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAccountRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/attacks': {
-      id: '/_app/attacks'
-      path: '/attacks'
-      fullPath: '/attacks'
-      preLoaderRoute: typeof AppAttacksRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/audit-log': {
       id: '/_app/audit-log'
       path: '/audit-log'
       fullPath: '/audit-log'
       preLoaderRoute: typeof AppAuditLogRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/exposure': {
-      id: '/_app/exposure'
-      path: '/exposure'
-      fullPath: '/exposure'
-      preLoaderRoute: typeof AppExposureRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/findings': {
@@ -453,13 +367,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRepositoriesRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/servers': {
-      id: '/_app/servers'
-      path: '/servers'
-      fullPath: '/servers'
-      preLoaderRoute: typeof AppServersRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
@@ -481,20 +388,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeamRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/xdr': {
-      id: '/_app/xdr'
-      path: '/xdr'
-      fullPath: '/xdr'
-      preLoaderRoute: typeof AppXdrRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/exposure_/$id': {
-      id: '/_app/exposure_/$id'
-      path: '/exposure/$id'
-      fullPath: '/exposure/$id'
-      preLoaderRoute: typeof AppExposureIdRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/repositories_/$id': {
       id: '/_app/repositories_/$id'
       path: '/repositories/$id'
@@ -502,56 +395,37 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRepositoriesIdRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/servers_/$id': {
-      id: '/_app/servers_/$id'
-      path: '/servers/$id'
-      fullPath: '/servers/$id'
-      preLoaderRoute: typeof AppServersIdRouteImport
-      parentRoute: typeof AppRoute
-    }
   }
 }
 
 interface AppRouteChildren {
   AppAccountRoute: typeof AppAccountRoute
-  AppAttacksRoute: typeof AppAttacksRoute
   AppAuditLogRoute: typeof AppAuditLogRoute
-  AppExposureRoute: typeof AppExposureRoute
   AppFindingsRoute: typeof AppFindingsRoute
   AppFixesRoute: typeof AppFixesRoute
   AppGatesRoute: typeof AppGatesRoute
   AppPackagesRoute: typeof AppPackagesRoute
   AppRepositoriesRoute: typeof AppRepositoriesRoute
-  AppServersRoute: typeof AppServersRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppSystemRoute: typeof AppSystemRoute
   AppTeamRoute: typeof AppTeamRoute
-  AppXdrRoute: typeof AppXdrRoute
   AppIndexRoute: typeof AppIndexRoute
-  AppExposureIdRoute: typeof AppExposureIdRoute
   AppRepositoriesIdRoute: typeof AppRepositoriesIdRoute
-  AppServersIdRoute: typeof AppServersIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppAccountRoute: AppAccountRoute,
-  AppAttacksRoute: AppAttacksRoute,
   AppAuditLogRoute: AppAuditLogRoute,
-  AppExposureRoute: AppExposureRoute,
   AppFindingsRoute: AppFindingsRoute,
   AppFixesRoute: AppFixesRoute,
   AppGatesRoute: AppGatesRoute,
   AppPackagesRoute: AppPackagesRoute,
   AppRepositoriesRoute: AppRepositoriesRoute,
-  AppServersRoute: AppServersRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppSystemRoute: AppSystemRoute,
   AppTeamRoute: AppTeamRoute,
-  AppXdrRoute: AppXdrRoute,
   AppIndexRoute: AppIndexRoute,
-  AppExposureIdRoute: AppExposureIdRoute,
   AppRepositoriesIdRoute: AppRepositoriesIdRoute,
-  AppServersIdRoute: AppServersIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
