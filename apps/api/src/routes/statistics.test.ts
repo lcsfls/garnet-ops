@@ -42,15 +42,13 @@ describe.skipIf(!adminUrl)("statistics API", () => {
 
   async function repo(name: string, org = ORG) {
     const id = `repo_st${++counter}`;
-    await t.db
-      .insert(schema.repository)
-      .values({
-        id,
-        organizationId: org,
-        name,
-        url: `https://git.example.lan/${name}.git`,
-        authKind: "none",
-      });
+    await t.db.insert(schema.repository).values({
+      id,
+      organizationId: org,
+      name,
+      url: `https://git.example.lan/${name}.git`,
+      authKind: "none",
+    });
     return id;
   }
 
