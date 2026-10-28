@@ -171,7 +171,11 @@ export default defineConfig({
       },
     },
     {
-      command: `corepack pnpm exec vite build && corepack pnpm exec vite preview --port ${E2E.webPort}`,
+      // GARNETOPS_E2E_WEB=svelte runs the suite against the SvelteKit rewrite (ADR 0027) under the same headers.
+      command:
+        process.env.GARNETOPS_E2E_WEB === "svelte"
+          ? `corepack pnpm --dir ../web-svelte build && node ../web-svelte/scripts/serve.mjs --port ${E2E.webPort}`
+          : `corepack pnpm exec vite build && corepack pnpm exec vite preview --port ${E2E.webPort}`,
       url: E2E.publicUrl,
       reuseExistingServer: false,
       timeout: 120_000,

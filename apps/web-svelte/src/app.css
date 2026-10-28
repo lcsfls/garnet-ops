@@ -1,0 +1,277 @@
+/* Self-hosted fonts (SIL OFL 1.1), bundled by Vite; no font service is contacted. */
+@import "@fontsource/inter-tight/400.css";
+@import "@fontsource/inter-tight/500.css";
+@import "@fontsource/inter-tight/600.css";
+@import "@fontsource/inter-tight/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "tailwindcss";
+
+/*
+ * Design tokens: burgundy palette v1 from design/mockup (AGENTS.md rule 6).
+ * Burgundy is brand and primary only; critical is a brighter vermilion and
+ * never shares a colour with the brand. Contrast still needs a token test
+ * before the first release (ROADMAP Phase 0).
+ *
+ * The theme follows the system colour scheme through CSS alone, so no inline
+ * script is needed before first paint (strict CSP); an explicit choice in the
+ * user menu is applied as data-theme by lib/theme.ts.
+ */
+:root {
+  color-scheme: light;
+  --radius: 0.625rem;
+  --background: oklch(0.975 0.004 20);
+  --foreground: oklch(0.21 0.02 15);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.02 15);
+  --primary: oklch(0.4 0.13 12);
+  --primary-foreground: oklch(1 0 0);
+  --primary-text: oklch(0.4 0.13 12);
+  --muted: oklch(0.952 0.007 20);
+  --muted-foreground: oklch(0.52 0.02 20);
+  --accent: oklch(0.952 0.007 20);
+  --accent-foreground: oklch(0.21 0.02 15);
+  --border: oklch(0.915 0.008 20);
+  --input: oklch(0.86 0.012 20);
+  --ring: oklch(0.4 0.13 12);
+  --destructive: oklch(0.57 0.2 30);
+  --destructive-text: oklch(0.5 0.18 30);
+  --success: oklch(0.64 0.12 165);
+  --success-text: oklch(0.486 0.101 166);
+  --info: oklch(0.48 0.09 245);
+  --info-text: oklch(0.46 0.09 245);
+  /* Severity: critical vermilion, high orange, medium amber, low grey. Never decorative. */
+  --high: oklch(0.68 0.17 55);
+  --high-text: oklch(0.53 0.13 55);
+  --warning: oklch(0.76 0.14 82);
+  --warning-text: oklch(0.49 0.105 76);
+  --mark-hold: oklch(0.21 0.02 15);
+  --mark-beam: oklch(0.4 0.13 12);
+  --shadow-xs: 0 1px 2px 0 oklch(0.21 0.02 15 / 5%);
+  --sidebar: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.025 12);
+  --sidebar-accent-foreground: oklch(0.4 0.13 12);
+  --sidebar-hover: oklch(0.952 0.007 20);
+  /* Chart fills: severity colours for areas and bars, never used as decoration. */
+  --chart-critical: oklch(0.55 0.21 30);
+  --chart-high: oklch(0.7 0.17 58);
+  --chart-medium: oklch(0.78 0.14 85);
+  --chart-low: oklch(0.55 0.01 20);
+}
+
+/*
+ * Dark tokens, used when the system prefers dark and light was not chosen
+ * explicitly, or when dark was chosen (lib/theme.ts sets data-theme). The two
+ * blocks must stay identical; theme.test.ts checks that.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --background: oklch(0.185 0.012 15);
+    --foreground: oklch(0.965 0.004 20);
+    --card: oklch(0.225 0.015 15);
+    --card-foreground: oklch(0.965 0.004 20);
+    --primary: oklch(0.5 0.15 12);
+    --primary-foreground: oklch(1 0 0);
+    --primary-text: oklch(0.78 0.1 10);
+    --muted: oklch(0.27 0.016 15);
+    --muted-foreground: oklch(0.75 0.015 20);
+    --accent: oklch(0.27 0.016 15);
+    --accent-foreground: oklch(0.965 0.004 20);
+    --border: oklch(0.97 0.005 20 / 9%);
+    --input: oklch(0.97 0.005 20 / 16%);
+    --ring: oklch(0.7 0.12 10);
+    --destructive: oklch(0.7 0.18 32);
+    --destructive-text: oklch(0.76 0.16 32);
+    --success: oklch(0.66 0.12 165);
+    --success-text: oklch(0.76 0.117 166);
+    --info: oklch(0.75 0.08 245);
+    --info-text: oklch(0.77 0.08 245);
+    --high: oklch(0.76 0.15 58);
+    --high-text: oklch(0.8 0.13 60);
+    --warning: oklch(0.76 0.14 82);
+    --warning-text: oklch(0.81 0.122 81);
+    --mark-hold: oklch(0.965 0.004 20);
+    --mark-beam: oklch(0.64 0.15 12);
+    --shadow-xs: none;
+    --sidebar: oklch(0.205 0.014 15);
+    --sidebar-accent: oklch(0.3 0.05 12);
+    --sidebar-accent-foreground: oklch(0.8 0.09 10);
+    --sidebar-hover: oklch(0.27 0.016 15);
+    --chart-critical: oklch(0.66 0.2 30);
+    --chart-high: oklch(0.76 0.16 58);
+    --chart-medium: oklch(0.84 0.13 85);
+    --chart-low: oklch(0.6 0.01 20);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: oklch(0.185 0.012 15);
+  --foreground: oklch(0.965 0.004 20);
+  --card: oklch(0.225 0.015 15);
+  --card-foreground: oklch(0.965 0.004 20);
+  --primary: oklch(0.5 0.15 12);
+  --primary-foreground: oklch(1 0 0);
+  --primary-text: oklch(0.78 0.1 10);
+  --muted: oklch(0.27 0.016 15);
+  --muted-foreground: oklch(0.75 0.015 20);
+  --accent: oklch(0.27 0.016 15);
+  --accent-foreground: oklch(0.965 0.004 20);
+  --border: oklch(0.97 0.005 20 / 9%);
+  --input: oklch(0.97 0.005 20 / 16%);
+  --ring: oklch(0.7 0.12 10);
+  --destructive: oklch(0.7 0.18 32);
+  --destructive-text: oklch(0.76 0.16 32);
+  --success: oklch(0.66 0.12 165);
+  --success-text: oklch(0.76 0.117 166);
+  --info: oklch(0.75 0.08 245);
+  --info-text: oklch(0.77 0.08 245);
+  --high: oklch(0.76 0.15 58);
+  --high-text: oklch(0.8 0.13 60);
+  --warning: oklch(0.76 0.14 82);
+  --warning-text: oklch(0.81 0.122 81);
+  --mark-hold: oklch(0.965 0.004 20);
+  --mark-beam: oklch(0.64 0.15 12);
+  --shadow-xs: none;
+  --sidebar: oklch(0.205 0.014 15);
+  --sidebar-accent: oklch(0.3 0.05 12);
+  --sidebar-accent-foreground: oklch(0.8 0.09 10);
+  --sidebar-hover: oklch(0.27 0.016 15);
+  --chart-critical: oklch(0.66 0.2 30);
+  --chart-high: oklch(0.76 0.16 58);
+  --chart-medium: oklch(0.84 0.13 85);
+  --chart-low: oklch(0.6 0.01 20);
+}
+
+@theme inline {
+  --font-sans: "Inter Tight", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-text: var(--primary-text);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-text: var(--destructive-text);
+  --color-success: var(--success);
+  --color-success-text: var(--success-text);
+  --color-info: var(--info);
+  --color-info-text: var(--info-text);
+  --color-high: var(--high);
+  --color-high-text: var(--high-text);
+  --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-chart-critical: var(--chart-critical);
+  --color-chart-high: var(--chart-high);
+  --color-chart-medium: var(--chart-medium);
+  --color-chart-low: var(--chart-low);
+  /* Layout steps on the content container (AGENTS.md rule 5): base, wide from 1450 px, xwide from 1900 px. */
+  --container-wide: 90.625rem;
+  --container-xwide: 118.75rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --shadow-xs: var(--shadow-xs);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    /* 16 px base (AGENTS.md: calm UI, large readable text). */
+    font-size: 100%;
+    /* The expanded sidebar is 15 % wider than the original 16 rem so its footer fits on one line. */
+    --sidebar-width: 18.4rem;
+    --sidebar-width-collapsed: 3.5rem;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum" 1;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Table rows tint on hover (mockup); rows that open something also show the pointer. */
+  tbody tr:hover {
+    background: color-mix(in oklch, var(--muted) 60%, transparent);
+  }
+  tbody tr.row-link {
+    cursor: pointer;
+  }
+  tbody tr[aria-selected="true"],
+  tbody tr[aria-selected="true"]:hover {
+    background: var(--sidebar-accent);
+  }
+  /* A relative time whose exact value is in its tooltip. */
+  .dash-time {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--input);
+  }
+}
+
+/* The text cursor behind streaming AI text. Reduced motion switches the blinking off (below). */
+@keyframes ai-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@layer components {
+  .ai-cursor {
+    display: inline-block;
+    width: 7px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: currentColor;
+    animation: ai-blink 1s steps(2) infinite;
+  }
+}
+
+/* Unlayered, so it beats every Tailwind utility (those live in a cascade layer) without !important. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* A toast slides in from the corner. Short; reduced motion switches it off (rule above). */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+@layer components {
+  .toast-in {
+    animation: toast-in 160ms ease-out;
+  }
+}
