@@ -2,7 +2,8 @@
 #
 #   web      Caddy: HTTPS, the web app, /api to the API, the maintenance page during updates
 #   api      HTTP API; runs the database migrations on start
-#   worker   scans repositories (clone, SBOM, vulnerability match); holds the vault private key
+#   worker   clones repositories and stores scan results; holds the vault private key
+#   scanner  runs syft and grype on the clones: no network, no vault key, no database (ADR 0028)
 #   db       PostgreSQL 17
 #   init     creates the vault key pair once, then exits
 #   updater  the optional update sidecar (cicd-updater), OPT-IN:
@@ -95,8 +96,11 @@ services:
       GARNETOPS_SCAN_CONCURRENCY: ${GARNETOPS_SCAN_CONCURRENCY:-2}
       # Links in notifications point here (ADR 0010).
       PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
+      # syft and grype run in the scanner service (ADR 0028); the clones go to the volume it reads.
+      GARNETOPS_SCANNER_SOCKET: /run/garnetops-scanner/scanner.sock
+      GARNETOPS_SCANNER_WORK_DIR: /work
     tmpfs:
-      # Clones live here and are deleted after each scan (scanned content never touches a volume).
+      # Deploy keys during a clone, git's home and the scan reports; deleted after each scan.
       - /tmp:size=${GARNETOPS_WORK_TMPFS:-4g},mode=1777
     volumes:
       - type: volume
@@ -105,6 +109,12 @@ services:
         read_only: true
         volume: { subpath: private }
       - vulndb:/var/lib/garnetops/vulndb
+      # The clones, in memory and deleted after each scan (scanned content never touches a disk).
+      - scan-work:/work
+      - type: volume
+        source: scanner-socket
+        target: /run/garnetops-scanner
+        read_only: true
     # Clones and the vulnerability database need outbound network; nothing listens.
     networks: [internal, egress]
     depends_on:
@@ -112,11 +122,62 @@ services:
         condition: service_healthy
       init:
         condition: service_completed_successfully
+      # Started, not healthy: an image older than 0.0.9 has no scanner service (see there).
+      scanner:
+        condition: service_started
     deploy:
       resources:
         limits:
           cpus: "${GARNETOPS_WORKER_CPUS:-2}"
           memory: ${GARNETOPS_WORKER_MEMORY:-4g}
+
+  # Reads hostile input (the scanned repositories), so it gets nothing else: no network at all,
+  # no vault key, no database, the clones read-only and limits of its own (ADR 0028).
+  scanner:
+    image: ${APP_IMAGE:?set APP_IMAGE in .env}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    # An image older than 0.0.9 has no scanner service: the container then idles and that
+    # image's worker scans by itself, so this file also works before the images are updated.
+    command:
+      - sh
+      - -c
+      - >-
+        if [ -f apps/worker/src/scanner.ts ]; then exec node apps/worker/src/scanner.ts; fi;
+        echo "scanner: this image has no scanner service; its worker scans by itself";
+        exec tail -f /dev/null
+    environment:
+      GARNETOPS_SCANNER_SOCKET: /run/garnetops-scanner/scanner.sock
+      GARNETOPS_SCANNER_WORK_DIR: /work
+      GARNETOPS_SCAN_CONCURRENCY: ${GARNETOPS_SCAN_CONCURRENCY:-2}
+    tmpfs:
+      # syft's and grype's scratch space and reports, per run.
+      - /tmp:size=2g,mode=1777
+    volumes:
+      - type: volume
+        source: scan-work
+        target: /work
+        read_only: true
+      - type: volume
+        source: vulndb
+        target: /var/lib/garnetops/vulndb
+        read_only: true
+      - scanner-socket:/run/garnetops-scanner
+    network_mode: none
+    healthcheck:
+      test: ["CMD", "node", "apps/worker/src/scanner.ts", "health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "${GARNETOPS_SCANNER_CPUS:-2}"
+          memory: ${GARNETOPS_SCANNER_MEMORY:-4g}
+          pids: 512
 
   init:
     <<: *app
@@ -169,6 +230,18 @@ volumes:
   db-data:
   vault:
   vulndb:
+  # The clones the worker writes and the scanner reads. In memory: nothing scanned reaches a disk.
+  scan-work:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=${GARNETOPS_WORK_TMPFS:-4g},uid=1000,gid=1000,mode=0700
+  # The scanner's Unix socket, the only way to talk to it.
+  scanner-socket:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=1m,uid=1000,gid=1000,mode=0700
   web-data:
   web-config:
   updater-state:

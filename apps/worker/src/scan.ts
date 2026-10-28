@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { newId, scanErrorMessage } from "@garnetops/core";
 import { evaluateGate, GATE_RULES, type GateMode, type GateRule } from "@garnetops/core/gates";
 import { parseKnownHosts } from "@garnetops/core/ssh";
@@ -11,8 +11,9 @@ import { env, vaultPrivateKey } from "./env.ts";
 import { type SshOptions, shallowClone, sshClient } from "./git.ts";
 import { addAdvisoryDates, type ParsedReport, parseReport, scanTarget } from "./grype.ts";
 import { type CollectedManifest, collectManifests } from "./manifests.ts";
+import { requestMatch, requestSbom, ScannerUnavailableError } from "./scanner-client.ts";
 import { buildSbom, type Inventory, readSbom } from "./syft.ts";
-import { reportScanFacts } from "./system-report.ts";
+import { reportScanFacts, reportScannerIsolation } from "./system-report.ts";
 import { type Tx, upsertVulnerabilities } from "./vulnerability-store.ts";
 
 const f = schema.finding;
@@ -74,8 +75,16 @@ export async function runScan(scanId: string): Promise<void> {
   if (!repo) return fail(scanId, scanErrorMessage("repositoryRemoved"));
 
   const root = await mkdtemp(join(env.GARNETOPS_WORK_DIR, "scan-"));
+  // With the scanner service (ADR 0028) only the clone goes to the volume it reads; the deploy key,
+  // git's HOME and the reports stay in the worker's private directory.
+  const shared = env.GARNETOPS_SCANNER_WORK_DIR
+    ? await mkdtemp(join(env.GARNETOPS_SCANNER_WORK_DIR, "scan-")).catch(async (error) => {
+        await rm(root, { recursive: true, force: true });
+        throw error;
+      })
+    : root;
   try {
-    const src = join(root, "src");
+    const src = join(shared, "src");
     const home = join(root, "home");
     const out = join(root, "out");
     const sshDir = join(root, "ssh");
@@ -132,19 +141,7 @@ export async function runScan(scanId: string): Promise<void> {
       throw new UserFacingError(scanErrorMessage("repositoryTooLarge", { limit: env.GARNETOPS_MAX_REPO_MB }));
     }
 
-    // With syft: one SBOM is both the stored inventory and what grype matches, so the two agree.
-    let inventory: Inventory | null = null;
-    let target = `dir:${src}`;
-    if (env.GARNETOPS_SYFT_BIN) {
-      const sbomFile = await buildSbom(env.GARNETOPS_SYFT_BIN, src, out).catch(() => {
-        throw new UserFacingError(scanErrorMessage("sbomFailed"));
-      });
-      inventory = await readSbom(sbomFile);
-      target = `sbom:${sbomFile}`;
-    }
-    const json = await scanTarget(target, out).catch(() => {
-      throw new UserFacingError(scanErrorMessage("scannerFailed"));
-    });
+    const { inventory, json } = await runScanners(src, out);
     const parsed = parseReport(json, repo.id);
     addAdvisoryDates(parsed.vulnerabilities, env.GARNETOPS_GRYPE_DB_DIR);
     // A check of another ref (a pull request) must not change the repository's findings or
@@ -167,7 +164,54 @@ export async function runScan(scanId: string): Promise<void> {
     }
   } finally {
     await rm(root, { recursive: true, force: true }).catch(() => {});
+    if (shared !== root) await rm(shared, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/**
+ * Builds the SBOM and matches it, in the scanner service when there is one (ADR 0028), otherwise
+ * in this container. With syft, one SBOM is both the stored inventory and what grype matches, so
+ * the two agree; the scanner service always has syft.
+ */
+async function runScanners(
+  src: string,
+  out: string,
+): Promise<{ inventory: Inventory | null; json: unknown }> {
+  const socket = env.GARNETOPS_SCANNER_SOCKET;
+  if (socket) {
+    const failed = (key: "sbomFailed" | "scannerFailed") => (error: Error) => {
+      if (error instanceof ScannerUnavailableError) {
+        console.error(`scanner service: ${error.message}`);
+        void reportScannerIsolation();
+        throw new UserFacingError(scanErrorMessage("scannerUnavailable"));
+      }
+      throw new UserFacingError(scanErrorMessage(key));
+    };
+    const sbomFile = join(out, "sbom.syft.json");
+    const reportFile = join(out, "grype.json");
+    const dir = relative(env.GARNETOPS_SCANNER_WORK_DIR as string, src)
+      .split(sep)
+      .join("/");
+    await requestSbom(socket, dir, sbomFile).catch(failed("sbomFailed"));
+    await requestMatch(socket, sbomFile, reportFile).catch(failed("scannerFailed"));
+    const json = await readFile(reportFile, "utf8")
+      .then((text) => JSON.parse(text) as unknown)
+      .catch(failed("scannerFailed"));
+    return { inventory: await readSbom(sbomFile), json };
+  }
+  let inventory: Inventory | null = null;
+  let target = `dir:${src}`;
+  if (env.GARNETOPS_SYFT_BIN) {
+    const sbomFile = await buildSbom(env.GARNETOPS_SYFT_BIN, src, out).catch(() => {
+      throw new UserFacingError(scanErrorMessage("sbomFailed"));
+    });
+    inventory = await readSbom(sbomFile);
+    target = `sbom:${sbomFile}`;
+  }
+  const json = await scanTarget(target, out).catch(() => {
+    throw new UserFacingError(scanErrorMessage("scannerFailed"));
+  });
+  return { inventory, json };
 }
 
 async function openSecret(

@@ -27,6 +27,17 @@ refreshes the entry from the output of every successful scan. Each row shows whe
 (`scripts/fetch-scanners.mjs` downloads exactly that version and checks its SHA-256). A different version still scans, but this release
 was not tested with it. Without syft, scans list only vulnerable packages, not the full package inventory.
 
+The row **Isolation** says where syft and grype run ([ADR 0028](adr/0028-scanner-isolation.md)):
+
+| State | Meaning |
+| --- | --- |
+| Isolated | They run in the scanner service: no network, no vault key, no database, the clones read-only. |
+| In the worker | The installation still uses a `docker-compose.yml` older than 0.0.9, so they run inside the worker, next to the vault key. Scans work; download the Compose file and `updater.yaml` of your release to isolate them ([Updating](updating.md#scanner-service-from-009)). Needs a look. |
+| Other release | The scanner service runs another release than the worker: it was left out of an update, usually because `updater.yaml` is older than 0.0.9. Needs a look. |
+| Not answering | The scanner service does not answer its health check, so every scan fails. Check it with `docker compose ps` and `docker compose logs scanner`. Failed. |
+
+The worker checks this when it starts, every 15 minutes and whenever a scan cannot reach the service.
+
 ## Vulnerability database
 
 | Field | Meaning |

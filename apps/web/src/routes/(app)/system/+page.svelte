@@ -43,7 +43,7 @@
         <VulnDbCard vulnDb={status.vulnDb} />
       </div>
       <div data-testid="system-scanners" class="mb-4 break-inside-avoid">
-        <ScannersCard scanners={status.scanners} />
+        <ScannersCard scanners={status.scanners} workerVersion={status.worker.heartbeat?.version ?? null} />
       </div>
       <div data-testid="system-local-build" class="mb-4 break-inside-avoid">
         <LocalBuildCard build={status.localBuild} />

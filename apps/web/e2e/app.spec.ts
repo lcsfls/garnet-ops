@@ -1443,6 +1443,11 @@ test.describe("System status", () => {
     await expect(page.getByTestId("scanner-grype")).toContainText("Version 0.120.1");
     await expect(page.getByTestId("scanner-syft")).toContainText("Differs from pinned");
     await expect(page.getByTestId("scanner-syft")).toContainText("This release pins 1.55.0.");
+    // syft and grype run in the scanner service (ADR 0028).
+    await expect(page.getByTestId("scanner-isolation")).toContainText("Isolated");
+    await expect(page.getByTestId("scanner-isolation")).toContainText(
+      "no network, no vault key, no database",
+    );
 
     // The local build is planned, not set up.
     const build = page.getByTestId("system-local-build");
@@ -1607,6 +1612,7 @@ test.describe("System status", () => {
     await expect(page.getByTestId("vulndb-state")).toHaveText("Veraltet");
     await expect(page.getByTestId("system-vulndb")).toContainText("Der Download hat nicht funktioniert");
     await expect(page.getByTestId("scanner-syft")).toContainText("Weicht von der festgelegten ab");
+    await expect(page.getByTestId("scanner-isolation")).toContainText("Isoliert");
     await expect(page.getByTestId("local-build-state")).toHaveText("Nicht eingerichtet (geplant)");
     await expect(page.getByTestId("worker-heartbeat")).toContainText("Läuft");
     await expect(page.getByTestId("integration-directory")).toContainText("Nicht eingerichtet");

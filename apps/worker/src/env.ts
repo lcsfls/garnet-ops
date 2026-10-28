@@ -19,9 +19,22 @@ const schema = z.object({
   GARNETOPS_SYFT_BIN: z.string().min(1).optional(),
   /** Directory of the local vulnerability database. */
   GARNETOPS_GRYPE_DB_DIR: z.string().min(1),
-  /** Where repositories are cloned for a scan. Every scan gets its own subdirectory, removed afterwards. */
+  /**
+   * The worker's private scratch directory (deploy keys, git's HOME, scanner output) and, without the
+   * scanner service, the clones. Every scan gets its own subdirectory, removed afterwards.
+   */
   GARNETOPS_WORK_DIR: z.string().default(join(tmpdir(), "garnetops-work")),
   GARNETOPS_SCAN_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
+  /**
+   * Unix socket of the scanner service (ADR 0028). Set: syft and grype run there, without network,
+   * vault key or database. Unset (a compose file older than 0.0.9): they run in the worker, as before.
+   */
+  GARNETOPS_SCANNER_SOCKET: z.string().min(1).optional(),
+  /**
+   * With the scanner service: where the worker clones repositories, on a volume the service mounts
+   * read-only at the same path. Nothing else of a scan is written there.
+   */
+  GARNETOPS_SCANNER_WORK_DIR: z.string().min(1).optional(),
   /**
    * "auto": the worker updates the vulnerability database at start and daily (needs
    * outbound HTTPS to Anchore). "off" (default): the operator imports it, e.g. air-gapped.
@@ -33,7 +46,12 @@ const schema = z.object({
   GARNETOPS_MAX_REPO_MB: z.coerce.number().int().min(10).max(20_000).default(2048),
 });
 
-const parsed = schema.safeParse(process.env);
+const parsed = schema
+  .refine((v) => Boolean(v.GARNETOPS_SCANNER_SOCKET) === Boolean(v.GARNETOPS_SCANNER_WORK_DIR), {
+    path: ["GARNETOPS_SCANNER_WORK_DIR"],
+    message: "set together with GARNETOPS_SCANNER_SOCKET, or neither",
+  })
+  .safeParse(process.env);
 if (!parsed.success) {
   for (const issue of parsed.error.issues) console.error(`config: ${issue.path.join(".")}: ${issue.message}`);
   process.exit(1);

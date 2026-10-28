@@ -15,6 +15,7 @@ import {
   buildProviderLevel,
   type IntegrationState,
   integrationState,
+  isolationLevel,
   levelOfFreshness,
   levelOfIntegration,
   levelOfWorker,
@@ -411,6 +412,24 @@ export async function buildSystemStatus(
     };
   });
 
+  const reportedIsolation = reportedScanners.isolation;
+  // The scanner service is updated with the worker; another release means it was left out.
+  const scannerVersion = reportedIsolation?.version ?? null;
+  const workerRelease = heartbeats[0]?.version ?? null;
+  const versionMatches = !scannerVersion || !workerRelease || scannerVersion === workerRelease;
+  const isolation = {
+    mode: reportedIsolation?.mode ?? null,
+    reachable: reportedIsolation?.reachable ?? null,
+    version: scannerVersion,
+    versionMatches,
+    level: isolationLevel(
+      reportedIsolation?.mode ?? null,
+      reportedIsolation?.reachable ?? null,
+      versionMatches,
+    ),
+    reportedAt: reportedIsolation?.reportedAt ?? null,
+  };
+
   /* Vulnerability database */
   const dbReport = vulnDbReportSchema.safeParse(report("vulndb"));
   const updateReport = vulnDbUpdateReportSchema.safeParse(report("vulndb_update"));
@@ -519,6 +538,7 @@ export async function buildSystemStatus(
   // The rows the overall verdict counts: one per thing the page shows a level for.
   const levels: StatusLevel[] = [
     ...scannerItems.map((s) => s.level),
+    isolation.level,
     vulnDb.level,
     ...integrations.map((i) => i.level),
     levelOfWorker(liveness),
@@ -545,7 +565,11 @@ export async function buildSystemStatus(
         latestAvailable: updater.latestAvailable,
       },
     },
-    scanners: { level: worstLevel(scannerItems.map((s) => s.level)), items: scannerItems },
+    scanners: {
+      level: worstLevel([...scannerItems.map((s) => s.level), isolation.level]),
+      items: scannerItems,
+      isolation,
+    },
     vulnDb,
     localBuild,
     integrations,

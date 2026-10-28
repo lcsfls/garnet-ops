@@ -154,6 +154,26 @@ export function scannerLevel(match: ScannerMatch, problem: string | null): Statu
   return "attention";
 }
 
+export const SCANNER_ISOLATION_MODES = ["service", "worker"] as const;
+export type ScannerIsolationMode = (typeof SCANNER_ISOLATION_MODES)[number];
+
+/**
+ * Level of where the scanners run (ADR 0028): isolated and answering is fine; inside the worker
+ * still works but needs a look (the newer compose file isolates them), and so does a service that
+ * runs another release than the worker (it was not updated with it); a service that does not
+ * answer fails every scan. Not reported yet says nothing.
+ */
+export function isolationLevel(
+  mode: ScannerIsolationMode | null,
+  reachable: boolean | null,
+  versionMatches = true,
+): StatusLevel {
+  if (mode === null) return "inactive";
+  if (mode === "worker") return "attention";
+  if (reachable === false) return "failed";
+  return versionMatches ? "ok" : "attention";
+}
+
 /** `Version: 1.2.3` out of the text `grype version` and `syft version` print. */
 export function parseVersionOutput(output: string): string | null {
   const match = /^Version:\s+(\S+)\s*$/m.exec(output);
@@ -304,6 +324,19 @@ export const scannersReportSchema = z.object({
       version: z.string().max(40).nullable(),
       reportedAt: isoTime,
       problem: z.enum(["missing", "unreadable", "not_configured"]).nullable(),
+    })
+    .optional(),
+  /**
+   * Where syft and grype run (ADR 0028): `service`, the scanner service without network, vault key or
+   * database; `worker`, inside the worker (a compose file older than 0.0.9). `reachable` is the
+   * service's last health check and `version` the release it said it runs; both null in the worker.
+   */
+  isolation: z
+    .object({
+      mode: z.enum(SCANNER_ISOLATION_MODES),
+      reachable: z.boolean().nullable(),
+      version: z.string().max(40).nullable().optional(),
+      reportedAt: isoTime,
     })
     .optional(),
 });

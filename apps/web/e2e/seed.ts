@@ -342,6 +342,7 @@ async function seedSystemStatusRows(client: Client, now: Date) {
     scanners: {
       grype: { version: "0.120.1", reportedAt: ago(hours(2)), problem: null },
       syft: { version: "1.54.0", reportedAt: ago(hours(2)), problem: null },
+      isolation: { mode: "service", reachable: true, version: SYSTEM.workerVersion, reportedAt: ago(60_000) },
     },
     vulndb: {
       checkedAt: ago(60_000),

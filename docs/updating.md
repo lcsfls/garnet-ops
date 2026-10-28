@@ -116,6 +116,31 @@ docker compose up -d
 Read the release notes first: a release can require a minimum version to update from, or
 a new `.env` key.
 
+### Scanner service from 0.0.9
+
+From 0.0.9 syft and grype run in a service of their own, without network, vault key or database
+([ADR 0028](adr/0028-scanner-isolation.md)). In-app updates replace the images, not
+`docker-compose.yml` and `updater.yaml`, so an installation set up before 0.0.9 keeps scanning
+inside the worker until you replace both files; nothing breaks in the meantime, and
+**System → Scanners → Isolation** says "In the worker". To switch:
+
+```sh
+cd /opt/garnetops
+VERSION=<the release you run, 0.0.9 or newer>
+cp docker-compose.yml docker-compose.yml.bak && cp updater.yaml updater.yaml.bak
+for f in docker-compose.yml updater.yaml; do
+  curl -fsSL -o "$f" "https://raw.githubusercontent.com/lcsfls/garnet-ops/v$VERSION/$f"
+done
+chown root:root updater.yaml && chmod 644 updater.yaml
+docker compose up -d
+docker compose ps   # scanner and worker should be running, scanner healthy
+```
+
+If you changed either file yourself, carry those changes over (compare with the `.bak` copies).
+Replace both files together: the update service only updates the services `updater.yaml` lists,
+and refuses a list that names a service the Compose file does not have. Installations built from
+source get both files with `git checkout` of the release tag.
+
 ### An update needs attention
 
 If an update fails after the point of no return (services stopped) and going back is not

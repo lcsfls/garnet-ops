@@ -7,6 +7,7 @@ import type {
   BlockReason,
   Freshness,
   IntegrationState,
+  ScannerIsolationMode,
   ScannerMatch,
   ScannerName,
   StatusLevel,
@@ -35,6 +36,20 @@ export interface ScannerStatus {
   pinned: string;
   match: ScannerMatch;
   problem: "missing" | "unreadable" | "not_configured" | null;
+  reportedAt: string | null;
+}
+
+/** Where syft and grype run (ADR 0028). */
+export interface ScannerIsolationStatus {
+  /** `service`: the isolated scanner service; `worker`: inside the worker; null: not reported yet. */
+  mode: ScannerIsolationMode | null;
+  /** The service's last health check; null in the worker or before a report. */
+  reachable: boolean | null;
+  /** The release the service said it runs. */
+  version: string | null;
+  /** False when that release is not the worker's (the service was not updated with it). */
+  versionMatches: boolean;
+  level: StatusLevel;
   reportedAt: string | null;
 }
 
@@ -116,7 +131,7 @@ export interface SystemStatus {
       latestAvailable: string | null;
     };
   };
-  scanners: { level: StatusLevel; items: ScannerStatus[] };
+  scanners: { level: StatusLevel; items: ScannerStatus[]; isolation: ScannerIsolationStatus };
   vulnDb: {
     level: StatusLevel;
     /** False until the worker has reported; the dates then come from the latest scan. */

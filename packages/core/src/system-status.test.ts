@@ -9,6 +9,7 @@ import {
   freshnessOf,
   HEARTBEAT_LATE_AFTER_SECONDS,
   integrationState,
+  isolationLevel,
   levelOfFreshness,
   levelOfIntegration,
   overallLevel,
@@ -108,6 +109,14 @@ describe("scanners", () => {
     expect(scannerLevel("unknown", null)).toBe("attention");
     expect(scannerLevel("unknown", "missing")).toBe("failed");
     expect(scannerLevel("unknown", "not_configured")).toBe("inactive");
+  });
+
+  it("isolation (ADR 0028): the service is fine, the worker needs a look, a silent service fails", () => {
+    expect(isolationLevel("service", true)).toBe("ok");
+    expect(isolationLevel("service", true, false)).toBe("attention");
+    expect(isolationLevel("service", false)).toBe("failed");
+    expect(isolationLevel("worker", null)).toBe("attention");
+    expect(isolationLevel(null, null)).toBe("inactive");
   });
 
   it("reads the version out of `grype version` and `syft version`", () => {

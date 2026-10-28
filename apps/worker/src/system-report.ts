@@ -30,6 +30,7 @@ import { z } from "zod";
 import { db } from "./db.ts";
 import { env } from "./env.ts";
 import { CommandError, run } from "./run.ts";
+import { scannerHealth } from "./scanner-client.ts";
 
 const VERSION_TIMEOUT_MS = 15_000;
 const DB_TOOL_TIMEOUT_MS = 60_000;
@@ -133,6 +134,33 @@ export async function reportScannerVersions(): Promise<void> {
       versionOf(env.GARNETOPS_SYFT_BIN),
     ]);
     await mergeReport("scanners", { grype, syft });
+  });
+}
+
+/** How long the worker waits at its start for the scanner service, which starts next to it. */
+const SCANNER_START_WAIT_MS = 60_000;
+
+/**
+ * Reports where syft and grype run (ADR 0028) and, with the scanner service, whether it answers its
+ * health check and which release it runs. Called when the worker starts (then it waits a while for
+ * the service to come up), with every database probe, and when a scan could not reach the service.
+ */
+export async function reportScannerIsolation(options: { waitForStart?: boolean } = {}): Promise<void> {
+  await quietly("isolation", async () => {
+    const socket = env.GARNETOPS_SCANNER_SOCKET;
+    let health = socket ? await scannerHealth(socket) : null;
+    const deadline = Date.now() + SCANNER_START_WAIT_MS;
+    while (socket && !health && options.waitForStart && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      health = await scannerHealth(socket);
+    }
+    const isolation = {
+      mode: socket ? "service" : "worker",
+      reachable: socket ? health !== null : null,
+      version: health?.version ?? null,
+      reportedAt: new Date().toISOString(),
+    };
+    await mergeReport("scanners", { isolation });
   });
 }
 
@@ -341,8 +369,12 @@ export function startHeartbeat(): () => Promise<void> {
 export function startSystemReports(): () => Promise<void> {
   const stopHeartbeat = startHeartbeat();
   void reportScannerVersions();
+  void reportScannerIsolation({ waitForStart: true });
   void probeVulnDb();
-  const timer = setInterval(() => void probeVulnDb(), VULNDB_PROBE_INTERVAL_MINUTES * 60_000);
+  const timer = setInterval(() => {
+    void probeVulnDb();
+    void reportScannerIsolation();
+  }, VULNDB_PROBE_INTERVAL_MINUTES * 60_000);
   timer.unref();
   return async () => {
     clearInterval(timer);

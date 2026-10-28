@@ -37,8 +37,9 @@ audit log, a Docker Compose stack and optional signed in-app updates.
 ## What GarnetOps is built on
 
 All of it runs inside your network. Scanners and Git run as separate programs, never
-linked into GarnetOps; the full list with versions and licences is in
-[docs/COMPONENTS.md](docs/COMPONENTS.md).
+linked into GarnetOps; syft and grype run in a container of their own, without network, vault
+key or database ([ADR 0028](docs/adr/0028-scanner-isolation.md)). The full list with versions
+and licences is in [docs/COMPONENTS.md](docs/COMPONENTS.md).
 
 | Part | Tool | Licence | What it does in GarnetOps |
 | --- | --- | --- | --- |

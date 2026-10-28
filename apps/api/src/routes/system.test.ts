@@ -289,6 +289,56 @@ describe.skipIf(!adminUrl)("System status API", () => {
       expect(s.scanners.level).toBe("failed");
     });
 
+    it("shows where the scanners run (ADR 0028) and counts it in the overall verdict", async () => {
+      const at = ago(MIN).toISOString();
+      const scanners = {
+        grype: { version: PINNED_SCANNERS.grype, reportedAt: at, problem: null },
+        syft: { version: PINNED_SCANNERS.syft, reportedAt: at, problem: null },
+      };
+      expect((await view()).scanners.isolation).toMatchObject({ mode: null, level: "inactive" });
+
+      await report("scanners", {
+        ...scanners,
+        isolation: { mode: "service", reachable: true, version: "0.0.8", reportedAt: at },
+      });
+      await heartbeat(10_000, "0.0.8");
+      let s = await view();
+      expect(s.scanners.isolation).toMatchObject({
+        mode: "service",
+        reachable: true,
+        versionMatches: true,
+        level: "ok",
+      });
+      expect(s.scanners.level).toBe("ok");
+
+      await report("scanners", {
+        ...scanners,
+        isolation: { mode: "service", reachable: true, version: "0.0.7", reportedAt: at },
+      });
+      s = await view();
+      expect(s.scanners.isolation).toMatchObject({
+        version: "0.0.7",
+        versionMatches: false,
+        level: "attention",
+      });
+
+      await report("scanners", {
+        ...scanners,
+        isolation: { mode: "worker", reachable: null, reportedAt: at },
+      });
+      s = await view();
+      expect(s.scanners.isolation).toMatchObject({ mode: "worker", level: "attention" });
+      expect(s.scanners.level).toBe("attention");
+
+      await report("scanners", {
+        ...scanners,
+        isolation: { mode: "service", reachable: false, version: null, reportedAt: at },
+      });
+      s = await view();
+      expect(s.scanners.isolation.level).toBe("failed");
+      expect(s.overall.failed).toBeGreaterThanOrEqual(1);
+    });
+
     it("treats an unset syft as inactive and falls back to the latest scan before the worker reports", async () => {
       await report("scanners", {
         grype: { version: PINNED_SCANNERS.grype, reportedAt: ago(MIN).toISOString(), problem: null },

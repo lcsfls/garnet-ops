@@ -8,7 +8,8 @@
   import Row from "./Row.svelte";
   import StatusBadge from "./StatusBadge.svelte";
 
-  let { scanners }: { scanners: SystemStatus["scanners"] } = $props();
+  let { scanners, workerVersion }: { scanners: SystemStatus["scanners"]; workerVersion: string | null } =
+    $props();
 
   /** Version, pinned version and when it was reported, on one line. */
   function detail(s: SystemStatus["scanners"]["items"][number]): string {
@@ -21,6 +22,17 @@
     if (s.reportedAt) parts.push(t("systemStatus.scanners.reported", { when: formatRelative(s.reportedAt) }));
     return parts.join(" · ");
   }
+
+  /** Where syft and grype run (ADR 0028), as one of the isolation texts. */
+  const isolationState = $derived.by(() => {
+    const { mode, reachable } = scanners.isolation;
+    if (mode === "worker") return "worker";
+    if (mode === "service") {
+      if (reachable === false) return "unreachable";
+      return scanners.isolation.versionMatches ? "service" : "differs";
+    }
+    return "unknown";
+  });
 </script>
 
 <Card>
@@ -41,5 +53,19 @@
         {/if}
       </Row>
     {/each}
+    <Row testId="scanner-isolation" title={t("systemStatus.scanners.isolation.title")}>
+      {#snippet badge()}
+        <StatusBadge level={scanners.isolation.level}>{t(`systemStatus.scanners.isolation.state.${isolationState}`)}</StatusBadge>
+      {/snippet}
+      <span>
+        {t(`systemStatus.scanners.isolation.hint.${isolationState}`, {
+          version: scanners.isolation.version ?? "",
+          worker: workerVersion ?? "",
+        })}
+      </span>
+      {#if scanners.isolation.reportedAt}
+        <span>{t("systemStatus.scanners.reported", { when: formatRelative(scanners.isolation.reportedAt) })}</span>
+      {/if}
+    </Row>
   </ul>
 </Card>

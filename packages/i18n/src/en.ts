@@ -65,6 +65,7 @@ export const en = {
     unexpected: "The scan failed unexpectedly. The worker log has details.",
     refNotFound: "The requested ref does not exist in the repository.",
     commitMismatch: "The ref points to a different commit than the gate check expected.",
+    scannerUnavailable: "The scanner service did not answer. An admin can check it under System status.",
   },
   setup: {
     title: "Set up GarnetOps",
@@ -402,7 +403,7 @@ export const en = {
     never: "never",
     scanners: {
       title: "Scanners",
-      description: "The versions of the scan tools, as the worker reports them.",
+      description: "The scan tools: their versions and where they run, as the worker reports them.",
       version: "Version {version}",
       pinned: "This release pins {pinned}.",
       reported: "Reported {when}.",
@@ -422,6 +423,26 @@ export const en = {
         missing: "The program is missing at the configured path.",
         unreadable: "The program ran but did not report a version.",
         notConfigured: "Without syft, scans list only vulnerable packages, not the full package inventory.",
+      },
+      isolation: {
+        title: "Isolation",
+        state: {
+          service: "Isolated",
+          worker: "In the worker",
+          unreachable: "Not answering",
+          differs: "Other release",
+          unknown: "Not reported",
+        },
+        hint: {
+          service:
+            "syft and grype run in the scanner service: no network, no vault key, no database, clones read-only.",
+          worker:
+            "syft and grype run inside the worker, next to the vault key. Download the docker-compose.yml of this release to isolate them (see Updating).",
+          unreachable: "The scanner service does not answer, so scans fail. Check it with docker compose ps.",
+          differs:
+            "The scanner service runs {version}, the worker {worker}. Download the updater.yaml of this release so that updates include the scanner service (see Updating).",
+          unknown: "The worker has not reported yet.",
+        },
       },
     },
     vulnDb: {

@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { SEVERITY_RANK, type Severity, severitySchema } from "@garnetops/core";
 import { z } from "zod";
 import { env } from "./env.ts";
-import { run } from "./run.ts";
+import { runGrype } from "./grype-run.ts";
 
 /* Only the fields we use. Unknown fields are ignored, missing optional ones tolerated. */
 const cvss = z.object({
@@ -172,27 +172,9 @@ export function parseReport(json: unknown, repositoryId: string): ParsedReport {
   };
 }
 
-/**
- * Runs grype against an SBOM file (`sbom:<path>`) or a directory (`dir:<path>`). Never
- * updates the database itself (that is a separate job).
- */
+/** Runs grype in this process's container (no scanner service) and returns its parsed report. */
 export async function scanTarget(target: string, outDir: string): Promise<unknown> {
-  const out = join(outDir, "grype.json");
-  await run(env.GARNETOPS_GRYPE_BIN, [target, "-o", "json", "--file", out, "-q"], {
-    env: {
-      PATH: process.env.PATH,
-      SystemRoot: process.env.SystemRoot,
-      HOME: outDir,
-      USERPROFILE: outDir,
-      TMP: outDir,
-      TEMP: outDir,
-      GRYPE_DB_CACHE_DIR: env.GARNETOPS_GRYPE_DB_DIR,
-      GRYPE_DB_AUTO_UPDATE: "false",
-      GRYPE_CHECK_FOR_APP_UPDATE: "false",
-      GRYPE_DB_VALIDATE_AGE: "false",
-    },
-    timeoutMs: 15 * 60_000,
-  });
+  const out = await runGrype(env.GARNETOPS_GRYPE_BIN, env.GARNETOPS_GRYPE_DB_DIR, target, outDir);
   return JSON.parse(await readFile(out, "utf8"));
 }
 

@@ -40,6 +40,10 @@ docker compose up -d
 docker compose logs api   # prints the one-time setup token
 ```
 
+`docker compose ps` lists `web`, `api`, `worker`, `scanner` and `db`; `init` has exited after
+creating the vault key. The `scanner` service runs syft and grype without network, vault key or
+database ([ADR 0028](adr/0028-scanner-isolation.md)).
+
 `deploy/install.sh` writes `.env` (mode 0600) with a random database password and session
 secret. Keep a copy of `.env` in your password manager: the backup of the database is of
 no use without it, and the vault key (the `vault` volume) belongs to the same backup set.

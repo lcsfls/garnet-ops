@@ -29,6 +29,7 @@ export const SCAN_ERRORS = {
   unexpected: "The scan failed unexpectedly. The worker log has details.",
   refNotFound: "The requested ref does not exist in the repository.",
   commitMismatch: "The ref points to a different commit than the gate check expected.",
+  scannerUnavailable: "The scanner service did not answer. An admin can check it under System status.",
 } as const;
 
 export type ScanErrorCode = keyof typeof SCAN_ERRORS;

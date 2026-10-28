@@ -88,9 +88,9 @@ paginated findings, and every number on the overview leads to its details.
       against the local database, findings stored, resolved and reopened,
       clean up; tested end to end with the real scanner on recorded fixtures.
       SBOM with syft and package inventory per repository (Packages page)
-      done. Still open: SBOM download (CycloneDX/SPDX) and the
-      container sandbox (non-root, read-only, no network, CPU/memory limits)
-      that comes with the Compose stack
+      done. syft and grype run in a scanner service of their own: no network,
+      no vault key, no database, clones read-only, CPU/memory/process limits
+      (ADR 0028, 0.0.9). Still open: SBOM download (CycloneDX/SPDX)
 - [x] Scanner binaries: pinned versions, checksum-verified download
 - [x] Findings: deduplicated per repository, package and vulnerability;
       states open / accepted (with reason and expiry) / resolved; filters in

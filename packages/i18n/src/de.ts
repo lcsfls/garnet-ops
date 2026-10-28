@@ -70,6 +70,8 @@ export const de: Messages = {
     unexpected: "Der Scan ist unerwartet fehlgeschlagen. Details stehen im Log des Workers.",
     refNotFound: "Die angefragte Ref gibt es im Repository nicht.",
     commitMismatch: "Die Ref zeigt auf einen anderen Commit, als die Gate-Prüfung erwartet hat.",
+    scannerUnavailable:
+      "Der Scanner-Dienst hat nicht geantwortet. Ein Admin kann ihn unter Systemstatus prüfen.",
   },
   setup: {
     title: "GarnetOps einrichten",
@@ -420,7 +422,7 @@ export const de: Messages = {
     never: "nie",
     scanners: {
       title: "Scanner",
-      description: "Die Versionen der Scan-Werkzeuge, wie der Worker sie meldet.",
+      description: "Die Scan-Werkzeuge: ihre Versionen und wo sie laufen, wie der Worker sie meldet.",
       version: "Version {version}",
       pinned: "Dieses Release legt {pinned} fest.",
       reported: "Gemeldet {when}.",
@@ -441,6 +443,27 @@ export const de: Messages = {
         unreadable: "Das Programm lief, meldete aber keine Version.",
         notConfigured:
           "Ohne syft listen Scans nur verwundbare Pakete auf, nicht das vollständige Paketinventar.",
+      },
+      isolation: {
+        title: "Isolierung",
+        state: {
+          service: "Isoliert",
+          worker: "Im Worker",
+          unreachable: "Antwortet nicht",
+          differs: "Andere Version",
+          unknown: "Nicht gemeldet",
+        },
+        hint: {
+          service:
+            "syft und grype laufen im Scanner-Dienst: kein Netzwerk, kein Vault-Schlüssel, keine Datenbank, Klone nur lesbar.",
+          worker:
+            "syft und grype laufen im Worker, neben dem Vault-Schlüssel. Laden Sie die docker-compose.yml dieser Version, um sie zu isolieren (siehe Aktualisieren).",
+          unreachable:
+            "Der Scanner-Dienst antwortet nicht, daher schlagen Scans fehl. Prüfen Sie ihn mit docker compose ps.",
+          differs:
+            "Der Scanner-Dienst läuft mit {version}, der Worker mit {worker}. Laden Sie die updater.yaml dieser Version, damit Updates den Scanner-Dienst einschließen (siehe Aktualisieren).",
+          unknown: "Der Worker hat noch nichts gemeldet.",
+        },
       },
     },
     vulnDb: {

@@ -8,6 +8,26 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Security
+
+- syft and grype run in a scanner service of their own ([ADR 0028](docs/adr/0028-scanner-isolation.md)): no network at all, no
+  vault key, no database address, the clones and the vulnerability database read-only, its own CPU, memory and process limits. A
+  repository crafted to exploit a scanner can no longer reach stored tokens and deploy keys or send anything away. Deploy keys,
+  git's home directory and the reports stay in the worker; only the clone is shared, in memory, and removed after each scan.
+
+### Added
+
+- **System → Scanners → Isolation** shows where syft and grype run, whether the scanner service answers and whether it runs the
+  worker's release. `GET /api/v1/system/status` has the same as `scanners.isolation`.
+- New optional `.env` keys `GARNETOPS_SCANNER_CPUS` (default 2) and `GARNETOPS_SCANNER_MEMORY` (default 4g).
+
+### Changed
+
+- `docker-compose.yml` has the new service `scanner` and the in-memory volumes `scan-work` and `scanner-socket`; `updater.yaml` lists
+  `scanner` so that updates replace it with the worker. **In-app updates do not change these files**: download both from the release
+  to switch ([docs/updating.md](docs/updating.md#scanner-service-from-009)). Until then the worker scans by itself as before, and the
+  System status page says so. `GARNETOPS_WORK_TMPFS` now also sizes the clones' volume.
+
 ## [0.0.8] - 2026-10-28
 
 ### Changed
