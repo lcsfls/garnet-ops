@@ -14,11 +14,25 @@ function content(): Element | null {
 }
 
 const subscribe = createSubscriber((update) => {
-  const element = content();
-  if (!element || typeof ResizeObserver === "undefined") return;
-  const observer = new ResizeObserver(update);
-  observer.observe(element);
-  return () => observer.disconnect();
+  if (typeof ResizeObserver === "undefined") return;
+  // A page reads the step while it is being built, before the content area is in the document; wait for it, then
+  // follow its size (the observer reports the first size right away).
+  let observer: ResizeObserver | undefined;
+  let frame = 0;
+  const attach = () => {
+    const element = content();
+    if (!element) {
+      frame = requestAnimationFrame(attach);
+      return;
+    }
+    observer = new ResizeObserver(update);
+    observer.observe(element);
+  };
+  attach();
+  return () => {
+    cancelAnimationFrame(frame);
+    observer?.disconnect();
+  };
 });
 
 /**
