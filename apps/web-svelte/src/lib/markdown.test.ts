@@ -109,6 +109,13 @@ describe("inline", () => {
       );
     });
 
+    it("never lets an address carry attributes: quotes and spaces stay out of the link", () => {
+      const nodes = parseInline('[x](https://example.com/" onmouseover="alert(1))');
+      const link = nodes.find((n) => n.t === "link");
+      expect(link).toMatchObject({ t: "link", host: "example.com" });
+      expect(link?.t === "link" ? link.href : "").not.toMatch(/["'\s<>]/);
+    });
+
     it("ignores a title after the address", () => {
       expect(parseInline('[x](https://example.com/a "title")')[0]).toMatchObject({
         t: "link",
