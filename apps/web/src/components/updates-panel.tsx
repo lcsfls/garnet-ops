@@ -206,11 +206,18 @@ export function UpdatesPanel({ me }: { me: Me }) {
   );
 }
 
-/** Until the first release there are no signed images; installations build them from the repository. */
+/**
+ * Without the update service an installation builds the newest release tag from the repository.
+ * The version comes from the tag, so the commands never go stale.
+ */
 const SOURCE_UPDATE = [
-  "git pull",
-  "docker build --target app -t garnetops:local --build-arg VERSION=0.0.3 .",
-  "docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.3 .",
+  "docker compose exec db pg_dump -U garnetops -Fc garnetops > garnetops-$(date +%F).dump",
+  "git fetch --tags",
+  "TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)",
+  'git checkout "$TAG"',
+  'VERSION=$(echo "$TAG" | cut -c2-)',
+  'docker build --target app -t garnetops:local --build-arg VERSION="$VERSION" .',
+  'docker build --target web -t garnetops-web:local --build-arg VERSION="$VERSION" .',
   "docker compose up -d",
 ].join("\n");
 

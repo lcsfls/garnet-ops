@@ -1213,7 +1213,7 @@ export const en = {
       "Before anything is stopped, the database is backed up and checked. If the new version does not start, the old one comes back only when that is provably safe.",
     helpUpdatesManualTitle: "Without the updater",
     helpUpdatesManualText:
-      "The updater is optional and installs signed releases only. There is no release yet: update on the host by pulling the repository, rebuilding the images and running docker compose up -d. Back up the database first.",
+      "The updater is optional and installs signed releases only. Without it, update on the host: back up the database, check out the newest release tag, rebuild the images and run docker compose up -d.",
     helpSourceTitle: "Your copy of the source",
     helpSourceText:
       "GarnetOps is free software under the AGPL-3.0. You may read, change and share the source code of the version you run; the link points to it.",
@@ -1226,7 +1226,7 @@ export const en = {
     updatesDescription:
       "New releases of GarnetOps, installed by the optional update service on this host after a backup.",
     updatesManual:
-      "There is no signed release yet. Update on the host, in the GarnetOps directory: back up the database, then rebuild the images from the repository.",
+      "Update on the host, in the GarnetOps directory: back up the database, then build the newest release from the repository. To install signed releases from this page instead, set up the update service as the guide describes.",
     updatesTrust: "Signature check",
     updatesTrustMode: {
       keyless: "Keyless (release workflow identity)",

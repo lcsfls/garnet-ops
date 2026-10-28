@@ -52,6 +52,12 @@ them, but they still exist there.
 - Documentation: `docs/servers.md`, `proxmox.md`, `unifi.md`, `xdr.md`, `attacks.md` and `exposure.md` are deleted; the ADRs of the
   removed modules are marked as superseded and stay.
 
+### Fixed
+
+- Settings → Updates, the README and the update guide no longer say that there is no release.
+  Without the update service, the manual update now builds the newest release tag, with the
+  version taken from the tag instead of a fixed number.
+
 ### Security
 
 - The stored credentials of the removed integrations are deleted from the database by migration 0024: the SSH key for servers, the

@@ -5,10 +5,11 @@ version (AGENTS.md rule 2): migrations only add, and a pipeline that passed yest
 not fail tomorrow because of an update. Security fixes are published for every supported
 version line, free of charge.
 
-**There is no release yet, so there are no signed images.** Until the first release,
-every installation runs images built from this repository, and you update the same way.
+Signed releases are published since 0.0.3. An installation that builds its images from
+this repository updates by building the newest release tag; one that runs the signed
+release images updates with the optional update service or by hand.
 
-## Today: images built from source
+## Images built from source
 
 `docker compose pull` does not apply here: it only fetches published images, and
 `garnetops:local` exists only on your host. Instead:
@@ -16,21 +17,25 @@ every installation runs images built from this repository, and you update the sa
 ```sh
 cd /opt/garnetops
 docker compose exec db pg_dump -U garnetops -Fc garnetops > garnetops-$(date +%F).dump
-git pull
-docker build --target app -t garnetops:local     --build-arg VERSION=0.0.3 .
-docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.3 .
+git fetch --tags
+TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)   # the newest release, e.g. v0.0.4
+git checkout "$TAG"
+VERSION=$(echo "$TAG" | cut -c2-)
+docker build --target app -t garnetops:local     --build-arg VERSION="$VERSION" .
+docker build --target web -t garnetops-web:local --build-arg VERSION="$VERSION" .
 docker compose up -d
 docker compose ps
 ```
 
 The API migrates the database when it starts; migrations only add, so your data stays.
-Read the `Unreleased` section of [CHANGELOG.md](../CHANGELOG.md) for new `.env` keys first.
-Keep `UPDATER_URL=` empty in `.env`: the update service installs signed releases only.
+Read the release's section of [CHANGELOG.md](../CHANGELOG.md) for new `.env` keys first.
+Keep `UPDATER_URL=` empty in `.env` as long as you build from source: the update service
+installs signed release images only.
 
-## From the first release on: signed images
+## Signed release images
 
-Everything below applies once releases are published. Then there are two ways to
-update, and both install the signed images of a release, pinned by digest.
+There are two ways to update, and both install the signed images of a release, pinned by
+digest.
 
 ### In the app (optional update service)
 
@@ -60,7 +65,7 @@ cosign verify ghcr.io/restow-backup/cicd-updater:1.0.0 \
   --certificate-identity-regexp '^https://github.com/restow-backup/cicd-updater/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 #   CICD_UPDATER_IMAGE=ghcr.io/restow-backup/cicd-updater:1.0.0@sha256:<verified digest>
-sudo chown root:root updater.yaml && sudo chmod 644 updater.yaml
+chown root:root updater.yaml && chmod 644 updater.yaml   # as root on the host
 docker compose run --rm --no-deps updater config check
 docker compose --profile updater up -d
 docker compose exec updater cicd-updater doctor

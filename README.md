@@ -8,7 +8,8 @@ GitHub and plain Git. No code, finding or log leaves the customer's network.
 Dual-licensed: [AGPL-3.0-only](LICENSE) and a commercial license
 ([LICENSING.md](LICENSING.md)). Domain: garnetops.com.
 
-**Status:** early development, no release yet. Since 0.0.4 GarnetOps is a pure developer
+**Status:** alpha, with signed releases since 0.0.3
+([GitHub Releases](https://github.com/lcsfls/garnet-ops/releases)). Since 0.0.4 GarnetOps is a pure developer
 pipeline ([ADR 0025](docs/adr/0025-focus-on-the-developer-pipeline.md)): the server, Proxmox VE, UniFi,
 Wazuh/XDR, attack overview and external exposure modules were removed. The last version that has them
 is the tag `v0.0.3`. Working today: sign-in with
@@ -118,23 +119,27 @@ the host name as TLS server name. In Nginx Proxy Manager:
 and the cross-site request check depend on it. Behind a proxy, GarnetOps currently sees
 the proxy's address as the client address (audit log, sign-in rate limits).
 
-### Updating (no signed images yet)
+### Updating
 
-Without a release there are no signed images, so the in-app update service cannot be
-used. Update by hand from the repository:
+If you built the images from this repository, back up the database and build the newest
+release tag:
 
 ```sh
 cd /opt/garnetops
 docker compose exec db pg_dump -U garnetops -Fc garnetops > garnetops-$(date +%F).dump
-git pull
-docker build --target app -t garnetops:local     --build-arg VERSION=0.0.3 .
-docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.3 .
+git fetch --tags
+TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)   # the newest release, e.g. v0.0.4
+git checkout "$TAG"
+VERSION=$(echo "$TAG" | cut -c2-)
+docker build --target app -t garnetops:local     --build-arg VERSION="$VERSION" .
+docker build --target web -t garnetops-web:local --build-arg VERSION="$VERSION" .
 docker compose up -d
 ```
 
 Database migrations run when the API starts; they only add, so your data stays. Read
-[CHANGELOG.md](CHANGELOG.md) for new `.env` keys first. Once signed releases exist, follow
-[docs/updating.md](docs/updating.md) instead, including in-app updates.
+[CHANGELOG.md](CHANGELOG.md) for new `.env` keys first. With the signed release images and
+the optional update service you update from **Settings → Updates** instead; see
+[docs/updating.md](docs/updating.md).
 
 ### Adding repositories
 

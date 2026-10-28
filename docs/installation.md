@@ -16,12 +16,12 @@ updates (the worker) and release checks (the optional update service).
 
 ## Install
 
-**There is no release yet.** Until the first release, build the images from this
-repository as described in the [README](../README.md#getting-started); the rest of this
-page (HTTPS, air-gapped operation, what runs) applies to both. The steps below are for
-release images and work from the first release on.
+Signed release images are published since 0.0.3 (GitHub Releases, `ghcr.io/lcsfls/garnetops`
+and `ghcr.io/lcsfls/garnetops-web`). You can also build the images from this repository as
+described in the [README](../README.md#getting-started); the rest of this page (HTTPS,
+air-gapped operation, what runs) applies to both.
 
-### With release images (from the first release on)
+### With release images
 
 ```sh
 sudo mkdir -p /opt/garnetops && cd /opt/garnetops
