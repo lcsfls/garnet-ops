@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { formatMessage, interpolate, messagesFor } from "@restow-backup/cicd-updater/messages";
+  import { CircleCheck, CircleX, Clock, LoaderCircle } from "@lucide/svelte";
   import {
     formatCountdown,
-    MaintenanceTracker,
     type MaintenanceSnapshot,
+    MaintenanceTracker,
     pollMaintenance,
   } from "@restow-backup/cicd-updater/maintenance";
-  import { CircleCheck, CircleX, Clock, LoaderCircle } from "@lucide/svelte";
+  import { formatMessage, interpolate, messagesFor } from "@restow-backup/cicd-updater/messages";
   import { cn } from "../cn.ts";
   import { language } from "../i18n.svelte.ts";
   import { fetchMaintenance, fetchPublicStatus, maintenanceChanged } from "../updates.ts";

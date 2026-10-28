@@ -9,7 +9,13 @@
   import { formatDate, formatDateTime, formatRelative } from "../format.ts";
   import { language, t } from "../i18n.svelte.ts";
   import { createNotificationFeed, type NotificationCache } from "../notification-feed.svelte.ts";
-  import { groupByDay, newestId, notificationsKey, type UserNotification, unreadBadge } from "../notifications.ts";
+  import {
+    groupByDay,
+    newestId,
+    notificationsKey,
+    type UserNotification,
+    unreadBadge,
+  } from "../notifications.ts";
   import { displayTimeZone } from "../time-zone.svelte.ts";
   import { toast } from "../toast.svelte.ts";
   import { href as appHref } from "../url.ts";

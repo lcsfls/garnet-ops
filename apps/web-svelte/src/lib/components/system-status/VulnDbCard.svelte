@@ -13,7 +13,9 @@
 
   let { vulnDb }: { vulnDb: SystemStatus["vulnDb"] } = $props();
 
-  const stateKey = $derived(!vulnDb.reported ? "notReported" : vulnDb.valid === false ? "invalid" : vulnDb.freshness);
+  const stateKey = $derived(
+    !vulnDb.reported ? "notReported" : vulnDb.valid === false ? "invalid" : vulnDb.freshness,
+  );
   const update = $derived(vulnDb.update);
   const reason = $derived(reasonText(update.reason));
   const dueNow = $derived(update.nextAt !== null && new Date(update.nextAt).getTime() <= Date.now());

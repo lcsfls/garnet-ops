@@ -1,8 +1,6 @@
 <script lang="ts">
   import { ArrowLeft, Flame, GitBranch, RefreshCw } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
-  import { goto } from "$app/navigation";
-  import { page } from "$app/state";
   import { api } from "#lib/api.ts";
   import { cn } from "#lib/cn.ts";
   import Card from "#lib/components/Card.svelte";
@@ -22,6 +20,8 @@
   import { toast } from "#lib/toast.svelte.ts";
   import type { RepositoryDetail, Severity } from "#lib/types.ts";
   import { href, parseSearch } from "#lib/url.ts";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import type { PageData } from "./$types";
 
   const SEVERITIES: Severity[] = ["critical", "high", "medium", "low"];

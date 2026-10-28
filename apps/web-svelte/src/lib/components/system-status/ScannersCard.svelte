@@ -13,7 +13,9 @@
   /** Version, pinned version and when it was reported, on one line. */
   function detail(s: SystemStatus["scanners"]["items"][number]): string {
     const parts = [
-      s.version ? t("systemStatus.scanners.version", { version: s.version }) : t("systemStatus.scanners.noVersion"),
+      s.version
+        ? t("systemStatus.scanners.version", { version: s.version })
+        : t("systemStatus.scanners.noVersion"),
       t("systemStatus.scanners.pinned", { pinned: s.pinned }),
     ];
     if (s.reportedAt) parts.push(t("systemStatus.scanners.reported", { when: formatRelative(s.reportedAt) }));

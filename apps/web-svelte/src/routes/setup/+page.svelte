@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
   import { ApiError, api } from "#lib/api.ts";
   import AuthLayout from "#lib/components/AuthLayout.svelte";
   import Alert from "#lib/components/ui/Alert.svelte";
@@ -7,6 +6,7 @@
   import Field from "#lib/components/ui/Field.svelte";
   import { type MessageKey, t } from "#lib/i18n.svelte.ts";
   import { queryClient } from "#lib/query.ts";
+  import { goto } from "$app/navigation";
 
   let error = $state<MessageKey | null>(null);
   let alreadyDone = $state(false);

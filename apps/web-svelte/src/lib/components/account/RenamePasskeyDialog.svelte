@@ -26,7 +26,8 @@
       api(`/account/passkeys/${input.id}`, { method: "PATCH", body: { name: input.name } }),
     onSuccess: () => onRenamed(),
     onError: (e: Error) => {
-      error = e instanceof ApiError && e.status === 422 ? t("account.passkeys.errorName") : t("errors.generic");
+      error =
+        e instanceof ApiError && e.status === 422 ? t("account.passkeys.errorName") : t("errors.generic");
     },
   }));
   function submit(event: SubmitEvent) {

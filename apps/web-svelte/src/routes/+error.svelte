@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { page } from "$app/state";
   import AuthLayout from "#lib/components/AuthLayout.svelte";
   import Alert from "#lib/components/ui/Alert.svelte";
   import Button from "#lib/components/ui/Button.svelte";
   import { t } from "#lib/i18n.svelte.ts";
+  import { page } from "$app/state";
 
   const notFound = $derived(page.status === 404);
 

@@ -26,7 +26,8 @@
       await refreshMe(queryClient);
     },
     onError: (e: Error) => {
-      error = e instanceof ApiError && e.status === 422 ? t("account.profile.errorName") : t("errors.generic");
+      error =
+        e instanceof ApiError && e.status === 422 ? t("account.profile.errorName") : t("errors.generic");
     },
   }));
   function submit(event: SubmitEvent) {

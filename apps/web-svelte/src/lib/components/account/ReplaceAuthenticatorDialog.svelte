@@ -84,7 +84,9 @@
   function submitCode(event: SubmitEvent) {
     event.preventDefault();
     error = null;
-    confirm.mutate(String(new FormData(event.currentTarget as HTMLFormElement).get("code")).replace(/\s+/g, ""));
+    confirm.mutate(
+      String(new FormData(event.currentTarget as HTMLFormElement).get("code")).replace(/\s+/g, ""),
+    );
   }
   const secret = $derived(uri ? (new URL(uri).searchParams.get("secret") ?? "") : "");
 </script>

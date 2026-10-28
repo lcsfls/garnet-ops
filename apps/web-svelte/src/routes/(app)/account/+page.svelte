@@ -1,6 +1,5 @@
 <script lang="ts">
   import { UserRound } from "@lucide/svelte";
-  import { page } from "$app/state";
   import AuthenticatorSection from "#lib/components/account/AuthenticatorSection.svelte";
   import NotificationsSection from "#lib/components/account/NotificationsSection.svelte";
   import PasskeysSection from "#lib/components/account/PasskeysSection.svelte";
@@ -13,6 +12,7 @@
   import { type MessageKey, t } from "#lib/i18n.svelte.ts";
   import { ACCOUNT_SECTIONS, type AccountSection, accountSearch } from "#lib/search.ts";
   import { href, parseSearch } from "#lib/url.ts";
+  import { page } from "$app/state";
   import type { PageData } from "./$types";
 
   const SECTION_LABELS = {

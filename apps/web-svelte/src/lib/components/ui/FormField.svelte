@@ -14,7 +14,8 @@
     error,
     id,
     children,
-  }: { label: string; hint?: string; error?: string | null; id?: string; children: Snippet<[ControlProps]> } = $props();
+  }: { label: string; hint?: string; error?: string | null; id?: string; children: Snippet<[ControlProps]> } =
+    $props();
   const generated = $props.id();
 </script>
 

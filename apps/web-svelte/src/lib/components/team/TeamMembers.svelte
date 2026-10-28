@@ -25,7 +25,10 @@
   let { me }: { me: Me } = $props();
   const queryClient = useQueryClient();
   const stepUp = new StepUp();
-  const members = createQuery(() => ({ queryKey: ["team-members"], queryFn: () => api<Member[]>("/team/members") }));
+  const members = createQuery(() => ({
+    queryKey: ["team-members"],
+    queryFn: () => api<Member[]>("/team/members"),
+  }));
   let removing = $state<Member | null>(null);
   let linking = $state<Member | null>(null);
   let error = $state<string | null>(null);

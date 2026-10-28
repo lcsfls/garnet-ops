@@ -1,5 +1,5 @@
-import type { PublicStatus, ReleasesView, StateView } from "@restow-backup/cicd-updater/protocol";
 import type { MaintenanceView } from "@restow-backup/cicd-updater/maintenance";
+import type { PublicStatus, ReleasesView, StateView } from "@restow-backup/cicd-updater/protocol";
 import { api } from "./api.ts";
 
 /**

@@ -1,8 +1,6 @@
 <script lang="ts">
   import { Clock, GitBranch, Plus } from "@lucide/svelte";
   import { createQuery, keepPreviousData } from "@tanstack/svelte-query";
-  import { goto } from "$app/navigation";
-  import { page } from "$app/state";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
@@ -21,6 +19,8 @@
   import { type RepositorySearch, repositorySearch, toQuery } from "#lib/search.ts";
   import type { GateResult, Grade, Page, RepositoryRow } from "#lib/types.ts";
   import { href, parseSearch } from "#lib/url.ts";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import type { PageData } from "./$types";
 
   const STATUSES = ["all", "blocked", "attention", "clean"] as const;

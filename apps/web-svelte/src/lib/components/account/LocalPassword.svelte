@@ -24,7 +24,8 @@
   let error = $state<string | null>(null);
   let mismatch = $state(false);
   const change = createMutation(() => ({
-    mutationFn: (body: ChangeInput) => api<{ revokedSessions: number }>("/account/password", { method: "POST", body }),
+    mutationFn: (body: ChangeInput) =>
+      api<{ revokedSessions: number }>("/account/password", { method: "POST", body }),
     onSuccess: (result: { revokedSessions: number }) => {
       toast.success(
         `${t("account.password.done")} ${t("account.password.doneRevoked", { count: result.revokedSessions })}`,

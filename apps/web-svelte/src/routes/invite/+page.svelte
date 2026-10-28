@@ -33,7 +33,9 @@
       api<{ email: string }>("/invitations/accept", { method: "POST", body }),
     onError: (e: Error) => {
       if (e instanceof ApiError && e.status === 422) {
-        fieldErrors = Object.fromEntries((e.problem?.errors ?? []).map((x) => [x.path.split(".")[0], x.message]));
+        fieldErrors = Object.fromEntries(
+          (e.problem?.errors ?? []).map((x) => [x.path.split(".")[0], x.message]),
+        );
       }
     },
   }));
@@ -45,7 +47,11 @@
     accept.mutate(
       info.hasAccount
         ? { token }
-        : { token, name: String(form.get("name") ?? "").trim(), password: String(form.get("password") ?? "") },
+        : {
+            token,
+            name: String(form.get("name") ?? "").trim(),
+            password: String(form.get("password") ?? ""),
+          },
     );
   }
 </script>

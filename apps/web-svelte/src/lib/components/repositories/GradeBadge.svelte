@@ -1,10 +1,10 @@
 <script lang="ts">
   import { t } from "../../i18n.svelte.ts";
   import type { GradeFields } from "../../types.ts";
-  import { gradeFindingFilter } from "./grade-badge.ts";
-  import { gradeLine } from "./grade-line.ts";
   import GradeLetter from "./GradeLetter.svelte";
   import GradeLink from "./GradeLink.svelte";
+  import { gradeFindingFilter } from "./grade-badge.ts";
+  import { gradeLine } from "./grade-line.ts";
 
   /**
    * The grade of a repository in a list: the letter, and on hover or keyboard focus

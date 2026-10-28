@@ -1,7 +1,5 @@
 <script lang="ts">
   import { ShieldCheck } from "@lucide/svelte";
-  import { goto } from "$app/navigation";
-  import { page } from "$app/state";
   import { cn } from "#lib/cn.ts";
   import GatePipeline from "#lib/components/gates/GatePipeline.svelte";
   import GateRules from "#lib/components/gates/GateRules.svelte";
@@ -11,6 +9,8 @@
   import { isAdmin } from "#lib/nav.ts";
   import { type GateSearch, gateSearch } from "#lib/search.ts";
   import { href, parseSearch } from "#lib/url.ts";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import type { PageData } from "./$types";
 
   /** Quality gates (mockup): rules, recent runs, and how a pipeline asks for a result (ADR 0008). */

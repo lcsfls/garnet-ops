@@ -8,8 +8,8 @@
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import AppCard from "#lib/components/system-status/AppCard.svelte";
   import IntegrationsCard from "#lib/components/system-status/IntegrationsCard.svelte";
-  import { SYSTEM_STATUS_QUERY } from "#lib/components/system-status/links.ts";
   import LocalBuildCard from "#lib/components/system-status/LocalBuildCard.svelte";
+  import { SYSTEM_STATUS_QUERY } from "#lib/components/system-status/links.ts";
   import ScannersCard from "#lib/components/system-status/ScannersCard.svelte";
   import SummaryCard from "#lib/components/system-status/SummaryCard.svelte";
   import VulnDbCard from "#lib/components/system-status/VulnDbCard.svelte";

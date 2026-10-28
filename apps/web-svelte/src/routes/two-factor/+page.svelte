@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
   import { authClient, authErrorKey } from "#lib/auth-client.ts";
   import AuthLayout from "#lib/components/AuthLayout.svelte";
   import Alert from "#lib/components/ui/Alert.svelte";
@@ -8,6 +7,7 @@
   import { type MessageKey, t } from "#lib/i18n.svelte.ts";
   import { PASSKEY_FAILURE_KEYS, passkeysSupported, signInWithPasskey } from "#lib/passkeys.ts";
   import { queryClient } from "#lib/query.ts";
+  import { goto } from "$app/navigation";
 
   /** Second step of sign-in. Only reachable while signed out; the pending sign-in lives in a short-lived cookie. */
   let mode = $state<"totp" | "backup">("totp");

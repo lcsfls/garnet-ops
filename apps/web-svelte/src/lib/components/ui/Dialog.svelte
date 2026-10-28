@@ -13,7 +13,8 @@
     title,
     description,
     children,
-  }: { open: boolean; onClose: () => void; title: string; description?: string; children: Snippet } = $props();
+  }: { open: boolean; onClose: () => void; title: string; description?: string; children: Snippet } =
+    $props();
 
   let dialog: HTMLDialogElement | undefined = $state();
   // Several dialogs can be mounted at once (e.g. one per table row), so ids must be unique.

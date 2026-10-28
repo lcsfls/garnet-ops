@@ -10,8 +10,8 @@
   import { href } from "../../url.ts";
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
-  import { reasonText } from "./reason.ts";
   import Row from "./Row.svelte";
+  import { reasonText } from "./reason.ts";
   import StatusBadge from "./StatusBadge.svelte";
 
   let { integrations, role }: { integrations: IntegrationStatus[]; role: string } = $props();

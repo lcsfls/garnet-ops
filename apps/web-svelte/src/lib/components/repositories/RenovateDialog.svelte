@@ -10,7 +10,8 @@
   import DialogFooter from "../ui/DialogFooter.svelte";
 
   /** A renovate.json for teams that run their own Renovate. GarnetOps never runs or bundles it. */
-  let { repositoryId, open, onClose }: { repositoryId: string; open: boolean; onClose: () => void } = $props();
+  let { repositoryId, open, onClose }: { repositoryId: string; open: boolean; onClose: () => void } =
+    $props();
 
   const query = createQuery(() => ({
     queryKey: ["renovate-config", repositoryId],

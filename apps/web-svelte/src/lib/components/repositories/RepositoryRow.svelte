@@ -10,7 +10,8 @@
     "ssh-deploy-key": "repositories.sourceDeployKey",
   } as const satisfies Record<RepositoryRow["authKind"], MessageKey>;
   /** Open findings per severity as small tinted counts (mockup .count). */
-  const COUNT_PILL = "inline-block min-w-[26px] rounded-md px-1.5 py-px text-center text-[13px] font-semibold";
+  const COUNT_PILL =
+    "inline-block min-w-[26px] rounded-md px-1.5 py-px text-center text-[13px] font-semibold";
 </script>
 
 <script lang="ts">

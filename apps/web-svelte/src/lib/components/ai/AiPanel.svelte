@@ -9,8 +9,8 @@
   import Alert from "../ui/Alert.svelte";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
-  import { active } from "./ai-panel.ts";
   import AssistantMessage from "./AssistantMessage.svelte";
+  import { active } from "./ai-panel.ts";
   import Composer from "./Composer.svelte";
   import NotReady from "./NotReady.svelte";
   import { followThread } from "./thread-stream.svelte.ts";
@@ -42,8 +42,7 @@
       queryKey: key,
       queryFn: () => api<AiThread>(`/ai/findings/${findingId}/thread`),
       // Only when the live stream cannot be used does the panel ask again and again.
-      refetchInterval: (query) =>
-        poll && query.state.data?.messages.some(active) ? 2000 : false,
+      refetchInterval: (query) => (poll && query.state.data?.messages.some(active) ? 2000 : false),
     };
   });
   const data = $derived(thread.data);
@@ -81,12 +80,16 @@
     onError: failed,
   };
   const start = createMutation(() => ({
-    mutationFn: () => api(`/ai/findings/${findingId}/triage`, { method: "POST", body: { language: language() } }),
+    mutationFn: () =>
+      api(`/ai/findings/${findingId}/triage`, { method: "POST", body: { language: language() } }),
     ...options,
   }));
   const ask = createMutation(() => ({
     mutationFn: (content: string) =>
-      api(`/ai/threads/${data?.threadId}/messages`, { method: "POST", body: { content, language: language() } }),
+      api(`/ai/threads/${data?.threadId}/messages`, {
+        method: "POST",
+        body: { content, language: language() },
+      }),
     ...options,
   }));
   const stop = createMutation(() => ({

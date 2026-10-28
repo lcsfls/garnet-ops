@@ -4,7 +4,8 @@
   import Field from "../ui/Field.svelte";
 
   /** The licenses the "license-denied" rule matches, as a comma or space separated list. */
-  let { value, pending, onSave }: { value: string[]; pending: boolean; onSave: (list: string[]) => void } = $props();
+  let { value, pending, onSave }: { value: string[]; pending: boolean; onSave: (list: string[]) => void } =
+    $props();
 
   // The field starts from the stored list and is then the user's to edit, like an uncontrolled input.
   // svelte-ignore state_referenced_locally

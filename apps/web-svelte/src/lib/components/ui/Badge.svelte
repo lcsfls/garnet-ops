@@ -3,7 +3,11 @@
   import { cn } from "../../cn.ts";
   import { BADGE_TONE, type BadgeTone } from "./tones.ts";
 
-  let { tone, class: className, children }: { tone?: BadgeTone; class?: string; children: Snippet } = $props();
+  let {
+    tone,
+    class: className,
+    children,
+  }: { tone?: BadgeTone; class?: string; children: Snippet } = $props();
 </script>
 
 <span

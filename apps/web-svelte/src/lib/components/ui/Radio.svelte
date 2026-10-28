@@ -3,8 +3,11 @@
   import { cn } from "../../cn.ts";
 
   /** A native radio button styled to match Checkbox. */
-  let { class: className, group = $bindable(), ...rest }: Omit<HTMLInputAttributes, "type"> & { group?: unknown } =
-    $props();
+  let {
+    class: className,
+    group = $bindable(),
+    ...rest
+  }: Omit<HTMLInputAttributes, "type"> & { group?: unknown } = $props();
 </script>
 
 <span class={cn("inline-grid size-4 flex-none place-items-center", className as string)}>

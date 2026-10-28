@@ -41,7 +41,8 @@ function announcerStyleHashes(): string[] {
   const kit = dirname(createRequire(import.meta.url).resolve("@sveltejs/kit/package.json"));
   const root = readFileSync(join(kit, "src/runtime/components/root.svelte"), "utf8");
   const styles = [...root.matchAll(/\sstyle="([^"]*)"/g)].map((m) => m[1] ?? "");
-  if (styles.length !== 1) throw new Error(`Expected one style attribute in SvelteKit's root component, found ${styles.length}`);
+  if (styles.length !== 1)
+    throw new Error(`Expected one style attribute in SvelteKit's root component, found ${styles.length}`);
   return styles.map((style) => `sha256-${createHash("sha256").update(style).digest("base64")}`);
 }
 

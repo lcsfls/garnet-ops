@@ -5,7 +5,9 @@
 
   /** The facts of a finished triage, as plain text only. */
   let { result }: { result: TriageResult } = $props();
-  const links = $derived(result.references.map(safeLink).filter((l): l is NonNullable<typeof l> => l !== null));
+  const links = $derived(
+    result.references.map(safeLink).filter((l): l is NonNullable<typeof l> => l !== null),
+  );
 </script>
 
 {#snippet fact(label: string, value: string)}

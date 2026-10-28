@@ -1,7 +1,12 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { cn } from "../../cn.ts";
-  import { FORM_ROW_STEPS, type FormColumns, type FormRowStep, formColumnTemplate } from "../../form-layout.ts";
+  import {
+    FORM_ROW_STEPS,
+    type FormColumns,
+    type FormRowStep,
+    formColumnTemplate,
+  } from "../../form-layout.ts";
   import { setInFormRow } from "./form-context.ts";
 
   /**
@@ -12,8 +17,11 @@
    * Each field's box is a subgrid of the row, which is why a plain `grid` per field (whose rows stretch to the tallest
    * neighbour) is not enough: it pushed the shorter field's control down.
    */
-  let { columns = 2, from = "md", children }: { columns?: FormColumns; from?: FormRowStep; children: Snippet } =
-    $props();
+  let {
+    columns = 2,
+    from = "md",
+    children,
+  }: { columns?: FormColumns; from?: FormRowStep; children: Snippet } = $props();
 
   /** Container-query steps written out in full so Tailwind finds them; they refer to the row's own box. */
   const SIDE_BY_SIDE: Record<FormRowStep, string> = {

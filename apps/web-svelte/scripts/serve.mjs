@@ -73,4 +73,6 @@ createServer((req, res) => {
   };
   res.writeHead(200, headers);
   createReadStream(found).pipe(res);
-}).listen(port, "localhost", () => console.log(`serving build/ on http://localhost:${port}, API ${api.origin}`));
+}).listen(port, "localhost", () =>
+  console.log(`serving build/ on http://localhost:${port}, API ${api.origin}`),
+);

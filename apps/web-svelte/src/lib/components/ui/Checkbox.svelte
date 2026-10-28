@@ -7,11 +7,7 @@
    * A native checkbox with the look of the inputs: same corner radius checked or not, and our own check mark.
    * Keyboard, labels and screen readers behave as with any checkbox, because it is one.
    */
-  let {
-    class: className,
-    checked = $bindable(false),
-    ...rest
-  }: Omit<HTMLInputAttributes, "type"> = $props();
+  let { class: className, checked = $bindable(false), ...rest }: Omit<HTMLInputAttributes, "type"> = $props();
 </script>
 
 <span class={cn("inline-grid size-4 flex-none place-items-center", className as string)}>

@@ -13,7 +13,10 @@ const policy = match[1].replaceAll("&#39;", "'").replaceAll("&quot;", '"').trim(
 if (/unsafe-inline|unsafe-eval/.test(policy)) throw new Error(`The policy allows inline code: ${policy}`);
 // 'unsafe-hashes' only for style attributes, and only with explicit hashes (SvelteKit's screen-reader announcer).
 for (const directive of policy.split(";").map((d) => d.trim())) {
-  if (/'unsafe-hashes'/.test(directive) && !/^style-src-attr 'unsafe-hashes'( 'sha256-[A-Za-z0-9+/=]+')+$/.test(directive)) {
+  if (
+    /'unsafe-hashes'/.test(directive) &&
+    !/^style-src-attr 'unsafe-hashes'( 'sha256-[A-Za-z0-9+/=]+')+$/.test(directive)
+  ) {
     throw new Error(`'unsafe-hashes' outside a hash-only style-src-attr: ${directive}`);
   }
 }

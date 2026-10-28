@@ -1,6 +1,5 @@
 <script lang="ts">
   import { createQuery } from "@tanstack/svelte-query";
-  import { goto } from "$app/navigation";
   import { authClient, authErrorKey, directoryMe } from "#lib/auth-client.ts";
   import AuthLayout from "#lib/components/AuthLayout.svelte";
   import QrCode from "#lib/components/QrCode.svelte";
@@ -12,6 +11,7 @@
   import { type MessageKey, t } from "#lib/i18n.svelte.ts";
   import { queryClient } from "#lib/query.ts";
   import { signOutAndLeave } from "#lib/session-end.ts";
+  import { goto } from "$app/navigation";
 
   type Step =
     | { kind: "password" }
@@ -33,7 +33,9 @@
 
   async function start(event: SubmitEvent) {
     event.preventDefault();
-    const password = managed ? "" : String(new FormData(event.currentTarget as HTMLFormElement).get("password"));
+    const password = managed
+      ? ""
+      : String(new FormData(event.currentTarget as HTMLFormElement).get("password"));
     busy = true;
     error = null;
     const result = await authClient.twoFactor.enable({ password });

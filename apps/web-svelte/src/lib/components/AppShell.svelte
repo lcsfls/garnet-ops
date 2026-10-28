@@ -16,8 +16,8 @@
   import Mark from "./Mark.svelte";
   import NotificationBell from "./NotificationBell.svelte";
   import ToastRegion from "./ToastRegion.svelte";
-  import Badge from "./ui/Badge.svelte";
   import UserMenu from "./UserMenu.svelte";
+  import Badge from "./ui/Badge.svelte";
   import Wordmark from "./Wordmark.svelte";
 
   let { me, children }: { me: Me; children: Snippet } = $props();

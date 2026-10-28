@@ -1,10 +1,10 @@
 <script lang="ts">
   import { t } from "../../i18n.svelte.ts";
   import type { GradeFields } from "../../types.ts";
-  import { gradeFindingFilter } from "./grade-badge.ts";
-  import { gradeLine } from "./grade-line.ts";
   import GradeLetter from "./GradeLetter.svelte";
   import GradeLink from "./GradeLink.svelte";
+  import { gradeFindingFilter } from "./grade-badge.ts";
+  import { gradeLine } from "./grade-line.ts";
 
   /** The grade under the title of a repository page: letter, reason and link. */
   let { row, id }: { row: GradeFields; id: string } = $props();
