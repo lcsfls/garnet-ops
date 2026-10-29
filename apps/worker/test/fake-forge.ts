@@ -84,6 +84,8 @@ export class FakeForge {
     renewals: 0,
     expiresIn: 28_800,
   };
+  /** More open pull requests for `GET /repos/{owner}/{repo}/pulls`, as the forge would spell them. */
+  extraPulls: Record<string, unknown>[] = [];
   /** The account name `GET /user` answers with. */
   login = "alex";
   /** What `GET /user/repos` lists, page by page, as the forge would spell it. */
@@ -358,6 +360,24 @@ export class FakeForge {
     const github = this.flavour === "github";
     const headers: Record<string, string> = this.scopes ? { "x-oauth-scopes": this.scopes } : {};
 
+    // Open pull requests (ADR 0032): the ones opened here, then any a test adds as the forge would spell them.
+    if (method === "GET" && rest === "/pulls") {
+      const opened = this.pulls
+        .filter((p) => p.state === "open")
+        .map((p) => ({
+          number: p.number,
+          title: p.title,
+          user: { login: "alex" },
+          head: { ref: p.head, sha: this.branches.get(p.head)?.sha ?? "0".repeat(40) },
+          base: { ref: p.base },
+          draft: false,
+          created_at: "2026-10-28T10:00:00Z",
+          updated_at: "2026-10-29T10:00:00Z",
+        }));
+      const size = Number(query.get(github ? "per_page" : "limit") ?? 30);
+      const page = Number(query.get("page") ?? 1);
+      return json(res, 200, [...opened, ...this.extraPulls].slice((page - 1) * size, page * size));
+    }
     if (method === "GET" && rest === "") {
       return json(
         res,

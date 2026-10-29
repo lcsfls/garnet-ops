@@ -402,6 +402,9 @@ export const repository = pgTable(
       .default("organization"),
     /** A member asked to share this private repository with the organisation; owners and admins decide. */
     shareRequestedAt: timestamp("share_requested_at", { withTimezone: true }),
+    /** The last read of its open pull requests (ADR 0032), and a short code when it failed. */
+    pullRequestsCheckedAt: timestamp("pull_requests_checked_at", { withTimezone: true }),
+    pullRequestsProblem: text("pull_requests_problem"),
     /** Public half of a generated deploy key, shown so the user can add it to the forge. */
     deployPublicKey: text("deploy_public_key"),
     /**
@@ -2840,5 +2843,35 @@ export const forgeSignIn = pgTable(
   (t) => [
     index("forge_sign_in_user_idx").on(t.organizationId, t.userId),
     uniqueIndex("forge_sign_in_state_uq").on(t.stateHash),
+  ],
+);
+
+/** The open pull requests of a repository as the worker last read them (ADR 0032). Titles and names are hostile text. */
+export const pullRequest = pgTable(
+  "pull_request",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    repositoryId: text("repository_id")
+      .notNull()
+      .references(() => repository.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    title: text("title").notNull(),
+    author: text("author"),
+    /** Built from the repository address and the number, never taken from the forge. */
+    url: text("url").notNull(),
+    headRef: text("head_ref"),
+    headSha: text("head_sha").notNull(),
+    baseRef: text("base_ref"),
+    draft: boolean("draft").notNull().default(false),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("pull_request_repo_number_uq").on(t.repositoryId, t.number),
+    index("pull_request_org_idx").on(t.organizationId, t.updatedAt),
   ],
 );

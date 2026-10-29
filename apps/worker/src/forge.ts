@@ -142,19 +142,20 @@ interface Call {
   body?: unknown;
 }
 
+/** The headers of a forge API request; without a token (public repositories, ADR 0032) no authorization is sent. */
 function authHeaders(target: ForgeAccount): Record<string, string> {
-  return target.kind === "github"
-    ? {
-        authorization: `Bearer ${target.token}`,
-        accept: "application/vnd.github+json",
-        "x-github-api-version": "2022-11-28",
-      }
-    : { authorization: `token ${target.token}`, accept: "application/json" };
+  const headers: Record<string, string> =
+    target.kind === "github"
+      ? { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" }
+      : { accept: "application/json" };
+  if (target.token)
+    headers.authorization = target.kind === "github" ? `Bearer ${target.token}` : `token ${target.token}`;
+  return headers;
 }
 
 /** One request. 2xx returns the parsed JSON; every other status becomes a {@link ForgeError}. */
 async function call(target: ForgeAccount, options: Call): Promise<Response> {
-  if (!TOKEN_PATTERN.test(target.token)) throw new ForgeError("token-rejected");
+  if (target.token !== "" && !TOKEN_PATTERN.test(target.token)) throw new ForgeError("token-rejected");
   const data = options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body));
   return send(
     target.apiBaseUrl,
@@ -667,4 +668,77 @@ export async function requestToken(webBaseUrl: string, form: Record<string, stri
   if (data.error === "expired_token") return { kind: "expired" };
   if (data.error) return { kind: "denied" };
   throw new ForgeError("bad-response");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Open pull requests (ADR 0032): read only                                    */
+/* -------------------------------------------------------------------------- */
+
+const openPullsSchema = z.array(
+  z.object({
+    number: z.number().int().positive(),
+    title: z.string().max(10_000),
+    draft: z.boolean().nullish(),
+    user: z.object({ login: z.string().max(200) }).nullish(),
+    head: z.object({ ref: z.string().max(500).nullish(), sha: z.string() }),
+    base: z.object({ ref: z.string().max(500).nullish() }).nullish(),
+    created_at: z.string().max(50).nullish(),
+    updated_at: z.string().max(50).nullish(),
+  }),
+);
+
+export interface OpenPullRequest {
+  number: number;
+  /** Control characters removed, at most 300 characters: it is shown as text, never as markup. */
+  title: string;
+  author: string | null;
+  headRef: string | null;
+  headSha: string;
+  baseRef: string | null;
+  draft: boolean;
+  openedAt: Date | null;
+  updatedAt: Date | null;
+}
+
+/** Most open pull requests read per repository. */
+export const MAX_PULL_REQUESTS = 300;
+
+const clean = (text: string | null | undefined, max: number) =>
+  text ? stripControl(text).slice(0, max) || null : null;
+const when = (value: string | null | undefined) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
+};
+
+/** The open pull requests of one repository, newest first, at most {@link MAX_PULL_REQUESTS}. */
+export async function listOpenPullRequests(target: ForgeTarget): Promise<OpenPullRequest[]> {
+  const perPage = target.kind === "github" ? 100 : 50;
+  const out: OpenPullRequest[] = [];
+  for (let page = 1; out.length < MAX_PULL_REQUESTS; page++) {
+    const query =
+      target.kind === "github"
+        ? `?state=open&per_page=${perPage}&page=${page}&sort=updated&direction=desc`
+        : `?state=open&limit=${perPage}&page=${page}&sort=recentupdate`;
+    const batch = parse(
+      openPullsSchema,
+      (await call(target, { method: "GET", path: `${repoPath(target)}/pulls${query}` })).json,
+    );
+    for (const p of batch) {
+      if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(p.head.sha)) continue;
+      out.push({
+        number: p.number,
+        title: clean(p.title, 300) ?? `#${p.number}`,
+        author: clean(p.user?.login, 100),
+        headRef: clean(p.head.ref, 250),
+        headSha: p.head.sha.toLowerCase(),
+        baseRef: clean(p.base?.ref, 250),
+        draft: p.draft === true,
+        openedAt: when(p.created_at),
+        updatedAt: when(p.updated_at),
+      });
+      if (out.length >= MAX_PULL_REQUESTS) break;
+    }
+    if (batch.length < perPage) break;
+  }
+  return out;
 }

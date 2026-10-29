@@ -512,3 +512,31 @@ export interface ForgeSignIn {
   problem: string | null;
   connectionId: string | null;
 }
+
+/* Open pull requests (ADR 0032) */
+
+export interface PullRequestRow {
+  id: string;
+  repositoryId: string;
+  repositoryName: string;
+  number: number;
+  title: string;
+  author: string | null;
+  url: string;
+  headRef: string | null;
+  headSha: string;
+  baseRef: string | null;
+  draft: boolean;
+  openedAt: string | null;
+  updatedAt: string | null;
+  gate: { result: GateResult; scanId: string; at: string } | null;
+  checking: boolean;
+}
+
+export interface PullRequestSource {
+  id: string;
+  name: string;
+  checkedAt: string | null;
+  problem: string | null;
+  open: number;
+}

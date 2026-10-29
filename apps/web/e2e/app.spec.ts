@@ -2085,6 +2085,71 @@ test.describe("connected accounts (ADR 0030)", () => {
   });
 });
 
+test.describe("pull request overview (ADR 0032)", () => {
+  test("reads the open pull requests of a connected repository and checks one", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    const forge = `https://forge.example.test:${E2E.forgePort}`;
+    await page.goto("/settings?section=accounts");
+    await page.getByRole("button", { name: "Connect account" }).click();
+    const dialog = page.getByRole("dialog", { name: "Connect account" });
+    await dialog.getByLabel("Forge", { exact: true }).selectOption("gitea");
+    await dialog.getByLabel("Address of the forge").fill(forge);
+    await dialog.getByLabel("Personal access token").fill(FIXES.token);
+    await dialog.getByRole("button", { name: "Connect", exact: true }).click();
+    const connection = page.getByTestId("forge-connection");
+    await expect(connection).toContainText("Connected as alex", { timeout: 20_000 });
+    await connection.getByRole("button", { name: "Choose repositories" }).click();
+    const picker = page.getByRole("dialog", { name: "Choose repositories" });
+    await picker.getByLabel(/team\/seeded-app/).check();
+    await picker.getByRole("button", { name: "Add 1 repository" }).click();
+    await expect(picker).toBeHidden();
+
+    await page.goto("/");
+    await page.getByRole("link", { name: "Pull requests" }).click();
+    await expect(page.getByRole("heading", { name: "Pull requests", level: 1 })).toBeVisible();
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect(page.getByText("The pull requests are being read again.")).toBeVisible();
+    const row = page.getByTestId("pull-request").filter({ hasText: "#42" });
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    // The forge's title is text, and the link is built from the repository address, not taken from the forge.
+    const link = row.getByRole("link", { name: /Bump pkg-1/ });
+    await expect(link).toHaveText("#42 <b>Bump pkg-1</b> to 1.2.0");
+    await expect(link).toHaveAttribute("href", `${forge}/team/seeded-app/pulls/42`);
+    await expect(row).toContainText("by sam");
+    await expect(row).toContainText("Not checked");
+
+    await row.getByRole("button", { name: "Check pull request 42 of seeded-app now" }).click();
+    await expect(page.getByText("The check of pull request 42 has started.")).toBeVisible();
+    await expect(row).toContainText("Being checked");
+    expect(
+      await sql<{ ref: string; expected_sha: string }>(
+        "select ref, expected_sha from scan where ref = 'refs/pull/42/head'",
+      ),
+    ).toEqual([{ ref: "refs/pull/42/head", expected_sha: "4".repeat(40) }]);
+    await page
+      .getByRole("group", { name: "Gate result" })
+      .getByRole("button", { name: "Not checked" })
+      .click();
+    await expect(page.getByText("No pull request matches the filters.")).toBeVisible();
+    await page
+      .getByRole("group", { name: "Gate result" })
+      .getByRole("button", { name: "Being checked" })
+      .click();
+    await expect(row).toBeVisible();
+
+    // Clean up for the tests after this one: the connection with its private repository.
+    await page.goto("/settings?section=accounts");
+    await page.getByRole("button", { name: /^Remove: / }).click();
+    const confirm = page.getByRole("dialog", { name: /Remove the connection/ });
+    await confirm.getByLabel(/Also remove the private repositories/).check();
+    await confirm.getByRole("button", { name: "Remove" }).click();
+    await expect(page.getByText("No account connected yet.")).toBeVisible();
+    expect(await sql("select 1 from pull_request where number = 42")).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+});
+
 test.describe("signing in to a forge (ADR 0031)", () => {
   test("an admin registers Gitea, a person signs in with it (PKCE) and the account is connected", async ({
     page,

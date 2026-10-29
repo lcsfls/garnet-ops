@@ -25,6 +25,7 @@ import { notificationRoutes } from "./routes/notifications.ts";
 import { organizationRoutes } from "./routes/organization.ts";
 import { overviewRoutes } from "./routes/overview.ts";
 import { packageRoutes } from "./routes/packages.ts";
+import { pullRequestRoutes } from "./routes/pull-requests.ts";
 import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
 import { searchRoutes } from "./routes/search.ts";
@@ -113,6 +114,7 @@ const v1 = new Hono<AppEnv>()
   .route("/forge-connections", forgeConnectionRoutes)
   .route("/forge-apps", forgeAppRoutes)
   .route("/forge-sign-in", forgeSignInRoutes)
+  .route("/pull-requests", pullRequestRoutes)
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)

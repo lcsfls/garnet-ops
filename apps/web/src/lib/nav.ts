@@ -4,6 +4,7 @@ import {
   ChartColumn,
   GitBranch,
   GitPullRequest,
+  GitPullRequestArrow,
   LayoutGrid,
   type LucideIcon,
   Package,
@@ -23,6 +24,7 @@ export type NavTo =
   | "/statistics"
   | "/repositories"
   | "/gates"
+  | "/pull-requests"
   | "/fixes"
   | "/packages"
   | "/settings"
@@ -53,6 +55,7 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     items: [
       { to: "/repositories", label: "nav.repositories", icon: GitBranch },
       { to: "/gates", label: "nav.gates", icon: ShieldCheck },
+      { to: "/pull-requests", label: "nav.pullRequests", icon: GitPullRequestArrow },
       { to: "/fixes", label: "nav.fixes", icon: GitPullRequest },
       { to: "/packages", label: "nav.packages", icon: Package },
     ],

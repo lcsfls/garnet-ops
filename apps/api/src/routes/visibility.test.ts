@@ -108,6 +108,7 @@ describe.skipIf(!adminUrl)("private repositories and personal connections", () =
       gates: (await import("./gates.ts")).gateRoutes,
       fixes: (await import("./fixes.ts")).fixRoutes,
       connections: (await import("./forge-connections.ts")).forgeConnectionRoutes,
+      pullRequests: (await import("./pull-requests.ts")).pullRequestRoutes,
     };
     t = holder.db as TestDatabase;
     const d = t.db;
@@ -195,6 +196,15 @@ describe.skipIf(!adminUrl)("private repositories and personal connections", () =
         severity: "critical",
         severityRank: 5,
       });
+      await d.insert(schema.pullRequest).values({
+        id: `pr_${id}`,
+        organizationId: ORG,
+        repositoryId: id,
+        number: 1,
+        title: `${name}: update dependencies`,
+        url: `https://git.example.lan/team/${name}/pulls/1`,
+        headSha: "c".repeat(40),
+      });
     }
 
     const v1 = new Hono().use("*", async (c, next) => {
@@ -225,6 +235,7 @@ describe.skipIf(!adminUrl)("private repositories and personal connections", () =
     v1.route("/gates", routes.gates as never);
     v1.route("/fixes", routes.fixes as never);
     v1.route("/forge-connections", routes.connections as never);
+    v1.route("/pull-requests", routes.pullRequests as never);
     app = new Hono().onError(handleError).route("/api/v1", v1) as unknown as Hono;
   }, 60_000);
 
@@ -253,6 +264,8 @@ describe.skipIf(!adminUrl)("private repositories and personal connections", () =
       "/api/v1/gates/runs",
       "/api/v1/gates/latest",
       "/api/v1/fixes",
+      "/api/v1/pull-requests",
+      "/api/v1/pull-requests/sources",
     ];
     const texts: string[] = [];
     for (const path of paths) {
@@ -300,6 +313,7 @@ describe.skipIf(!adminUrl)("private repositories and personal connections", () =
     const [still] = await t.db.select().from(schema.finding).where(eq(schema.finding.id, "fnd_repo_private"));
     expect(still?.state).toBe("open");
     expect((await call("DELETE", "/api/v1/repositories/repo_private", KIM)).status).toBe(404);
+    expect((await call("POST", "/api/v1/pull-requests/pr_repo_private/check", SAM)).status).toBe(404);
   });
 
   it("shares on request: a member asks, an admin sees only name and who asks, and approves", async () => {

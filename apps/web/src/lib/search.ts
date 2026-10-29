@@ -232,6 +232,14 @@ export function toQuery(search: Record<string, unknown>, uiOnly: string[] = []):
 
 export { DEFAULT_PAGE_SIZE };
 
+/** Open pull requests with their gate result (ADR 0032). */
+export const pullRequestSearch = z.object({
+  repositoryId: text(40),
+  gate: z.enum(["passed", "notes", "blocked", "checking", "none"]).optional().catch(undefined),
+  q: text(120),
+});
+export type PullRequestSearch = z.infer<typeof pullRequestSearch>;
+
 /** Early warnings (ADR 0029): open ones, or the ones a scan closed in the last 30 days. */
 export const earlyWarningSearch = z.object({
   state: z.enum(["open", "closed"]).optional().catch(undefined),

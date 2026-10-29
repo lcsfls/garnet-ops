@@ -21,7 +21,8 @@ PDF, text), repository pages with scan and patch history, package inventory,
 nightly scans, a team with invitations and roles, notifications by webhook (Discord,
 Slack-compatible) and mail ([docs/notifications.md](docs/notifications.md)), quality gates
 with a CI check per pull request
-([docs/quality-gates.md](docs/quality-gates.md)), AI triage of findings with your own OpenAI-compatible model
+([docs/quality-gates.md](docs/quality-gates.md)), an overview of the open pull requests with the gate result of each
+([docs/pull-requests.md](docs/pull-requests.md)), AI triage of findings with your own OpenAI-compatible model
 ([docs/ai.md](docs/ai.md)), fix proposals with pull requests that raise a vulnerable dependency to its
 fixed version, opened with a separate write token per repository and always left to your review
 ([docs/fix-prs.md](docs/fix-prs.md)), a grade from A to F per repository that shows

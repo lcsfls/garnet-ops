@@ -23,6 +23,7 @@ import {
 import { setForgeTestHooks } from "../src/forge.ts";
 import { FORGE_CONNECTION_QUEUE, type RefreshJob, refreshConnection } from "../src/forge-connection.ts";
 import { FORGE_SIGN_IN_QUEUE, runSignIn } from "../src/forge-sign-in.ts";
+import { PULL_REQUEST_QUEUE, refreshPullRequests } from "../src/pull-requests.ts";
 import { FakeForge } from "./fake-forge.ts";
 
 const forgePort = Number(process.env.E2E_FORGE_PORT ?? 8093);
@@ -51,6 +52,20 @@ forge.listed = ["seeded-app", "billing-portal", "website"].map((name, i) => ({
   archived: false,
   description: name === "website" ? "The public website" : null,
 }));
+// An open pull request someone else opened (pull request overview, ADR 0032), with a title that tries to be markup.
+forge.extraPulls = [
+  {
+    number: 42,
+    title: "<b>Bump pkg-1</b> to 1.2.0",
+    user: { login: "sam" },
+    head: { ref: "deps/pkg-1", sha: "4".repeat(40) },
+    base: { ref: "main" },
+    html_url: "https://elsewhere.example.com/phish",
+    draft: false,
+    created_at: "2026-10-28T08:00:00Z",
+    updated_at: "2026-10-29T08:00:00Z",
+  },
+];
 
 createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://x");
@@ -94,6 +109,14 @@ await boss.createQueue(FIX_PR_CHECK_QUEUE);
 await boss.createQueue(FIX_PR_REFRESH_QUEUE);
 await boss.createQueue(FORGE_CONNECTION_QUEUE);
 await boss.createQueue(FORGE_SIGN_IN_QUEUE);
+await boss.createQueue(PULL_REQUEST_QUEUE);
+await boss.work<{ organizationId: string; repositoryIds?: string[] }>(
+  PULL_REQUEST_QUEUE,
+  { batchSize: 1 },
+  async ([job]) => {
+    if (job) await refreshPullRequests(job.data);
+  },
+);
 await boss.work<{ signInId: string }>(FORGE_SIGN_IN_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await runSignIn(job.data.signInId);
 });

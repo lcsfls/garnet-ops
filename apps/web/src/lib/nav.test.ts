@@ -9,7 +9,13 @@ describe("navigation of the developer pipeline", () => {
   it("has the daily, code and admin groups and no infrastructure group", () => {
     expect(NAV.map((g) => g.label)).toEqual(["shell.groupDaily", "shell.groupCode", "shell.groupAdmin"]);
     const code = NAV.find((g) => g.label === "shell.groupCode");
-    expect(code?.items.map((i) => i.to)).toEqual(["/repositories", "/gates", "/fixes", "/packages"]);
+    expect(code?.items.map((i) => i.to)).toEqual([
+      "/repositories",
+      "/gates",
+      "/pull-requests",
+      "/fixes",
+      "/packages",
+    ]);
   });
 
   it("lists the admin pages for owners and admins only", () => {
@@ -26,6 +32,7 @@ describe("navigation of the developer pipeline", () => {
       "/statistics",
       "/repositories",
       "/gates",
+      "/pull-requests",
       "/fixes",
       "/packages",
       "/settings",

@@ -22,6 +22,7 @@ import {
 import { FORGE_CONNECTION_QUEUE, type RefreshJob, refreshConnection } from "./forge-connection.ts";
 import { FORGE_SIGN_IN_QUEUE, runSignIn } from "./forge-sign-in.ts";
 import { deliver, eventsForScan, NOTIFY_QUEUE, queueNotifications } from "./notify.ts";
+import { startPullRequestRefresh } from "./pull-requests.ts";
 import { removeRetiredQueues } from "./retired-queues.ts";
 import { runScan } from "./scan.ts";
 import { SCAN_QUEUE as QUEUE, startScheduler } from "./schedule.ts";
@@ -126,6 +127,8 @@ await boss.work<{ organizationId?: string; repositoryId?: string }>(
   },
 );
 await startFixPrScheduler(boss);
+// The open pull requests of the monitored repositories with their gate results (ADR 0032).
+await startPullRequestRefresh(boss);
 // Personal forge connections (ADR 0030): checking a token and listing what its account can see.
 await boss.work<RefreshJob>(FORGE_CONNECTION_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await refreshConnection(job.data);

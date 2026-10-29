@@ -16,6 +16,11 @@ Security-relevant changes are listed under **Security** in every release.
   Gitea/Forgejo OAuth2 application (authorization code with PKCE). The worker renews the tokens before they expire.
   Pasted tokens keep working.
 - API: `/api/v1/forge-apps` and `/api/v1/forge-sign-in`; connections carry `authMethod`.
+- **Code → Pull requests** ([ADR 0032](docs/adr/0032-pull-request-overview.md), [docs](docs/pull-requests.md)): the open pull
+  requests of your repositories with the quality gate result of their latest commit, read every 15 minutes with each
+  repository's read credential. **Check now** checks a pull request's head exactly as a CI pipeline would.
+- API: `/api/v1/pull-requests`, `/api/v1/pull-requests/sources`, `POST /api/v1/pull-requests/refresh` and
+  `POST /api/v1/pull-requests/{id}/check`.
 
 ## [0.0.11] - 2026-10-29
 <!-- title: Connected accounts, private repositories and interactive statistics -->

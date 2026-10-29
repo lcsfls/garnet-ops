@@ -28,4 +28,6 @@ export const QUEUES = {
   forgeConnectionRefresh: "forge-connection.refresh",
   /** Signing in to a forge (ADR 0031): the device flow, or exchanging the code of the authorization code flow. */
   forgeSignIn: "forge-sign-in.run",
+  /** Reading the open pull requests again (ADR 0032). */
+  pullRequestRefresh: "pull-requests.refresh",
 } as const;
