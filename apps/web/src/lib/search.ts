@@ -20,6 +20,16 @@ const asString = (v: unknown) => (typeof v === "number" ? String(v) : v);
 const text = (max: number) =>
   z.preprocess(asString, z.string().trim().min(1).max(max).optional()).catch(undefined);
 const flag = z.preprocess(asString, z.literal("1").optional()).catch(undefined);
+/** A calendar day, YYYY-MM-DD. */
+const day = z
+  .preprocess(
+    asString,
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+  )
+  .catch(undefined);
 const sortOf = <T extends string>(columns: readonly [T, ...T[]]) =>
   z.enum(columns).optional().catch(undefined);
 const dir = z.enum(["asc", "desc"]).optional().catch(undefined);
@@ -70,6 +80,11 @@ export const findingSearch = z.object({
   kev: flag,
   fixable: flag,
   q: text(120),
+  /** First seen or resolved on these calendar days of the viewer's zone, inclusive (a day or week of the statistics). */
+  firstSeenFrom: day,
+  firstSeenTo: day,
+  resolvedFrom: day,
+  resolvedTo: day,
   cursor: text(512),
   pageSize,
   /** The finding shown in the detail pane. */

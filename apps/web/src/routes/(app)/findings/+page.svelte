@@ -9,7 +9,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { Bug, ScanSearch } from "@lucide/svelte";
+  import { Bug, ScanSearch, X } from "@lucide/svelte";
   import { createMutation, createQuery, keepPreviousData, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import { cn } from "#lib/cn.ts";
@@ -29,7 +29,7 @@
   import Drawer from "#lib/components/ui/Drawer.svelte";
   import Select from "#lib/components/ui/Select.svelte";
   import SeverityBadge from "#lib/components/ui/SeverityBadge.svelte";
-  import { formatDate, formatDateTime, formatPercent, formatRelative } from "#lib/format.ts";
+  import { formatCalendarDate, formatDate, formatDateTime, formatPercent, formatRelative } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { layoutStep } from "#lib/layout-step.svelte.ts";
   import { rowClick } from "#lib/row-link.ts";
@@ -42,15 +42,21 @@
   let { data }: { data: PageData } = $props();
   const me = $derived(data.me);
   const search: FindingSearch = $derived(parseSearch(findingSearch, page.url));
+  // Date filters are calendar days of the viewer's zone (as the statistics count them), so the API needs the zone.
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const dated = $derived(
+    Boolean(search.firstSeenFrom || search.firstSeenTo || search.resolvedFrom || search.resolvedTo),
+  );
+  const apiSearch = $derived({ ...search, tz: dated ? timeZone : undefined });
 
   const list = createQuery(() => ({
-    queryKey: ["findings", { ...search, id: undefined, ai: undefined }],
-    queryFn: () => api<Page<FindingRow>>(`/findings${toQuery(search, ["id", "ai"])}`),
+    queryKey: ["findings", { ...apiSearch, id: undefined, ai: undefined }],
+    queryFn: () => api<Page<FindingRow>>(`/findings${toQuery(apiSearch, ["id", "ai"])}`),
     placeholderData: keepPreviousData,
   }));
   // Counts per state for the tabs, under every other filter.
   const counts = createQuery(() => ({
-    ...findingCountsQuery(toQuery(search, ["id", "ai", "cursor", "pageSize", "state"])),
+    ...findingCountsQuery(toQuery(apiSearch, ["id", "ai", "cursor", "pageSize", "state"])),
     placeholderData: keepPreviousData,
   }));
   const repositories = createQuery(() => ({
@@ -104,9 +110,16 @@
         search.kev ||
         search.fixable ||
         search.q ||
-        search.state,
+        search.state ||
+        dated,
     ),
   );
+
+  /** "12 Oct 2026" for one day, "5 Oct 2026 – 11 Oct 2026" for a range, "…" for an open end. */
+  function dayRange(from: string | undefined, to: string | undefined): string {
+    if (from && from === to) return formatCalendarDate(from);
+    return `${from ? formatCalendarDate(from) : "…"} – ${to ? formatCalendarDate(to) : "…"}`;
+  }
 </script>
 
 <!-- A value the vulnerability database does not have, announced as such to screen readers. -->
@@ -122,6 +135,18 @@
     <Checkbox {checked} onchange={(e) => onChange(e.currentTarget.checked)} />
     {label}
   </label>
+{/snippet}
+
+<!-- A date filter set from the statistics, shown as what it is and removable in one click. -->
+{#snippet dateChip(filter: string, clear: Partial<FindingSearch>)}
+  <button
+    type="button"
+    onclick={() => setSearch(clear)}
+    aria-label={t("findings.removeFilter", { filter })}
+    class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm whitespace-nowrap hover:bg-accent"
+  >
+    {filter}<X aria-hidden="true" class="size-3.5" />
+  </button>
 {/snippet}
 
 {#snippet epssLabel()}
@@ -193,6 +218,18 @@
   {@render filterCheckbox(t("findings.fixableOnly"), search.fixable === "1", (on) =>
     setSearch({ fixable: on ? "1" : undefined }),
   )}
+  {#if search.firstSeenFrom || search.firstSeenTo}
+    {@render dateChip(t("findings.firstSeenRange", { range: dayRange(search.firstSeenFrom, search.firstSeenTo) }), {
+      firstSeenFrom: undefined,
+      firstSeenTo: undefined,
+    })}
+  {/if}
+  {#if search.resolvedFrom || search.resolvedTo}
+    {@render dateChip(t("findings.resolvedRange", { range: dayRange(search.resolvedFrom, search.resolvedTo) }), {
+      resolvedFrom: undefined,
+      resolvedTo: undefined,
+    })}
+  {/if}
   <SearchInput
     class="ml-auto"
     label={t("findings.search")}

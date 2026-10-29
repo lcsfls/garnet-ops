@@ -67,6 +67,30 @@ test("statistics: found, resolved and time to fix over a range, with links to th
   await expect(page.getByText(SEEDED.hostileId)).toBeVisible();
   await expect(page.getByText(SEEDED.repositoryName).first()).toBeVisible();
 
+  // The charts answer the keyboard: the crosshair starts on today and names every series of its day.
+  const foundResolved = page.getByRole("slider", { name: /findings found and \d+ resolved/ });
+  await foundResolved.focus();
+  for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowLeft");
+  await expect(foundResolved).toHaveAttribute("aria-valuetext", /, 1 Resolved;/);
+  await page.keyboard.press("Escape");
+  // The table leads to the findings behind each number: the one resolved three days ago.
+  const chart = foundResolved.locator("..");
+  await chart.getByText("Show as table").click();
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3600 * 1000).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "Europe/Berlin",
+  });
+  await chart.getByRole("row", { name: threeDaysAgo }).getByRole("link").last().click();
+  await expect(page).toHaveURL(/\/findings\?state=resolved&resolvedFrom=\d{4}-\d{2}-\d{2}&resolvedTo=/);
+  await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText("1 entry");
+  await page.getByRole("button", { name: `Remove filter: Resolved ${threeDaysAgo}` }).click();
+  await expect(page).not.toHaveURL(/resolvedFrom/);
+  await page.goBack();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/statistics$/);
+
   await page.getByRole("button", { name: "90 days" }).click();
   await expect(page).toHaveURL(/days=90/);
   await expect(page.getByText("At the end of each week, by severity.")).toBeVisible();

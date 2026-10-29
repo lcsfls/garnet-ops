@@ -8,6 +8,24 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- Statistics: interactive charts. Open findings as stacked areas, found and resolved above and below a baseline, gate results as
+  stacked columns. A crosshair names every number of a day or week and moves across the three charts together; the charts work with
+  the arrow keys and read their numbers to screen readers. Found, Resolved and Gates passed show their course as a sparkline, time to
+  fix and the rankings get bars.
+- A click on a day or week of **Found and resolved** (or a number in its table) opens exactly the findings first seen or resolved in
+  it. The findings list shows that period as a filter you can remove.
+- API: `firstSeenFrom`, `firstSeenTo`, `resolvedFrom`, `resolvedTo` and `tz` on `GET /api/v1/findings`, its counts and its export
+  (calendar days in the given time zone, both ends included).
+
+### Changed
+
+- Every dropdown opens a list in the look of the app, in light and dark mode, where the browser supports customisable selects
+  (Chrome and Edge 135 and later); other browsers keep their own list. The chevron turns while the list is open.
+- Collapsible sections such as **How grades work** or **Show as table** open and close smoothly, with a turning chevron. Reduced
+  motion switches the animation off.
+
 ## [0.0.10] - 2026-10-29
 <!-- title: Early warnings and channel filters -->
 

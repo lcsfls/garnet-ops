@@ -4,12 +4,15 @@
   // Days and weeks are the viewer's own calendar days, so the API needs the browser's zone.
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  const SEVERITY_FILL: Record<TrendSeverity, { fill: string; swatch: string }> = {
-    critical: { fill: "fill-chart-critical", swatch: "bg-chart-critical" },
-    high: { fill: "fill-chart-high", swatch: "bg-chart-high" },
-    medium: { fill: "fill-chart-medium", swatch: "bg-chart-medium" },
-    low: { fill: "fill-chart-low", swatch: "bg-chart-low" },
+  const SEVERITY_FILL: Record<TrendSeverity, { fill: string; stroke: string; swatch: string }> = {
+    critical: { fill: "fill-chart-critical", stroke: "stroke-chart-critical", swatch: "bg-chart-critical" },
+    high: { fill: "fill-chart-high", stroke: "stroke-chart-high", swatch: "bg-chart-high" },
+    medium: { fill: "fill-chart-medium", stroke: "stroke-chart-medium", swatch: "bg-chart-medium" },
+    low: { fill: "fill-chart-low", stroke: "stroke-chart-low", swatch: "bg-chart-low" },
   };
+
+  /** The time charts of the page share one crosshair. */
+  const SYNC = "statistics";
 
   const sumOf = (counts: Partial<Record<string, number>>) =>
     Object.values(counts).reduce<number>((s, n) => s + (n ?? 0), 0);
@@ -28,7 +31,6 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { api } from "#lib/api.ts";
-  import BarChart, { type BarBucket, type BarSeries } from "#lib/components/BarChart.svelte";
   import Card from "#lib/components/Card.svelte";
   import CardHeader from "#lib/components/CardHeader.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
@@ -36,6 +38,7 @@
   import RepositoryLink from "#lib/components/RepositoryLink.svelte";
   import Segmented from "#lib/components/Segmented.svelte";
   import Tile from "#lib/components/Tile.svelte";
+  import TimeChart, { type ChartBucket, type ChartSeries } from "#lib/components/TimeChart.svelte";
   import SeverityBadge from "#lib/components/ui/SeverityBadge.svelte";
   import { cn } from "#lib/cn.ts";
   import { formatCalendarDate, formatNumber, formatPercent, formatRelative } from "#lib/format.ts";
@@ -66,7 +69,7 @@
       : `${formatCalendarDate(b.start)} – ${formatCalendarDate(b.end)}`;
   }
 
-  function severitySeries(): BarSeries<TrendSeverity>[] {
+  function severitySeries(): ChartSeries<TrendSeverity>[] {
     return TREND_SEVERITIES.map((s) => ({
       key: s,
       label: t(`severity.${s}`),
@@ -75,7 +78,7 @@
     }));
   }
 
-  function bySeverity(b: StatisticsBucket, pick: "open" | "opened" | "resolved"): BarBucket<TrendSeverity> {
+  function bySeverity(b: StatisticsBucket, pick: "open" | "opened" | "resolved"): ChartBucket<TrendSeverity> {
     const counts = b[pick];
     return {
       key: b.start,
@@ -88,6 +91,20 @@
       },
     };
   }
+
+  /** The findings behind one column of "Found and resolved": first seen, or resolved, in that day or week. */
+  function foundResolvedLink(b: StatisticsBucket | undefined, key: "found" | "resolved"): string | undefined {
+    if (!b) return undefined;
+    return key === "found"
+      ? href("/findings", { state: "all", firstSeenFrom: b.start, firstSeenTo: b.end, sort: "firstSeen", dir: "desc" })
+      : href("/findings", { state: "resolved", resolvedFrom: b.start, resolvedTo: b.end });
+  }
+
+  /** The share of gate runs that passed, per bucket; a gap where no gate ran. */
+  const passRate = (b: StatisticsBucket) => {
+    const runs = b.gates.passed + b.gates.notes + b.gates.blocked;
+    return runs > 0 ? b.gates.passed / runs : null;
+  };
 
   /** A median in days as words: hours below one day, one decimal below ten days. */
   function duration(days: number): string {
@@ -107,6 +124,7 @@
       value={totals.opened}
       hint={t("statistics.previousRange", { days: range.days, count: totals.previous.opened })}
       href={href("/findings", { state: "all", sort: "firstSeen", dir: "desc" })}
+      trend={data.buckets.map((b) => sumOf(b.opened))}
     >
       {#snippet icon()}<SearchCheck aria-hidden="true" class="size-4" />{/snippet}
     </Tile>
@@ -115,6 +133,7 @@
       value={totals.resolved}
       hint={t("statistics.previousRange", { days: range.days, count: totals.previous.resolved })}
       href={href("/findings", { state: "resolved" })}
+      trend={data.buckets.map((b) => sumOf(b.resolved))}
     >
       {#snippet icon()}<CircleCheck aria-hidden="true" class="size-4" />{/snippet}
     </Tile>
@@ -124,6 +143,7 @@
       display={gateRuns > 0 ? formatPercent(totals.gates.passed / gateRuns) : "–"}
       hint={t("statistics.gateRuns", { passed: totals.gates.passed, count: gateRuns })}
       href="/gates"
+      trend={data.buckets.map(passRate)}
     >
       {#snippet icon()}<ShieldCheck aria-hidden="true" class="size-4" />{/snippet}
     </Tile>
@@ -155,10 +175,12 @@
       description={t(data.range.granularity === "day" ? "statistics.openPerDay" : "statistics.openPerWeek")}
     />
     <div class="px-5 pb-5">
-      <BarChart
+      <TimeChart
         buckets={data.buckets.map((b) => bySeverity(b, "open"))}
         series={severitySeries()}
-        mode="stacked"
+        kind="area"
+        granularity={data.range.granularity}
+        sync={SYNC}
         legendValue="last"
         summary={t("statistics.openSummary", {
           first: first ? formatCalendarDate(first.end) : "",
@@ -172,7 +194,7 @@
 {/snippet}
 
 {#snippet foundResolvedCard(data: Statistics)}
-  {@const buckets: BarBucket<"found" | "resolved">[] = data.buckets.map((b) => ({
+  {@const buckets: ChartBucket<"found" | "resolved">[] = data.buckets.map((b) => ({
     key: b.start,
     label: bucketLabel(b),
     values: { found: sumOf(b.opened), resolved: sumOf(b.resolved) },
@@ -185,9 +207,13 @@
       )}
     />
     <div class="px-5 pb-5">
-      <BarChart
+      <TimeChart
         {buckets}
-        mode="grouped"
+        kind="diverging"
+        granularity={data.range.granularity}
+        sync={SYNC}
+        linkOf={(i, key) => foundResolvedLink(data.buckets[i], key)}
+        selectHint={t("statistics.foundResolvedSelect")}
         series={[
           {
             key: "found",
@@ -214,7 +240,7 @@
 {/snippet}
 
 {#snippet gatesCard(data: Statistics)}
-  {@const buckets: BarBucket<"passed" | "notes" | "blocked">[] = data.buckets.map((b) => ({
+  {@const buckets: ChartBucket<"passed" | "notes" | "blocked">[] = data.buckets.map((b) => ({
     key: b.start,
     label: bucketLabel(b),
     values: b.gates,
@@ -223,9 +249,11 @@
   <Card>
     <CardHeader title={t("statistics.gatesTitle")} description={t("statistics.gatesDescription")} />
     <div class="px-5 pb-5">
-      <BarChart
+      <TimeChart
         {buckets}
-        mode="stacked"
+        kind="columns"
+        granularity={data.range.granularity}
+        sync={SYNC}
         series={[
           { key: "passed", label: t("gates.result.passed"), fill: "fill-success", swatch: "bg-success" },
           {
@@ -248,6 +276,7 @@
 {/snippet}
 
 {#snippet timeToFixCard(data: Statistics)}
+  {@const longest = Math.max(0, ...data.timeToFix.map((r) => r.medianDays ?? 0))}
   <Card>
     <CardHeader
       title={t("statistics.timeToFixTitle")}
@@ -259,7 +288,7 @@
           <th scope="col" class="px-5 py-2 font-normal">
             {t("statistics.severity")}
           </th>
-          <th scope="col" class="px-5 py-2 text-right font-normal">
+          <th scope="col" class="w-full px-3 py-2 text-right font-normal">
             {t("statistics.median")}
           </th>
           <th scope="col" class="px-5 py-2 text-right font-normal">
@@ -273,11 +302,20 @@
             <th scope="row" class="px-5 py-2.5 font-normal">
               <SeverityBadge severity={row.severity} />
             </th>
-            <td class="px-5 py-2.5 text-right tabular-nums">
+            <td class="px-3 py-2.5 text-right tabular-nums">
               {#if row.medianDays === null}
                 <span class="text-muted-foreground">{t("statistics.noneResolved")}</span>
               {:else}
-                {duration(row.medianDays)}
+                <!-- The median as a bar, the longest one full width, with its value at the end. -->
+                <div class="flex items-center gap-3">
+                  <div aria-hidden="true" class="flex h-3 min-w-0 flex-1 items-center">
+                    <span
+                      class="h-full min-w-1 rounded-r-[4px] bg-muted-foreground/45"
+                      style:width="{longest > 0 ? (row.medianDays / longest) * 100 : 0}%"
+                    ></span>
+                  </div>
+                  <span class="w-20 shrink-0 whitespace-nowrap">{duration(row.medianDays)}</span>
+                </div>
               {/if}
             </td>
             <td class="px-5 py-2.5 text-right tabular-nums">{formatNumber(row.resolved)}</td>
@@ -312,7 +350,23 @@
   </ul>
 {/snippet}
 
+<!-- Open findings of one row as a stacked bar, scaled to the row with the most, segments 2px apart. -->
+{#snippet severityMeter(row: StatisticsRanking, most: number)}
+  {@const total = TREND_SEVERITIES.reduce((n, s) => n + row[s], 0)}
+  <div
+    aria-hidden="true"
+    class="mt-1.5 flex h-1.5 min-w-1 gap-0.5"
+    style:width="{most > 0 ? (total / most) * 100 : 0}%"
+  >
+    {#each TREND_SEVERITIES.filter((s) => row[s] > 0) as s (s)}
+      <span class="h-full min-w-0.5 basis-0 first:rounded-l-[2px] last:rounded-r-[2px] {SEVERITY_FILL[s].swatch}" style:flex-grow={row[s]}
+      ></span>
+    {/each}
+  </div>
+{/snippet}
+
 {#snippet repositoriesCard(rows: Statistics["repositories"])}
+  {@const most = Math.max(0, ...rows.map((r) => TREND_SEVERITIES.reduce((n, s) => n + r[s], 0)))}
   <Card>
     <CardHeader title={t("statistics.repositoriesTitle")} description={t("statistics.rankingDescription")} />
     {#if rows.length > 0}{@render severityKey()}{/if}
@@ -322,7 +376,10 @@
       <ol>
         {#each rows as r (r.id)}
           <li class="flex items-center gap-3 border-t px-5 py-2.5">
-            <RepositoryLink id={r.id} name={r.name} class="min-w-0 flex-1 truncate font-medium" />
+            <div class="min-w-0 flex-1">
+              <RepositoryLink id={r.id} name={r.name} class="block truncate font-medium" />
+              {@render severityMeter(r, most)}
+            </div>
             <a
               href={href("/findings", { repositoryId: r.id })}
               class="hover:underline"
@@ -338,6 +395,7 @@
 {/snippet}
 
 {#snippet packagesCard(rows: Statistics["packages"])}
+  {@const most = Math.max(0, ...rows.map((r) => TREND_SEVERITIES.reduce((n, s) => n + r[s], 0)))}
   <Card>
     <CardHeader title={t("statistics.packagesTitle")} description={t("statistics.rankingDescription")} />
     {#if rows.length > 0}{@render severityKey()}{/if}
@@ -357,6 +415,7 @@
               <div class="text-[13px] text-muted-foreground">
                 {p.type} · {t("statistics.inRepositories", { count: p.repositories })}
               </div>
+              {@render severityMeter(p, most)}
             </div>
             {@render severityCounts(p)}
           </li>

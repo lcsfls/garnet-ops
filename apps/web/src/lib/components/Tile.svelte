@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { formatNumber } from "../format.ts";
+  import Sparkline from "./Sparkline.svelte";
 
   /**
    * A key figure that links to the list explaining it (mockup .kpi): label and icon, the number, then at most a change
@@ -14,6 +15,7 @@
     delta,
     hint,
     href,
+    trend,
   }: {
     label: string;
     icon?: Snippet;
@@ -23,6 +25,8 @@
     delta?: Snippet;
     hint?: Snippet | string;
     href: string;
+    /** The figure per day or week of its range, drawn as a sparkline under the hint. */
+    trend?: (number | null)[];
   } = $props();
 </script>
 
@@ -38,4 +42,5 @@
       {#if typeof hint === "string"}{hint}{:else}{@render hint()}{/if}
     </div>
   {/if}
+  {#if trend}<Sparkline values={trend} />{/if}
 </a>

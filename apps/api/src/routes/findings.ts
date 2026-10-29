@@ -51,6 +51,18 @@ const csv = <T extends string>(values: readonly T[]) =>
       return parts as T[];
     });
 
+const day = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine((d) => {
+    const date = new Date(`${d}T00:00:00Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(d);
+  }, "Not a calendar day");
+
+/** Midnight at the start of a calendar day in a zone; the day after `to` ends an inclusive range. */
+const startOf = (d: string, tz: string) => sql`(${d}::date)::timestamp at time zone ${tz}`;
+const endOf = (d: string, tz: string) => sql`(${d}::date + 1)::timestamp at time zone ${tz}`;
+
 /** Every filter a tile or link may set. Mirrors the web app's search params. */
 export const findingFilters = z.object({
   state: z.enum([...FINDING_STATES, "all"]).default("open"),
@@ -60,6 +72,12 @@ export const findingFilters = z.object({
   kev: z.enum(["1"]).optional(),
   fixable: z.enum(["1"]).optional(),
   q: z.string().trim().max(120).optional(),
+  /** Calendar days, inclusive, in `tz`: first seen, or resolved, on these days (a day or week of the statistics). */
+  firstSeenFrom: day.optional(),
+  firstSeenTo: day.optional(),
+  resolvedFrom: day.optional(),
+  resolvedTo: day.optional(),
+  tz: z.string().refine(isTimeZone, "Unknown time zone").default("UTC"),
 });
 
 /** Columns the list can be sorted by (table headers). Times are cut to milliseconds, which is what a cursor holds. */
@@ -91,7 +109,6 @@ const listQuery = findingFilters.extend({
  */
 const exportQuery = findingFilters.extend({
   format: z.enum(EXPORT_FORMATS),
-  tz: z.string().refine(isTimeZone, "Unknown time zone").default("UTC"),
   lang: z.enum(LANGUAGES).default("en"),
 });
 const MAX_EXPORT_ROWS: Record<ExportFormat, number> = { csv: 50_000, xlsx: 50_000, txt: 50_000, pdf: 5_000 };
@@ -139,6 +156,10 @@ export function findingWhere(organizationId: string, input: z.infer<typeof findi
     input.kev ? eq(v.knownExploited, true) : undefined,
     input.fixable ? sql`jsonb_array_length(coalesce(${f.fixedIn}, '[]'::jsonb)) > 0` : undefined,
     like ? or(ilike(f.packageName, like), ilike(f.vulnerabilityId, like)) : undefined,
+    input.firstSeenFrom ? sql`${f.firstSeenAt} >= ${startOf(input.firstSeenFrom, input.tz)}` : undefined,
+    input.firstSeenTo ? sql`${f.firstSeenAt} < ${endOf(input.firstSeenTo, input.tz)}` : undefined,
+    input.resolvedFrom ? sql`${f.resolvedAt} >= ${startOf(input.resolvedFrom, input.tz)}` : undefined,
+    input.resolvedTo ? sql`${f.resolvedAt} < ${endOf(input.resolvedTo, input.tz)}` : undefined,
   );
 }
 
@@ -266,6 +287,12 @@ export const findingRoutes = new Hono<AppEnv>()
       input.fixable ? m.findings.fixableOnly : null,
       input.q ? words(m.export.filterText, { text: input.q }) : null,
       input.scanId ? words(m.export.filterScan, { scan: input.scanId }) : null,
+      input.firstSeenFrom || input.firstSeenTo
+        ? words(m.export.filterFirstSeen, { from: input.firstSeenFrom ?? "…", to: input.firstSeenTo ?? "…" })
+        : null,
+      input.resolvedFrom || input.resolvedTo
+        ? words(m.export.filterResolved, { from: input.resolvedFrom ?? "…", to: input.resolvedTo ?? "…" })
+        : null,
     ].filter((x): x is string => x !== null);
 
     const now = new Date();
