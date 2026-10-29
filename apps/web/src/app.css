@@ -275,3 +275,129 @@
     animation: toast-in 160ms ease-out;
   }
 }
+
+/*
+ * Every dropdown (ui/Select.svelte) opens a list in the look of the app where the browser can style it (customisable select,
+ * appearance: base-select); elsewhere the list stays the operating system's, which follows the colour scheme above.
+ */
+@layer components {
+  .ui-select {
+    appearance: none;
+  }
+}
+@supports (appearance: base-select) {
+  @layer components {
+    .ui-select,
+    .ui-select::picker(select) {
+      appearance: base-select;
+    }
+    /* The customisable select lays its label out itself; keep it centred like the native one. */
+    .ui-select {
+      display: flex;
+      align-items: center;
+    }
+    .ui-select::picker-icon {
+      display: none;
+    }
+    .ui-select::picker(select) {
+      margin-block: 4px;
+      padding: 4px;
+      max-block-size: min(22rem, 60dvh);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--card);
+      color: var(--card-foreground);
+      box-shadow: 0 8px 24px -6px oklch(0.21 0.02 15 / 18%);
+    }
+    .ui-select option {
+      gap: 0.5rem;
+      padding: 0.375rem 0.625rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+    .ui-select option:hover,
+    .ui-select option:focus-visible {
+      background: var(--accent);
+      color: var(--accent-foreground);
+      outline: none;
+    }
+    .ui-select option:checked {
+      font-weight: 500;
+    }
+    .ui-select option::checkmark {
+      color: var(--primary);
+    }
+    .ui-select option:disabled {
+      color: var(--muted-foreground);
+      cursor: default;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    @layer components {
+      .ui-select::picker(select) {
+        transition:
+          opacity 140ms ease-out,
+          translate 140ms ease-out,
+          overlay 140ms allow-discrete,
+          display 140ms allow-discrete;
+      }
+      .ui-select::picker(select):not(:popover-open) {
+        opacity: 0;
+        translate: 0 -4px;
+      }
+      @starting-style {
+        .ui-select::picker(select):popover-open {
+          opacity: 0;
+          translate: 0 -4px;
+        }
+      }
+    }
+  }
+}
+
+/*
+ * Collapsibles (details/summary) open and close smoothly where the browser can animate to the height of their content; elsewhere
+ * they open at once. The marker is a chevron drawn with borders, so no image is needed (CSP: images only from this origin).
+ */
+@layer components {
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary::before {
+    content: "";
+    display: inline-block;
+    inline-size: 0.4em;
+    block-size: 0.4em;
+    margin-inline: 0.15em 0.55em;
+    vertical-align: 0.15em;
+    border-inline-end: 1.5px solid currentColor;
+    border-block-end: 1.5px solid currentColor;
+    rotate: -45deg;
+  }
+  details[open] > summary::before {
+    rotate: 45deg;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+  @layer components {
+    summary::before {
+      transition: rotate 200ms ease-out;
+    }
+    details::details-content {
+      block-size: 0;
+      overflow-y: clip;
+      transition:
+        block-size 220ms ease-out,
+        content-visibility 220ms allow-discrete;
+    }
+    details[open]::details-content {
+      block-size: auto;
+    }
+  }
+}
