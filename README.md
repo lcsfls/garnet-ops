@@ -32,6 +32,8 @@ LDAP or Active Directory account, roles from directory groups and a second facto
 database, integrations, worker and queues are current and running ([docs/system-status.md](docs/system-status.md)),
 a statistics page with found and resolved findings, time to fix and gate results over 30, 90 or 365 days
 ([docs/statistics.md](docs/statistics.md)),
+early warnings when a new advisory affects a package a repository already uses, before the next scan
+([docs/early-warnings.md](docs/early-warnings.md)),
 audit log, a Docker Compose stack and optional signed in-app updates.
 
 ## What GarnetOps is built on

@@ -10,6 +10,7 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  Siren,
   Users,
 } from "@lucide/svelte";
 import type { MessageKey } from "./i18n.svelte.ts";
@@ -18,6 +19,7 @@ import type { Me } from "./session.ts";
 export type NavTo =
   | "/"
   | "/findings"
+  | "/early-warnings"
   | "/statistics"
   | "/repositories"
   | "/gates"
@@ -42,6 +44,7 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     items: [
       { to: "/", label: "nav.overview", icon: LayoutGrid },
       { to: "/findings", label: "nav.findings", icon: Bug },
+      { to: "/early-warnings", label: "nav.earlyWarnings", icon: Siren },
       { to: "/statistics", label: "nav.statistics", icon: ChartColumn },
     ],
   },

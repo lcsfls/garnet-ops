@@ -96,6 +96,11 @@ export function requestMatch(socket: string, sbomFile: string, outFile: string):
   return call(socket, "/v1/match", { file: sbomFile }, outFile);
 }
 
+/** Asks for grype's report on package URLs, one per line in `purlFile` (early warnings, ADR 0029). */
+export function requestMatchPurls(socket: string, purlFile: string, outFile: string): Promise<void> {
+  return call(socket, "/v1/match-purls", { file: purlFile }, outFile);
+}
+
 /** The service's health answer: its release, or null when it does not answer. */
 export function scannerHealth(socket: string): Promise<{ version: string | null } | null> {
   return new Promise((resolve) => {

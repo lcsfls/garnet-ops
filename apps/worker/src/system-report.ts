@@ -44,13 +44,13 @@ export const workerVersion = appVersionOf(process.env.APP_VERSION);
 /* Writing                                                                     */
 /* -------------------------------------------------------------------------- */
 
-async function readReport(key: ReportKey): Promise<unknown> {
+export async function readReport(key: ReportKey): Promise<unknown> {
   const [row] = await db.select().from(schema.systemReport).where(eq(schema.systemReport.key, key)).limit(1);
   return row?.data ?? null;
 }
 
 /** Replaces the report under `key`. */
-async function writeReport(key: ReportKey, data: unknown): Promise<void> {
+export async function writeReport(key: ReportKey, data: unknown): Promise<void> {
   await db
     .insert(schema.systemReport)
     .values({ key, data, reportedAt: new Date() })

@@ -327,6 +327,25 @@ async function persist(
       }
     }
 
+    // A scan of the branch answers its open early warnings (ADR 0029): confirmed when it found the
+    // same advisory in the same package, cleared when it did not.
+    const warnings = await tx
+      .select({
+        id: schema.earlyWarning.id,
+        vulnerabilityId: schema.earlyWarning.vulnerabilityId,
+        packageType: schema.earlyWarning.packageType,
+        packageName: schema.earlyWarning.packageName,
+      })
+      .from(schema.earlyWarning)
+      .where(and(eq(schema.earlyWarning.repositoryId, repo.id), eq(schema.earlyWarning.state, "open")));
+    for (const w of warnings) {
+      const found = parsed.findings.has(`${repo.id}|${w.vulnerabilityId}|${w.packageType}|${w.packageName}`);
+      await tx
+        .update(schema.earlyWarning)
+        .set({ state: found ? "confirmed" : "cleared", closedAt: now, closedByScanId: scanId })
+        .where(eq(schema.earlyWarning.id, w.id));
+    }
+
     const gone = existing
       .filter((e) => e.state !== "resolved" && !parsed.findings.has(e.dedupKey))
       .map((e) => e.id);

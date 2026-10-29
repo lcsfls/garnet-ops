@@ -36,7 +36,7 @@
   /** "New findings from High · 2 repositories": the filters in one line. */
   function filterSummary(channel: Channel): string {
     const parts = [];
-    if (channel.events.includes("finding.new")) {
+    if (channel.events.includes("finding.new") || channel.events.includes("advisory.new")) {
       parts.push(t(`settings.minSeverity.${channel.filters.minSeverity ?? "high"}`));
     }
     const repos = channel.filters.repositoryIds?.length ?? 0;

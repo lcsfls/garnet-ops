@@ -12,6 +12,7 @@ import { accountRoutes } from "./routes/account.ts";
 import { aiRoutes } from "./routes/ai.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { directoryRoutes } from "./routes/directory.ts";
+import { earlyWarningRoutes } from "./routes/early-warnings.ts";
 import { findingRoutes } from "./routes/findings.ts";
 import { fixRoutes } from "./routes/fixes.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
@@ -107,6 +108,7 @@ const v1 = new Hono<AppEnv>()
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)
+  .route("/early-warnings", earlyWarningRoutes)
   .route("/fixes", fixRoutes)
   .route("/ai", aiRoutes)
   .route("/gates", gateRoutes)

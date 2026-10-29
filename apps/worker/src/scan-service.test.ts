@@ -152,7 +152,34 @@ describe.skipIf(!ready)("scan through the scanner service", () => {
   }
 
   it("clones into the shared directory, scans there and keeps everything else private", async () => {
+    // Two open early warnings (ADR 0029): the scan finds the first and not the second.
+    await conn.db
+      .insert(schema.vulnerability)
+      .values([
+        { id: "GHSA-35jh-r3h4-6jhm", severity: "high" },
+        { id: "GHSA-none-0000", severity: "high" },
+      ])
+      .onConflictDoNothing();
+    const warning = (id: string, vulnerabilityId: string) => ({
+      id,
+      organizationId: org,
+      repositoryId: repo,
+      vulnerabilityId,
+      packageName: "lodash",
+      packageVersion: "4.17.15",
+      packageType: "npm",
+      severity: "high",
+      severityRank: 4,
+    });
+    await conn.db
+      .insert(schema.earlyWarning)
+      .values([warning("ewn_found", "GHSA-35jh-r3h4-6jhm"), warning("ewn_gone", "GHSA-none-0000")]);
     const s = await scan();
+    const closed = await conn.db.select().from(schema.earlyWarning).orderBy(schema.earlyWarning.id);
+    expect(closed.map((w) => [w.id, w.state, w.closedByScanId])).toEqual([
+      ["ewn_found", "confirmed", s?.id],
+      ["ewn_gone", "cleared", s?.id],
+    ]);
     expect(s?.error).toBeNull();
     expect(s?.state).toBe("succeeded");
     // Only the clone was in the volume the service reads; git's home stayed in the worker's directory.

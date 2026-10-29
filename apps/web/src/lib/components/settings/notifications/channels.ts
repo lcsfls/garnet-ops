@@ -1,6 +1,12 @@
 import type { Language } from "@garnetops/i18n";
 
-export const EVENTS = ["finding.new_critical", "finding.new", "gate.blocked", "scan.failed"] as const;
+export const EVENTS = [
+  "finding.new_critical",
+  "finding.new",
+  "advisory.new",
+  "gate.blocked",
+  "scan.failed",
+] as const;
 export const KINDS = ["webhook", "smtp", "graph"] as const;
 export const FORMATS = ["discord", "slack", "generic"] as const;
 export type Kind = (typeof KINDS)[number];
@@ -30,7 +36,12 @@ export interface Channel {
 
 /** Message keys cannot contain dots (i18next reads them as nesting). */
 export const eventKey = (event: ChannelEvent) =>
-  event.replace(".", "_") as "finding_new_critical" | "finding_new" | "gate_blocked" | "scan_failed";
+  event.replace(".", "_") as
+    | "finding_new_critical"
+    | "finding_new"
+    | "advisory_new"
+    | "gate_blocked"
+    | "scan_failed";
 
 /** The filters as the API takes them: an empty repository choice is no choice. */
 export function filtersBody(minSeverity: MinSeverity, repositoryIds: string[] | null): ChannelFilters {

@@ -2640,3 +2640,49 @@ export const updaterJournalCursor = pgTable("updater_journal_cursor", {
   lastEventId: text("last_event_id").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Early warnings (ADR 0029): an advisory that a newer vulnerability database brought and that matches a
+ * package of a repository's stored inventory, before any scan saw it. It is not a finding: findings,
+ * grades and gates change only with a scan. The next scan of the repository's branch closes it as
+ * confirmed (the scan found it) or cleared (it did not).
+ */
+export const earlyWarning = pgTable(
+  "early_warning",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    repositoryId: text("repository_id")
+      .notNull()
+      .references(() => repository.id, { onDelete: "cascade" }),
+    vulnerabilityId: text("vulnerability_id")
+      .notNull()
+      .references(() => vulnerability.id),
+    packageName: text("package_name").notNull(),
+    packageVersion: text("package_version").notNull(),
+    packageType: text("package_type").notNull(),
+    fixedIn: jsonb("fixed_in").$type<string[]>().notNull().default([]),
+    severity: text("severity").notNull(),
+    severityRank: integer("severity_rank").notNull(),
+    state: text("state", { enum: ["open", "confirmed", "cleared"] })
+      .notNull()
+      .default("open"),
+    /** The build time of the database that brought the advisory. */
+    dbBuiltAt: timestamp("db_built_at", { withTimezone: true }),
+    detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedByScanId: text("closed_by_scan_id"),
+  },
+  (t) => [
+    uniqueIndex("early_warning_uq").on(
+      t.repositoryId,
+      t.vulnerabilityId,
+      t.packageType,
+      t.packageName,
+      t.packageVersion,
+    ),
+    index("early_warning_org_state_idx").on(t.organizationId, t.state),
+  ],
+);

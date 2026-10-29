@@ -5,9 +5,16 @@ import { classifyAddress } from "./ai-endpoint.ts";
 /**
  * What a channel can be told about (ADR 0010). "test" is sent on request only. `finding.new` (0.0.10)
  * counts every new finding of a scan from the channel's minimum severity on; `finding.new_critical`
- * stays as it was.
+ * stays as it was. `advisory.new` (0.0.10, ADR 0029) counts early warnings: new advisories that match a
+ * repository's packages before a scan saw them, also from the channel's minimum severity on.
  */
-export const NOTIFY_EVENTS = ["finding.new_critical", "gate.blocked", "scan.failed", "finding.new"] as const;
+export const NOTIFY_EVENTS = [
+  "finding.new_critical",
+  "gate.blocked",
+  "scan.failed",
+  "finding.new",
+  "advisory.new",
+] as const;
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number] | "test";
 
 /** The severities a channel can ask for, worst first. */
@@ -32,7 +39,9 @@ export function channelAccepts(filters: ChannelFilters, payload: NotifyPayload):
   if (payload.event === "test") return true;
   const only = filters.repositoryIds ?? [];
   if (only.length > 0 && payload.repository && !only.includes(payload.repository.id)) return false;
-  if (payload.event === "finding.new") return countFrom(payload.findings, filters.minSeverity) > 0;
+  if (payload.event === "finding.new" || payload.event === "advisory.new") {
+    return countFrom(payload.findings, filters.minSeverity) > 0;
+  }
   return true;
 }
 
@@ -58,7 +67,10 @@ export interface NotifyPayload {
   counts?: { critical: number; knownExploited: number };
   /** Gate result and how many rules set to Block matched (gate.blocked). */
   gate?: { blockingRules: number };
-  /** New findings of the scan per severity (finding.new); the channel's minimum decides what is shown. */
+  /**
+   * New findings of the scan (finding.new) or new early warnings (advisory.new) per severity; the
+   * channel's minimum decides what is shown.
+   */
   findings?: SeverityCounts;
   link: string;
   at: string;
@@ -113,6 +125,7 @@ const DISCORD_COLOURS: Record<NotifyEvent, number> = {
   "gate.blocked": 0xd9481f,
   "scan.failed": 0xd9481f,
   "finding.new": 0xe07b1a,
+  "advisory.new": 0xe07b1a,
   test: 0x4a78a8,
 };
 

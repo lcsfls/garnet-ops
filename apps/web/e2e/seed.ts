@@ -187,6 +187,7 @@ export async function seed(): Promise<void> {
       [org.id, repoId, scanId],
     );
     await seedFixes(client, org.id, repoId, scanId, now);
+    await seedEarlyWarnings(client, org.id, repoId, now);
     await seedSystemStatusRows(client, now);
     await seedAi(client, org.id, now);
     await client.query("commit");
@@ -201,6 +202,47 @@ export async function seed(): Promise<void> {
 type Client = InstanceType<typeof pg.Client>;
 
 /** The manifest of the last scan, and two pull requests from the past (one merged, one failed). */
+/**
+ * Early warnings (ADR 0029): two open ones (a known exploited critical and a medium) and one that a scan
+ * confirmed two days ago.
+ */
+async function seedEarlyWarnings(client: Client, orgId: string, repoId: string, now: Date) {
+  const day = 24 * 3600 * 1000;
+  await client.query(
+    `insert into vulnerability (id, severity, cvss_score, description, urls, aliases, known_exploited)
+     values ('GHSA-e2e0-warn-0001', 'critical', 9.8, 'Early warning test.', '[]', '[]', true),
+            ('GHSA-e2e0-warn-0002', 'medium', 5.3, 'Early warning test.', '[]', '[]', false),
+            ('GHSA-e2e0-warn-0003', 'high', 7.5, 'Early warning test.', '[]', '[]', false)`,
+  );
+  const insert = (id: string, vuln: string, pkg: string, severity: string, rank: number, extra: string) =>
+    client.query(
+      `insert into early_warning (id, organization_id, repository_id, vulnerability_id, package_name,
+         package_version, package_type, fixed_in, severity, severity_rank, detected_at, state, closed_at)
+       values ($1, $2, $3, $4, $5, '1.0.0', 'npm', $6, $7, $8, $9, ${extra})`,
+      [
+        id,
+        orgId,
+        repoId,
+        vuln,
+        pkg,
+        JSON.stringify(["1.0.1"]),
+        severity,
+        rank,
+        new Date(now.getTime() - day),
+      ],
+    );
+  await insert("ewn_e2e_crit", "GHSA-e2e0-warn-0001", "pkg-1", "critical", 5, "'open', null");
+  await insert("ewn_e2e_medium", "GHSA-e2e0-warn-0002", "pkg-2", "medium", 3, "'open', null");
+  await insert(
+    "ewn_e2e_done",
+    "GHSA-e2e0-warn-0003",
+    "pkg-3",
+    "high",
+    4,
+    `'confirmed', now() - interval '2 days'`,
+  );
+}
+
 async function seedFixes(client: Client, orgId: string, repoId: string, scanId: string, now: Date) {
   const blob = createHash("sha1")
     .update(`blob ${Buffer.byteLength(FIXES.manifest)}\0`)

@@ -22,6 +22,10 @@ Security-relevant changes are listed under **Security** in every release.
   otherwise), and a choice of repositories per channel. **Edit** on a channel changes its events and filters. Existing channels
   keep exactly what they were sent before.
 - Discord channels get an embed: a title that links to GarnetOps, a colour per kind of event and the organisation in the footer.
+- **Daily → Early warnings** ([ADR 0029](docs/adr/0029-early-warnings.md)): after each update of the vulnerability database,
+  the stored package lists of all repositories are matched again, without a clone and without network. New advisories for
+  packages a repository uses are listed until the next scan confirms or clears them. They never change findings, grades or
+  quality gates. Channels can subscribe to the new event *Early warnings*. API: `GET /api/v1/early-warnings`.
 
 ### Changed
 

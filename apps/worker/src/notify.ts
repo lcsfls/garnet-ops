@@ -57,24 +57,29 @@ export function renderNotification(
   const m = resources[language].translation.notify;
   const repository = payload.repository?.name ?? "";
   const [title, body] =
-    payload.event === "finding.new"
+    payload.event === "advisory.new"
       ? [
-          fill(m.newFindingsTitle, { repository }),
-          fill(m.newFindingsText, { list: newFindingList(payload, m) }),
+          fill(m.advisoryNewTitle, { repository }),
+          fill(m.advisoryNewText, { list: newFindingList(payload, m) }),
         ]
-      : payload.event === "finding.new_critical"
+      : payload.event === "finding.new"
         ? [
-            fill(m.newCriticalTitle, { repository }),
-            fill(m.newCriticalText, payload.counts ?? { critical: 0, knownExploited: 0 }),
+            fill(m.newFindingsTitle, { repository }),
+            fill(m.newFindingsText, { list: newFindingList(payload, m) }),
           ]
-        : payload.event === "gate.blocked"
+        : payload.event === "finding.new_critical"
           ? [
-              fill(m.gateBlockedTitle, { repository }),
-              fill(m.gateBlockedText, { rules: payload.gate?.blockingRules ?? 0 }),
+              fill(m.newCriticalTitle, { repository }),
+              fill(m.newCriticalText, payload.counts ?? { critical: 0, knownExploited: 0 }),
             ]
-          : payload.event === "scan.failed"
-            ? [fill(m.scanFailedTitle, { repository }), m.scanFailedText]
-            : [m.testTitle, m.testText];
+          : payload.event === "gate.blocked"
+            ? [
+                fill(m.gateBlockedTitle, { repository }),
+                fill(m.gateBlockedText, { rules: payload.gate?.blockingRules ?? 0 }),
+              ]
+            : payload.event === "scan.failed"
+              ? [fill(m.scanFailedTitle, { repository }), m.scanFailedText]
+              : [m.testTitle, m.testText];
   return { title, text: `${body}\n${fill(m.footer, { organization: payload.organization })}` };
 }
 

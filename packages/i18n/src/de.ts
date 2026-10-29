@@ -679,6 +679,7 @@ export const de: Messages = {
     team: "Team",
     fixes: "Fix-Vorschläge",
     system: "Systemstatus",
+    earlyWarnings: "Frühwarnungen",
     statistics: "Statistik",
   },
   severity: {
@@ -1076,6 +1077,31 @@ export const de: Messages = {
       failed: "Die Konfiguration konnte nicht geladen werden.",
     },
   },
+  earlyWarnings: {
+    title: "Frühwarnungen",
+    description:
+      "Neue Advisories, die Ihre Pakete betreffen, bevor ein Scan erneut nachgesehen hat. Ein Scan des Repositorys bestätigt oder entkräftet sie.",
+    open: "Offen",
+    closed: "Geschlossen (30 Tage)",
+    view: "Anzeigen",
+    columnSeverity: "Schweregrad",
+    columnAdvisory: "Advisory",
+    columnPackage: "Paket",
+    columnFixedIn: "Behoben in",
+    columnRepository: "Repository",
+    columnDetected: "Erkannt",
+    columnOutcome: "Ergebnis",
+    knownExploited: "Bekannt ausgenutzt",
+    confirmed: "Durch einen Scan bestätigt",
+    cleared: "Vom Scan nicht gefunden",
+    scanNow: "Zum Bestätigen scannen",
+    scanNowFor: "{repository} zum Bestätigen scannen",
+    emptyOpen:
+      "Keine Frühwarnungen. Nach jedem Update der Schwachstellendatenbank prüft GarnetOps die gespeicherten Pakete aller Repositories erneut.",
+    emptyClosed: "In den letzten 30 Tagen wurde keine Frühwarnung geschlossen.",
+    truncated: "Es werden die ersten 500 angezeigt.",
+    hint: "Frühwarnungen ändern weder Funde noch Noten oder Quality Gates. Zu Funden werden sie erst, wenn ein Scan sie bestätigt.",
+  },
   packages: {
     title: "Pakete",
     description: "Alle Pakete in Ihren Repositories, aus dem jeweils letzten Scan.",
@@ -1296,6 +1322,9 @@ export const de: Messages = {
     testText: "Dieser Kanal funktioniert. Er bekommt die für ihn gewählten Ereignisse.",
     newFindingsTitle: "Neue Funde: {repository}",
     newFindingsText: "Neu im letzten Scan: {list}.",
+    advisoryNewTitle: "Frühwarnung: neue Advisories betreffen {repository}",
+    advisoryNewText:
+      "Noch nicht durch einen Scan bestätigt: {list}. Ein Scan des Repositorys bestätigt oder entkräftet sie.",
     severityCount: {
       critical: "{count} kritisch",
       high: "{count} hoch",
@@ -1400,11 +1429,12 @@ export const de: Messages = {
     event: {
       finding_new_critical: "Neuen kritischen oder bekannt ausgenutzten Schwachstellen",
       finding_new: "Neuen Funden",
+      advisory_new: "Frühwarnungen: neuen Advisories für gespeicherte Pakete",
       gate_blocked: "Einem blockierten Quality Gate",
       scan_failed: "Einem fehlgeschlagenen Scan",
       test: "Testnachricht",
     },
-    channelMinSeverity: "Neue Funde ab",
+    channelMinSeverity: "Neue Funde und Frühwarnungen ab",
     minSeverity: {
       critical: "Nur kritisch",
       high: "Hoch und höher",

@@ -120,6 +120,9 @@ paginated findings, and every number on the overview leads to its details.
       limits (amber after 3 days, vermilion after 7), the directory, AI endpoint and notification channels (last success and
       blocker), worker heartbeat, queues, nightly scan, database and app version; read-only (ADR 0024, `docs/system-status.md`). Still
       open: notifications when something stops, history
+- [x] Early warnings: after each update of the vulnerability database, the stored package inventories are
+      matched again without a clone; new advisories for stored packages are listed until a scan confirms or
+      clears them, and channels can be told (ADR 0029, `docs/early-warnings.md`, 0.0.10)
 - [x] Docker Compose stack, non-root containers, pinned digests, health checks;
       reverse proxy with hybrid post-quantum TLS key exchange (X25519MLKEM768) (ADR 0007)
 - [~] In-app updates with the update sidecar (cicd-updater, maintained in `updater/`): signed
@@ -189,7 +192,7 @@ What was removed, and the items that were open when it was:
 
 - [ ] Container image scanning, IaC and secret scanning, SAST (resale-safe rules)
 - [~] Mail via SMTP or Microsoft Graph and webhooks (Discord, Slack-compatible, JSON) for
-      alerts (ADR 0010). Still open: weekly digest, never sent twice or skipped around a
+      alerts (ADR 0010); per-channel minimum severity and repositories, Discord embeds (0.0.10). Still open: weekly digest, never sent twice or skipped around a
       clock change (ADR 0005); invitation mail
 - [~] In-app notifications: bell, toasts and a per-person matrix with personal mail (ADR 0019,
       `docs/notifications.md`). Still open: quiet hours, a page with all notifications, "update available",

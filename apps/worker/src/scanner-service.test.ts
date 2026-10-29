@@ -9,12 +9,13 @@ import { Readable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   requestMatch,
+  requestMatchPurls,
   requestSbom,
   ScannerRequestError,
   ScannerUnavailableError,
   scannerHealth,
 } from "./scanner-client.ts";
-import { byteLimit, createScannerService } from "./scanner-service.ts";
+import { byteLimit, createScannerService, purlList } from "./scanner-service.ts";
 
 const root = mkdtempSync(join(tmpdir(), "garnetops-scanner-test-"));
 const work = join(root, "work");
@@ -30,7 +31,7 @@ printf '{"artifacts":[],"descriptor":{"version":"1.2.3"},"dir":"%s"}' "$dir" > "
 `;
 // grype: `sbom:<file> -o json --file <out> -q`; wraps the SBOM it was given.
 const fakeGrype = `#!/bin/sh
-sbom="\${1#sbom:}"
+sbom="\${1#*:}"
 { printf '{"matches":[],"sbom":'; cat "$sbom"; printf '}'; } > "$5"
 `;
 
@@ -115,6 +116,20 @@ describe.skipIf(process.platform === "win32")("scanner service", () => {
     writeFileSync(join(work, dir, "FAIL"), "");
     const error = await requestSbom(socket, dir, join(out, "x.json")).catch((e: unknown) => e);
     expect((error as ScannerRequestError).code).toBe("sbom_failed");
+  });
+
+  it("matches a list of package URLs and refuses anything that is not one (ADR 0029)", async () => {
+    const list = join(out, "list.purls");
+    writeFileSync(list, "pkg:npm/lodash@4.17.20\npkg:npm/left-pad@1.3.0\n");
+    await requestMatchPurls(socket, list, join(out, "purls.json"));
+    const answer = readFileSync(join(out, "purls.json"), "utf8");
+    expect(answer).toContain("pkg:npm/lodash@4.17.20");
+    for (const bad of ["--help\n", "pkg:npm/a b\n", "\n", "/etc/passwd\n"]) {
+      writeFileSync(list, bad);
+      const error = await requestMatchPurls(socket, list, join(out, "x.json")).catch((e: unknown) => e);
+      expect((error as ScannerRequestError).code).toBe("bad_request");
+    }
+    expect(purlList(" pkg:npm/x@1 \n\n pkg:pypi/y@2 ")).toBe("pkg:npm/x@1\npkg:pypi/y@2\n");
   });
 
   it("is unavailable, not failed, when nothing listens", async () => {

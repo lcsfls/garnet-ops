@@ -909,7 +909,7 @@ test("notifications: a Discord webhook is stored sealed, refused for unsafe addr
   await item.getByRole("button", { name: "Edit: Security chat" }).click();
   const edit = page.getByRole("dialog", { name: "Edit the channel Security chat" });
   await edit.getByLabel("New findings", { exact: true }).check();
-  await edit.getByLabel("New findings from").selectOption("medium");
+  await edit.getByLabel("New findings and early warnings from").selectOption("medium");
   await edit.getByLabel("Only these repositories").check();
   // Nothing chosen yet: nothing to save.
   await expect(edit.getByRole("button", { name: "Save" })).toBeDisabled();
@@ -1427,6 +1427,36 @@ test.describe("focus on the developer pipeline (ADR 0025)", () => {
     }
     expect(problems).toEqual([]);
   });
+});
+
+test("early warnings list new advisories for stored packages until a scan answers them (ADR 0029)", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  await page.goto("/");
+  await page.getByRole("link", { name: "Early warnings" }).click();
+  await expect(page).toHaveURL(/\/early-warnings$/);
+  await expect(page.getByRole("heading", { name: "Early warnings", level: 1 })).toBeVisible();
+  const rows = page.getByTestId("early-warning");
+  // Open ones, worst first; the known exploited one says so in words.
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("Critical");
+  await expect(rows.first()).toContainText("GHSA-e2e0-warn-0001");
+  await expect(rows.first()).toContainText("Known exploited");
+  await expect(rows.first()).toContainText("pkg-1 1.0.0");
+  await expect(rows.nth(1)).toContainText("Medium");
+  // One scan button per repository confirms them all.
+  await expect(page.getByRole("button", { name: `Scan ${SEEDED.repositoryName} to confirm` })).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Closed (30 days)" }).click();
+  await expect(page).toHaveURL(/state=closed/);
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("Confirmed by a scan");
+
+  // The repository filter is part of the address, like every list.
+  await page.goto(`/early-warnings?repositoryId=repo_unknown`);
+  await expect(page.getByText("No early warnings.")).toBeVisible();
+  expect(problems).toEqual([]);
 });
 
 test.describe("System status", () => {

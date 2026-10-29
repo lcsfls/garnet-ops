@@ -301,7 +301,7 @@ export function worstState(states: readonly IntegrationState[]): IntegrationStat
 /* What the worker reports (table `system_report`, ADR 0024)                    */
 /* -------------------------------------------------------------------------- */
 
-export const REPORT_KEYS = ["scanners", "vulndb", "vulndb_update", "vulndb_build"] as const;
+export const REPORT_KEYS = ["scanners", "vulndb", "vulndb_update", "vulndb_build", "early_warning"] as const;
 export type ReportKey = (typeof REPORT_KEYS)[number];
 
 const isoTime = z.string().datetime({ offset: true });

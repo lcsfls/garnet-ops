@@ -7,12 +7,13 @@
  *   GET  /v1/health              200 and `{"ok": true, "version": ...}` (the image's release) when up
  *   POST /v1/sbom   {"dir": ...}  syft's SBOM (syft-json) of a clone below the work directory
  *   POST /v1/match  <SBOM>        grype's JSON report for the SBOM in the request body
+ *   POST /v1/match-purls <list>   grype's JSON report for package URLs, one per line (early warnings, ADR 0029)
  *
  * Errors answer with a status and `{"error": "<code>"}`. Nothing a tool prints is returned or logged:
  * a scanned repository is hostile input, and so is everything syft and grype say about it.
  */
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdtemp, realpath, rm, stat } from "node:fs/promises";
+import { mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
@@ -23,6 +24,26 @@ import { buildSbom } from "./syft.ts";
 
 /** Upper bound for an SBOM or a report in either direction. */
 export const MAX_DOCUMENT_BYTES = 512 * 1024 * 1024;
+/** Upper bound for a list of package URLs and for one of them. */
+export const MAX_PURL_LIST_BYTES = 16 * 1024 * 1024;
+const MAX_PURL_LENGTH = 1000;
+
+/**
+ * A package URL list as grype reads it, or null when a line is not one: `pkg:` and printable ASCII
+ * only, so nothing in it can be taken for an option or a different input.
+ */
+export function purlList(text: string): string | null {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return null;
+  for (const line of lines) {
+    if (!line.startsWith("pkg:") || line.length > MAX_PURL_LENGTH || !/^[\x21-\x7e]+$/.test(line))
+      return null;
+  }
+  return `${lines.join("\n")}\n`;
+}
 const MAX_REQUEST_JSON_BYTES = 4 * 1024;
 
 /** A clone as the worker names it: `<scan directory>/src` directly below the work directory. */
@@ -139,6 +160,27 @@ export function createScannerService(config: ScannerServiceConfig): Server {
           throw new RequestError(422, "sbom_failed");
         });
         await sendFile(res, sbom);
+      });
+      return;
+    }
+    if (req.method === "POST" && req.url === "/v1/match-purls") {
+      let text = "";
+      for await (const chunk of req) {
+        text += chunk;
+        if (text.length > MAX_PURL_LIST_BYTES) throw new RequestError(413, "too_large");
+      }
+      const list = purlList(text);
+      if (!list) throw new RequestError(400, "bad_request");
+      await withScratch(async (scratch) => {
+        const file = join(scratch, "input.purls");
+        await writeFile(file, list, { mode: 0o600 });
+        const report = await runGrype(config.grypeBin, config.grypeDbDir, `purl:${file}`, scratch).catch(
+          (error: Error) => {
+            console.error(`scanner: grype: ${error.message}`);
+            throw new RequestError(422, "scanner_failed");
+          },
+        );
+        await sendFile(res, report);
       });
       return;
     }

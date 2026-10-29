@@ -207,3 +207,10 @@ export function toQuery(search: Record<string, unknown>, uiOnly: string[] = []):
 }
 
 export { DEFAULT_PAGE_SIZE };
+
+/** Early warnings (ADR 0029): open ones, or the ones a scan closed in the last 30 days. */
+export const earlyWarningSearch = z.object({
+  state: z.enum(["open", "closed"]).optional().catch(undefined),
+  repositoryId: text(40),
+});
+export type EarlyWarningSearch = z.infer<typeof earlyWarningSearch>;

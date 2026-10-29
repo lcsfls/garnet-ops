@@ -656,6 +656,7 @@ export const en = {
     team: "Team",
     fixes: "Fix proposals",
     system: "System status",
+    earlyWarnings: "Early warnings",
     statistics: "Statistics",
   },
   severity: {
@@ -1042,6 +1043,31 @@ export const en = {
       failed: "The configuration could not be loaded.",
     },
   },
+  earlyWarnings: {
+    title: "Early warnings",
+    description:
+      "New advisories that affect your packages before a scan has looked again. A scan of the repository confirms or clears them.",
+    open: "Open",
+    closed: "Closed (30 days)",
+    view: "Show",
+    columnSeverity: "Severity",
+    columnAdvisory: "Advisory",
+    columnPackage: "Package",
+    columnFixedIn: "Fixed in",
+    columnRepository: "Repository",
+    columnDetected: "Detected",
+    columnOutcome: "Outcome",
+    knownExploited: "Known exploited",
+    confirmed: "Confirmed by a scan",
+    cleared: "Not found by the scan",
+    scanNow: "Scan to confirm",
+    scanNowFor: "Scan {repository} to confirm",
+    emptyOpen:
+      "No early warnings. After each update of the vulnerability database, GarnetOps checks the stored packages of all repositories again.",
+    emptyClosed: "No early warning was closed in the last 30 days.",
+    truncated: "Showing the first 500.",
+    hint: "Early warnings do not change findings, grades or quality gates. They become findings only when a scan confirms them.",
+  },
   packages: {
     title: "Packages",
     description: "Every package in your repositories, from the latest scan of each.",
@@ -1259,6 +1285,8 @@ export const en = {
     testText: "This channel works. It receives the events chosen for it.",
     newFindingsTitle: "New findings: {repository}",
     newFindingsText: "New in the last scan: {list}.",
+    advisoryNewTitle: "Early warning: new advisories affect {repository}",
+    advisoryNewText: "Not confirmed by a scan yet: {list}. A scan of the repository confirms or clears them.",
     severityCount: {
       critical: "{count} critical",
       high: "{count} high",
@@ -1363,11 +1391,12 @@ export const en = {
     event: {
       finding_new_critical: "New critical or known exploited vulnerabilities",
       finding_new: "New findings",
+      advisory_new: "Early warnings: new advisories for stored packages",
       gate_blocked: "A quality gate blocked",
       scan_failed: "A scan failed",
       test: "Test message",
     },
-    channelMinSeverity: "New findings from",
+    channelMinSeverity: "New findings and early warnings from",
     minSeverity: {
       critical: "Critical only",
       high: "High and above",

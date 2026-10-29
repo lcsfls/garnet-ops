@@ -46,7 +46,7 @@
     </label>
   {/each}
 </fieldset>
-{#if events.includes("finding.new")}
+{#if events.includes("finding.new") || events.includes("advisory.new")}
   <label class="grid gap-1.5">
     <span class="text-sm font-medium">{t("settings.channelMinSeverity")}</span>
     <Select bind:value={minSeverity}>

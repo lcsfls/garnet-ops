@@ -8,6 +8,7 @@ import {
   startDirectoryReconcile,
   sweepDirectory,
 } from "./directory.ts";
+import { startEarlyWarnings } from "./early-warning.ts";
 import { env } from "./env.ts";
 import {
   checkWriteAccess,
@@ -127,11 +128,13 @@ const stopVulnDbUpdates = startVulnDbUpdates();
 const stopUserNotifications = startUserNotificationUpkeep();
 // The heartbeat, the scanner versions and the database metadata for the System status page (ADR 0024).
 const stopSystemReports = startSystemReports();
+const stopEarlyWarnings = startEarlyWarnings(boss);
 console.log(`worker: ready (${env.GARNETOPS_SCAN_CONCURRENCY} scan slots, nightly schedule active)`);
 
 async function shutdown() {
   stopDirectoryReconcile();
   stopVulnDbUpdates();
+  stopEarlyWarnings();
   stopUserNotifications();
   await stopSystemReports();
   clearInterval(aiSweep);
