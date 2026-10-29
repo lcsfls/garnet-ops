@@ -55,7 +55,7 @@ export const FIXES = {
  * the database is four days old and the last update failed); tests change them with `reportStatus`.
  */
 export const SYSTEM = {
-  workerVersion: "0.0.9",
+  workerVersion: "0.0.10",
   /** Advisories per provider in the seeded database report. */
   providers: { nvd: 250_000, github: 41_000 },
 };

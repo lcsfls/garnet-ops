@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-10-29
+<!-- title: Early warnings and channel filters -->
+
 ### Security
 
 - zod 4.6.7 instead of 3.25.76 in the API, the worker and the web app (GHSA-mrhx-c7xc-m3w5, high: memory exhaustion while
@@ -1032,7 +1035,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.9...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.10...HEAD
+[0.0.10]: https://github.com/lcsfls/garnet-ops/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/lcsfls/garnet-ops/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/lcsfls/garnet-ops/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/lcsfls/garnet-ops/compare/v0.0.6...v0.0.7
