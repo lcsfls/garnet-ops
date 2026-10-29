@@ -21,7 +21,7 @@ The Compose file runs two containers of the signed image `ghcr.io/lcsfls/garneto
 
 | Service | Has | Does |
 | --- | --- | --- |
-| `docker-proxy` | the Docker socket, read-only mount; **no network** | Lets `GET` and `HEAD` requests on six read paths through to Docker (`/_ping`, `/version`, `/containers/json`, `/images/json`, `/images/{id}/json`, `/images/get`) and answers everything else with 403 |
+| `docker-proxy` | the Docker socket, read-only mount; **no network** | Lets `GET` and `HEAD` requests on seven read paths through to Docker (`/_ping`, `/version`, `/info`, `/containers/json`, `/images/json`, `/images/{id}/json`, `/images/get`) and answers everything else with 403 |
 | `agent` | only the proxy's socket; HTTPS to GarnetOps | Lists the running containers, reads each image's packages with syft, reports |
 
 Both run with a read-only file system, no capabilities and `no-new-privileges`; the agent runs as an unprivileged user. A read-only
@@ -44,6 +44,8 @@ The `/tmp` file system of the agent is where syft unpacks an image; make it larg
 Over HTTPS to this installation only:
 
 - the host name, the agent's and Docker's version and the operating system;
+- the running kernel: `uname -r`, the kernel's own version lines (`/proc/version`, on Ubuntu `/proc/version_signature`) and the
+  distribution and release Docker names (of Docker's `/info` nothing else is kept);
 - per running container: its id, name, image reference, image id, state and start time;
 - per image: its id, tags, digests, OS and architecture, and only the OCI labels `org.opencontainers.image.source`, `.revision`,
   `.version`, `.title` and `.created`;
@@ -66,6 +68,32 @@ GarnetOps matches each image's packages against the **local** vulnerability data
 arrives and again after every update of the database. The host page shows open vulnerabilities per container; the image page lists
 them with the package, the fixed version and whether it is known to be exploited. These findings belong to the image: they do not
 change the findings, grades or quality gates of repositories.
+
+## The host's kernel
+
+Containers use the kernel of their host, so a flaw in the kernel (such as a use-after-free in the TCP code) is not in any image.
+The agent therefore also reports the **running kernel**, and GarnetOps names it as the distribution's package and matches it like any
+other package:
+
+| Distribution | Package and version from |
+| --- | --- |
+| Ubuntu | `/proc/version_signature` (`Ubuntu 6.8.0-45.45-generic` → `linux-image-6.8.0-45-generic` 6.8.0-45.45, source `linux`, `linux-hwe-*` or `linux-aws` and so on) |
+| Debian | `/proc/version` (`Debian 6.1.112-1`) |
+| RHEL, AlmaLinux, Rocky, CentOS Stream, Oracle Linux (also UEK), Amazon Linux | `uname -r` (`5.14.0-427.13.1.el9_4.x86_64` → `kernel` 5.14.0-427.13.1.el9_4) |
+| Alpine | `uname -r` (`6.6.58-0-lts` → `linux-lts` 6.6.58-r0) |
+| SUSE and others | not checked yet; the host page says so |
+
+**What "affected" means, and what it does not.** The host page says **Affected** when the running kernel has a version in which the
+distribution lists a flaw as not fixed. It does **not** say the flaw can be exploited on that host: that depends on the host's
+configuration (for example which network features its services use, or a live patch), which the agent does not see. The page says
+this next to every result.
+
+- **No fix yet** is shown as such. When the distribution ships a fixed kernel, the page names the fixed version; the host stays
+  affected until the new kernel runs, which needs a restart.
+- **Ratings differ by source.** The distribution's rating is shown first, the highest CVSS score of any source next to it (for
+  example "High · CVSS 9.8" when the kernel's own CVE team rates higher than the distribution).
+- The kernel is matched again after every update of the vulnerability database, so a flaw published later shows up without a new
+  report from the agent.
 
 ## Every link leads to the exact result
 
@@ -105,6 +133,7 @@ switched on and off, module switched on and off.
 ## Limits and what is not tested
 
 - Docker only (the Docker API on a Unix socket); no Kubernetes and no Podman without its Docker API.
+- The kernel check cannot see live patches, whether a vulnerable feature is in use, or kernels that a reboot would switch to.
 - At most 1 000 containers and 500 images per report, 50 000 packages per image.
 - Tested with a fake Docker API, a stand-in syft and fake registries, and once with the real agent image against a real Docker daemon
   and a stand-in server; **not** against real registries or a real installation over the internet.

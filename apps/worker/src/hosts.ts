@@ -1,6 +1,7 @@
 /**
- * Hosts and containers in the worker (ADR 0034): matching the package list of an image a host runs against the local vulnerability
- * database (grype through the scanner service, as early warnings do), matching again after every update of the database, the
+ * Hosts and containers in the worker (ADR 0034): matching the package list of an image a host runs, and the host's running kernel,
+ * against the local vulnerability database (grype through the scanner service, as early warnings do), matching again after every
+ * update of the database, the
  * opt-in check for newer images in public registries, and the clean-up of what no host reports any more. Nothing runs for an
  * organisation that has not switched the module on.
  */
@@ -23,6 +24,7 @@ import { upsertVulnerabilities } from "./vulnerability-store.ts";
 export const IMAGE_MATCH_QUEUE = "hosts.match";
 export const HOSTS_TICK_QUEUE = "hosts.tick";
 export const REGISTRY_CHECK_QUEUE = "hosts.registry";
+export const KERNEL_MATCH_QUEUE = "hosts.kernel";
 
 /** Images no container has used for this long are forgotten, with their findings. */
 const ORPHAN_AFTER_MS = 7 * 24 * 3600_000;
@@ -127,6 +129,73 @@ export async function matchImage(job: { organizationId: string; imageId: string 
 }
 
 /**
+ * Matches a host's running kernel, named as the distribution's package, and replaces the host's kernel findings. A finding says
+ * the running kernel is affected according to the distribution's data; whether the flaw can be used depends on the host's
+ * configuration, which the agent does not see. Never throws.
+ */
+export async function matchKernel(job: { hostId: string }): Promise<void> {
+  const h = schema.agentHost;
+  const k = schema.hostKernelFinding;
+  const [host] = await db.select().from(h).where(eq(h.id, job.hostId)).limit(1);
+  if (!host?.kernelPackage || !(await moduleOn(host.organizationId))) return;
+  const now = new Date();
+  const dir = await mkdtemp(join(env.GARNETOPS_WORK_DIR, "kernel-"));
+  try {
+    const report = parseReport(await matchPurls([host.kernelPackage.purl], dir), `kernel:${host.id}`);
+    addAdvisoryDates(report.vulnerabilities, env.GARNETOPS_GRYPE_DB_DIR);
+    await db.transaction(async (tx) => {
+      // The kernel may have changed while this ran: only the package that was matched is stored.
+      const [current] = await tx
+        .select({ kernelPackage: h.kernelPackage })
+        .from(h)
+        .where(eq(h.id, host.id))
+        .for("update");
+      if (current?.kernelPackage?.purl !== host.kernelPackage?.purl) return;
+      await upsertVulnerabilities(tx, report.vulnerabilities.values(), now);
+      const findings = [...report.findings.values()];
+      const keep = findings.map((f) => f.vulnerabilityId);
+      await tx
+        .delete(k)
+        .where(and(eq(k.hostId, host.id), keep.length ? notInArray(k.vulnerabilityId, keep) : undefined));
+      for (const f of findings) {
+        const values = {
+          packageVersion: f.packageVersion,
+          fixedIn: f.fixedIn,
+          fixState: f.fixState,
+          severity: f.severity,
+          severityRank: f.severityRank,
+          lastSeenAt: now,
+        };
+        await tx
+          .insert(k)
+          .values({
+            id: newId("hkf"),
+            organizationId: host.organizationId,
+            hostId: host.id,
+            vulnerabilityId: f.vulnerabilityId,
+            packageName: f.packageName,
+            firstSeenAt: now,
+            ...values,
+          })
+          .onConflictDoUpdate({ target: [k.hostId, k.vulnerabilityId, k.packageName], set: values });
+      }
+      await tx
+        .update(h)
+        .set({ kernelMatchedAt: now, kernelMatchedDbBuilt: report.dbBuiltAt, kernelMatchError: null })
+        .where(eq(h.id, host.id));
+    });
+  } catch (error) {
+    console.error(`kernel match: ${(error as Error)?.name ?? "error"}`);
+    await db
+      .update(h)
+      .set({ kernelMatchedAt: now, kernelMatchError: "scanner-failed" })
+      .where(eq(h.id, host.id));
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
  * One tick (every hour): images whose last match used an older vulnerability database are matched again, nonces past their window
  * and images no host has run for a week are deleted, and organisations that switched the registry check on get it once a day.
  */
@@ -161,6 +230,25 @@ export async function hostsTick(boss: Pick<PgBoss, "send">): Promise<void> {
         retryLimit: 1,
         expireInSeconds: 1800,
         singletonKey: `${image.organizationId}:${image.imageId}`,
+      });
+    }
+    const h = schema.agentHost;
+    const kernels = await db
+      .select({ hostId: h.id })
+      .from(h)
+      .where(
+        and(
+          isNotNull(h.kernelPackage),
+          inArray(h.organizationId, enabledOrganizations()),
+          or(isNull(h.kernelMatchedDbBuilt), lt(h.kernelMatchedDbBuilt, builtAt)),
+        ),
+      )
+      .limit(200);
+    for (const kernel of kernels) {
+      await boss.send(KERNEL_MATCH_QUEUE, kernel, {
+        retryLimit: 1,
+        expireInSeconds: 1800,
+        singletonKey: kernel.hostId,
       });
     }
   }
@@ -262,6 +350,7 @@ export async function startHosts(boss: PgBoss): Promise<void> {
   await boss.createQueue(IMAGE_MATCH_QUEUE);
   await boss.createQueue(HOSTS_TICK_QUEUE);
   await boss.createQueue(REGISTRY_CHECK_QUEUE);
+  await boss.createQueue(KERNEL_MATCH_QUEUE);
   await boss.schedule(HOSTS_TICK_QUEUE, "17 * * * *", null, { tz: "UTC" });
   await boss.work(HOSTS_TICK_QUEUE, { batchSize: 1 }, async () => {
     await hostsTick(boss).catch((error: Error) => console.error("hosts tick:", error.name));
@@ -273,6 +362,9 @@ export async function startHosts(boss: PgBoss): Promise<void> {
       if (job) await matchImage(job.data);
     },
   );
+  await boss.work<{ hostId: string }>(KERNEL_MATCH_QUEUE, { batchSize: 1 }, async ([job]) => {
+    if (job) await matchKernel(job.data);
+  });
   await boss.work<{ organizationId: string }>(REGISTRY_CHECK_QUEUE, { batchSize: 1 }, async ([job]) => {
     if (job)
       await checkRegistries(job.data.organizationId).catch((error: Error) =>

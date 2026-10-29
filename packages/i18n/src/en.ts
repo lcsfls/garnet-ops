@@ -976,6 +976,39 @@ export const en = {
     removeDescription:
       "Its key stops working at once and its containers and their findings are deleted. Stop the agent on the host as well.",
     removed: "The host was removed.",
+    kernelTitle: "Running kernel",
+    kernelDescription:
+      "Containers use the kernel of their host. GarnetOps names the running kernel as the distribution's package and checks it against the local vulnerability database like any other package.",
+    kernelRelease: "Kernel",
+    kernelPackage: "Package",
+    kernelChecked: "Last checked",
+    kernelAffected:
+      "{count, plural, one {Affected by # known vulnerability} other {Affected by # known vulnerabilities}}",
+    kernelAffectedNote:
+      "Affected means: the running kernel has a version in which the distribution lists the flaw as not fixed. Whether it can be exploited on this host depends on its configuration, for example which network features its services use. GarnetOps does not check that.",
+    kernelRebootNote:
+      "Once the distribution ships a fixed kernel, install it and restart the host. Until the restart, the running kernel stays affected.",
+    kernelNone: "No known vulnerability in the running kernel.",
+    kernelWaiting: "Not checked yet.",
+    kernelMatchFailed: "The check failed; it runs again with the next report.",
+    kernelOldAgent: "The agent on this host does not report its kernel. Update the agent to 0.0.12 or later.",
+    kernelProblem: {
+      unknownDistribution: "GarnetOps does not know this distribution, so the kernel was not checked.",
+      unknownVersion: "The kernel's package version could not be read, so the kernel was not checked.",
+      unsupportedDistribution: "Kernels of this distribution are not checked yet.",
+    },
+    kernelFixNone: "No fix yet",
+    kernelFixWontFix: "Will not be fixed",
+    kernelFixIn: "Fixed in {version}",
+    columnFix: "Fix",
+    columnRating: "Rating",
+    ratingHint:
+      "Sources rate the same flaw differently. The distribution's rating comes first, the highest CVSS score of any source next to it.",
+    cvss: "CVSS {score}",
+    columnKernel: "Kernel",
+    kernelAffectedShort: "Affected",
+    kernelClean: "No known flaw",
+    kernelUnchecked: "Not checked",
     containersTitle: "Running containers",
     containersEmpty: "The agent reported no running container.",
     columnContainer: "Container",

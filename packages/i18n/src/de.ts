@@ -1008,6 +1008,42 @@ export const de: Messages = {
     removeDescription:
       "Sein Schlüssel gilt sofort nicht mehr, seine Container und deren Befunde werden gelöscht. Stoppen Sie den Agent auch auf dem Host.",
     removed: "Der Host wurde entfernt.",
+    kernelTitle: "Laufender Kernel",
+    kernelDescription:
+      "Container nutzen den Kernel ihres Hosts. GarnetOps benennt den laufenden Kernel als Paket der Distribution und prüft ihn wie jedes andere Paket gegen die lokale Schwachstellen-Datenbank.",
+    kernelRelease: "Kernel",
+    kernelPackage: "Paket",
+    kernelChecked: "Zuletzt geprüft",
+    kernelAffected:
+      "{count, plural, one {Betroffen von # bekannten Schwachstelle} other {Betroffen von # bekannten Schwachstellen}}",
+    kernelAffectedNote:
+      "Betroffen heißt: Der laufende Kernel hat eine Version, in der die Distribution die Lücke als nicht behoben führt. Ob sie auf diesem Host ausnutzbar ist, hängt von seiner Konfiguration ab, zum Beispiel davon, welche Netzwerkfunktionen seine Dienste nutzen. Das prüft GarnetOps nicht.",
+    kernelRebootNote:
+      "Sobald die Distribution einen behobenen Kernel liefert: installieren und den Host neu starten. Bis zum Neustart bleibt der laufende Kernel betroffen.",
+    kernelNone: "Keine bekannte Schwachstelle im laufenden Kernel.",
+    kernelWaiting: "Noch nicht geprüft.",
+    kernelMatchFailed: "Die Prüfung ist fehlgeschlagen; sie läuft mit der nächsten Meldung erneut.",
+    kernelOldAgent:
+      "Der Agent auf diesem Host meldet seinen Kernel nicht. Aktualisieren Sie den Agent auf 0.0.12 oder neuer.",
+    kernelProblem: {
+      unknownDistribution:
+        "GarnetOps kennt diese Distribution nicht, deshalb wurde der Kernel nicht geprüft.",
+      unknownVersion:
+        "Die Paketversion des Kernels war nicht lesbar, deshalb wurde der Kernel nicht geprüft.",
+      unsupportedDistribution: "Kernel dieser Distribution werden noch nicht geprüft.",
+    },
+    kernelFixNone: "Noch kein Fix",
+    kernelFixWontFix: "Wird nicht behoben",
+    kernelFixIn: "Behoben in {version}",
+    columnFix: "Fix",
+    columnRating: "Bewertung",
+    ratingHint:
+      "Quellen bewerten dieselbe Lücke unterschiedlich. Zuerst steht die Bewertung der Distribution, daneben der höchste CVSS-Wert aller Quellen.",
+    cvss: "CVSS {score}",
+    columnKernel: "Kernel",
+    kernelAffectedShort: "Betroffen",
+    kernelClean: "Keine bekannte Lücke",
+    kernelUnchecked: "Nicht geprüft",
     containersTitle: "Laufende Container",
     containersEmpty: "Der Agent hat keinen laufenden Container gemeldet.",
     columnContainer: "Container",

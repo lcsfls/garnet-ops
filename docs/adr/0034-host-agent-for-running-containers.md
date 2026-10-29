@@ -26,7 +26,7 @@ out a Compose snippet with two services of that image:
 
 | Service | Docker socket | Network | Does |
 | --- | --- | --- | --- |
-| `docker-proxy` | the host's socket, read-only mount | none (`network_mode: none`) | Forwards only `GET` and `HEAD` requests on a fixed list of read paths (`/_ping`, `/version`, `/containers/json`, `/images/json`, `/images/{id}/json`, `/images/get`) to Docker, on a Unix socket in a volume it shares with the agent; everything else is answered 403 before it reaches Docker |
+| `docker-proxy` | the host's socket, read-only mount | none (`network_mode: none`) | Forwards only `GET` and `HEAD` requests on a fixed list of read paths (`/_ping`, `/version`, `/info`, `/containers/json`, `/images/json`, `/images/{id}/json`, `/images/get`) to Docker, on a Unix socket in a volume it shares with the agent; everything else is answered 403 before it reaches Docker |
 | `agent` | none, only the proxy's socket | outbound HTTPS to the GarnetOps address | Lists the running containers and their images, reads each image's packages with syft (pinned, checksummed, as in the app image), and reports to GarnetOps |
 
 Both run as non-root users with a read-only root file system, no capabilities and `no-new-privileges`. A read-only mount of the
@@ -64,6 +64,20 @@ At its start and then every six hours (1 to 24 hours, set in the snippet), the a
 
 Everything the agent sends is hostile input to the server (a compromised host can send anything): strict schemas, lengths cut, control
 characters removed, labels other than the five above dropped, shown as text only.
+
+### 3a. The host's kernel
+
+Containers share the host's kernel, so kernel flaws are in no image. The inventory also carries the running kernel: `uname -r`, the
+kernel's own `/proc/version` and Ubuntu's `/proc/version_signature` (readable in any container, no extra rights), and the
+distribution and release from Docker's `/info` (nothing else of it is kept). The server names the kernel as the distribution's package
+(`kernelPackage` in `@garnetops/core/agent`: Ubuntu including hardware enablement and cloud kernels, Debian, the RHEL family, Oracle's
+UEK, Amazon Linux, Alpine) and the worker matches it like an image's package, again after every database update. Where the package
+cannot be named with certainty (SUSE's release suffix, a missing Ubuntu signature, an unknown distribution) the page says so and
+nothing is guessed.
+
+The result is worded as **affected**: the running version is one the distribution lists as not fixed. It is never worded as
+exploitable, because exploitability depends on configuration the agent does not see (a feature in use, a live patch). "No fix yet"
+is said as such, and the distribution's rating is shown next to the highest CVSS score of any source, since they often differ.
 
 ### 4. On the server
 

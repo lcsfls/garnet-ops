@@ -3,6 +3,7 @@ import {
   enrolBodySchema,
   hashEnrolmentCode,
   inventorySchema,
+  kernelPackage,
   NONCE_TTL_MS,
   packagesSchema,
   parseSignedHeader,
@@ -150,6 +151,10 @@ export const agentRoutes = new Hono<AgentEnv>()
     const org = host.organizationId;
     const used = new Set(input.containers.map((x) => x.imageId));
     const images = input.images.filter((i) => used.has(i.id));
+    // The running kernel as the distribution's package; a new kernel (an update and a reboot) is matched again.
+    const kernel = input.kernel ? kernelPackage(input.kernel) : null;
+    const kernelPurl = kernel?.ok ? kernel.purl : null;
+    const kernelChanged = kernelPurl !== (host.kernelPackage?.purl ?? null);
     const need = await db.transaction(async (tx) => {
       await tx
         .update(schema.agentHost)
@@ -157,10 +162,32 @@ export const agentRoutes = new Hono<AgentEnv>()
           hostname: input.hostname || host.hostname,
           agentVersion: input.agentVersion,
           dockerVersion: input.dockerVersion,
-          os: input.os,
+          os: input.kernel?.osName ?? input.os,
           lastInventoryAt: now,
+          ...(input.kernel
+            ? {
+                kernelRelease: input.kernel.release,
+                osName: input.kernel.osName,
+                kernelPackage: kernel?.ok
+                  ? {
+                      purl: kernel.purl,
+                      name: kernel.name,
+                      version: kernel.version,
+                      type: kernel.type,
+                      distro: kernel.distro,
+                    }
+                  : null,
+                kernelProblem: kernel && !kernel.ok ? kernel.reason : null,
+                ...(kernelChanged
+                  ? { kernelMatchedAt: null, kernelMatchedDbBuilt: null, kernelMatchError: null }
+                  : {}),
+              }
+            : {}),
         })
         .where(eq(schema.agentHost.id, host.id));
+      if (input.kernel && kernelChanged) {
+        await tx.delete(schema.hostKernelFinding).where(eq(schema.hostKernelFinding.hostId, host.id));
+      }
       for (const image of images) {
         const values = {
           tags: image.tags,
@@ -220,6 +247,13 @@ export const agentRoutes = new Hono<AgentEnv>()
         .limit(PACKAGE_REQUESTS_PER_INVENTORY);
       return missing.map((m) => m.imageId);
     });
+    if (kernelPurl && kernelChanged) {
+      await boss.send(
+        QUEUES.kernelMatch,
+        { hostId: host.id },
+        { retryLimit: 1, expireInSeconds: 1800, singletonKey: host.id },
+      );
+    }
     return c.json({ needPackages: need });
   })
   /** The package list of one image this host runs. Matching happens in the worker. */

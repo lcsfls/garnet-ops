@@ -2821,6 +2821,13 @@ test.describe("hosts and containers (ADR 0034)", () => {
         res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
       if (req.method !== "GET") return void res.writeHead(403).end();
       if (req.url === "/version") return json({ Version: "27.3.1", Os: "linux" });
+      if (req.url === "/info")
+        return json({
+          OperatingSystem: "Red Hat Enterprise Linux 9.4 (Plow)",
+          OSVersion: "9.4",
+          KernelVersion: "5.14.0-427.13.1.el9_4.x86_64",
+          Architecture: "x86_64",
+        });
       if (req.url === "/containers/json")
         return json([
           {
@@ -2873,6 +2880,8 @@ test.describe("hosts and containers (ADR 0034)", () => {
     await sql("delete from agent_enrolment");
     await sql("delete from container_image");
     await sql("delete from container_image_finding");
+    await sql("delete from host_kernel_finding");
+    await sql("delete from vulnerability where id = 'CVE-2099-7777'");
     await sql("delete from host_settings");
   });
 
@@ -2973,6 +2982,32 @@ test.describe("hosts and containers (ADR 0034)", () => {
     const running = page.getByTestId("repository-running");
     await expect(running).toContainText("Web 1");
     await expect(running).toContainText("0123456789ab");
+
+    // The running kernel: named as RHEL's package from what Docker says about the host, "affected" said plainly.
+    const [host] = await sql<{ id: string; kernel_package: { name: string; version: string } }>(
+      "select id, kernel_package from agent_host",
+    );
+    expect(host?.kernel_package).toMatchObject({ name: "kernel", version: "5.14.0-427.13.1.el9_4" });
+    await sql(
+      `insert into vulnerability (id, severity, cvss_score) values ('CVE-2099-7777', 'High', 9.8) on conflict (id) do nothing`,
+    );
+    await sql(
+      `insert into host_kernel_finding (id, organization_id, host_id, vulnerability_id, package_name, package_version, fixed_in, fix_state,
+         severity, severity_rank, first_seen_at, last_seen_at)
+       values ('hkf_e2e1', $1, $2, 'CVE-2099-7777', 'kernel', '5.14.0-427.13.1.el9_4', '[]', 'not-fixed', 'high', 4, now(), now())`,
+      [org?.id, host?.id],
+    );
+    await sql("update agent_host set kernel_matched_at = now() where id = $1", [host?.id]);
+    await page.goto("/hosts");
+    await expect(page.locator('tr[data-host="Web 1"]')).toContainText("Affected");
+    await page.locator('tr[data-host="Web 1"]').getByRole("link", { name: "Web 1" }).click();
+    const kernel = page.getByTestId("host-kernel");
+    await expect(kernel).toContainText("5.14.0-427.13.1.el9_4.x86_64");
+    await expect(kernel.getByTestId("kernel-affected")).toHaveText("Affected by 1 known vulnerability");
+    await expect(kernel).toContainText("GarnetOps does not check that.");
+    await expect(kernel.getByTestId("kernel-findings")).toContainText("CVE-2099-7777");
+    await expect(kernel.getByTestId("kernel-findings")).toContainText("No fix yet");
+    await expect(kernel.getByTestId("kernel-findings")).toContainText("CVSS 9.8");
     expect(problems).toEqual([]);
   });
 

@@ -2,10 +2,11 @@
  * One report of the agent (ADR 0034): enrol if this host has no identity yet, send the inventory of running containers and their
  * images, then the package lists GarnetOps asks for.
  */
-import { hostname } from "node:os";
+import { readFile } from "node:fs/promises";
+import { hostname, release } from "node:os";
 import { newAgentKeyPair } from "@garnetops/core/agent";
 import type { Identity, Server } from "./client.ts";
-import { type DockerImage, dockerVersion, inspectImage, runningContainers } from "./docker.ts";
+import { type DockerImage, dockerVersion, hostInfo, inspectImage, runningContainers } from "./docker.ts";
 import { loadIdentity, saveIdentity } from "./state.ts";
 import { readPackages } from "./syft.ts";
 
@@ -19,6 +20,39 @@ export interface ReportDeps {
   enrolmentCode?: string;
   hostName?: string;
   log?: (line: string) => void;
+  /** Tests only: where the kernel's own files are. */
+  procDir?: string;
+}
+
+/** A small kernel file, or null if this kernel does not have it. */
+async function readProc(dir: string, name: string): Promise<string | null> {
+  try {
+    return (await readFile(`${dir}/${name}`, "utf8")).slice(0, 400).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The running kernel. A container shares the host's kernel, so `uname -r` and the kernel's own files are the host's; Docker names
+ * the distribution. A Docker that does not answer `/info` leaves the kernel out, as older agents did.
+ */
+async function kernelOf(deps: ReportDeps) {
+  const procDir = deps.procDir ?? "/proc";
+  try {
+    const host = await hostInfo(deps.dockerSocket);
+    return {
+      release: host.kernel ?? release(),
+      procVersion: await readProc(procDir, "version"),
+      versionSignature: await readProc(procDir, "version_signature"),
+      osName: host.osName,
+      osVersion: host.osVersion,
+      architecture: host.architecture,
+    };
+  } catch (error) {
+    deps.log?.(`agent: host details: ${(error as Error).message}`);
+    return null;
+  }
 }
 
 /** The identity of this host, enrolling with the one-time code the first time. */
@@ -63,6 +97,7 @@ export async function reportOnce(deps: ReportDeps): Promise<{ containers: number
       agentVersion: AGENT_VERSION,
       dockerVersion: docker.version,
       os: docker.os,
+      kernel: await kernelOf(deps),
       containers,
       images,
     },

@@ -32,7 +32,7 @@ vi.mock("../db.ts", async () => {
         return "job";
       },
     },
-    QUEUES: { imageMatch: "hosts.match" },
+    QUEUES: { imageMatch: "hosts.match", kernelMatch: "hosts.kernel" },
   };
 });
 vi.mock("../env.ts", () => ({ env: { PUBLIC_URL: "https://garnetops.example.test/" }, isProduction: false }));
@@ -301,6 +301,36 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     await agent("/api/v1/agent/inventory", inventory());
   });
 
+  it("names the running kernel as the distribution's package and queues its match only when it changed", async () => {
+    const kernel = {
+      release: "6.8.0-45-generic",
+      versionSignature: "Ubuntu 6.8.0-45.45-generic 6.8.12",
+      osName: "Ubuntu 24.04.1 LTS",
+      osVersion: "24.04",
+      architecture: "x86_64",
+    };
+    expect((await agent("/api/v1/agent/inventory", inventory({ kernel }))).status).toBe(200);
+    const [host] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, hostId));
+    expect(host).toMatchObject({
+      kernelRelease: "6.8.0-45-generic",
+      osName: "Ubuntu 24.04.1 LTS",
+      kernelProblem: null,
+      kernelPackage: { name: "linux-image-6.8.0-45-generic", version: "6.8.0-45.45", distro: "ubuntu-24.04" },
+    });
+    expect(holder.sent.filter((s) => s.name === "hosts.kernel")).toEqual([
+      { name: "hosts.kernel", data: { hostId } },
+    ]);
+    // The same kernel again: nothing to match.
+    holder.sent.length = 0;
+    await agent("/api/v1/agent/inventory", inventory({ kernel }));
+    expect(holder.sent.filter((s) => s.name === "hosts.kernel")).toEqual([]);
+    // A kernel that cannot be named is said so, not guessed.
+    await agent("/api/v1/agent/inventory", inventory({ kernel: { ...kernel, versionSignature: null } }));
+    const [unnamed] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, hostId));
+    expect(unnamed).toMatchObject({ kernelPackage: null, kernelProblem: "unknownVersion" });
+    await agent("/api/v1/agent/inventory", inventory({ kernel }));
+  });
+
   it("takes the packages of an image this host runs, and queues the match", async () => {
     const pkgs = [
       {
@@ -361,6 +391,7 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     const list = await session("GET", "/api/v1/hosts", { role: "viewer" });
     expect(list.status).toBe(200);
     expect(list.json?.[0]).toMatchObject({
+      kernel: { release: "6.8.0-45-generic", open: { critical: 0, total: 0 } },
       name: "Web 1",
       containers: 2,
       images: 2,
@@ -368,7 +399,27 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
       reporting: true,
     });
 
+    await t.db.insert(schema.hostKernelFinding).values({
+      id: "hkf_1",
+      organizationId: ORG,
+      hostId,
+      vulnerabilityId: "CVE-2026-0001",
+      packageName: "linux-image-6.8.0-45-generic",
+      packageVersion: "6.8.0-45.45",
+      fixState: "not-fixed",
+      severity: "critical",
+      severityRank: 5,
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+    });
     const detail = await session("GET", `/api/v1/hosts/${hostId}`, { role: "viewer" });
+    expect(
+      (detail.json as unknown as { kernel: { release: string; findings: { fixState: string }[] } }).kernel,
+    ).toMatchObject({
+      release: "6.8.0-45-generic",
+      package: { version: "6.8.0-45.45" },
+      findings: [{ fixState: "not-fixed" }],
+    });
     const app1 = (
       detail.json as unknown as { containers: { name: string; repository: unknown }[] }
     ).containers.find((c) => c.name === "app");

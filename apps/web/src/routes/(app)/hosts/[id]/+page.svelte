@@ -4,6 +4,7 @@
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
   import CardHeader from "#lib/components/CardHeader.svelte";
+  import KernelCard from "#lib/components/hosts/KernelCard.svelte";
   import OpenCounts from "#lib/components/hosts/OpenCounts.svelte";
   import UpdateBadge from "#lib/components/hosts/UpdateBadge.svelte";
   import ModuleOff from "#lib/components/ModuleOff.svelte";
@@ -76,6 +77,7 @@
   <Card><QueryStatus {query} /></Card>
 {:else}
   <div class="grid gap-4 @wide:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+    <div class="grid content-start gap-4">
     <Card>
       <CardHeader title={host.name} />
       <Facts
@@ -93,6 +95,8 @@
         ]}
       />
     </Card>
+    <KernelCard kernel={host.kernel} />
+    </div>
 
     <Card>
       <CardHeader title={t("hosts.containersTitle")} />

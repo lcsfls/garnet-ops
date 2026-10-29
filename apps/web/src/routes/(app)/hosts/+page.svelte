@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus, Server, X } from "@lucide/svelte";
+  import { Plus, Server, TriangleAlert, X } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -11,7 +11,7 @@
   import Badge from "#lib/components/ui/Badge.svelte";
   import Button from "#lib/components/ui/Button.svelte";
   import { formatDateTime, formatRelative } from "#lib/format.ts";
-  import type { HostRow } from "#lib/hosts.ts";
+  import { type HostRow, kernelState } from "#lib/hosts.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
   import { rowClick } from "#lib/row-link.ts";
@@ -26,6 +26,7 @@
   const canEdit = $derived(isAdmin(me));
   const queryClient = useQueryClient();
   let adding = $state(false);
+  const kernelAffected = (host: HostRow) => host.kernel.open.total > 0;
 
   const hosts = createQuery(() => ({
     queryKey: ["hosts", "list"],
@@ -104,6 +105,7 @@
           <th class="px-3 py-2.5 text-right font-medium">{t("hosts.columnContainers")}</th>
           <th class="hidden px-3 py-2.5 text-right font-medium @3xl:table-cell">{t("hosts.columnImages")}</th>
           <th class="px-3 py-2.5 font-medium">{t("hosts.columnFindings")}</th>
+          <th class="px-3 py-2.5 font-medium">{t("hosts.columnKernel")}</th>
           <th class="hidden px-3 py-2.5 font-medium @wide:table-cell">{t("hosts.columnUpdates")}</th>
           <th class="hidden px-3 py-2.5 font-medium @wide:table-cell">{t("hosts.columnAgent")}</th>
           <th class="hidden px-5 py-2.5 font-medium @3xl:table-cell">{t("hosts.columnLastReport")}</th>
@@ -128,6 +130,16 @@
             <td class="px-3 py-3 text-right tabular-nums">{host.containers}</td>
             <td class="hidden px-3 py-3 text-right tabular-nums @3xl:table-cell">{host.images}</td>
             <td class="px-3 py-3"><OpenCounts open={host.open} /></td>
+            <td class="px-3 py-3 text-sm">
+              {#if kernelAffected(host)}
+                <Badge tone="high"><TriangleAlert aria-hidden="true" />{t("hosts.kernelAffectedShort")}</Badge>
+              {:else if kernelState(host.kernel, 0) === "clean"}
+                <span>{t("hosts.kernelClean")}</span>
+              {:else}
+                <span class="text-muted-foreground">{t("hosts.kernelUnchecked")}</span>
+              {/if}
+              {#if host.kernel.release}<div class="font-mono text-xs break-all text-muted-foreground">{host.kernel.release}</div>{/if}
+            </td>
             <td class="hidden px-3 py-3 text-sm @wide:table-cell">{#if host.updatesAvailable > 0}{t("hosts.updatesCount", { count: host.updatesAvailable })}{:else}<span
                   class="text-muted-foreground">–</span
                 >{/if}</td>

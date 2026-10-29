@@ -57,6 +57,43 @@ async function countsByImage(organizationId: string, imageIds: string[]): Promis
   return map;
 }
 
+/** Open vulnerabilities per severity of the running kernel of each host. */
+async function kernelCounts(organizationId: string): Promise<Map<string, Counts & { total: number }>> {
+  const k = schema.hostKernelFinding;
+  const rows = await db
+    .select({ hostId: k.hostId, severity: k.severity, n: sql<number>`count(*)::int` })
+    .from(k)
+    .where(eq(k.organizationId, organizationId))
+    .groupBy(k.hostId, k.severity);
+  const map = new Map<string, Counts & { total: number }>();
+  for (const row of rows) {
+    const counts = map.get(row.hostId) ?? { ...emptyCounts(), total: 0 };
+    if (row.severity in counts && row.severity !== "total") counts[row.severity as keyof Counts] += row.n;
+    // A flaw the distribution has not rated yet ("unknown") still makes the kernel affected.
+    counts.total += row.n;
+    map.set(row.hostId, counts);
+  }
+  return map;
+}
+
+/** What the page says about a host's kernel: what runs, whether it could be checked, and when. */
+function kernelSummary(host: typeof h.$inferSelect) {
+  return {
+    release: host.kernelRelease,
+    package: host.kernelPackage
+      ? {
+          name: host.kernelPackage.name,
+          version: host.kernelPackage.version,
+          distro: host.kernelPackage.distro,
+        }
+      : null,
+    /** Why the kernel could not be named as a package (an older agent reports no kernel at all: both null). */
+    problem: host.kernelProblem,
+    matchedAt: host.kernelMatchedAt,
+    matchError: host.kernelMatchError,
+  };
+}
+
 /** The repositories the person sees, keyed by the address key images are linked with. */
 async function visibleRepositoriesByKey(actor: Actor): Promise<Map<string, { id: string; name: string }>> {
   const rows = await db
@@ -129,6 +166,7 @@ export const hostRoutes = new Hono<AppEnv>()
       .where(eq(hc.organizationId, actor.organizationId));
     const imageIds = [...new Set(containers.map((x) => x.imageId))];
     const counts = await countsByImage(actor.organizationId, imageIds);
+    const kernels = await kernelCounts(actor.organizationId);
     const images = imageIds.length
       ? await db
           .select({ imageId: ci.imageId, digests: ci.digests })
@@ -169,6 +207,7 @@ export const hostRoutes = new Hono<AppEnv>()
           images: new Set(mine.map((x) => x.imageId)).size,
           open,
           updatesAvailable,
+          kernel: { ...kernelSummary(host), open: kernels.get(host.id) ?? { ...emptyCounts(), total: 0 } },
         };
       }),
     );
@@ -440,6 +479,31 @@ export const hostRoutes = new Hono<AppEnv>()
       reporting: Boolean(
         host.lastInventoryAt && Date.now() - host.lastInventoryAt.getTime() < STALE_AFTER_MS,
       ),
+      kernel: {
+        ...kernelSummary(host),
+        findings: await db
+          .select({
+            id: schema.hostKernelFinding.id,
+            vulnerabilityId: schema.hostKernelFinding.vulnerabilityId,
+            packageName: schema.hostKernelFinding.packageName,
+            packageVersion: schema.hostKernelFinding.packageVersion,
+            fixedIn: schema.hostKernelFinding.fixedIn,
+            fixState: schema.hostKernelFinding.fixState,
+            severity: schema.hostKernelFinding.severity,
+            severityRank: schema.hostKernelFinding.severityRank,
+            firstSeenAt: schema.hostKernelFinding.firstSeenAt,
+            cvssScore: schema.vulnerability.cvssScore,
+            knownExploited: schema.vulnerability.knownExploited,
+          })
+          .from(schema.hostKernelFinding)
+          .innerJoin(
+            schema.vulnerability,
+            eq(schema.vulnerability.id, schema.hostKernelFinding.vulnerabilityId),
+          )
+          .where(eq(schema.hostKernelFinding.hostId, host.id))
+          .orderBy(desc(schema.hostKernelFinding.severityRank), asc(schema.hostKernelFinding.vulnerabilityId))
+          .limit(2000),
+      },
       containers: rows.map(({ sourceKey: key, digests, ...r }) => {
         const ref = imageRefKey(r.imageRef);
         return {

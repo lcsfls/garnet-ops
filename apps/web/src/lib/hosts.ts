@@ -7,6 +7,38 @@ import type { BadgeTone } from "./components/ui/tones.ts";
 
 export type SeverityCounts = { critical: number; high: number; medium: number; low: number };
 
+export interface KernelSummary {
+  release: string | null;
+  package: { name: string; version: string; distro: string } | null;
+  problem: "unknownDistribution" | "unknownVersion" | "unsupportedDistribution" | null;
+  matchedAt: string | null;
+  matchError: string | null;
+}
+
+export interface KernelFinding {
+  id: string;
+  vulnerabilityId: string;
+  packageName: string;
+  packageVersion: string;
+  fixedIn: string[] | null;
+  fixState: string | null;
+  severity: "critical" | "high" | "medium" | "low" | "negligible" | "unknown";
+  severityRank: number;
+  firstSeenAt: string;
+  cvssScore: number | null;
+  knownExploited: boolean;
+}
+
+/** Where a host's kernel stands: affected, no known flaw, not checked (with the reason), or no report from an older agent. */
+export type KernelState = "affected" | "clean" | "waiting" | "failed" | "problem" | "oldAgent";
+export function kernelState(kernel: KernelSummary, findings: number): KernelState {
+  if (!kernel.release) return "oldAgent";
+  if (kernel.problem) return "problem";
+  if (kernel.matchError) return "failed";
+  if (!kernel.matchedAt) return "waiting";
+  return findings > 0 ? "affected" : "clean";
+}
+
 export interface HostRow {
   id: string;
   name: string;
@@ -22,6 +54,8 @@ export interface HostRow {
   images: number;
   open: SeverityCounts;
   updatesAvailable: number;
+  /** `total` counts every finding, also those the distribution has not rated yet. */
+  kernel: KernelSummary & { open: SeverityCounts & { total: number } };
 }
 
 export type UpdateState = "unchecked" | "current" | "newer-build" | "newer-version" | "failed";
@@ -49,8 +83,10 @@ export interface HostContainer {
   update: UpdateInfo;
 }
 
-export interface HostDetail extends Omit<HostRow, "containers" | "images" | "open" | "updatesAvailable"> {
+export interface HostDetail
+  extends Omit<HostRow, "containers" | "images" | "open" | "updatesAvailable" | "kernel"> {
   containers: HostContainer[];
+  kernel: KernelSummary & { findings: KernelFinding[] };
 }
 
 export interface ImageFinding {

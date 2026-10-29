@@ -38,4 +38,6 @@ export const QUEUES = {
   exposureRun: "websites.run",
   /** Hosts and containers (ADR 0034): matching an image's packages against the vulnerability database. */
   imageMatch: "hosts.match",
+  /** Matching the running kernel of a host as the distribution's package. */
+  kernelMatch: "hosts.kernel",
 } as const;

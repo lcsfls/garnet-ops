@@ -3,7 +3,7 @@
  * signature: the proxy forwards reads only, the agent enrols once and keeps its key to itself, reports the running containers with
  * their OCI labels only, and sends package lists only when asked.
  */
-import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer, type Server as HttpServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -24,6 +24,7 @@ describe("the proxy's list of reads", () => {
       ["GET", "/_ping"],
       ["HEAD", "/_ping"],
       ["GET", "/version"],
+      ["GET", "/info"],
       ["GET", "/containers/json"],
       ["GET", "/v1.47/containers/json?all=0"],
       ["GET", "/images/json"],
@@ -41,7 +42,6 @@ describe("the proxy's list of reads", () => {
       ["POST", "/containers/abc/exec"],
       ["GET", "/containers/abc/logs"],
       ["GET", "/containers/abc/archive?path=/etc"],
-      ["GET", "/info"],
       ["GET", "/secrets"],
       ["GET", "/images/../containers/json"],
       ["PUT", "/containers/json"],
@@ -87,6 +87,15 @@ describe("reporting", () => {
       const json = (body: unknown) =>
         res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
       if (req.url === "/version") return json({ Version: "27.3.1", Os: "linux" });
+      if (req.url === "/info")
+        return json({
+          OperatingSystem: "Ubuntu 24.04.1 LTS",
+          OSVersion: "24.04",
+          KernelVersion: "6.8.0-45-generic",
+          Architecture: "x86_64",
+          RegistryConfig: { Mirrors: ["https://mirror.example.lan"] },
+          Name: "secret-host-name",
+        });
       if (req.url === "/containers/json")
         return json([
           {
@@ -168,6 +177,12 @@ describe("reporting", () => {
     await new Promise<void>((resolve) => garnet.listen(0, "127.0.0.1", resolve));
     baseUrl = `http://127.0.0.1:${(garnet.address() as AddressInfo).port}`;
 
+    mkdirSync(join(work, "proc"));
+    writeFileSync(
+      join(work, "proc", "version"),
+      "Linux version 6.8.0-45-generic (buildd@lcy02-amd64-075) #45-Ubuntu SMP\n",
+    );
+    writeFileSync(join(work, "proc", "version_signature"), "Ubuntu 6.8.0-45.45-generic 6.8.12\n");
     // A stand-in syft: checks that it reads Docker through the proxy and writes a recorded SBOM.
     writeFileSync(
       join(work, "syft"),
@@ -187,6 +202,7 @@ describe("reporting", () => {
     stateDir,
     dockerSocket: proxySocket,
     syftBin: join(work, "syft"),
+    procDir: join(work, "proc"),
     enrolmentCode: `goe_${"x".repeat(43)}`,
     hostName: "web-01",
     ...over,
@@ -208,6 +224,17 @@ describe("reporting", () => {
       images: { labels: Record<string, string> }[];
     };
     expect(inventory.containers).toHaveLength(2);
+    // The host's kernel and distribution, and nothing else of Docker's description of the host.
+    expect((inventory as unknown as { kernel: unknown }).kernel).toEqual({
+      release: "6.8.0-45-generic",
+      procVersion: "Linux version 6.8.0-45-generic (buildd@lcy02-amd64-075) #45-Ubuntu SMP",
+      versionSignature: "Ubuntu 6.8.0-45.45-generic 6.8.12",
+      osName: "Ubuntu 24.04.1 LTS",
+      osVersion: "24.04",
+      architecture: "x86_64",
+    });
+    expect(JSON.stringify(inventory)).not.toContain("mirror.example.lan");
+    expect(JSON.stringify(inventory)).not.toContain("secret-host-name");
     expect(inventory.images[0]?.labels).toEqual({
       "org.opencontainers.image.source": "https://git.example.test/team/app",
     });

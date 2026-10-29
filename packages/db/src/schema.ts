@@ -2933,9 +2933,53 @@ export const agentHost = pgTable(
     enrolledAt: timestamp("enrolled_at", { withTimezone: true }).notNull(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     lastInventoryAt: timestamp("last_inventory_at", { withTimezone: true }),
+    /** The running kernel as the host reports it (`uname -r`), and what the distribution calls the host. Hostile text. */
+    kernelRelease: text("kernel_release"),
+    osName: text("os_name"),
+    /** The kernel as the distribution's package (`kernelPackage` in @garnetops/core/agent), or why it could not be named. */
+    kernelPackage: jsonb("kernel_package").$type<{
+      purl: string;
+      name: string;
+      version: string;
+      type: string;
+      distro: string;
+    }>(),
+    kernelProblem: text("kernel_problem"),
+    kernelMatchedAt: timestamp("kernel_matched_at", { withTimezone: true }),
+    kernelMatchedDbBuilt: timestamp("kernel_matched_db_built", { withTimezone: true }),
+    kernelMatchError: text("kernel_match_error"),
     createdAt: createdAt(),
   },
   (t) => [index("agent_host_org_idx").on(t.organizationId, t.name)],
+);
+
+/** A vulnerability of the running kernel of a host (ADR 0034). Replaced by every match; the first sighting is kept. */
+export const hostKernelFinding = pgTable(
+  "host_kernel_finding",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    hostId: text("host_id")
+      .notNull()
+      .references(() => agentHost.id, { onDelete: "cascade" }),
+    vulnerabilityId: text("vulnerability_id")
+      .notNull()
+      .references(() => vulnerability.id),
+    packageName: text("package_name").notNull(),
+    packageVersion: text("package_version").notNull(),
+    fixedIn: jsonb("fixed_in").$type<string[]>(),
+    fixState: text("fix_state"),
+    severity: text("severity").notNull(),
+    severityRank: integer("severity_rank").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("host_kernel_finding_uq").on(t.hostId, t.vulnerabilityId, t.packageName),
+    index("host_kernel_finding_org_idx").on(t.organizationId, t.hostId, t.severityRank),
+  ],
 );
 
 /** Nonces of signed requests, kept for twice the signature window so a request cannot be replayed. */

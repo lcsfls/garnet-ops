@@ -3,6 +3,7 @@ import {
   enrolmentCodeSchema,
   hashEnrolmentCode,
   inventorySchema,
+  kernelPackage,
   newAgentKeyPair,
   newEnrolmentCode,
   newerTag,
@@ -220,5 +221,130 @@ describe("version tags", () => {
     expect(newerTag("1.27", ["1.28", "1.27.9"])).toEqual({ tag: "1.28", kind: "minor" });
     expect(newerTag("2.0.0", tags)).toBeNull();
     expect(newerTag("latest", tags)).toBeNull();
+  });
+});
+
+describe("the host's kernel as a distribution package", () => {
+  it("names Ubuntu's kernel from its version signature, with the hardware enablement package where it applies", () => {
+    expect(
+      kernelPackage({
+        release: "6.8.0-45-generic",
+        versionSignature: "Ubuntu 6.8.0-45.45-generic 6.8.12",
+        osName: "Ubuntu 24.04.1 LTS",
+        osVersion: "24.04",
+      }),
+    ).toEqual({
+      ok: true,
+      type: "deb",
+      name: "linux-image-6.8.0-45-generic",
+      version: "6.8.0-45.45",
+      distro: "ubuntu-24.04",
+      purl: "pkg:deb/ubuntu/linux-image-6.8.0-45-generic@6.8.0-45.45?distro=ubuntu-24.04&upstream=linux",
+    });
+    const hwe = kernelPackage({
+      release: "6.8.0-45-generic",
+      versionSignature: "Ubuntu 6.8.0-45.45~22.04.1-generic 6.8.12",
+      osName: "Ubuntu 22.04.5 LTS",
+      osVersion: "22.04",
+    });
+    expect(hwe.ok && hwe.purl).toContain("upstream=linux-hwe-6.8");
+    const aws = kernelPackage({
+      release: "6.8.0-1015-aws",
+      versionSignature: "Ubuntu 6.8.0-1015.16-aws 6.8.12",
+      osName: "Ubuntu 24.04.1 LTS",
+      osVersion: "24.04",
+    });
+    expect(aws.ok && aws.purl).toContain("upstream=linux-aws");
+    // Without the signature the package version is unknown: said, not guessed.
+    expect(
+      kernelPackage({ release: "6.8.0-45-generic", osName: "Ubuntu 24.04.1 LTS", osVersion: "24.04" }),
+    ).toEqual({
+      ok: false,
+      reason: "unknownVersion",
+    });
+  });
+
+  it("names Debian's kernel from /proc/version", () => {
+    expect(
+      kernelPackage({
+        release: "6.1.0-26-amd64",
+        procVersion:
+          "Linux version 6.1.0-26-amd64 (debian-kernel@lists.debian.org) #1 SMP PREEMPT_DYNAMIC Debian 6.1.112-1 (2024-09-30)",
+        osName: "Debian GNU/Linux 12 (bookworm)",
+        osVersion: "12",
+      }),
+    ).toMatchObject({
+      ok: true,
+      version: "6.1.112-1",
+      purl: "pkg:deb/debian/linux-image-6.1.0-26-amd64@6.1.112-1?distro=debian-12&upstream=linux",
+    });
+  });
+
+  it("names the kernel of RHEL and its relatives, Oracle's UEK, Amazon Linux and Alpine from uname", () => {
+    expect(
+      kernelPackage({
+        release: "5.14.0-427.13.1.el9_4.x86_64",
+        osName: "Red Hat Enterprise Linux 9.4 (Plow)",
+        osVersion: "9.4",
+      }),
+    ).toMatchObject({
+      ok: true,
+      name: "kernel",
+      version: "5.14.0-427.13.1.el9_4",
+      purl: "pkg:rpm/redhat/kernel@5.14.0-427.13.1.el9_4?distro=rhel-9&arch=x86_64",
+    });
+    expect(
+      kernelPackage({
+        release: "5.14.0-427.13.1.el9_4.x86_64",
+        osName: "AlmaLinux 9.4 (Seafoam Ocelot)",
+        osVersion: "9.4",
+      }),
+    ).toMatchObject({
+      purl: "pkg:rpm/almalinux/kernel@5.14.0-427.13.1.el9_4?distro=almalinux-9&arch=x86_64",
+    });
+    expect(
+      kernelPackage({
+        release: "5.15.0-209.161.7.el9uek.x86_64",
+        osName: "Oracle Linux Server 9.4",
+        osVersion: "9.4",
+      }),
+    ).toMatchObject({
+      name: "kernel-uek",
+    });
+    expect(
+      kernelPackage({
+        release: "6.1.112-122.189.amzn2023.x86_64",
+        osName: "Amazon Linux 2023.5.20241001",
+        osVersion: "2023",
+      }),
+    ).toMatchObject({
+      purl: "pkg:rpm/amazonlinux/kernel@6.1.112-122.189.amzn2023?distro=amazonlinux-2023&arch=x86_64",
+    });
+    expect(
+      kernelPackage({ release: "6.6.58-0-lts", osName: "Alpine Linux v3.20", osVersion: "3.20.3" }),
+    ).toMatchObject({
+      purl: "pkg:apk/alpine/linux-lts@6.6.58-r0?distro=alpine-3.20",
+    });
+  });
+
+  it("says when it cannot name the package", () => {
+    expect(
+      kernelPackage({
+        release: "5.14.21-150500.55.73-default",
+        osName: "SUSE Linux Enterprise Server 15 SP5",
+        osVersion: "15.5",
+      }),
+    ).toEqual({
+      ok: false,
+      reason: "unsupportedDistribution",
+    });
+    expect(kernelPackage({ release: "6.10.0", osName: "Gentoo Linux", osVersion: "2.15" })).toEqual({
+      ok: false,
+      reason: "unknownDistribution",
+    });
+    expect(kernelPackage({ release: "6.10.0", osName: null, osVersion: null })).toEqual({
+      ok: false,
+      reason: "unknownDistribution",
+    });
   });
 });

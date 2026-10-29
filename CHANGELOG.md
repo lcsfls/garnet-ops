@@ -33,6 +33,10 @@ Security-relevant changes are listed under **Security** in every release.
   the repository it was built from (OCI source label), and the repository page shows where it runs. The agent reaches Docker only
   through a read-only proxy and signs every report with its own key.
 - Optional check for newer images in public registries (a newer build of the tag, a newer version tag), off by default.
+- The host agent also reports the **running kernel**. GarnetOps names it as the distribution's package (Ubuntu, Debian, the RHEL
+  family, Amazon Linux, Alpine) and shows when the host is **affected** by a known kernel flaw: the running version is one the
+  distribution lists as not fixed. Whether the flaw can be exploited on the host is not claimed; "no fix yet" and differing ratings
+  (distribution and CVSS) are shown as they are.
 - API: `GET /api/v1/organization/modules`, `PUT /api/v1/organization/modules/{name}`, `organization.modules` in
   `GET /api/v1/me`, `websites` in `GET /api/v1/search`, and `/api/v1/exposure` again (answers 409 `module-off` while the module is
   off).

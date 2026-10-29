@@ -62,8 +62,32 @@ describe.skipIf(!adminUrl || !openssl)("hosts and containers in the worker", () 
     const grype = join(work, "grype");
     writeFileSync(join(work, "report.json"), JSON.stringify(report(["CVE-2026-0001", "CVE-2026-0002"])));
     writeFileSync(
+      join(work, "kernel.json"),
+      JSON.stringify({
+        matches: [
+          {
+            vulnerability: {
+              id: "CVE-2026-0100",
+              severity: "High",
+              fix: { versions: [], state: "not-fixed" },
+            },
+            relatedVulnerabilities: [
+              { id: "CVE-2026-0100", cvss: [{ version: "3.1", metrics: { baseScore: 9.8 } }] },
+            ],
+            artifact: {
+              name: "linux-image-6.8.0-45-generic",
+              version: "6.8.0-45.45",
+              type: "deb",
+              purl: "pkg:deb/ubuntu/linux-image-6.8.0-45-generic@6.8.0-45.45?distro=ubuntu-24.04&upstream=linux",
+            },
+          },
+        ],
+        descriptor: { version: "0.120.1", db: { status: { built: "2026-10-29T04:00:00Z" } } },
+      }),
+    );
+    writeFileSync(
       grype,
-      `#!/bin/sh\ncase "$1" in purl:*) ;; *) exit 9;; esac\ngrep -q '^pkg:deb/debian/openssl@3.0.11-1?distro=debian-12$' "\${1#purl:}" || exit 8\ncp "${join(work, "report.json")}" "$5"\n`,
+      `#!/bin/sh\ncase "$1" in purl:*) ;; *) exit 9;; esac\nif grep -q '^pkg:deb/ubuntu/linux-image' "\${1#purl:}"; then cp "${join(work, "kernel.json")}" "$5"; exit 0; fi\ngrep -q '^pkg:deb/debian/openssl@3.0.11-1?distro=debian-12$' "\${1#purl:}" || exit 8\ncp "${join(work, "report.json")}" "$5"\n`,
       { mode: 0o755 },
     );
     const keyFile = join(work, "vault.pem");
@@ -216,6 +240,38 @@ describe.skipIf(!adminUrl || !openssl)("hosts and containers in the worker", () 
     expect(second[0]?.firstSeenAt.getTime()).toBe(
       first.find((f) => f.vulnerabilityId === "CVE-2026-0001")?.firstSeenAt.getTime(),
     );
+  });
+
+  it("matches the running kernel: affected, no fix yet, the distribution's rating and the highest score side by side", async () => {
+    await t.db
+      .update(schema.agentHost)
+      .set({
+        kernelRelease: "6.8.0-45-generic",
+        kernelPackage: {
+          purl: "pkg:deb/ubuntu/linux-image-6.8.0-45-generic@6.8.0-45.45?distro=ubuntu-24.04&upstream=linux",
+          name: "linux-image-6.8.0-45-generic",
+          version: "6.8.0-45.45",
+          type: "deb",
+          distro: "ubuntu-24.04",
+        },
+      })
+      .where(eq(schema.agentHost.id, "hst_one"));
+    await hosts.matchKernel({ hostId: "hst_one" });
+    const kernel = await t.db.select().from(schema.hostKernelFinding);
+    expect(kernel).toHaveLength(1);
+    expect(kernel[0]).toMatchObject({
+      vulnerabilityId: "CVE-2026-0100",
+      severity: "high",
+      fixState: "not-fixed",
+      fixedIn: [],
+    });
+    const [vuln] = await t.db
+      .select()
+      .from(schema.vulnerability)
+      .where(eq(schema.vulnerability.id, "CVE-2026-0100"));
+    expect(vuln?.cvssScore).toBe(9.8);
+    const [host] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, "hst_one"));
+    expect(host?.kernelMatchedDbBuilt?.toISOString()).toBe("2026-10-29T04:00:00.000Z");
   });
 
   it("matches nothing while the module is off", async () => {

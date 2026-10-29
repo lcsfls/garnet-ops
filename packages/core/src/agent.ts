@@ -193,6 +193,21 @@ export const inventorySchema = z.object({
   agentVersion: text(40),
   dockerVersion: optionalText(40),
   os: optionalText(80),
+  /** The host's running kernel and its distribution (0.0.12; older agents send none). */
+  kernel: z
+    .object({
+      /** `uname -r`, e.g. "6.8.0-45-generic". */
+      release: text(120),
+      /** `/proc/version`, which on Debian names the package version. */
+      procVersion: optionalText(400),
+      /** `/proc/version_signature` (Ubuntu), e.g. "Ubuntu 6.8.0-45.45-generic 6.8.12". */
+      versionSignature: optionalText(200),
+      /** Docker's `OperatingSystem` and `OSVersion` of the host, e.g. "Ubuntu 24.04.1 LTS" and "24.04". */
+      osName: optionalText(120),
+      osVersion: optionalText(60),
+      architecture: optionalText(40),
+    })
+    .nullish(),
   containers: z
     .array(
       z.object({
@@ -379,4 +394,126 @@ export function newerTag(current: string, tags: readonly string[]): { tag: strin
 export function imageRefKey(value: string): string | null {
   const ref = parseImageRef(value);
   return ref?.tag ? `${ref.registry}/${ref.repository}:${ref.tag}` : null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* The host's kernel                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** What the agent reports about the kernel (the parsed `kernel` of an inventory; the optional parts may be missing). */
+export interface HostKernelInput {
+  release: string;
+  procVersion?: string | null;
+  versionSignature?: string | null;
+  osName?: string | null;
+  osVersion?: string | null;
+  architecture?: string | null;
+}
+
+/** The running kernel as the distribution's package, as grype matches packages; or why it cannot be named. */
+export type KernelPackage =
+  | { ok: true; purl: string; name: string; version: string; type: "deb" | "rpm" | "apk"; distro: string }
+  | { ok: false; reason: "unknownDistribution" | "unknownVersion" | "unsupportedDistribution" };
+
+/** Distributions by the start of Docker's `OperatingSystem`, with their grype distribution name and package type. */
+const DISTRIBUTIONS: { prefix: RegExp; id: string; type: "deb" | "rpm" | "apk"; versionParts: number }[] = [
+  { prefix: /^ubuntu\b/i, id: "ubuntu", type: "deb", versionParts: 2 },
+  { prefix: /^debian\b/i, id: "debian", type: "deb", versionParts: 1 },
+  { prefix: /^red hat enterprise linux\b/i, id: "rhel", type: "rpm", versionParts: 1 },
+  { prefix: /^almalinux\b/i, id: "almalinux", type: "rpm", versionParts: 1 },
+  { prefix: /^rocky linux\b/i, id: "rocky", type: "rpm", versionParts: 1 },
+  { prefix: /^oracle linux\b/i, id: "ol", type: "rpm", versionParts: 1 },
+  { prefix: /^centos stream\b/i, id: "centos", type: "rpm", versionParts: 1 },
+  { prefix: /^amazon linux\b/i, id: "amazonlinux", type: "rpm", versionParts: 1 },
+  { prefix: /^alpine linux\b/i, id: "alpine", type: "apk", versionParts: 2 },
+  { prefix: /^(suse linux enterprise|opensuse)/i, id: "sles", type: "rpm", versionParts: 2 },
+];
+
+/** Ubuntu's own kernel per release; a newer one on the same release comes from a hardware enablement ("hwe") package. */
+const UBUNTU_GA_KERNEL: Record<string, string> = { "20.04": "5.4", "22.04": "5.15", "24.04": "6.8" };
+
+/**
+ * Names the running kernel as the distribution's package, so the vulnerability database can match it like any other package: the
+ * version comes from what the kernel says about itself (`uname -r`, `/proc/version`, Ubuntu's `/proc/version_signature`), the
+ * distribution from Docker's description of the host. Where the package cannot be named with certainty it says so instead of
+ * guessing (SUSE's release suffix, a missing Ubuntu signature).
+ */
+export function kernelPackage(k: HostKernelInput): KernelPackage {
+  const dist = DISTRIBUTIONS.find((d) => d.prefix.test(k.osName ?? ""));
+  if (!dist) return { ok: false, reason: "unknownDistribution" };
+  const versionText = (k.osVersion ?? /(\d+(?:\.\d+)*)/.exec(k.osName ?? "")?.[1] ?? "").trim();
+  const osVersion = /^\d+(?:\.\d+)*/.exec(versionText)?.[0]?.split(".").slice(0, dist.versionParts).join(".");
+  if (!osVersion) return { ok: false, reason: "unknownVersion" };
+  const distro = `${dist.id}-${osVersion}`;
+  const release = k.release.trim();
+  const enc = encodeURIComponent;
+
+  if (dist.id === "ubuntu") {
+    // "Ubuntu 6.8.0-45.45-generic 6.8.12": the package version is 6.8.0-45.45, the flavour "generic". A hardware
+    // enablement kernel carries its release: "6.8.0-45.45~22.04.1".
+    const m = /^Ubuntu (\d+\.\d+\.\d+-\d+\.\d+(?:~[0-9.]+)?)-([a-z0-9]+)\b/.exec(k.versionSignature ?? "");
+    if (!m) return { ok: false, reason: "unknownVersion" };
+    const version = m[1] as string;
+    const flavour = m[2] as string;
+    const series = version.split(".").slice(0, 2).join(".");
+    const ga = UBUNTU_GA_KERNEL[osVersion];
+    const base = flavour === "generic" || flavour === "lowlatency" ? "linux" : `linux-${flavour}`;
+    const upstream = ga && series !== ga ? `${base === "linux" ? "linux-hwe" : base}-${series}` : base;
+    const name = `linux-image-${release}`;
+    return {
+      ok: true,
+      type: "deb",
+      name,
+      version,
+      distro,
+      purl: `pkg:deb/ubuntu/${enc(name)}@${enc(version)}?distro=${distro}&upstream=${enc(upstream)}`,
+    };
+  }
+  if (dist.id === "debian") {
+    // "... #1 SMP PREEMPT_DYNAMIC Debian 6.1.112-1 (2024-09-30)": the package version is 6.1.112-1.
+    const m = /Debian (\d+\.\d+(?:\.\d+)?-\d+(?:[+~.][A-Za-z0-9.+~]+)?)/.exec(k.procVersion ?? "");
+    if (!m) return { ok: false, reason: "unknownVersion" };
+    const version = m[1] as string;
+    const name = `linux-image-${release}`;
+    return {
+      ok: true,
+      type: "deb",
+      name,
+      version,
+      distro,
+      purl: `pkg:deb/debian/${enc(name)}@${enc(version)}?distro=${distro}&upstream=linux`,
+    };
+  }
+  if (dist.id === "alpine") {
+    // "6.6.58-0-lts": package linux-lts, version 6.6.58-r0.
+    const m = /^(\d+\.\d+\.\d+)-(\d+)-([a-z]+)$/.exec(release);
+    if (!m) return { ok: false, reason: "unknownVersion" };
+    const name = `linux-${m[3]}`;
+    const version = `${m[1]}-r${m[2]}`;
+    return {
+      ok: true,
+      type: "apk",
+      name,
+      version,
+      distro,
+      purl: `pkg:apk/alpine/${name}@${version}?distro=${distro}`,
+    };
+  }
+  if (dist.id === "sles") return { ok: false, reason: "unsupportedDistribution" };
+  // RPM families: "5.14.0-427.13.1.el9_4.x86_64" is kernel 5.14.0-427.13.1.el9_4; Oracle's UEK is its own package.
+  const m = /^(\d+\.\d+\.\d+-[0-9][A-Za-z0-9._]*?)(?:\.(x86_64|aarch64|ppc64le|s390x))?$/.exec(release);
+  if (!m) return { ok: false, reason: "unknownVersion" };
+  const version = m[1] as string;
+  const arch = m[2] ?? k.architecture ?? null;
+  const name = /uek/.test(version) ? "kernel-uek" : "kernel";
+  const namespace = dist.id === "rhel" ? "redhat" : dist.id;
+  const qualifiers = [`distro=${distro}`, ...(arch ? [`arch=${enc(arch)}`] : [])].join("&");
+  return {
+    ok: true,
+    type: "rpm",
+    name,
+    version,
+    distro,
+    purl: `pkg:rpm/${namespace}/${name}@${enc(version)}?${qualifiers}`,
+  };
 }

@@ -11,6 +11,7 @@ import { dirname } from "node:path";
 const ALLOWED = [
   /^\/_ping$/,
   /^\/version$/,
+  /^\/info$/,
   /^\/containers\/json(\?[^#]*)?$/,
   /^\/images\/json(\?[^#]*)?$/,
   /^\/images\/[A-Za-z0-9._:@/%-]{1,600}\/json$/,

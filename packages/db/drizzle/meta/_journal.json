@@ -225,6 +225,13 @@
       "when": 1793311072424,
       "tag": "0031_hosts_and_containers",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793316295314,
+      "tag": "0032_host_kernel",
+      "breakpoints": true
     }
   ]
 }

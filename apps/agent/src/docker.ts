@@ -71,6 +71,12 @@ const imageInspect = z.object({
 });
 
 const version = z.object({ Version: z.string().optional(), Os: z.string().optional() });
+const info = z.object({
+  OperatingSystem: z.string().optional(),
+  OSVersion: z.string().optional(),
+  KernelVersion: z.string().optional(),
+  Architecture: z.string().optional(),
+});
 
 export interface DockerContainer {
   id: string;
@@ -125,5 +131,21 @@ export async function inspectImage(socket: string, id: string): Promise<DockerIm
     architecture: i.Architecture ?? null,
     created,
     labels,
+  };
+}
+
+/** What Docker says about the host: its distribution, release and kernel. Nothing else of `/info` is kept. */
+export async function hostInfo(socket: string): Promise<{
+  osName: string | null;
+  osVersion: string | null;
+  kernel: string | null;
+  architecture: string | null;
+}> {
+  const i = info.parse(await dockerGet(socket, "/info"));
+  return {
+    osName: i.OperatingSystem ?? null,
+    osVersion: i.OSVersion ?? null,
+    kernel: i.KernelVersion ?? null,
+    architecture: i.Architecture ?? null,
   };
 }
