@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import { t } from "../../i18n.svelte.ts";
   import Alert from "./Alert.svelte";
   import Button from "./Button.svelte";
@@ -18,6 +19,7 @@
     error = null,
     onConfirm,
     onClose,
+    children,
   }: {
     open: boolean;
     title: string;
@@ -28,12 +30,15 @@
     error?: string | null;
     onConfirm: () => void;
     onClose: () => void;
+    /** A choice that goes with the action, such as "also remove …". */
+    children?: Snippet;
   } = $props();
 </script>
 
 <Dialog {open} {onClose} {title} {description}>
   <div class="grid gap-4">
     {#if error}<Alert tone="error">{error}</Alert>{/if}
+    {@render children?.()}
     <DialogFooter>
       <Button variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
       <Button variant="destructive" disabled={pending} onclick={onConfirm}>

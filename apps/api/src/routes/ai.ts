@@ -16,7 +16,7 @@ import {
   normalizeBaseUrl,
 } from "@garnetops/core/ai-endpoint";
 import { seal } from "@garnetops/core/vault";
-import { schema } from "@garnetops/db";
+import { schema, type Viewer, visibleRepository } from "@garnetops/db";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -192,33 +192,54 @@ async function loadMessages(threadId: string) {
 
 const ACTIVE = ["pending", "streaming"] as const;
 
-async function ownFinding(organizationId: string, id: string) {
+/** A finding the viewer sees: of their organisation and of a repository visible to them (ADR 0030). */
+async function ownFinding(viewer: Viewer, id: string) {
   const [row] = await db
     .select({ id: s.finding.id })
     .from(s.finding)
-    .where(and(eq(s.finding.id, id), eq(s.finding.organizationId, organizationId)))
+    .where(
+      and(
+        eq(s.finding.id, id),
+        eq(s.finding.organizationId, viewer.organizationId),
+        visibleRepository(s.finding.repositoryId, viewer),
+      ),
+    )
     .limit(1);
   if (!row) throw notFound("Finding");
   return row;
 }
 
-async function ownThread(organizationId: string, id: string) {
+async function ownThread(viewer: Viewer, id: string) {
   const [row] = await db
-    .select()
+    .select({ thread: s.chatThread })
     .from(s.chatThread)
-    .where(and(eq(s.chatThread.id, id), eq(s.chatThread.organizationId, organizationId)))
+    .innerJoin(s.finding, eq(s.finding.id, s.chatThread.findingId))
+    .where(
+      and(
+        eq(s.chatThread.id, id),
+        eq(s.chatThread.organizationId, viewer.organizationId),
+        visibleRepository(s.finding.repositoryId, viewer),
+      ),
+    )
     .limit(1);
   if (!row) throw notFound("Thread");
-  return row;
+  return row.thread;
 }
 
 /** A message with its thread, only if it belongs to the actor's organisation. */
-async function ownMessage(organizationId: string, id: string) {
+async function ownMessage(viewer: Viewer, id: string) {
   const [row] = await db
     .select({ message: msg, thread: s.chatThread })
     .from(msg)
     .innerJoin(s.chatThread, eq(s.chatThread.id, msg.threadId))
-    .where(and(eq(msg.id, id), eq(s.chatThread.organizationId, organizationId)))
+    .innerJoin(s.finding, eq(s.finding.id, s.chatThread.findingId))
+    .where(
+      and(
+        eq(msg.id, id),
+        eq(s.chatThread.organizationId, viewer.organizationId),
+        visibleRepository(s.finding.repositoryId, viewer),
+      ),
+    )
     .limit(1);
   if (!row) throw notFound("Message");
   return row;
@@ -517,7 +538,7 @@ export const aiRoutes = new Hono<AppEnv>()
   /* ------------------------------ conversations ------------------------------ */
   .get("/findings/:id/thread", async (c) => {
     const actor = c.get("actor");
-    await ownFinding(actor.organizationId, c.req.param("id"));
+    await ownFinding(actor, c.req.param("id"));
     const settings = await loadSettings(actor.organizationId);
     const [thread] = await db
       .select({ id: s.chatThread.id })
@@ -542,7 +563,7 @@ export const aiRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const findingId = c.req.param("id");
     const input = languageBody.parse(await c.req.json().catch(() => ({})));
-    await ownFinding(actor.organizationId, findingId);
+    await ownFinding(actor, findingId);
     const settings = await requireReady(actor);
 
     const threadId = await db.transaction(async (tx) => {
@@ -595,7 +616,7 @@ export const aiRoutes = new Hono<AppEnv>()
   .post("/threads/:id/messages", async (c) => {
     const actor = c.get("actor");
     const input = askBody.parse(await c.req.json());
-    const thread = await ownThread(actor.organizationId, c.req.param("id"));
+    const thread = await ownThread(actor, c.req.param("id"));
     const settings = await requireReady(actor);
     await requireFreeSlot(actor.organizationId, settings);
     const created = await withThreadLock(thread.id, async (tx) => {
@@ -633,7 +654,7 @@ export const aiRoutes = new Hono<AppEnv>()
   .post("/messages/:id/stop", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "member");
-    const { message, thread } = await ownMessage(actor.organizationId, c.req.param("id"));
+    const { message, thread } = await ownMessage(actor, c.req.param("id"));
     const [row] = await db
       .update(msg)
       .set({ status: "stopped" })
@@ -654,7 +675,7 @@ export const aiRoutes = new Hono<AppEnv>()
   .post("/messages/:id/regenerate", async (c) => {
     const actor = c.get("actor");
     const input = languageBody.parse(await c.req.json().catch(() => ({})));
-    const { message, thread } = await ownMessage(actor.organizationId, c.req.param("id"));
+    const { message, thread } = await ownMessage(actor, c.req.param("id"));
     const settings = await requireReady(actor);
     if (message.role !== "assistant")
       throw new ProblemError(409, "not-regenerable", "Only an answer can be regenerated");
@@ -696,7 +717,7 @@ export const aiRoutes = new Hono<AppEnv>()
   /** What the model was told: the fixed system prompt and the first message with the finding's data. */
   .get("/messages/:id/context", async (c) => {
     const actor = c.get("actor");
-    const { message, thread } = await ownMessage(actor.organizationId, c.req.param("id"));
+    const { message, thread } = await ownMessage(actor, c.req.param("id"));
     let prompt = (message.context as { prompt?: unknown } | null)?.prompt;
     if (typeof prompt !== "string") {
       const [triage] = await db
@@ -712,7 +733,7 @@ export const aiRoutes = new Hono<AppEnv>()
   .post("/messages/:id/accept-note", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "member");
-    const { message, thread } = await ownMessage(actor.organizationId, c.req.param("id"));
+    const { message, thread } = await ownMessage(actor, c.req.param("id"));
     if (message.role !== "assistant" || message.status !== "complete") {
       throw new ProblemError(409, "not-acceptable", "Only a finished answer can be taken over");
     }
@@ -760,7 +781,7 @@ export const aiRoutes = new Hono<AppEnv>()
    */
   .get("/threads/:id/stream", async (c) => {
     const actor = c.get("actor");
-    const thread = await ownThread(actor.organizationId, c.req.param("id"));
+    const thread = await ownThread(actor, c.req.param("id"));
     if ((openStreams.get(actor.userId) ?? 0) >= MAX_STREAMS_PER_USER) {
       throw new ProblemError(429, "too-many-streams", "Too many open streams");
     }

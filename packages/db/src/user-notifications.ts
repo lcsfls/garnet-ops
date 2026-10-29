@@ -14,7 +14,13 @@ import {
 } from "@garnetops/core/user-notifications";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "./index.ts";
-import { membership, notificationChannel, notificationPreference, userNotification } from "./schema.ts";
+import {
+  membership,
+  notificationChannel,
+  notificationPreference,
+  repository,
+  userNotification,
+} from "./schema.ts";
 
 export interface NotifyUsersInput {
   organizationId: string;
@@ -23,6 +29,8 @@ export interface NotifyUsersInput {
   /** A path inside the app (`/repositories/repo_1`); anything else is refused. */
   link: string;
   context?: EventContext;
+  /** The repository it is about: a private one (ADR 0030) is news only for its owner, whatever the preferences say. */
+  repositoryId?: string;
 }
 
 export interface NotifyUsersResult {
@@ -64,10 +72,19 @@ export async function notifyUsers(db: Database, input: NotifyUsersInput): Promis
   const event = TITLE_EVENTS[input.titleKey];
   const params: NotificationParams = sanitizeParams(input.params);
 
-  const members = await db
+  let members = await db
     .select({ userId: membership.userId, role: membership.role })
     .from(membership)
     .where(eq(membership.organizationId, input.organizationId));
+  if (input.repositoryId) {
+    const [repo] = await db
+      .select({ visibility: repository.visibility, ownerUserId: repository.ownerUserId })
+      .from(repository)
+      .where(and(eq(repository.id, input.repositoryId), eq(repository.organizationId, input.organizationId)))
+      .limit(1);
+    if (!repo) return { inApp: 0, mail: 0 };
+    if (repo.visibility === "private") members = members.filter((m) => m.userId === repo.ownerUserId);
+  }
   if (members.length === 0) return { inApp: 0, mail: 0 };
   const stored = await db
     .select()

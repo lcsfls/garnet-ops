@@ -1,4 +1,4 @@
-import { schema } from "@garnetops/db";
+import { schema, visibleRepository } from "@garnetops/db";
 import { and, desc, eq, gte, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -25,6 +25,7 @@ export const earlyWarningRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const input = query.parse(c.req.query());
   const where = and(
     eq(w.organizationId, actor.organizationId),
+    visibleRepository(w.repositoryId, actor),
     input.state === "open"
       ? eq(w.state, "open")
       : and(ne(w.state, "open"), gte(w.closedAt, sql`now() - make_interval(days => ${CLOSED_DAYS})`)),

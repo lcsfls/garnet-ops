@@ -21,6 +21,7 @@ import {
   runFixPr,
 } from "../src/fix-pr.ts";
 import { setForgeTestHooks } from "../src/forge.ts";
+import { FORGE_CONNECTION_QUEUE, type RefreshJob, refreshConnection } from "../src/forge-connection.ts";
 import { FakeForge } from "./fake-forge.ts";
 
 const forgePort = Number(process.env.E2E_FORGE_PORT ?? 8093);
@@ -33,6 +34,16 @@ const forge = await new FakeForge("gitea", TOKEN, "team", "seeded-app", {
   files: { "package.json": MANIFEST },
 }).start(forgePort);
 setForgeTestHooks({ resolve: async () => ["192.168.1.20"], connectTo: () => "127.0.0.1", ca: forge.ca });
+// What a connected account sees (personal connections, ADR 0030): the seeded repository and two more.
+forge.listed = ["seeded-app", "billing-portal", "website"].map((name, i) => ({
+  id: 500 + i,
+  full_name: `team/${name}`,
+  clone_url: `https://forge.example.test:${forgePort}/team/${name}.git`,
+  default_branch: "main",
+  private: name !== "website",
+  archived: false,
+  description: name === "website" ? "The public website" : null,
+}));
 
 createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://x");
@@ -70,6 +81,10 @@ await boss.start();
 await boss.createQueue(FIX_PR_QUEUE);
 await boss.createQueue(FIX_PR_CHECK_QUEUE);
 await boss.createQueue(FIX_PR_REFRESH_QUEUE);
+await boss.createQueue(FORGE_CONNECTION_QUEUE);
+await boss.work<RefreshJob>(FORGE_CONNECTION_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await refreshConnection(job.data);
+});
 await boss.work<{ fixPrId: string }>(FIX_PR_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await runFixPr(job.data.fixPrId);
 });

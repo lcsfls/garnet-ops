@@ -1,5 +1,5 @@
 import { pageSizeSchema } from "@garnetops/core/pagination";
-import { schema } from "@garnetops/db";
+import { schema, visibleRepository } from "@garnetops/db";
 import { and, count, eq, ilike, like, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -84,6 +84,7 @@ export const packageRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const version = input.q && at > 0 ? input.q.slice(at + 1) : undefined;
   const where = and(
     eq(p.organizationId, actor.organizationId),
+    visibleRepository(p.repositoryId, actor),
     name ? ilike(p.name, `%${escapeLike(name)}%`) : undefined,
     version ? like(p.version, `${escapeLike(version)}%`) : undefined,
     input.repositoryId ? eq(p.repositoryId, input.repositoryId) : undefined,

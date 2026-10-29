@@ -3,7 +3,14 @@ import { parseGradeFilter } from "@garnetops/core/grades";
 import { pageSizeSchema } from "@garnetops/core/pagination";
 import { fingerprint, generateDeployKey, parseKnownHosts } from "@garnetops/core/ssh";
 import { seal } from "@garnetops/core/vault";
-import { isTimeZone, openFindingsTrend, openTotalsByRepository, schema } from "@garnetops/db";
+import {
+  isTimeZone,
+  openFindingsTrend,
+  openTotalsByRepository,
+  repositoryVisibleTo,
+  schema,
+  type Viewer,
+} from "@garnetops/db";
 import { and, count, desc, eq, getTableColumns, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -55,12 +62,12 @@ const patchSpec: KeysetSpec<PatchRow> = {
   parse: [parseDate, parseText],
 };
 
-/** The repository, if it belongs to the caller's organisation. */
-async function ownRepository(organizationId: string, id: string) {
+/** The repository, if the caller sees it: shared with the organisation, or their own private one (ADR 0030). */
+async function ownRepository(viewer: Viewer, id: string) {
   const [row] = await db
     .select({ id: r.id })
     .from(r)
-    .where(and(eq(r.id, id), eq(r.organizationId, organizationId)))
+    .where(and(eq(r.id, id), repositoryVisibleTo(viewer)))
     .limit(1);
   if (!row) throw notFound("Repository");
   return row;
@@ -144,6 +151,15 @@ const bulkBody = z.object({
     z.object({ kind: z.literal("https-token"), token: z.string().min(8).max(500) }),
   ]),
 });
+
+/** Who sees the repository (ADR 0030), as the caller may know it. */
+function sharing(row: RepoRow, userId: string) {
+  return {
+    visibility: row.visibility,
+    mine: row.ownerUserId === userId,
+    shareRequested: row.visibility === "private" && row.shareRequestedAt !== null,
+  };
+}
 
 /** Pinned SSH host keys as shown to the user, so they can compare them with the forge's published fingerprints. */
 function hostKeys(row: RepoRow) {
@@ -265,7 +281,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const input = listQuery.parse(c.req.query());
     const filters = and(
-      eq(r.organizationId, actor.organizationId),
+      repositoryVisibleTo(actor),
       input.q ? ilike(r.name, `%${input.q.replace(/[%_\\]/g, "\\$&")}%`) : undefined,
       statusFilter(input.status),
       input.grade ? gradeFilterSql(gradeRank, input.grade) : undefined,
@@ -327,6 +343,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
         authKind: row.authKind,
         deployPublicKey: row.deployPublicKey,
         sshHostKeys: hostKeys(row),
+        ...sharing(row, actor.userId),
         lastScanAt: row.lastScanAt,
         lastScan: latestScan.get(row.id) ?? null,
         open: counts.get(row.id) ?? {},
@@ -445,7 +462,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const input = countsQuery.parse(c.req.query());
     const where = and(
-      eq(r.organizationId, actor.organizationId),
+      repositoryVisibleTo(actor),
       input.q ? ilike(r.name, `%${input.q.replace(/[%_\\]/g, "\\$&")}%`) : undefined,
     );
     const counts = await Promise.all(
@@ -464,7 +481,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const input = countsQuery.parse(c.req.query());
     const where = and(
-      eq(r.organizationId, actor.organizationId),
+      repositoryVisibleTo(actor),
       input.q ? ilike(r.name, `%${input.q.replace(/[%_\\]/g, "\\$&")}%`) : undefined,
     );
     return c.json(await gradeDistribution(db, gradeRank, sql`${r}`, where ?? sql`true`));
@@ -478,7 +495,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
       .from(r)
       .where(
         and(
-          eq(r.organizationId, actor.organizationId),
+          repositoryVisibleTo(actor),
           sql`not exists (select 1 from ${schema.scan} s where s.repository_id = ${r.id} and s.state in ('queued', 'running'))`,
         ),
       );
@@ -493,7 +510,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
     const [row] = await db
       .select()
       .from(r)
-      .where(and(eq(r.id, c.req.param("id")), eq(r.organizationId, actor.organizationId)))
+      .where(and(eq(r.id, c.req.param("id")), repositoryVisibleTo(actor)))
       .limit(1);
     if (!row) throw notFound("Repository");
     const [counts, states, [lastScan], latestScan] = await Promise.all([
@@ -525,6 +542,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
       authKind: row.authKind,
       deployPublicKey: row.deployPublicKey,
       sshHostKeys: hostKeys(row),
+      ...sharing(row, actor.userId),
       createdAt: row.createdAt,
       lastScanAt: row.lastScanAt,
       lastScanId: row.lastScanId,
@@ -539,9 +557,10 @@ export const repositoryRoutes = new Hono<AppEnv>()
   .get("/:id/trend", async (c) => {
     const actor = c.get("actor");
     const { tz } = trendQuery.parse(c.req.query());
-    const repo = await ownRepository(actor.organizationId, c.req.param("id"));
+    const repo = await ownRepository(actor, c.req.param("id"));
     const days = await openFindingsTrend(db, {
       organizationId: actor.organizationId,
+      userId: actor.userId,
       repositoryId: repo.id,
       timeZone: tz,
     });
@@ -555,7 +574,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
   .get("/:id/patches", async (c) => {
     const actor = c.get("actor");
     const input = pageQuery.parse(c.req.query());
-    const repo = await ownRepository(actor.organizationId, c.req.param("id"));
+    const repo = await ownRepository(actor, c.req.param("id"));
     const f = schema.finding;
     const where = and(eq(f.repositoryId, repo.id), eq(f.state, "resolved"));
     const q = keysetQuery(patchSpec, input.cursor, input.pageSize);
@@ -598,8 +617,16 @@ export const repositoryRoutes = new Hono<AppEnv>()
   })
   .delete("/:id", async (c) => {
     const actor = c.get("actor");
-    requireRole(actor, "admin");
     const id = c.req.param("id");
+    // Admins remove any repository they see; a member removes their own private one (ADR 0030).
+    const [target] = await db
+      .select({ visibility: r.visibility, ownerUserId: r.ownerUserId })
+      .from(r)
+      .where(and(eq(r.id, id), repositoryVisibleTo(actor)))
+      .limit(1);
+    if (!target) throw notFound("Repository");
+    if (!(target.visibility === "private" && target.ownerUserId === actor.userId))
+      requireRole(actor, "admin");
     // The write token (fix pull requests, ADR 0014) is a secret of its own; it goes with the repository.
     const [writeToken] = await db
       .select({ secretId: schema.repositoryWriteAccess.secretId })
@@ -613,12 +640,17 @@ export const repositoryRoutes = new Hono<AppEnv>()
       .limit(1);
     const [row] = await db
       .delete(r)
-      .where(and(eq(r.id, id), eq(r.organizationId, actor.organizationId)))
-      .returning({ secretId: r.secretId, url: r.url });
+      .where(and(eq(r.id, id), repositoryVisibleTo(actor)))
+      .returning({ secretId: r.secretId, url: r.url, visibility: r.visibility });
     if (!row) throw notFound("Repository");
     if (row.secretId) await db.delete(schema.secret).where(eq(schema.secret.id, row.secretId));
     if (writeToken) await db.delete(schema.secret).where(eq(schema.secret.id, writeToken.secretId));
-    await audit(actor, "repository.deleted", { type: "repository", id }, { url: row.url });
+    await audit(
+      actor,
+      "repository.deleted",
+      { type: "repository", id },
+      { url: row.url, visibility: row.visibility },
+    );
     return c.body(null, 204);
   })
   .delete("/:id/ssh-host-keys", async (c) => {
@@ -629,7 +661,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
     const [before] = await db
       .select()
       .from(r)
-      .where(and(eq(r.id, id), eq(r.organizationId, actor.organizationId)))
+      .where(and(eq(r.id, id), repositoryVisibleTo(actor)))
       .limit(1);
     if (!before) throw notFound("Repository");
     if (!before.sshKnownHosts) return c.body(null, 204);
@@ -657,7 +689,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
     const [row] = await db
       .select({ id: r.id })
       .from(r)
-      .where(and(eq(r.id, id), eq(r.organizationId, actor.organizationId)))
+      .where(and(eq(r.id, id), repositoryVisibleTo(actor)))
       .limit(1);
     if (!row) throw notFound("Repository");
     const [active] = await db

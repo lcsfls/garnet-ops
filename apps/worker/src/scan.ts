@@ -8,6 +8,7 @@ import { schema } from "@garnetops/db";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "./db.ts";
 import { env, vaultPrivateKey } from "./env.ts";
+import { accountOf } from "./forge-connection.ts";
 import { type SshOptions, shallowClone, sshClient } from "./git.ts";
 import { addAdvisoryDates, type ParsedReport, parseReport, scanTarget } from "./grype.ts";
 import { type CollectedManifest, collectManifests } from "./manifests.ts";
@@ -105,6 +106,8 @@ export async function runScan(scanId: string): Promise<void> {
       key.fill(0);
       await writeFile(knownHostsFile, repo.sshKnownHosts ?? "", { mode: 0o600 });
       ssh = { ...client, privateKeyFile, knownHostsFile, pinned: Boolean(repo.sshKnownHosts) };
+    } else if (repo.authKind === "connection") {
+      token = await connectionToken(repo);
     } else if (repo.secretId) {
       const plain = await openSecret(repo, "forge-token");
       token = plain.toString("utf8");
@@ -212,6 +215,30 @@ async function runScanners(
     throw new UserFacingError(scanErrorMessage("scannerFailed"));
   });
   return { inventory, json };
+}
+
+/** The read token of the personal connection a repository was added through (ADR 0030). */
+async function connectionToken(repo: typeof schema.repository.$inferSelect): Promise<string> {
+  if (!repo.forgeConnectionId) throw new UserFacingError(scanErrorMessage("connectionRemoved"));
+  const [connection] = await db
+    .select()
+    .from(schema.forgeConnection)
+    .where(
+      and(
+        eq(schema.forgeConnection.id, repo.forgeConnectionId),
+        eq(schema.forgeConnection.organizationId, repo.organizationId),
+      ),
+    )
+    .limit(1);
+  if (!connection) throw new UserFacingError(scanErrorMessage("connectionRemoved"));
+  // Only the host the connection belongs to ever receives its token.
+  if (new URL(repo.url).hostname !== new URL(connection.webBaseUrl).hostname) {
+    throw new UserFacingError(scanErrorMessage("credentialMissing"));
+  }
+  const account = await accountOf(connection).catch(() => {
+    throw new UserFacingError(scanErrorMessage("credentialMissing"));
+  });
+  return account.token;
 }
 
 async function openSecret(

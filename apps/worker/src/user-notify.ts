@@ -47,6 +47,7 @@ export async function tellAboutScan(
       organizationId: result.organizationId,
       link: `/repositories/${payload.repository.id}`,
       context: { ownerUserId: result.ownerUserId },
+      repositoryId: payload.repository.id,
     };
     const repository = payload.repository.name;
     if (payload.event === "finding.new_critical") {
@@ -102,6 +103,7 @@ export async function tellAboutFixPr(
         params: { repository: repository.name },
         link: "/fixes?view=prs",
         context: { ownerUserId: repository.ownerUserId, requestedBy: pr.requestedBy },
+        repositoryId: pr.repositoryId,
       },
       send,
     );

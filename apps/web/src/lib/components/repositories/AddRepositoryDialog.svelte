@@ -6,6 +6,7 @@
     none: "repositories.accessPublic",
     "https-token": "repositories.accessToken",
     "ssh-deploy-key": "repositories.accessDeployKey",
+    connection: "repositories.accessConnection",
   } as const satisfies Record<RepositoryRow["authKind"], MessageKey>;
 
   type BulkResult = {

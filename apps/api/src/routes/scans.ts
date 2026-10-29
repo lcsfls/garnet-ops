@@ -1,6 +1,6 @@
 import { SCAN_STATES } from "@garnetops/core";
 import { pageSizeSchema } from "@garnetops/core/pagination";
-import { schema } from "@garnetops/db";
+import { schema, visibleRepository } from "@garnetops/db";
 import { and, count, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -53,6 +53,7 @@ export const scanRoutes = new Hono<AppEnv>()
     const input = listQuery.parse(c.req.query());
     const where = and(
       eq(s.organizationId, actor.organizationId),
+      visibleRepository(s.repositoryId, actor),
       input.repositoryId ? eq(s.repositoryId, input.repositoryId) : undefined,
       input.state ? eq(s.state, input.state) : undefined,
     );
@@ -85,7 +86,13 @@ export const scanRoutes = new Hono<AppEnv>()
       .select(columns)
       .from(s)
       .innerJoin(schema.repository, eq(schema.repository.id, s.repositoryId))
-      .where(and(eq(s.id, c.req.param("id")), eq(s.organizationId, actor.organizationId)))
+      .where(
+        and(
+          eq(s.id, c.req.param("id")),
+          eq(s.organizationId, actor.organizationId),
+          visibleRepository(s.repositoryId, actor),
+        ),
+      )
       .limit(1);
     if (!row) throw notFound("Scan");
     return c.json(row);

@@ -70,6 +70,37 @@ describe.skipIf(!adminUrl)("notifyUsers", () => {
     });
   });
 
+  it("tells only the owner about a private repository (ADR 0030), and everyone once it is shared", async () => {
+    await t.db.insert(schema.repository).values({
+      id: "repo_un_private",
+      organizationId: ORG,
+      name: "secret-app",
+      url: "https://git.example.lan/t/secret-app.git",
+      authKind: "none",
+      visibility: "private",
+      ownerUserId: "u_member",
+    });
+    const input = {
+      organizationId: ORG,
+      titleKey: "gateBlocked" as const,
+      params: { repository: "secret-app", rules: 1 },
+      link: "/repositories/repo_un_private",
+      repositoryId: "repo_un_private",
+    };
+    await notifyUsers(t.db, input);
+    expect(await told()).toEqual(["u_member"]);
+    await t.pool.query("truncate user_notification restart identity cascade");
+    await t.pool.query("update repository set visibility = 'organization' where id = 'repo_un_private'");
+    await notifyUsers(t.db, input);
+    expect(await told()).toEqual(["u_admin", "u_member", "u_owner", "u_viewer"]);
+    // A repository of another organisation, or one that is gone, tells nobody.
+    await t.pool.query("truncate user_notification restart identity cascade");
+    expect(await notifyUsers(t.db, { ...input, repositoryId: "repo_missing" })).toEqual({
+      inApp: 0,
+      mail: 0,
+    });
+  });
+
   it("follows each person's own choices", async () => {
     await t.db.insert(schema.notificationPreference).values([
       { organizationId: ORG, userId: "u_member", event: "gate.blocked", inApp: false, email: false },

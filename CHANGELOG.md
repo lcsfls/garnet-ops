@@ -18,6 +18,19 @@ Security-relevant changes are listed under **Security** in every release.
   it. The findings list shows that period as a filter you can remove.
 - API: `firstSeenFrom`, `firstSeenTo`, `resolvedFrom`, `resolvedTo` and `tz` on `GET /api/v1/findings`, its counts and its export
   (calendar days in the given time zone, both ends included).
+- **Settings → Connected accounts** ([ADR 0030](docs/adr/0030-personal-forge-connections.md)): each person connects their own
+  GitHub, Gitea or Forgejo account with a read token and adds repositories by ticking them in a list. The token is sealed
+  in the vault, only the worker opens it, and nobody else can use it.
+- Private repositories: repositories added from a connected account are visible only to the person who added it, until it is
+  shared with the organisation (owners and admins at once, members on request). They never reach notification channels.
+  Every repository that exists today stays visible to everyone.
+- API: `/api/v1/forge-connections`, `/api/v1/share-requests`, `POST /api/v1/repositories/{id}/share` and `/unshare`;
+  repositories carry `visibility`, `mine` and `shareRequested`.
+
+### Security
+
+- Removing a person from the organisation deletes their connected accounts with the sealed tokens, and their private
+  repositories.
 
 ### Changed
 

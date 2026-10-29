@@ -12,6 +12,10 @@
       { title: "settings.helpNightlyTitle", text: "settings.helpNightlyText" },
       { title: "settings.helpSandboxTitle", text: "settings.helpSandboxText" },
     ],
+    accounts: [
+      { title: "connections.helpPrivateTitle", text: "connections.helpPrivateText" },
+      { title: "connections.helpTokenTitle", text: "connections.helpTokenText" },
+    ],
     signin: [
       { title: "directory.helpPasswordTitle", text: "directory.helpPasswordText" },
       { title: "directory.helpOwnersTitle", text: "directory.helpOwnersText" },

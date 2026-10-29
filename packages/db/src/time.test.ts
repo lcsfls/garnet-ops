@@ -111,6 +111,7 @@ describe.skipIf(!adminUrl)("time handling in the database", () => {
 
     const berlin = await openFindingsTrend(db, {
       organizationId: org,
+      userId: "usr_viewer",
       timeZone: "Europe/Berlin",
       days: 4,
       asOf,
@@ -121,7 +122,13 @@ describe.skipIf(!adminUrl)("time handling in the database", () => {
     ]);
 
     // The same instant is still 2026-10-24 in UTC.
-    const utc = await openFindingsTrend(db, { organizationId: org, timeZone: "UTC", days: 4, asOf });
+    const utc = await openFindingsTrend(db, {
+      organizationId: org,
+      userId: "usr_viewer",
+      timeZone: "UTC",
+      days: 4,
+      asOf,
+    });
     expect(utc.map((p) => p.day)).toEqual(["2026-10-24", "2026-10-25", "2026-10-26"]);
   });
 
@@ -134,6 +141,7 @@ describe.skipIf(!adminUrl)("time handling in the database", () => {
 
     const days = await openFindingsTrend(db, {
       organizationId: org,
+      userId: "usr_viewer",
       timeZone: "Europe/Berlin",
       days: 4,
       asOf,
@@ -149,9 +157,16 @@ describe.skipIf(!adminUrl)("time handling in the database", () => {
   it("limits the trend to one repository when asked", async () => {
     await finding("f_repo", "2026-05-10T12:00:00Z");
     const asOf = new Date("2026-05-11T12:00:00Z");
-    const all = await openFindingsTrend(db, { organizationId: org, timeZone: "UTC", days: 2, asOf });
+    const all = await openFindingsTrend(db, {
+      organizationId: org,
+      userId: "usr_viewer",
+      timeZone: "UTC",
+      days: 2,
+      asOf,
+    });
     const mine = await openFindingsTrend(db, {
       organizationId: org,
+      userId: "usr_viewer",
       repositoryId: repo,
       timeZone: "UTC",
       days: 2,
@@ -159,6 +174,7 @@ describe.skipIf(!adminUrl)("time handling in the database", () => {
     });
     const other = await openFindingsTrend(db, {
       organizationId: org,
+      userId: "usr_viewer",
       repositoryId: "repo_other",
       timeZone: "UTC",
       days: 2,
@@ -193,11 +209,15 @@ describe.skipIf(!adminUrl)("time handling in the database", () => {
   });
 
   it("refuses unknown time zones before they reach SQL", async () => {
-    await expect(openFindingsTrend(db, { organizationId: org, timeZone: "Europe/Atlantis" })).rejects.toThrow(
-      RangeError,
-    );
     await expect(
-      openFindingsTrend(db, { organizationId: org, timeZone: "UTC'; drop table finding; --" }),
+      openFindingsTrend(db, { organizationId: org, userId: "usr_viewer", timeZone: "Europe/Atlantis" }),
+    ).rejects.toThrow(RangeError);
+    await expect(
+      openFindingsTrend(db, {
+        organizationId: org,
+        userId: "usr_viewer",
+        timeZone: "UTC'; drop table finding; --",
+      }),
     ).rejects.toThrow(RangeError);
   });
 });

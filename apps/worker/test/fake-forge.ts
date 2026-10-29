@@ -68,6 +68,10 @@ export class FakeForge {
   readonly branches = new Map<string, Commit>();
   readonly commits: Commit[] = [];
   readonly scopes: string | undefined;
+  /** The account name `GET /user` answers with. */
+  login = "alex";
+  /** What `GET /user/repos` lists, page by page, as the forge would spell it. */
+  listed: Record<string, unknown>[] = [];
   port = 0;
   ca = "";
   private server: Server | null = null;
@@ -256,6 +260,15 @@ export class FakeForge {
   }
 
   private route(method: string, path: string, query: URLSearchParams, body: unknown, res: ServerResponse) {
+    // The account behind the token, and the repositories it can see (personal connections, ADR 0030).
+    if (method === "GET" && path === "/user") {
+      return json(res, 200, { login: this.login }, this.scopes ? { "x-oauth-scopes": this.scopes } : {});
+    }
+    if (method === "GET" && path === "/user/repos") {
+      const size = Number(query.get(this.flavour === "github" ? "per_page" : "limit") ?? 30);
+      const page = Number(query.get("page") ?? 1);
+      return json(res, 200, this.listed.slice((page - 1) * size, page * size));
+    }
     // The repository is "app"; "app1", "app2" … are the same repository under other names, so that
     // tests can register several repositories of one organisation (the address is unique per organisation).
     const named = /^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/.exec(path);

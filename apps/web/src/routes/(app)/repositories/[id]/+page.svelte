@@ -12,6 +12,7 @@
   import RepositoryFacts from "#lib/components/repositories/RepositoryFacts.svelte";
   import RepositoryTrend from "#lib/components/repositories/RepositoryTrend.svelte";
   import ScanHistory from "#lib/components/repositories/ScanHistory.svelte";
+  import SharingCard from "#lib/components/repositories/SharingCard.svelte";
   import WriteAccessCard from "#lib/components/repositories/WriteAccessCard.svelte";
   import Tile from "#lib/components/Tile.svelte";
   import Button from "#lib/components/ui/Button.svelte";
@@ -105,6 +106,7 @@
     {#if scan.isError}
       <p role="alert" class="text-sm text-destructive-text">{t("errors.actionFailed")}</p>
     {/if}
+    <SharingCard repo={data} {me} />
     <div class="grid gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <RepositoryFacts repo={data} />
       <div class="grid grid-cols-2 gap-4 @3xl:grid-cols-4">

@@ -30,6 +30,8 @@ export const SCAN_ERRORS = {
   refNotFound: "The requested ref does not exist in the repository.",
   commitMismatch: "The ref points to a different commit than the gate check expected.",
   scannerUnavailable: "The scanner service did not answer. An admin can check it under System status.",
+  connectionRemoved:
+    "The connected account this repository was added through was removed. Its owner can connect the account again, or an admin can replace the credential.",
 } as const;
 
 export type ScanErrorCode = keyof typeof SCAN_ERRORS;

@@ -18,7 +18,7 @@ import { lookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { classifyAddress } from "@garnetops/core/ai-endpoint";
-import type { ForgeKind } from "@garnetops/core/fix-prs";
+import { type ForgeKind, stripControl } from "@garnetops/core/fix-prs";
 import { z } from "zod";
 
 export const FORGE_ERROR_CODES = [
@@ -63,11 +63,16 @@ export function setForgeTestHooks(hooks: ForgeTestHooks | null): void {
   testHooks = hooks;
 }
 
-export interface ForgeTarget {
+/** An account on a forge: where its API is and the token to send there. */
+export interface ForgeAccount {
   kind: ForgeKind;
   /** https://api.github.com, https://ghe.example.com/api/v3 or https://git.example.com/api/v1 */
   apiBaseUrl: string;
   token: string;
+}
+
+/** One repository of an account. */
+export interface ForgeTarget extends ForgeAccount {
   owner: string;
   repo: string;
 }
@@ -137,7 +142,7 @@ interface Call {
   body?: unknown;
 }
 
-function authHeaders(target: ForgeTarget): Record<string, string> {
+function authHeaders(target: ForgeAccount): Record<string, string> {
   return target.kind === "github"
     ? {
         authorization: `Bearer ${target.token}`,
@@ -148,9 +153,8 @@ function authHeaders(target: ForgeTarget): Record<string, string> {
 }
 
 /** One request. 2xx returns the parsed JSON; every other status becomes a {@link ForgeError}. */
-async function call(target: ForgeTarget, options: Call): Promise<Response> {
+async function call(target: ForgeAccount, options: Call): Promise<Response> {
   if (!TOKEN_PATTERN.test(target.token)) throw new ForgeError("token-rejected");
-  if (!NAME_PATTERN.test(target.owner) || !NAME_PATTERN.test(target.repo)) throw new ForgeError("not-found");
   const base = new URL(target.apiBaseUrl);
   if (base.username || base.password || base.search || base.hash) throw new ForgeError("address-refused");
   const addresses = await resolveForgeHost(base);
@@ -277,7 +281,10 @@ const parse = <T extends z.ZodTypeAny>(schema: T, value: unknown): z.infer<T> =>
 };
 
 const seg = (value: string) => encodeURIComponent(value);
-const repoPath = (t: ForgeTarget) => `/repos/${seg(t.owner)}/${seg(t.repo)}`;
+const repoPath = (t: ForgeTarget) => {
+  if (!NAME_PATTERN.test(t.owner) || !NAME_PATTERN.test(t.repo)) throw new ForgeError("not-found");
+  return `/repos/${seg(t.owner)}/${seg(t.repo)}`;
+};
 /** A path or branch name with its slashes kept and every part encoded. */
 const slashPath = (value: string) => value.split("/").map(seg).join("/");
 
@@ -441,4 +448,103 @@ export async function pullRequestState(target: ForgeTarget, number: number): Pro
   const data = parse(pullStateSchema, response.json);
   if (data.merged === true || data.merged_at) return "merged";
   return data.state === "open" ? "open" : "closed";
+}
+
+/* -------------------------------------------------------------------------- */
+/* Personal connections (ADR 0030): read only                                  */
+/* -------------------------------------------------------------------------- */
+
+/** A classic GitHub token whose scopes reach every repository or can write. */
+const broadScopes = (kind: ForgeKind, scopes: unknown) =>
+  kind === "github" &&
+  typeof scopes === "string" &&
+  /(^|[\s,])(repo|admin:org|write:org|workflow|delete_repo)([\s,]|$)/.test(scopes);
+
+const userSchema = z.object({ login: z.string().min(1).max(100) });
+
+export interface AccountInfo {
+  login: string;
+  broadToken: boolean;
+}
+
+/** Who the token belongs to; the first thing a connection checks. */
+export async function accountInfo(account: ForgeAccount): Promise<AccountInfo> {
+  const response = await call(account, { method: "GET", path: "/user" });
+  return {
+    login: parse(userSchema, response.json).login,
+    broadToken: broadScopes(account.kind, response.headers["x-oauth-scopes"]),
+  };
+}
+
+const listedSchema = z.array(
+  z.object({
+    id: z.union([z.number().int(), z.string().regex(/^[0-9A-Za-z_=-]{1,100}$/)]),
+    full_name: z.string().max(201),
+    clone_url: z.string().max(500),
+    default_branch: z.string().max(250).nullish(),
+    private: z.boolean(),
+    archived: z.boolean().nullish(),
+    description: z.string().nullish(),
+  }),
+);
+
+export interface ListedRepository {
+  forgeId: string;
+  fullName: string;
+  cloneUrl: string;
+  defaultBranch: string | null;
+  private: boolean;
+  archived: boolean;
+  description: string | null;
+}
+
+/** Most repositories a connection lists; more are cut and the list says so. */
+export const MAX_LISTED_REPOSITORIES = 2000;
+
+/**
+ * The repositories the account can see, page by page, sorted by name. Entries whose name or clone address does not
+ * look like a repository on `webHost` over https are left out: they are not something GarnetOps could clone with
+ * this token.
+ */
+export async function listRepositories(
+  account: ForgeAccount,
+  webHost: string,
+): Promise<{ items: ListedRepository[]; truncated: boolean }> {
+  const perPage = account.kind === "github" ? 100 : 50;
+  const items: ListedRepository[] = [];
+  for (let page = 1; ; page++) {
+    const path =
+      account.kind === "github"
+        ? `/user/repos?per_page=${perPage}&page=${page}&sort=full_name&affiliation=owner,collaborator,organization_member`
+        : `/user/repos?limit=${perPage}&page=${page}`;
+    const batch = parse(listedSchema, (await call(account, { method: "GET", path })).json);
+    for (const r of batch) {
+      const [owner, name, ...rest] = r.full_name.split("/");
+      if (rest.length || !owner || !name || !NAME_PATTERN.test(owner) || !NAME_PATTERN.test(name)) continue;
+      let clone: URL;
+      try {
+        clone = new URL(r.clone_url);
+      } catch {
+        continue;
+      }
+      if (clone.protocol !== "https:" || clone.hostname !== webHost || clone.username || clone.password)
+        continue;
+      if (clone.search || clone.hash) continue;
+      if (items.length >= MAX_LISTED_REPOSITORIES) return { items, truncated: true };
+      items.push({
+        forgeId: String(r.id),
+        fullName: `${owner}/${name}`,
+        cloneUrl: clone.toString(),
+        defaultBranch: r.default_branch || null,
+        private: r.private,
+        archived: r.archived === true,
+        // Shown as text only; control characters and length are cut here.
+        description: r.description ? stripControl(r.description).slice(0, 300) : null,
+      });
+    }
+    if (batch.length < perPage) break;
+    if (page * perPage >= MAX_LISTED_REPOSITORIES + perPage) return { items, truncated: true };
+  }
+  items.sort((a, b) => a.fullName.localeCompare(b.fullName));
+  return { items, truncated: false };
 }

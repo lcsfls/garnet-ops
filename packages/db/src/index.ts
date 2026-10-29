@@ -10,6 +10,7 @@ export * from "./statistics.ts";
 export * from "./system.ts";
 export * from "./trend.ts";
 export * from "./user-notifications.ts";
+export * from "./visibility.ts";
 export { schema };
 export type Database = ReturnType<typeof createDb>["db"];
 

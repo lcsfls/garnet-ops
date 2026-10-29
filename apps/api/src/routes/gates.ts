@@ -1,7 +1,7 @@
 import { newId } from "@garnetops/core";
 import { GATE_DEFAULTS, GATE_MODES, GATE_RULES, type GateRule } from "@garnetops/core/gates";
 import { pageSizeSchema } from "@garnetops/core/pagination";
-import { schema } from "@garnetops/db";
+import { repositoryVisibleTo, schema, type Viewer, visibleRepository } from "@garnetops/db";
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -46,11 +46,11 @@ const runSpec: KeysetSpec<RunRow> = {
 
 const tokenBody = z.object({ label: z.string().trim().min(1).max(80) });
 
-async function ownRepository(organizationId: string, id: string) {
+async function ownRepository(viewer: Viewer, id: string) {
   const [row] = await db
     .select({ id: schema.repository.id, name: schema.repository.name })
     .from(schema.repository)
-    .where(and(eq(schema.repository.id, id), eq(schema.repository.organizationId, organizationId)))
+    .where(and(eq(schema.repository.id, id), repositoryVisibleTo(viewer)))
     .limit(1);
   if (!row) throw notFound("Repository");
   return row;
@@ -130,6 +130,7 @@ export const gateRoutes = new Hono<AppEnv>()
     const input = runsQuery.parse(c.req.query());
     const where = and(
       eq(run.organizationId, actor.organizationId),
+      visibleRepository(run.repositoryId, actor),
       input.repositoryId ? eq(run.repositoryId, input.repositoryId) : undefined,
     );
     const q = keysetQuery(runSpec, input.cursor, input.pageSize);
@@ -174,14 +175,20 @@ export const gateRoutes = new Hono<AppEnv>()
       .from(run)
       .innerJoin(schema.scan, eq(schema.scan.id, run.scanId))
       // The repository's own state: scans of its configured branch, not pull request checks.
-      .where(and(eq(run.organizationId, actor.organizationId), isNull(schema.scan.ref)))
+      .where(
+        and(
+          eq(run.organizationId, actor.organizationId),
+          visibleRepository(run.repositoryId, actor),
+          isNull(schema.scan.ref),
+        ),
+      )
       .orderBy(run.repositoryId, desc(run.createdAt));
     return c.json(rows);
   })
   .get("/repositories/:id/tokens", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "admin");
-    const repo = await ownRepository(actor.organizationId, c.req.param("id"));
+    const repo = await ownRepository(actor, c.req.param("id"));
     const rows = await db
       .select({
         id: schema.gateToken.id,
@@ -201,7 +208,7 @@ export const gateRoutes = new Hono<AppEnv>()
   .post("/repositories/:id/tokens", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "admin");
-    const repo = await ownRepository(actor.organizationId, c.req.param("id"));
+    const repo = await ownRepository(actor, c.req.param("id"));
     const input = tokenBody.parse(await c.req.json());
     const { token, hash, prefix } = newGateToken();
     const id = newId("gtok");
@@ -225,7 +232,7 @@ export const gateRoutes = new Hono<AppEnv>()
   .delete("/repositories/:id/tokens/:tokenId", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "admin");
-    const repo = await ownRepository(actor.organizationId, c.req.param("id"));
+    const repo = await ownRepository(actor, c.req.param("id"));
     const [row] = await db
       .update(schema.gateToken)
       .set({ revokedAt: new Date() })

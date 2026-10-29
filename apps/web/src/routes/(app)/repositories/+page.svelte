@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Clock, GitBranch, Plus } from "@lucide/svelte";
+  import { Clock, GitBranch, ListChecks, Plus } from "@lucide/svelte";
   import { createQuery, keepPreviousData } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -10,6 +10,7 @@
   import GradeFilter from "#lib/components/repositories/GradeFilter.svelte";
   import GradeHelp from "#lib/components/repositories/GradeHelp.svelte";
   import RepositoryRowView, { SEVERITY_COLUMNS } from "#lib/components/repositories/RepositoryRow.svelte";
+  import ShareRequestsCard from "#lib/components/repositories/ShareRequestsCard.svelte";
   import SearchInput from "#lib/components/SearchInput.svelte";
   import Segmented from "#lib/components/Segmented.svelte";
   import SortHeader, { type SortDir } from "#lib/components/SortHeader.svelte";
@@ -73,6 +74,13 @@
 <PageHeader icon={GitBranch} title={t("repositories.title")} description={t("repositories.description")}>
   {#snippet actions()}
     {#if canEdit}
+      <a
+        href={href("/settings", { section: "accounts" })}
+        class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-input bg-card px-4 font-medium whitespace-nowrap shadow-xs transition-colors hover:bg-accent"
+      >
+        <ListChecks aria-hidden="true" class="size-4" />
+        {t("connections.fromAccount")}
+      </a>
       <Button onclick={() => setSearch({ add: "1" })}>
         <Plus aria-hidden="true" class="size-4" />
         {t("repositories.add")}
@@ -112,6 +120,8 @@
 </div>
 
 <GradeHelp />
+
+{#if canDelete}<ShareRequestsCard />{/if}
 
 <Card>
   <table class="w-full text-left">
@@ -169,7 +179,13 @@
     </thead>
     <tbody>
       {#each query.data?.items ?? [] as repo (repo.id)}
-        <RepositoryRowView {repo} gate={gateOf.get(repo.id) ?? null} {canEdit} {canDelete} />
+        <!-- A member may remove their own private repository (ADR 0030). -->
+        <RepositoryRowView
+          {repo}
+          gate={gateOf.get(repo.id) ?? null}
+          {canEdit}
+          canDelete={canDelete || (canEdit && repo.mine && repo.visibility === "private")}
+        />
       {/each}
     </tbody>
   </table>

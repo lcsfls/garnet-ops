@@ -15,6 +15,7 @@ import { directoryRoutes } from "./routes/directory.ts";
 import { earlyWarningRoutes } from "./routes/early-warnings.ts";
 import { findingRoutes } from "./routes/findings.ts";
 import { fixRoutes } from "./routes/fixes.ts";
+import { forgeConnectionRoutes } from "./routes/forge-connections.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
 import { gateRoutes } from "./routes/gates.ts";
 import { invitationRoutes } from "./routes/invitations.ts";
@@ -27,6 +28,7 @@ import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
 import { searchRoutes } from "./routes/search.ts";
 import { setupRoutes } from "./routes/setup.ts";
+import { repositorySharingRoutes, shareRequestRoutes } from "./routes/sharing.ts";
 import { signInOptionsRoutes } from "./routes/sign-in-options.ts";
 import { statisticsRoutes } from "./routes/statistics.ts";
 import { systemRoutes } from "./routes/system.ts";
@@ -105,6 +107,9 @@ const v1 = new Hono<AppEnv>()
   .route("/overview", overviewRoutes)
   .route("/statistics", statisticsRoutes)
   .route("/repositories", repositoryRoutes)
+  .route("/repositories/:id", repositorySharingRoutes)
+  .route("/share-requests", shareRequestRoutes)
+  .route("/forge-connections", forgeConnectionRoutes)
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)

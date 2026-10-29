@@ -111,8 +111,9 @@ paginated findings, and every number on the overview leads to its details.
 - [x] Quality gate API for CI (token per repository), rules in report-only
       mode by default, status check on the pull request (the pipeline step) (ADR 0008).
       Still open: per-repository rule overrides, secret and SAST rules (Phase 5)
-- [ ] Per-user forge connections (OAuth app / GitHub App) with repository
-      listing and import
+- [x] Per-user forge connections with a personal read token, repository picker, private
+      repositories until shared (ADR 0030, 0.0.11). Still open: sign-in with an OAuth app or
+      GitHub App instead of a pasted token
 - [ ] Local vulnerability database: vunnel + grype-db build job, offline import. Planned and shown as such on the
       System status page, whose report shape (per provider: last run, result, records, duration) the builder will fill
       (ADR 0024)
@@ -161,7 +162,7 @@ Goal: every finding can be discussed with the customer's own model, safely.
       Cargo on GitHub, Gitea and Forgejo, status refresh, and a `renovate.json` generator for
       teams that run their own Renovate (ADR 0014). Still open: lockfiles (need a package
       manager), workspaces, Maven/Gradle/Poetry/Pipfile/Bundler/NuGet, Dockerfile base images,
-      webhooks, per-user forge connections
+      webhooks
 
 ## Phase 3: Servers (removed)
 

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Database } from "./index.ts";
+import { visibleRepository } from "./visibility.ts";
 
 /** True for IANA zone names the runtime knows, e.g. "Europe/Berlin" or "UTC". */
 export function isTimeZone(value: string): boolean {
@@ -30,7 +31,15 @@ export interface TrendPoint {
  */
 export async function openFindingsTrend(
   db: Database,
-  input: { organizationId: string; timeZone: string; days?: number; asOf?: Date; repositoryId?: string },
+  input: {
+    organizationId: string;
+    /** The person asking: their own private repositories count, other people's do not (ADR 0030). */
+    userId: string;
+    timeZone: string;
+    days?: number;
+    asOf?: Date;
+    repositoryId?: string;
+  },
 ): Promise<TrendPoint[]> {
   if (!isTimeZone(input.timeZone)) throw new RangeError(`Unknown time zone: ${input.timeZone}`);
   const span = Math.min(Math.max(input.days ?? 30, 1), 366) - 1;
@@ -46,6 +55,7 @@ export async function openFindingsTrend(
     select d.day::text as day, x.severity, count(x.id)::int as n
     from days d
     join finding x on x.organization_id = ${input.organizationId}
+      and ${visibleRepository(sql`x.repository_id`, input)}
       ${input.repositoryId ? sql`and x.repository_id = ${input.repositoryId}` : sql``}
       and (x.first_seen_at at time zone ${input.timeZone})::date <= d.day
       and (x.resolved_at is null or (x.resolved_at at time zone ${input.timeZone})::date > d.day)

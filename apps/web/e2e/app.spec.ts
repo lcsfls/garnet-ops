@@ -2009,3 +2009,78 @@ test.describe("fix proposals and fix pull requests (ADR 0014)", () => {
     await expect(page).toHaveURL(/\/fixes$/);
   });
 });
+
+test.describe("connected accounts (ADR 0030)", () => {
+  test("connect an account, pick repositories privately, share one, remove the connection", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    await page.goto("/repositories");
+    await page.getByRole("link", { name: "From a connected account" }).click();
+    await expect(page).toHaveURL(/\/settings\?section=accounts$/);
+    await expect(page.getByText("No account connected yet.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Connect account" }).click();
+    const dialog = page.getByRole("dialog", { name: "Connect account" });
+    await dialog.getByLabel("Forge", { exact: true }).selectOption("gitea");
+    await dialog.getByLabel("Address of the forge").fill(`https://forge.example.test:${E2E.forgePort}`);
+    await dialog.getByLabel("Personal access token").fill(FIXES.token);
+    await expect(dialog).toContainText("read:repository");
+    await dialog.getByRole("button", { name: "Connect", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    const connection = page.getByTestId("forge-connection");
+    await expect(connection).toContainText("Connected as alex", { timeout: 20_000 });
+    await expect(connection).toContainText("3 repositories");
+    // The token is sealed and shown nowhere.
+    expect(await page.content()).not.toContain(FIXES.token);
+
+    await connection.getByRole("button", { name: "Choose repositories" }).click();
+    const picker = page.getByRole("dialog", { name: "Choose repositories" });
+    await expect(picker.getByTestId("repository-picker").getByRole("listitem")).toHaveCount(3);
+    await expect(picker).toContainText("The public website");
+    await picker.getByLabel(/team\/billing-portal/).check();
+    await picker.getByLabel(/team\/website/).check();
+    await picker.getByRole("button", { name: "Add 2 repositories" }).click();
+    await expect(picker).toBeHidden();
+    await expect(page.getByText("2 repositories added.")).toBeVisible();
+
+    await page.goto("/repositories");
+    const row = page.getByRole("row", { name: /billing-portal/ });
+    await expect(row).toContainText("Private");
+    await expect(row).toContainText("Connected account, read-only");
+    expect(
+      await sql<{ visibility: string; auth_kind: string }>(
+        "select visibility, auth_kind from repository where name in ('billing-portal', 'website')",
+      ),
+    ).toEqual([
+      { visibility: "private", auth_kind: "connection" },
+      { visibility: "private", auth_kind: "connection" },
+    ]);
+
+    // An owner shares at once.
+    await row.getByRole("link", { name: "billing-portal" }).click();
+    const sharing = page.getByTestId("repository-sharing");
+    await expect(sharing).toContainText("Only you see this repository");
+    await sharing.getByRole("button", { name: "Share with the organisation" }).click();
+    await expect(page.getByText("Shared with the organisation.")).toBeVisible();
+    await expect(sharing).toBeHidden();
+
+    // Removing the connection with its private repositories keeps the shared one.
+    await page.goto("/settings?section=accounts");
+    await page.getByRole("button", { name: /^Remove: / }).click();
+    const confirm = page.getByRole("dialog", { name: /Remove the connection/ });
+    await confirm.getByLabel(/Also remove the private repositories/).check();
+    await confirm.getByRole("button", { name: "Remove" }).click();
+    await expect(page.getByText("No account connected yet.")).toBeVisible();
+    expect(
+      await sql<{ name: string }>("select name from repository where name in ('billing-portal', 'website')"),
+    ).toEqual([{ name: "billing-portal" }]);
+    await page.goto("/audit-log");
+    await expect(page.getByText("Connected account added").first()).toBeVisible();
+    await expect(page.getByText("Repository shared").first()).toBeVisible();
+    // The other tests count the seeded repositories only.
+    await sql("delete from repository where name = 'billing-portal'");
+    expect(problems).toEqual([]);
+  });
+});

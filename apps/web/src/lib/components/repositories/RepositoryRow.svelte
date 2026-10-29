@@ -8,6 +8,7 @@
     none: "repositories.sourcePublic",
     "https-token": "repositories.sourceToken",
     "ssh-deploy-key": "repositories.sourceDeployKey",
+    connection: "repositories.sourceConnection",
   } as const satisfies Record<RepositoryRow["authKind"], MessageKey>;
   /** Open findings per severity as small tinted counts (mockup .count). */
   const COUNT_PILL =
@@ -15,7 +16,7 @@
 </script>
 
 <script lang="ts">
-  import { FolderGit2, GitFork, KeyRound, RefreshCw, Terminal, Trash2 } from "@lucide/svelte";
+  import { FolderGit2, GitFork, KeyRound, Lock, RefreshCw, Terminal, Trash2 } from "@lucide/svelte";
   import { createMutation, useQueryClient } from "@tanstack/svelte-query";
   import { goto } from "$app/navigation";
   import { api } from "../../api.ts";
@@ -113,7 +114,14 @@
     <div class="flex min-w-0 items-start gap-2.5">
       <FolderGit2 aria-hidden="true" class="mt-1 size-4 flex-none text-muted-foreground" />
       <div class="min-w-0">
-        <RepositoryLink id={repo.id} name={repo.name} class="font-medium" />
+        <span class="flex flex-wrap items-center gap-2">
+          <RepositoryLink id={repo.id} name={repo.name} class="font-medium" />
+          {#if repo.visibility === "private"}
+            <Badge tone="neutral">
+              <Lock aria-hidden="true" /><span title={t("connections.privateHint")}>{t("connections.private")}</span>
+            </Badge>
+          {/if}
+        </span>
         <div
           class="max-w-[32ch] truncate font-mono text-sm text-muted-foreground @xwide:max-w-[52ch]"
           title={repo.url}

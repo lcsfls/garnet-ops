@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   advisoryUrl,
+  apiBaseFromWeb,
   apiBaseProblem,
   branchName,
   buildProposals,
@@ -12,11 +13,13 @@ import {
   inlineCode,
   isProposalKey,
   type ManifestFact,
+  normalizeForgeWebBase,
   parseRepoLocation,
   proposalKey,
   pullRequestUrl,
   renderPullRequest,
   renovateConfig,
+  repositoryKey,
 } from "./fix-prs.ts";
 import { listDependencies } from "./manifests.ts";
 
@@ -547,5 +550,40 @@ describe("Renovate configuration", () => {
         [["pip_requirements"], ["requests"], ">=2.31.0"],
       ],
     );
+  });
+});
+
+describe("personal connection addresses (ADR 0030)", () => {
+  test("keeps a forge web address as https without credentials, query or trailing slash", () => {
+    expect(normalizeForgeWebBase("https://GitHub.com/")).toBe("https://github.com");
+    expect(normalizeForgeWebBase("https://git.example.lan/forge/")).toBe("https://git.example.lan/forge");
+    expect(normalizeForgeWebBase("https://git.example.lan:8443")).toBe("https://git.example.lan:8443");
+    for (const bad of [
+      "http://git.example.lan",
+      "https://user:pw@git.example.lan",
+      "https://git.example.lan/?a=1",
+      "https://localhost",
+      "https://169.254.169.254",
+      "https://127.0.0.1",
+      "not a url",
+    ]) {
+      expect(normalizeForgeWebBase(bad)).toBeNull();
+    }
+  });
+
+  test("derives the API address from the web address, sub-path included", () => {
+    expect(apiBaseFromWeb("github", "https://github.com")).toBe("https://api.github.com");
+    expect(apiBaseFromWeb("github", "https://ghe.example.com")).toBe("https://ghe.example.com/api/v3");
+    expect(apiBaseFromWeb("gitea", "https://git.example.lan/forge")).toBe(
+      "https://git.example.lan/forge/api/v1",
+    );
+    expect(apiBaseFromWeb("forgejo", "https://codeberg.org")).toBe("https://codeberg.org/api/v1");
+  });
+
+  test("gives one key per repository however its address is written", () => {
+    const key = repositoryKey("https://git.example.lan/team/app.git");
+    expect(repositoryKey("https://GIT.example.lan/team/app")).toBe(key);
+    expect(repositoryKey("git@git.example.lan:team/app.git")).toBe(key);
+    expect(repositoryKey("https://git.example.lan/team/other")).not.toBe(key);
   });
 });

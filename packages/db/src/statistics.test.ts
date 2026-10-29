@@ -93,6 +93,7 @@ describe.skipIf(!adminUrl)("organisation statistics", () => {
     await finding(id, "2026-10-25T23:30:00Z", { resolved: "2026-10-27T10:00:00Z" });
     const s = await organizationStatistics(t.db, {
       organizationId: id,
+      userId: "usr_viewer",
       timeZone: tz,
       days: 30,
       asOf: new Date("2026-10-28T12:00:00Z"),
@@ -111,6 +112,7 @@ describe.skipIf(!adminUrl)("organisation statistics", () => {
     const id = await org();
     const s = await organizationStatistics(t.db, {
       organizationId: id,
+      userId: "usr_viewer",
       timeZone: tz,
       days: 90,
       asOf: new Date("2026-10-28T12:00:00Z"), // a Wednesday
@@ -152,7 +154,13 @@ describe.skipIf(!adminUrl)("organisation statistics", () => {
       openedAt: new Date("2026-10-11T10:00:00Z"),
       closedAt: new Date("2026-10-12T10:00:00Z"),
     });
-    const s = await organizationStatistics(t.db, { organizationId: id, timeZone: tz, days: 30, asOf });
+    const s = await organizationStatistics(t.db, {
+      organizationId: id,
+      userId: "usr_viewer",
+      timeZone: tz,
+      days: 30,
+      asOf,
+    });
     expect(s.totals).toMatchObject({
       opened: 2,
       resolved: 2,
@@ -175,7 +183,12 @@ describe.skipIf(!adminUrl)("organisation statistics", () => {
 
   it("refuses an unknown time zone", async () => {
     await expect(
-      organizationStatistics(t.db, { organizationId: "x", timeZone: "Mars/Base", days: 30 }),
+      organizationStatistics(t.db, {
+        organizationId: "x",
+        userId: "usr_viewer",
+        timeZone: "Mars/Base",
+        days: 30,
+      }),
     ).rejects.toThrow(RangeError);
   });
 });

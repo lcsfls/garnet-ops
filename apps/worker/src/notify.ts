@@ -18,7 +18,7 @@ import {
 import { open, type SecretPurpose } from "@garnetops/core/vault";
 import { schema } from "@garnetops/db";
 import { type Language, resolveLanguage, resources } from "@garnetops/i18n";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import type { PgBoss } from "pg-boss";
 import { db } from "./db.ts";
@@ -400,7 +400,22 @@ export async function eventsForScan(
  * Queues one job per subscribed channel and notification, for the channels whose filters accept it
  * (repositories, minimum severity). `finding.new` carries only the counts from the channel's minimum on.
  */
-export async function queueNotifications(boss: PgBoss, organizationId: string, payloads: NotifyPayload[]) {
+export async function queueNotifications(boss: PgBoss, organizationId: string, all: NotifyPayload[]) {
+  // Channels reach the whole organisation: nothing about a private repository (ADR 0030) goes there.
+  const repositoryIds = [...new Set(all.flatMap((p) => (p.repository ? [p.repository.id] : [])))];
+  const hidden = repositoryIds.length
+    ? new Set(
+        (
+          await db
+            .select({ id: schema.repository.id })
+            .from(schema.repository)
+            .where(
+              and(inArray(schema.repository.id, repositoryIds), eq(schema.repository.visibility, "private")),
+            )
+        ).map((r) => r.id),
+      )
+    : new Set<string>();
+  const payloads = all.filter((p) => !(p.repository && hidden.has(p.repository.id)));
   if (payloads.length === 0) return;
   const channels = await db
     .select({

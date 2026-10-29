@@ -1,4 +1,4 @@
-import { schema } from "@garnetops/db";
+import { repositoryVisibleTo, schema, visibleRepository } from "@garnetops/db";
 import { and, asc, eq, ilike, min } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -14,7 +14,8 @@ const query = z.object({ q: z.string().trim().min(2).max(100) });
  * already see; nothing here is new information.
  */
 export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
-  const { organizationId } = c.get("actor");
+  const actor = c.get("actor");
+  const { organizationId } = actor;
   const { q } = query.parse(c.req.query());
   const pattern = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   const f = schema.finding;
@@ -23,22 +24,32 @@ export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
     db
       .select({ id: schema.repository.id, name: schema.repository.name })
       .from(schema.repository)
-      .where(
-        and(eq(schema.repository.organizationId, organizationId), ilike(schema.repository.name, pattern)),
-      )
+      .where(and(repositoryVisibleTo(actor), ilike(schema.repository.name, pattern)))
       .orderBy(asc(schema.repository.name))
       .limit(HITS),
     db
       .select({ id: f.vulnerabilityId })
       .from(f)
-      .where(and(eq(f.organizationId, organizationId), ilike(f.vulnerabilityId, pattern)))
+      .where(
+        and(
+          eq(f.organizationId, organizationId),
+          visibleRepository(f.repositoryId, actor),
+          ilike(f.vulnerabilityId, pattern),
+        ),
+      )
       .groupBy(f.vulnerabilityId)
       .orderBy(asc(f.vulnerabilityId))
       .limit(HITS),
     db
       .select({ name: p.name, type: min(p.type) })
       .from(p)
-      .where(and(eq(p.organizationId, organizationId), ilike(p.name, pattern)))
+      .where(
+        and(
+          eq(p.organizationId, organizationId),
+          visibleRepository(p.repositoryId, actor),
+          ilike(p.name, pattern),
+        ),
+      )
       .groupBy(p.name)
       .orderBy(asc(p.name))
       .limit(HITS),

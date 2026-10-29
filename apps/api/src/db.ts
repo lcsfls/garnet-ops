@@ -24,4 +24,6 @@ export const QUEUES = {
   fixPrCreate: "fix-pr.create",
   fixPrCheck: "fix-pr.check",
   fixPrRefresh: "fix-pr.refresh",
+  /** Personal forge connections (ADR 0030): check a token and list what its account can see. */
+  forgeConnectionRefresh: "forge-connection.refresh",
 } as const;

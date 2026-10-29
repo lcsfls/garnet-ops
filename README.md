@@ -30,8 +30,10 @@ matrix of what you receive in the app and by email ([docs/notifications.md](docs
 LDAP or Active Directory account, roles from directory groups and a second factor for everyone
 ([docs/ldap.md](docs/ldap.md)), a read-only system status page for admins that says whether the scanners, the vulnerability
 database, integrations, worker and queues are current and running ([docs/system-status.md](docs/system-status.md)),
-a statistics page with found and resolved findings, time to fix and gate results over 30, 90 or 365 days
-([docs/statistics.md](docs/statistics.md)),
+interactive statistics of found and resolved findings, time to fix and gate results over 30, 90 or 365 days, where a click
+on a day opens its findings ([docs/statistics.md](docs/statistics.md)),
+connected GitHub, Gitea and Forgejo accounts to pick repositories from a list, private to you until shared
+([docs/connected-accounts.md](docs/connected-accounts.md)),
 early warnings when a new advisory affects a package a repository already uses, before the next scan
 ([docs/early-warnings.md](docs/early-warnings.md)),
 audit log, a Docker Compose stack and optional signed in-app updates.

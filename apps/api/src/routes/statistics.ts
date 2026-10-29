@@ -1,4 +1,10 @@
-import { isTimeZone, organizationStatistics, STATISTICS_RANGES, schema } from "@garnetops/db";
+import {
+  isTimeZone,
+  organizationStatistics,
+  STATISTICS_RANGES,
+  schema,
+  visibleRepository,
+} from "@garnetops/db";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -38,16 +44,17 @@ const counted = and(eq(f.state, "open"), inArray(f.severity, ["critical", "high"
  * Every member may read it, like the overview; it only counts what the findings list shows.
  */
 export const statisticsRoutes = new Hono<AppEnv>().get("/", async (c) => {
-  const { organizationId } = c.get("actor");
+  const actor = c.get("actor");
+  const { organizationId } = actor;
   const { days, tz: timeZone } = query.parse(c.req.query());
 
   const [stats, repositories, packages, oldest] = await Promise.all([
-    organizationStatistics(db, { organizationId, timeZone, days }),
+    organizationStatistics(db, { organizationId, userId: actor.userId, timeZone, days }),
     db
       .select({ id: schema.repository.id, name: schema.repository.name, ...openBySeverity })
       .from(f)
       .innerJoin(schema.repository, eq(schema.repository.id, f.repositoryId))
-      .where(and(eq(f.organizationId, organizationId), counted))
+      .where(and(eq(f.organizationId, organizationId), visibleRepository(f.repositoryId, actor), counted))
       .groupBy(schema.repository.id, schema.repository.name)
       .orderBy(...worstFirst, asc(schema.repository.name))
       .limit(TOP),
@@ -59,7 +66,7 @@ export const statisticsRoutes = new Hono<AppEnv>().get("/", async (c) => {
         ...openBySeverity,
       })
       .from(f)
-      .where(and(eq(f.organizationId, organizationId), counted))
+      .where(and(eq(f.organizationId, organizationId), visibleRepository(f.repositoryId, actor), counted))
       .groupBy(f.packageName, f.packageType)
       .orderBy(...worstFirst, asc(f.packageName))
       .limit(TOP),
@@ -79,6 +86,7 @@ export const statisticsRoutes = new Hono<AppEnv>().get("/", async (c) => {
       .where(
         and(
           eq(f.organizationId, organizationId),
+          visibleRepository(f.repositoryId, actor),
           eq(f.state, "open"),
           inArray(f.severity, ["critical", "high"]),
         ),

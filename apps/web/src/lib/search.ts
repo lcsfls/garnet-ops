@@ -162,6 +162,7 @@ export const AUDIT_FILTERS = [
   "organization",
   "update",
   "fix_pr",
+  "forge_connection",
 ] as const;
 export const auditSearch = z.object({
   /** Action group; the API filters by the prefix "<group>.". */
@@ -191,7 +192,15 @@ export const gateSearch = z.object({
 });
 export type GateSearch = z.infer<typeof gateSearch>;
 
-export const SETTINGS_SECTIONS = ["scanning", "signin", "notifications", "ai", "updates", "about"] as const;
+export const SETTINGS_SECTIONS = [
+  "scanning",
+  "accounts",
+  "signin",
+  "notifications",
+  "ai",
+  "updates",
+  "about",
+] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 export const settingsSearch = z.object({
   section: z.enum(SETTINGS_SECTIONS).optional().catch(undefined),

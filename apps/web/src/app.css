@@ -341,12 +341,12 @@
           overlay 140ms allow-discrete,
           display 140ms allow-discrete;
       }
-      .ui-select::picker(select):not(:popover-open) {
+      .ui-select:not(:open)::picker(select) {
         opacity: 0;
         translate: 0 -4px;
       }
       @starting-style {
-        .ui-select::picker(select):popover-open {
+        .ui-select:open::picker(select) {
           opacity: 0;
           translate: 0 -4px;
         }

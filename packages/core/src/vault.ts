@@ -54,7 +54,9 @@ export type SecretPurpose =
    */
   | "ldap-bind-password"
   /** A directory password typed at sign-in, sealed for the worker for the length of one request and then deleted. */
-  | "ldap-user-password";
+  | "ldap-user-password"
+  /** One person's read token for a forge account (ADR 0030): sealed by the API, opened only by the worker. */
+  | "forge-connection-token";
 
 export interface SecretBinding {
   organizationId: string;

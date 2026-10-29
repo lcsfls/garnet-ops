@@ -1,6 +1,7 @@
 import { type SQL, sql } from "drizzle-orm";
 import type { Database } from "./index.ts";
 import { isTimeZone } from "./trend.ts";
+import { visibleRepository } from "./visibility.ts";
 
 /** The time ranges the statistics page offers, in calendar days. */
 export const STATISTICS_RANGES = [30, 90, 365] as const;
@@ -59,7 +60,8 @@ export interface Statistics {
  */
 export async function organizationStatistics(
   db: Database,
-  input: { organizationId: string; timeZone: string; days: number; asOf?: Date },
+  /** `userId`: the person asking; their own private repositories count, other people's do not (ADR 0030). */
+  input: { organizationId: string; userId: string; timeZone: string; days: number; asOf?: Date },
 ): Promise<Statistics> {
   if (!isTimeZone(input.timeZone)) throw new RangeError(`Unknown time zone: ${input.timeZone}`);
   const days = Math.min(Math.max(Math.trunc(input.days), 1), 366);
@@ -67,6 +69,7 @@ export async function organizationStatistics(
   const asOf = input.asOf ?? new Date();
   const tz = input.timeZone;
   const org = input.organizationId;
+  const seen = (column: SQL) => visibleRepository(column, { organizationId: org, userId: input.userId });
   const local = (column: SQL) => sql`(${column} at time zone ${tz})::date`;
 
   const bounds = sql`
@@ -94,7 +97,7 @@ export async function organizationStatistics(
       with ${bounds}
       select k.start::text, x.severity, count(x.id)::int as n
       from buckets k
-      join finding x on x.organization_id = ${org}
+      join finding x on x.organization_id = ${org} and ${seen(sql`x.repository_id`)}
         and x.severity in ${SEVERITIES}
         and ${local(sql`x.first_seen_at`)} <= k.finish
         and (x.resolved_at is null or ${local(sql`x.resolved_at`)} > k.finish)
@@ -103,7 +106,7 @@ export async function organizationStatistics(
       with ${bounds}
       select k.start::text, x.severity, count(x.id)::int as n
       from buckets k
-      join finding x on x.organization_id = ${org}
+      join finding x on x.organization_id = ${org} and ${seen(sql`x.repository_id`)}
         and x.severity in ${SEVERITIES}
         and ${local(sql`x.first_seen_at`)} between k.start and k.finish
       group by k.start, x.severity`),
@@ -111,7 +114,7 @@ export async function organizationStatistics(
       with ${bounds}
       select k.start::text, x.severity, count(x.id)::int as n
       from buckets k
-      join finding x on x.organization_id = ${org}
+      join finding x on x.organization_id = ${org} and ${seen(sql`x.repository_id`)}
         and x.severity in ${SEVERITIES}
         and x.resolved_at is not null
         and ${local(sql`x.resolved_at`)} between k.start and k.finish
@@ -120,7 +123,7 @@ export async function organizationStatistics(
       with ${bounds}
       select k.start::text, g.result, count(g.id)::int as n
       from buckets k
-      join gate_run g on g.organization_id = ${org}
+      join gate_run g on g.organization_id = ${org} and ${seen(sql`g.repository_id`)}
         and ${local(sql`g.created_at`)} between k.start and k.finish
       group by k.start, g.result`),
     db.execute<{
@@ -134,27 +137,27 @@ export async function organizationStatistics(
       with ${bounds}
       select
         (select count(*) from finding x, bounds b
-          where x.organization_id = ${org} and x.severity in ${SEVERITIES}
+          where x.organization_id = ${org} and ${seen(sql`x.repository_id`)} and x.severity in ${SEVERITIES}
             and ${local(sql`x.first_seen_at`)} between b.first_day - ${days}::int and b.first_day - 1)::int
           as previous_opened,
         (select count(*) from finding x, bounds b
-          where x.organization_id = ${org} and x.severity in ${SEVERITIES} and x.resolved_at is not null
+          where x.organization_id = ${org} and ${seen(sql`x.repository_id`)} and x.severity in ${SEVERITIES} and x.resolved_at is not null
             and ${local(sql`x.resolved_at`)} between b.first_day - ${days}::int and b.first_day - 1)::int
           as previous_resolved,
         (select count(*) from scan s, bounds b
-          where s.organization_id = ${org} and s.state = 'succeeded'
+          where s.organization_id = ${org} and ${seen(sql`s.repository_id`)} and s.state = 'succeeded'
             and ${local(sql`coalesce(s.finished_at, s.created_at)`)} between b.first_day and b.today)::int
           as scans_succeeded,
         (select count(*) from scan s, bounds b
-          where s.organization_id = ${org} and s.state = 'failed'
+          where s.organization_id = ${org} and ${seen(sql`s.repository_id`)} and s.state = 'failed'
             and ${local(sql`coalesce(s.finished_at, s.created_at)`)} between b.first_day and b.today)::int
           as scans_failed,
         (select count(*) from fix_pr p, bounds b
-          where p.organization_id = ${org} and p.opened_at is not null
+          where p.organization_id = ${org} and ${seen(sql`p.repository_id`)} and p.opened_at is not null
             and ${local(sql`p.opened_at`)} between b.first_day and b.today)::int
           as prs_opened,
         (select count(*) from fix_pr p, bounds b
-          where p.organization_id = ${org} and p.state = 'merged' and p.closed_at is not null
+          where p.organization_id = ${org} and ${seen(sql`p.repository_id`)} and p.state = 'merged' and p.closed_at is not null
             and ${local(sql`p.closed_at`)} between b.first_day and b.today)::int
           as prs_merged`),
     db.execute<{ severity: string; resolved: number; median_days: number | null }>(sql`
@@ -163,7 +166,7 @@ export async function organizationStatistics(
         (percentile_cont(0.5) within group (
           order by extract(epoch from x.resolved_at - x.first_seen_at)) / 86400)::float8 as median_days
       from finding x, bounds b
-      where x.organization_id = ${org} and x.severity in ${SEVERITIES} and x.resolved_at is not null
+      where x.organization_id = ${org} and ${seen(sql`x.repository_id`)} and x.severity in ${SEVERITIES} and x.resolved_at is not null
         and ${local(sql`x.resolved_at`)} between b.first_day and b.today
       group by x.severity`),
   ]);

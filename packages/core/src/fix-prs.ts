@@ -635,3 +635,47 @@ export function renovateConfig(
       })),
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Personal connections (ADR 0030)                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A forge's web address as a connection stores it: https, no credentials, query or fragment, an optional
+ * sub-path, no trailing slash ("https://github.com", "https://git.example.lan/forge"). Null when it cannot be used.
+ */
+export function normalizeForgeWebBase(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return null;
+  const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost")) return null;
+  if (isIP(host) && classifyAddress(host) === "forbidden") return null;
+  const path = url.pathname.replace(/\/+$/, "");
+  if (path && !/^(?:\/[A-Za-z0-9._~-]+)+$/.test(path)) return null;
+  return `https://${url.host.toLowerCase()}${path}`;
+}
+
+/** The API address of a forge from its web address (sub-path included): what {@link defaultApiBase} is for hosts. */
+export function apiBaseFromWeb(kind: ForgeKind, webBase: string): string {
+  const url = new URL(webBase);
+  if (kind === "github" && url.host === "github.com" && url.pathname === "/") return "https://api.github.com";
+  const path = url.pathname.replace(/\/+$/, "");
+  return `https://${url.host}${path}${kind === "github" ? "/api/v3" : "/api/v1"}`;
+}
+
+/** One key per repository however its address is written (case of the host, ".git", https or SSH). */
+export function repositoryKey(url: string): string {
+  const location = parseRepoLocation(url);
+  if (!location)
+    return url
+      .trim()
+      .toLowerCase()
+      .replace(/\.git$/, "")
+      .replace(/\/+$/, "");
+  return `${location.host}/${location.owner}/${location.repo}`.toLowerCase();
+}

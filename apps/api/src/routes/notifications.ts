@@ -86,7 +86,8 @@ const patchBody = z.object({
 });
 
 /**
- * Keeps only what a filter means: repositories of this organisation (each once, an unknown id is refused)
+ * Keeps only what a filter means: shared repositories of this organisation (each once, an unknown or private id is
+ * refused)
  * and a minimum severity. No repositories means every repository.
  */
 async function checkedFilters(organizationId: string, filters: ChannelFilters): Promise<ChannelFilters> {
@@ -95,11 +96,26 @@ async function checkedFilters(organizationId: string, filters: ChannelFilters): 
     const known = await db
       .select({ id: schema.repository.id })
       .from(schema.repository)
-      .where(and(eq(schema.repository.organizationId, organizationId), inArray(schema.repository.id, ids)));
+      .where(
+        and(
+          eq(schema.repository.organizationId, organizationId),
+          // A channel reaches the whole organisation: private repositories (ADR 0030) are never chosen for one.
+          eq(schema.repository.visibility, "organization"),
+          inArray(schema.repository.id, ids),
+        ),
+      );
     if (known.length !== ids.length) {
-      throw new ProblemError(422, "validation", "Choose repositories of this organisation", undefined, {
-        errors: [{ path: "filters.repositoryIds", message: "Choose repositories of this organisation" }],
-      });
+      throw new ProblemError(
+        422,
+        "validation",
+        "Choose repositories shared with this organisation",
+        undefined,
+        {
+          errors: [
+            { path: "filters.repositoryIds", message: "Choose repositories shared with this organisation" },
+          ],
+        },
+      );
     }
   }
   return {

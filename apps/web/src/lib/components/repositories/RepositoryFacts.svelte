@@ -14,6 +14,7 @@
     none: "repositories.sourcePublic",
     "https-token": "repositories.sourceToken",
     "ssh-deploy-key": "repositories.sourceDeployKey",
+    connection: "repositories.sourceConnection",
   } as const;
 
   /** Where a repository comes from, its last scan and what has been resolved and accepted. */

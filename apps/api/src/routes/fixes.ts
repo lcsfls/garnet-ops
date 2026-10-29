@@ -25,7 +25,7 @@ import {
 import { isSafePackageName, type ManifestKind } from "@garnetops/core/manifests";
 import { decodeCursor, encodeCursor, pageSizeSchema } from "@garnetops/core/pagination";
 import { seal } from "@garnetops/core/vault";
-import { schema } from "@garnetops/db";
+import { repositoryVisibleTo, schema, type Viewer, visibleRepository } from "@garnetops/db";
 import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -46,16 +46,14 @@ type PrRow = typeof schema.fixPr.$inferSelect;
 type AccessRow = typeof schema.repositoryWriteAccess.$inferSelect;
 
 /** Every proposal of the organisation (or one repository) from the open findings and the last manifests. */
-async function loadProposals(organizationId: string, repositoryId?: string) {
+async function loadProposals(viewer: Viewer, repositoryId?: string) {
+  const { organizationId } = viewer;
   const f = schema.finding;
   const repositories = await db
     .select({ id: schema.repository.id, name: schema.repository.name, url: schema.repository.url })
     .from(schema.repository)
     .where(
-      and(
-        eq(schema.repository.organizationId, organizationId),
-        repositoryId ? eq(schema.repository.id, repositoryId) : undefined,
-      ),
+      and(repositoryVisibleTo(viewer), repositoryId ? eq(schema.repository.id, repositoryId) : undefined),
     );
   if (repositories.length === 0)
     return { proposals: [], repositories: new Map<string, (typeof repositories)[number]>() };
@@ -126,13 +124,14 @@ async function loadProposals(organizationId: string, repositoryId?: string) {
 const ACTIVE = new Set<string>(ACTIVE_FIX_PR_STATES);
 
 /** Per proposal key: the live pull request if there is one, else the newest one. */
-async function pullRequestsByKey(organizationId: string, repositoryId?: string) {
+async function pullRequestsByKey(viewer: Viewer, repositoryId?: string) {
   const rows = await db
     .select()
     .from(schema.fixPr)
     .where(
       and(
-        eq(schema.fixPr.organizationId, organizationId),
+        eq(schema.fixPr.organizationId, viewer.organizationId),
+        visibleRepository(schema.fixPr.repositoryId, viewer),
         repositoryId ? eq(schema.fixPr.repositoryId, repositoryId) : undefined,
       ),
     )
@@ -372,8 +371,8 @@ export const fixRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const input = listQuery.parse(c.req.query());
     const [{ proposals, repositories }, prs, access] = await Promise.all([
-      loadProposals(actor.organizationId, input.repositoryId),
-      pullRequestsByKey(actor.organizationId, input.repositoryId),
+      loadProposals(actor, input.repositoryId),
+      pullRequestsByKey(actor, input.repositoryId),
       db
         .select()
         .from(schema.repositoryWriteAccess)
@@ -445,6 +444,7 @@ export const fixRoutes = new Hono<AppEnv>()
     const input = prListQuery.parse(c.req.query());
     const where = and(
       eq(schema.fixPr.organizationId, actor.organizationId),
+      visibleRepository(schema.fixPr.repositoryId, actor),
       input.repositoryId ? eq(schema.fixPr.repositoryId, input.repositoryId) : undefined,
       input.state === "all" ? undefined : eq(schema.fixPr.state, input.state),
     );
@@ -491,12 +491,7 @@ export const fixRoutes = new Hono<AppEnv>()
     const [repo] = await db
       .select({ id: schema.repository.id, branch: schema.repository.branch })
       .from(schema.repository)
-      .where(
-        and(
-          eq(schema.repository.id, input.repositoryId),
-          eq(schema.repository.organizationId, actor.organizationId),
-        ),
-      )
+      .where(and(eq(schema.repository.id, input.repositoryId), repositoryVisibleTo(actor)))
       .limit(1);
     if (!repo) throw notFound("Repository");
     const [access] = await db
@@ -516,7 +511,7 @@ export const fixRoutes = new Hono<AppEnv>()
         reason: access.statusReason,
       });
     }
-    const { proposals } = await loadProposals(actor.organizationId, repo.id);
+    const { proposals } = await loadProposals(actor, repo.id);
     const proposal = proposals.find((p) => p.key === input.key);
     if (!proposal) throw notFound("Proposal");
     if (
@@ -597,12 +592,7 @@ export const fixRoutes = new Hono<AppEnv>()
       const [repo] = await db
         .select({ id: schema.repository.id })
         .from(schema.repository)
-        .where(
-          and(
-            eq(schema.repository.id, body.repositoryId),
-            eq(schema.repository.organizationId, actor.organizationId),
-          ),
-        )
+        .where(and(eq(schema.repository.id, body.repositoryId), repositoryVisibleTo(actor)))
         .limit(1);
       if (!repo) throw notFound("Repository");
     }
@@ -625,11 +615,11 @@ export const fixRoutes = new Hono<AppEnv>()
 /* Write access (mounted under /repositories/:id/write-access)                 */
 /* -------------------------------------------------------------------------- */
 
-async function ownRepository(organizationId: string, id: string) {
+async function ownRepository(viewer: Viewer, id: string) {
   const [row] = await db
     .select({ id: schema.repository.id, url: schema.repository.url, name: schema.repository.name })
     .from(schema.repository)
-    .where(and(eq(schema.repository.id, id), eq(schema.repository.organizationId, organizationId)))
+    .where(and(eq(schema.repository.id, id), repositoryVisibleTo(viewer)))
     .limit(1);
   if (!row) throw notFound("Repository");
   return row;
@@ -683,14 +673,14 @@ const enableBody = z.object({
 export const writeAccessRoutes = new Hono<AppEnv>()
   .get("/", async (c) => {
     const actor = c.get("actor");
-    const repo = await ownRepository(actor.organizationId, c.req.param("id") as string);
+    const repo = await ownRepository(actor, c.req.param("id") as string);
     return c.json(await writeAccessSummary(repo.id, repo.url));
   })
   /** Switches fix pull requests on, or replaces the token. Owners and admins, with a recent sign-in. */
   .put("/", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "admin");
-    const repo = await ownRepository(actor.organizationId, c.req.param("id") as string);
+    const repo = await ownRepository(actor, c.req.param("id") as string);
     const input = enableBody.parse(await c.req.json());
     const location = parseRepoLocation(repo.url);
     if (!location) {
@@ -767,7 +757,7 @@ export const writeAccessRoutes = new Hono<AppEnv>()
   .post("/check", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "admin");
-    const repo = await ownRepository(actor.organizationId, c.req.param("id") as string);
+    const repo = await ownRepository(actor, c.req.param("id") as string);
     await rateLimit(`fixpr:check:${actor.userId}`, 10);
     const [access] = await db
       .select({ repositoryId: schema.repositoryWriteAccess.repositoryId })
@@ -787,7 +777,7 @@ export const writeAccessRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     requireRole(actor, "admin");
     requireRecentSignIn(actor);
-    const repo = await ownRepository(actor.organizationId, c.req.param("id") as string);
+    const repo = await ownRepository(actor, c.req.param("id") as string);
     const [row] = await db
       .select({
         secretId: schema.repositoryWriteAccess.secretId,
@@ -815,8 +805,8 @@ export const writeAccessRoutes = new Hono<AppEnv>()
 /** A renovate.json for customers who run their own Renovate. GarnetOps never runs or bundles it. */
 export const renovateRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const actor = c.get("actor");
-  const repo = await ownRepository(actor.organizationId, c.req.param("id") as string);
-  const { proposals } = await loadProposals(actor.organizationId, repo.id);
+  const repo = await ownRepository(actor, c.req.param("id") as string);
+  const { proposals } = await loadProposals(actor, repo.id);
   const config = renovateConfig(proposals);
   return c.json({
     packages: (config.packageRules as unknown[]).length,

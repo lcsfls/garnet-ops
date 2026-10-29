@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { newId, ROLES, type Role } from "@garnetops/core";
 import { canAssignRole, canManageMember } from "@garnetops/core/team";
 import { schema } from "@garnetops/db";
-import { and, count, desc, eq, gt, isNull, max } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNull, max } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
@@ -145,15 +145,16 @@ export const teamRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const userId = c.req.param("userId");
     const target = await guardChange(actor, userId, null);
-    await db.transaction(async (tx) => {
+    const removed = await db.transaction(async (tx) => {
       await tx.delete(m).where(and(eq(m.organizationId, actor.organizationId), eq(m.userId, userId)));
       await tx.delete(schema.session).where(eq(schema.session.userId, userId));
+      return removePersonalData(tx, actor.organizationId, userId);
     });
     await audit(
       actor,
       "team.member_removed",
       { type: "user", id: userId },
-      { email: target.email, role: target.role },
+      { email: target.email, role: target.role, ...removed },
     );
     return c.body(null, 204);
   })
@@ -252,3 +253,57 @@ export const teamRoutes = new Hono<AppEnv>()
     await audit(actor, "team.invitation_revoked", { type: "invitation", id: c.req.param("id") }, row);
     return c.body(null, 204);
   });
+
+/**
+ * What belonged to a person alone goes with their membership (ADR 0030): their forge connections with the sealed
+ * tokens, and their private repositories with everything found in them. Repositories they shared stay; a shared one
+ * that used their connection fails its next scan with "connection removed" until an admin replaces the credential.
+ */
+async function removePersonalData(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  organizationId: string,
+  userId: string,
+) {
+  const repos = await tx
+    .select({ id: schema.repository.id, secretId: schema.repository.secretId })
+    .from(schema.repository)
+    .where(
+      and(
+        eq(schema.repository.organizationId, organizationId),
+        eq(schema.repository.ownerUserId, userId),
+        eq(schema.repository.visibility, "private"),
+      ),
+    );
+  const repoIds = repos.map((r) => r.id);
+  const writeTokens = repoIds.length
+    ? await tx
+        .select({ secretId: schema.repositoryWriteAccess.secretId })
+        .from(schema.repositoryWriteAccess)
+        .where(inArray(schema.repositoryWriteAccess.repositoryId, repoIds))
+    : [];
+  const connections = await tx
+    .select({ id: schema.forgeConnection.id, secretId: schema.forgeConnection.secretId })
+    .from(schema.forgeConnection)
+    .where(
+      and(
+        eq(schema.forgeConnection.organizationId, organizationId),
+        eq(schema.forgeConnection.userId, userId),
+      ),
+    );
+  if (repoIds.length) await tx.delete(schema.repository).where(inArray(schema.repository.id, repoIds));
+  if (connections.length) {
+    await tx.delete(schema.forgeConnection).where(
+      inArray(
+        schema.forgeConnection.id,
+        connections.map((c) => c.id),
+      ),
+    );
+  }
+  const secrets = [
+    ...repos.map((r) => r.secretId),
+    ...writeTokens.map((w) => w.secretId),
+    ...connections.map((c) => c.secretId),
+  ].filter((id): id is string => Boolean(id));
+  if (secrets.length) await tx.delete(schema.secret).where(inArray(schema.secret.id, secrets));
+  return { connectionsRemoved: connections.length, privateRepositoriesRemoved: repoIds.length };
+}

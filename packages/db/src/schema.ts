@@ -4,6 +4,7 @@
  */
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   boolean,
@@ -358,6 +359,7 @@ export const secret = pgTable(
         "forge-write-token",
         "ldap-bind-password",
         "ldap-user-password",
+        "forge-connection-token",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -383,8 +385,21 @@ export const repository = pgTable(
     name: text("name").notNull(),
     url: text("url").notNull(),
     branch: text("branch"),
-    authKind: text("auth_kind", { enum: ["none", "https-token", "ssh-deploy-key"] }).notNull(),
+    authKind: text("auth_kind", { enum: ["none", "https-token", "ssh-deploy-key", "connection"] }).notNull(),
     secretId: text("secret_id").references(() => secret.id, { onDelete: "set null" }),
+    /** With `auth_kind` `connection`: the personal forge connection whose token clones it (ADR 0030). */
+    forgeConnectionId: text("forge_connection_id").references((): AnyPgColumn => forgeConnection.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * Who sees it (ADR 0030): everyone in the organisation, or only its owner. Repositories added through a personal
+     * connection start private; an admin shares them.
+     */
+    visibility: text("visibility", { enum: ["organization", "private"] })
+      .notNull()
+      .default("organization"),
+    /** A member asked to share this private repository with the organisation; owners and admins decide. */
+    shareRequestedAt: timestamp("share_requested_at", { withTimezone: true }),
     /** Public half of a generated deploy key, shown so the user can add it to the forge. */
     deployPublicKey: text("deploy_public_key"),
     /**
@@ -2685,4 +2700,70 @@ export const earlyWarning = pgTable(
     ),
     index("early_warning_org_state_idx").on(t.organizationId, t.state),
   ],
+);
+
+/* -------------------------------------------------------------------------- */
+/* Personal forge connections (ADR 0030)                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One person's account on a forge: a read token sealed in the vault (opened only by the worker), used to list the
+ * repositories the account can see and to clone the ones added from that list. Visible only to its owner.
+ */
+export const forgeConnection = pgTable(
+  "forge_connection",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    forgeKind: text("forge_kind", { enum: ["github", "gitea", "forgejo"] }).notNull(),
+    /** The forge's web address, e.g. https://github.com; clone addresses must be on its host. */
+    webBaseUrl: text("web_base_url").notNull(),
+    /** Where the token is sent, derived from the web address or typed (ADR 0014). */
+    apiBaseUrl: text("api_base_url").notNull(),
+    secretId: text("secret_id").references(() => secret.id, { onDelete: "set null" }),
+    /** The account the forge reports for the token, after the first check. */
+    accountLogin: text("account_login"),
+    state: text("state", { enum: ["unchecked", "ok", "failed"] })
+      .notNull()
+      .default("unchecked"),
+    /** A short code when the last check or refresh failed; never a forge's error text. */
+    problem: text("problem"),
+    /** The token can write or reach more than it needs (a warning, not a refusal). */
+    broadToken: boolean("broad_token").notNull().default(false),
+    /** The forge listed more repositories than GarnetOps keeps; the list is cut. */
+    truncated: boolean("truncated").notNull().default(false),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("forge_connection_user_idx").on(t.organizationId, t.userId),
+    uniqueIndex("forge_connection_user_forge_uq").on(t.organizationId, t.userId, t.webBaseUrl),
+  ],
+);
+
+/** The repositories a connection's account can see, as the worker last listed them. */
+export const forgeConnectionRepository = pgTable(
+  "forge_connection_repository",
+  {
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => forgeConnection.id, { onDelete: "cascade" }),
+    /** The forge's own id of the repository. */
+    forgeId: text("forge_id").notNull(),
+    /** owner/name as the forge spells it. */
+    fullName: text("full_name").notNull(),
+    cloneUrl: text("clone_url").notNull(),
+    defaultBranch: text("default_branch"),
+    private: boolean("private").notNull(),
+    archived: boolean("archived").notNull().default(false),
+    description: text("description"),
+    listedAt: timestamp("listed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.connectionId, t.forgeId] })],
 );

@@ -85,7 +85,13 @@ export interface RepositoryRow extends GradeFields {
   name: string;
   url: string;
   branch: string | null;
-  authKind: "none" | "https-token" | "ssh-deploy-key";
+  authKind: "none" | "https-token" | "ssh-deploy-key" | "connection";
+  /** Who sees it (ADR 0030): the organisation, or only the person who added it from their connected account. */
+  visibility: "organization" | "private";
+  /** The caller added it (and owns its credential). */
+  mine: boolean;
+  /** Private, and its owner asked owners and admins to share it. */
+  shareRequested: boolean;
   /** OpenSSH public key of the generated deploy key, for SSH repositories. */
   deployPublicKey: string | null;
   /** Host keys pinned on the first SSH contact, with the fingerprints ssh shows. */
@@ -436,4 +442,40 @@ export interface Statistics {
     firstSeenAt: string;
   }[];
   generatedAt: string;
+}
+
+/* Personal forge connections (ADR 0030) */
+
+export interface ForgeConnection {
+  id: string;
+  forgeKind: ForgeKind;
+  webBaseUrl: string;
+  apiBaseUrl: string;
+  accountLogin: string | null;
+  state: "unchecked" | "ok" | "failed";
+  /** A short code such as "token-rejected" when the last check failed. */
+  problem: string | null;
+  broadToken: boolean;
+  truncated: boolean;
+  lastCheckedAt: string | null;
+  createdAt: string;
+  repositories: number;
+}
+
+export interface ConnectionRepository {
+  forgeId: string;
+  fullName: string;
+  description: string | null;
+  private: boolean;
+  archived: boolean;
+  defaultBranch: string | null;
+  /** Already monitored: visible to the caller (with its id), or privately by someone else. */
+  added: { repositoryId: string } | { elsewhere: true } | null;
+}
+
+export interface ShareRequest {
+  id: string;
+  name: string;
+  requestedAt: string;
+  requestedBy: string | null;
 }

@@ -1,6 +1,6 @@
 import { FINDING_STATES, SEVERITIES } from "@garnetops/core";
 import { pageSizeSchema } from "@garnetops/core/pagination";
-import { isTimeZone, schema } from "@garnetops/db";
+import { isTimeZone, repositoryVisibleTo, schema, type Viewer, visibleRepository } from "@garnetops/db";
 import { LANGUAGES, resources } from "@garnetops/i18n";
 import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -145,10 +145,11 @@ const spec: KeysetSpec<Row> = {
   parse: [parseInt10, parseDate, parseText],
 };
 
-export function findingWhere(organizationId: string, input: z.infer<typeof findingFilters>) {
+export function findingWhere(viewer: Viewer, input: z.infer<typeof findingFilters>) {
   const like = input.q ? `%${input.q.replace(/[%_\\]/g, "\\$&")}%` : null;
   return and(
-    eq(f.organizationId, organizationId),
+    eq(f.organizationId, viewer.organizationId),
+    visibleRepository(f.repositoryId, viewer),
     input.state === "all" ? undefined : eq(f.state, input.state),
     input.severity.length ? inArray(f.severity, input.severity) : undefined,
     input.repositoryId ? eq(f.repositoryId, input.repositoryId) : undefined,
@@ -180,7 +181,7 @@ export const findingRoutes = new Hono<AppEnv>()
   .get("/", async (c) => {
     const actor = c.get("actor");
     const input = listQuery.parse(c.req.query());
-    const where = findingWhere(actor.organizationId, input);
+    const where = findingWhere(actor, input);
     const sorted = input.sort ? sortSpec(SORTS[input.sort], input.dir, f.id) : null;
     const activeSpec = (sorted?.spec ?? spec) as KeysetSpec<Row & { sortKeys?: (string | number | Date)[] }>;
     const q = keysetQuery(activeSpec, input.cursor, input.pageSize);
@@ -230,17 +231,12 @@ export const findingRoutes = new Hono<AppEnv>()
   .get("/export", async (c) => {
     const actor = c.get("actor");
     const input = exportQuery.parse(c.req.query());
-    const where = findingWhere(actor.organizationId, input);
+    const where = findingWhere(actor, input);
     const [repository] = input.repositoryId
       ? await db
           .select({ name: schema.repository.name })
           .from(schema.repository)
-          .where(
-            and(
-              eq(schema.repository.id, input.repositoryId),
-              eq(schema.repository.organizationId, actor.organizationId),
-            ),
-          )
+          .where(and(eq(schema.repository.id, input.repositoryId), repositoryVisibleTo(actor)))
       : [];
     if (input.repositoryId && !repository) throw notFound("Repository");
     const [rows, totalRow] = await Promise.all([
@@ -323,7 +319,7 @@ export const findingRoutes = new Hono<AppEnv>()
       .select({ state: f.state, severity: f.severity, n: count() })
       .from(f)
       .innerJoin(v, eq(v.id, f.vulnerabilityId))
-      .where(findingWhere(actor.organizationId, { ...input, state: "all" }))
+      .where(findingWhere(actor, { ...input, state: "all" }))
       .groupBy(f.state, f.severity);
     const states: Record<(typeof FINDING_STATES)[number], number> = { open: 0, accepted: 0, resolved: 0 };
     const open: Record<string, number> = {};
@@ -344,7 +340,13 @@ export const findingRoutes = new Hono<AppEnv>()
       .from(f)
       .innerJoin(v, eq(v.id, f.vulnerabilityId))
       .innerJoin(schema.repository, eq(schema.repository.id, f.repositoryId))
-      .where(and(eq(f.id, c.req.param("id")), eq(f.organizationId, actor.organizationId)))
+      .where(
+        and(
+          eq(f.id, c.req.param("id")),
+          eq(f.organizationId, actor.organizationId),
+          visibleRepository(f.repositoryId, actor),
+        ),
+      )
       .limit(1);
     if (!row) throw notFound("Finding");
     const { dedupKey: _internal, ...finding } = row.finding;
@@ -357,7 +359,13 @@ export const findingRoutes = new Hono<AppEnv>()
     const [finding] = await db
       .select({ id: f.id })
       .from(f)
-      .where(and(eq(f.id, id), eq(f.organizationId, actor.organizationId)))
+      .where(
+        and(
+          eq(f.id, id),
+          eq(f.organizationId, actor.organizationId),
+          visibleRepository(f.repositoryId, actor),
+        ),
+      )
       .limit(1);
     if (!finding) throw notFound("Finding");
     const n = schema.findingNote;
@@ -391,7 +399,14 @@ export const findingRoutes = new Hono<AppEnv>()
         acceptedBy: actor.userId,
         updatedAt: new Date(),
       })
-      .where(and(eq(f.id, id), eq(f.organizationId, actor.organizationId), eq(f.state, "open")))
+      .where(
+        and(
+          eq(f.id, id),
+          eq(f.organizationId, actor.organizationId),
+          visibleRepository(f.repositoryId, actor),
+          eq(f.state, "open"),
+        ),
+      )
       .returning({ id: f.id });
     if (!row) throw new ProblemError(409, "not-open", "Only open findings can be accepted");
     await audit(actor, "finding.accepted", { type: "finding", id }, { until: input.until.toISOString() });
@@ -410,7 +425,14 @@ export const findingRoutes = new Hono<AppEnv>()
         acceptedBy: null,
         updatedAt: new Date(),
       })
-      .where(and(eq(f.id, id), eq(f.organizationId, actor.organizationId), eq(f.state, "accepted")))
+      .where(
+        and(
+          eq(f.id, id),
+          eq(f.organizationId, actor.organizationId),
+          visibleRepository(f.repositoryId, actor),
+          eq(f.state, "accepted"),
+        ),
+      )
       .returning({ id: f.id });
     if (!row) throw new ProblemError(409, "not-accepted", "Only accepted findings can be reopened");
     await audit(actor, "finding.reopened", { type: "finding", id });

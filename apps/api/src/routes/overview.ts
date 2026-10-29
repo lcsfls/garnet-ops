@@ -1,4 +1,4 @@
-import { isTimeZone, openFindingsTrend, schema } from "@garnetops/db";
+import { isTimeZone, openFindingsTrend, schema, type Viewer, visibleRepository } from "@garnetops/db";
 import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -48,7 +48,8 @@ function repositoryNameOf(url: unknown): string | null {
   );
 }
 
-async function activity(organizationId: string): Promise<ActivityItem[]> {
+async function activity(viewer: Viewer): Promise<ActivityItem[]> {
+  const { organizationId } = viewer;
   const a = schema.auditLog;
   const [entries, runs] = await Promise.all([
     db
@@ -65,6 +66,8 @@ async function activity(organizationId: string): Promise<ActivityItem[]> {
         and(
           inArray(a.action, ACTIVITY_ACTIONS),
           or(eq(a.organizationId, organizationId), and(isNull(a.organizationId), eq(a.source, "updater"))),
+          // Someone else's private repository (ADR 0030) is not news for everybody.
+          sql`not (coalesce(${a.data}->>'visibility', '') = 'private' and ${a.actorUserId} is distinct from ${viewer.userId})`,
         ),
       )
       .orderBy(desc(a.createdAt), desc(a.id))
@@ -83,21 +86,30 @@ async function activity(organizationId: string): Promise<ActivityItem[]> {
     ? await db
         .select({ id: f.id, vulnerabilityId: f.vulnerabilityId })
         .from(f)
-        .where(and(eq(f.organizationId, organizationId), inArray(f.id, findingIds)))
+        .where(
+          and(
+            eq(f.organizationId, organizationId),
+            visibleRepository(f.repositoryId, viewer),
+            inArray(f.id, findingIds),
+          ),
+        )
     : [];
   const vulnOf = new Map(vulns.map((v) => [v.id, v.vulnerabilityId]));
   const items: ActivityItem[] = [
-    ...entries.map((e) => {
-      const data = (e.data ?? {}) as Record<string, unknown>;
-      const subject = e.action.startsWith("repository.")
-        ? repositoryNameOf(data.url)
-        : e.action.startsWith("finding.")
-          ? (vulnOf.get(e.targetId ?? "") ?? null)
-          : typeof data.version === "string"
-            ? data.version
-            : null;
-      return { kind: e.action, at: e.at, actorName: e.actorName ?? null, subject, count: null };
-    }),
+    // A finding of a repository the viewer does not see is left out.
+    ...entries
+      .filter((e) => !e.action.startsWith("finding.") || vulnOf.has(e.targetId ?? ""))
+      .map((e) => {
+        const data = (e.data ?? {}) as Record<string, unknown>;
+        const subject = e.action.startsWith("repository.")
+          ? repositoryNameOf(data.url)
+          : e.action.startsWith("finding.")
+            ? (vulnOf.get(e.targetId ?? "") ?? null)
+            : typeof data.version === "string"
+              ? data.version
+              : null;
+        return { kind: e.action, at: e.at, actorName: e.actorName ?? null, subject, count: null };
+      }),
     ...runs.map((r) => ({
       kind: "schedule.run",
       at: r.at,
@@ -114,7 +126,9 @@ const query = z.object({
 });
 
 export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
-  const { organizationId } = c.get("actor");
+  const actor = c.get("actor");
+  const { organizationId } = actor;
+  const seen = visibleRepository(f.repositoryId, actor);
   // Calendar days of the trend are the viewer's days; the browser sends its IANA zone.
   const { tz: timeZone } = query.parse(c.req.query());
 
@@ -134,12 +148,12 @@ export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
     db
       .select({ severity: f.severity, n: count() })
       .from(f)
-      .where(and(eq(f.organizationId, organizationId), eq(f.state, "open")))
+      .where(and(eq(f.organizationId, organizationId), seen, eq(f.state, "open")))
       .groupBy(f.severity),
     db
       .select({ state: f.state, n: count() })
       .from(f)
-      .where(eq(f.organizationId, organizationId))
+      .where(and(eq(f.organizationId, organizationId), seen))
       .groupBy(f.state),
     db
       .select({ n: count() })
@@ -148,6 +162,7 @@ export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
       .where(
         and(
           eq(f.organizationId, organizationId),
+          seen,
           eq(f.state, "open"),
           eq(schema.vulnerability.knownExploited, true),
         ),
@@ -158,6 +173,7 @@ export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
       .where(
         and(
           eq(f.organizationId, organizationId),
+          seen,
           eq(f.state, "open"),
           sql`jsonb_array_length(coalesce(${f.fixedIn}, '[]'::jsonb)) > 0`,
         ),
@@ -173,7 +189,8 @@ export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
           and not exists (
           select 1 from finding x where x.repository_id = r.id and x.state = 'open' and x.severity = 'critical'))::int as attention,
         count(*) filter (where r.last_scan_at is null)::int as never_scanned
-      from repository r where r.organization_id = ${organizationId}`),
+      from repository r where r.organization_id = ${organizationId}
+        and (r.visibility = 'organization' or r.owner_user_id = ${actor.userId})`),
     db
       .select({
         id: f.id,
@@ -190,7 +207,7 @@ export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
       .from(f)
       .innerJoin(schema.vulnerability, eq(schema.vulnerability.id, f.vulnerabilityId))
       .innerJoin(schema.repository, eq(schema.repository.id, f.repositoryId))
-      .where(and(eq(f.organizationId, organizationId), eq(f.state, "open")))
+      .where(and(eq(f.organizationId, organizationId), seen, eq(f.state, "open")))
       .orderBy(
         desc(schema.vulnerability.knownExploited),
         desc(f.severityRank),
@@ -212,10 +229,15 @@ export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
       })
       .from(schema.scan)
       .innerJoin(schema.repository, eq(schema.repository.id, schema.scan.repositoryId))
-      .where(eq(schema.scan.organizationId, organizationId))
+      .where(
+        and(
+          eq(schema.scan.organizationId, organizationId),
+          visibleRepository(schema.scan.repositoryId, actor),
+        ),
+      )
       .orderBy(desc(schema.scan.createdAt), desc(schema.scan.id))
       .limit(6),
-    openFindingsTrend(db, { organizationId, timeZone }),
+    openFindingsTrend(db, { organizationId, userId: actor.userId, timeZone }),
     // The vulnerability database and scanner versions the latest successful scan used.
     db
       .select({
@@ -227,7 +249,7 @@ export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
       .where(and(eq(schema.scan.organizationId, organizationId), eq(schema.scan.state, "succeeded")))
       .orderBy(desc(schema.scan.finishedAt), desc(schema.scan.id))
       .limit(1),
-    activity(organizationId),
+    activity(actor),
     // The advisory sources behind the findings so far (grype namespaces such as
     // "github:language:javascript" or "debian:distro:debian:12"). The table only holds
     // vulnerabilities that were found, so it says nothing about the database's size.
