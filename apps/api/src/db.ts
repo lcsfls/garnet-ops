@@ -26,4 +26,6 @@ export const QUEUES = {
   fixPrRefresh: "fix-pr.refresh",
   /** Personal forge connections (ADR 0030): check a token and list what its account can see. */
   forgeConnectionRefresh: "forge-connection.refresh",
+  /** Signing in to a forge (ADR 0031): the device flow, or exchanging the code of the authorization code flow. */
+  forgeSignIn: "forge-sign-in.run",
 } as const;

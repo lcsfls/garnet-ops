@@ -360,6 +360,8 @@ export const secret = pgTable(
         "ldap-bind-password",
         "ldap-user-password",
         "forge-connection-token",
+        "forge-app-secret",
+        "forge-sign-in",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -2726,6 +2728,15 @@ export const forgeConnection = pgTable(
     /** Where the token is sent, derived from the web address or typed (ADR 0014). */
     apiBaseUrl: text("api_base_url").notNull(),
     secretId: text("secret_id").references(() => secret.id, { onDelete: "set null" }),
+    /** How the person connected (ADR 0031): a pasted token, or signing in with the forge's own login. */
+    authMethod: text("auth_method", { enum: ["token", "sign-in"] })
+      .notNull()
+      .default("token"),
+    /** The sign-in application the connection came from. */
+    appId: text("app_id").references((): AnyPgColumn => forgeApp.id, { onDelete: "set null" }),
+    /** Signed-in connections: the sealed refresh token, and when the access token expires. */
+    refreshSecretId: text("refresh_secret_id").references(() => secret.id, { onDelete: "set null" }),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
     /** The account the forge reports for the token, after the first check. */
     accountLogin: text("account_login"),
     state: text("state", { enum: ["unchecked", "ok", "failed"] })
@@ -2766,4 +2777,68 @@ export const forgeConnectionRepository = pgTable(
     listedAt: timestamp("listed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.connectionId, t.forgeId] })],
+);
+
+/**
+ * A forge's sign-in application (ADR 0031), registered by an admin: a GitHub App (device flow) or a Gitea/Forgejo
+ * OAuth2 application (authorization code with PKCE). The client secret is sealed and opened only by the worker.
+ */
+export const forgeApp = pgTable(
+  "forge_app",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    forgeKind: text("forge_kind", { enum: ["github", "gitea", "forgejo"] }).notNull(),
+    webBaseUrl: text("web_base_url").notNull(),
+    apiBaseUrl: text("api_base_url").notNull(),
+    clientId: text("client_id").notNull(),
+    secretId: text("secret_id").references(() => secret.id, { onDelete: "set null" }),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("forge_app_org_web_uq").on(t.organizationId, t.webBaseUrl)],
+);
+
+/**
+ * One sign-in in progress (ADR 0031), owned by the person who started it. The device code (device flow) or the code
+ * verifier and the code (authorization code flow) are sealed; the `state` the browser carries is stored as a hash.
+ */
+export const forgeSignIn = pgTable(
+  "forge_sign_in",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    appId: text("app_id")
+      .notNull()
+      .references(() => forgeApp.id, { onDelete: "cascade" }),
+    flow: text("flow", { enum: ["device", "code"] }).notNull(),
+    state: text("state", { enum: ["starting", "waiting", "exchanging", "done", "failed"] })
+      .notNull()
+      .default("starting"),
+    stateHash: text("state_hash"),
+    verifierSecretId: text("verifier_secret_id").references(() => secret.id, { onDelete: "set null" }),
+    codeSecretId: text("code_secret_id").references(() => secret.id, { onDelete: "set null" }),
+    /** Device flow: what the person types on the forge, and where. */
+    userCode: text("user_code"),
+    verificationUri: text("verification_uri"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    connectionId: text("connection_id").references((): AnyPgColumn => forgeConnection.id, {
+      onDelete: "set null",
+    }),
+    problem: text("problem"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("forge_sign_in_user_idx").on(t.organizationId, t.userId),
+    uniqueIndex("forge_sign_in_state_uq").on(t.stateHash),
+  ],
 );

@@ -6,10 +6,11 @@
  */
 import { open } from "@garnetops/core/vault";
 import { schema } from "@garnetops/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "./db.ts";
 import { vaultPrivateKey } from "./env.ts";
-import { accountInfo, type ForgeAccount, ForgeError, listRepositories } from "./forge.ts";
+import { accountInfo, type ForgeAccount, ForgeError, listRepositories, requestToken } from "./forge.ts";
+import { openSecretText, sealSecret } from "./vault-secrets.ts";
 
 export const FORGE_CONNECTION_QUEUE = "forge-connection.refresh";
 
@@ -43,8 +44,82 @@ export async function openConnection(
   return { connection, account: await accountOf(connection) };
 }
 
-/** Opens the sealed token of a connection. A missing or foreign secret is a rejected token. */
-export async function accountOf(connection: ConnectionRow): Promise<ForgeAccount> {
+/** A signed-in connection whose renewal the forge refused (ADR 0031): the person has to sign in again. */
+export class SignInExpiredError extends ForgeError {
+  constructor() {
+    super("token-rejected");
+  }
+}
+
+/** Access tokens that expire within this time are renewed before they are used. */
+const RENEW_BEFORE_MS = 5 * 60_000;
+
+/**
+ * Renews the access token of a signed-in connection with its refresh token (ADR 0031), under a row lock, so two jobs
+ * never spend the same refresh token (forges rotate them). Returns the connection as it is afterwards.
+ */
+async function renew(connectionId: string): Promise<ConnectionRow> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(schema.forgeConnection)
+      .where(eq(schema.forgeConnection.id, connectionId))
+      .for("update")
+      .limit(1);
+    if (!row) throw new ForgeError("token-rejected");
+    // Another job renewed it while this one waited for the lock.
+    if (!row.tokenExpiresAt || row.tokenExpiresAt.getTime() - Date.now() > RENEW_BEFORE_MS) return row;
+    const [app] = row.appId
+      ? await tx.select().from(schema.forgeApp).where(eq(schema.forgeApp.id, row.appId)).limit(1)
+      : [];
+    const refresh = await openSecretText(row.refreshSecretId, row.organizationId, "forge-connection-token");
+    if (!app || !refresh) throw new SignInExpiredError();
+    const clientSecret = await openSecretText(app.secretId, row.organizationId, "forge-app-secret");
+    const answer = await requestToken(app.webBaseUrl, {
+      client_id: app.clientId,
+      ...(clientSecret ? { client_secret: clientSecret } : {}),
+      grant_type: "refresh_token",
+      refresh_token: refresh,
+    });
+    if (answer.kind !== "token") throw new SignInExpiredError();
+    const accessId = await sealSecret(tx, row.organizationId, "forge-connection-token", answer.accessToken);
+    // A forge that does not rotate refresh tokens keeps the old one.
+    const refreshId = answer.refreshToken
+      ? await sealSecret(tx, row.organizationId, "forge-connection-token", answer.refreshToken)
+      : row.refreshSecretId;
+    const [renewed] = await tx
+      .update(schema.forgeConnection)
+      .set({
+        secretId: accessId,
+        refreshSecretId: refreshId,
+        tokenExpiresAt: answer.expiresInSeconds
+          ? new Date(Date.now() + answer.expiresInSeconds * 1000)
+          : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.forgeConnection.id, row.id))
+      .returning();
+    const old = [row.secretId, answer.refreshToken ? row.refreshSecretId : null].filter((id): id is string =>
+      Boolean(id),
+    );
+    if (old.length) await tx.delete(schema.secret).where(inArray(schema.secret.id, old));
+    return renewed as ConnectionRow;
+  });
+}
+
+/**
+ * Opens the sealed token of a connection, renewed first if it is a signed-in one about to expire. A missing or foreign
+ * secret is a rejected token.
+ */
+export async function accountOf(current: ConnectionRow): Promise<ForgeAccount> {
+  let connection = current;
+  if (
+    connection.authMethod === "sign-in" &&
+    connection.tokenExpiresAt &&
+    connection.tokenExpiresAt.getTime() - Date.now() <= RENEW_BEFORE_MS
+  ) {
+    connection = await renew(connection.id);
+  }
   if (!connection.secretId) throw new ForgeError("token-rejected");
   const [secret] = await db
     .select()
@@ -129,7 +204,12 @@ export async function refreshConnection(job: RefreshJob): Promise<void> {
 }
 
 async function markFailed(connectionId: string, error: unknown): Promise<void> {
-  const problem = error instanceof ForgeError ? error.code : "unexpected";
+  const problem =
+    error instanceof SignInExpiredError
+      ? "sign-in-expired"
+      : error instanceof ForgeError
+        ? error.code
+        : "unexpected";
   if (!(error instanceof ForgeError))
     console.error("forge connection refresh failed", (error as Error)?.name);
   await db

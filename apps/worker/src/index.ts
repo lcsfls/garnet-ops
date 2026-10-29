@@ -20,6 +20,7 @@ import {
   startFixPrScheduler,
 } from "./fix-pr.ts";
 import { FORGE_CONNECTION_QUEUE, type RefreshJob, refreshConnection } from "./forge-connection.ts";
+import { FORGE_SIGN_IN_QUEUE, runSignIn } from "./forge-sign-in.ts";
 import { deliver, eventsForScan, NOTIFY_QUEUE, queueNotifications } from "./notify.ts";
 import { removeRetiredQueues } from "./retired-queues.ts";
 import { runScan } from "./scan.ts";
@@ -44,6 +45,7 @@ await boss.createQueue(FIX_PR_CHECK_QUEUE);
 await boss.createQueue(FIX_PR_REFRESH_QUEUE);
 await boss.createQueue(DIRECTORY_QUEUE);
 await boss.createQueue(FORGE_CONNECTION_QUEUE);
+await boss.createQueue(FORGE_SIGN_IN_QUEUE);
 // Queues and schedules of the modules removed in 0.0.4 (ADR 0025) would otherwise stay in the database.
 const retired = await removeRetiredQueues(boss);
 if (retired.length > 0) console.log(`worker: removed ${retired.length} retired queues`);
@@ -128,6 +130,12 @@ await startFixPrScheduler(boss);
 await boss.work<RefreshJob>(FORGE_CONNECTION_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await refreshConnection(job.data);
 });
+// Signing in to a forge (ADR 0031): a device flow waits for the person for up to 15 minutes, so several run side by side.
+for (let i = 0; i < 4; i++) {
+  await boss.work<{ signInId: string }>(FORGE_SIGN_IN_QUEUE, { batchSize: 1 }, async ([job]) => {
+    if (job) await runSignIn(job.data.signInId);
+  });
+}
 await startScheduler(boss);
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();

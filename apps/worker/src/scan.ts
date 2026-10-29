@@ -8,7 +8,7 @@ import { schema } from "@garnetops/db";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "./db.ts";
 import { env, vaultPrivateKey } from "./env.ts";
-import { accountOf } from "./forge-connection.ts";
+import { accountOf, SignInExpiredError } from "./forge-connection.ts";
 import { type SshOptions, shallowClone, sshClient } from "./git.ts";
 import { addAdvisoryDates, type ParsedReport, parseReport, scanTarget } from "./grype.ts";
 import { type CollectedManifest, collectManifests } from "./manifests.ts";
@@ -235,7 +235,15 @@ async function connectionToken(repo: typeof schema.repository.$inferSelect): Pro
   if (new URL(repo.url).hostname !== new URL(connection.webBaseUrl).hostname) {
     throw new UserFacingError(scanErrorMessage("credentialMissing"));
   }
-  const account = await accountOf(connection).catch(() => {
+  const account = await accountOf(connection).catch(async (error) => {
+    if (error instanceof SignInExpiredError) {
+      // The owner sees it on the connection too, and signs in again.
+      await db
+        .update(schema.forgeConnection)
+        .set({ state: "failed", problem: "sign-in-expired", updatedAt: new Date() })
+        .where(eq(schema.forgeConnection.id, connection.id));
+      throw new UserFacingError(scanErrorMessage("signInExpired"));
+    }
     throw new UserFacingError(scanErrorMessage("credentialMissing"));
   });
   return account.token;

@@ -112,8 +112,8 @@ paginated findings, and every number on the overview leads to its details.
       mode by default, status check on the pull request (the pipeline step) (ADR 0008).
       Still open: per-repository rule overrides, secret and SAST rules (Phase 5)
 - [x] Per-user forge connections with a personal read token, repository picker, private
-      repositories until shared (ADR 0030, 0.0.11). Still open: sign-in with an OAuth app or
-      GitHub App instead of a pasted token
+      repositories until shared (ADR 0030, 0.0.11); sign-in with a GitHub App (device flow) or a
+      Gitea/Forgejo OAuth2 application with PKCE instead of a pasted token (ADR 0031, 0.0.12)
 - [ ] Local vulnerability database: vunnel + grype-db build job, offline import. Planned and shown as such on the
       System status page, whose report shape (per provider: last run, result, records, duration) the builder will fill
       (ADR 0024)

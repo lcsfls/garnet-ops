@@ -450,6 +450,8 @@ export interface ForgeConnection {
   id: string;
   forgeKind: ForgeKind;
   webBaseUrl: string;
+  /** A pasted token, or signed in with the forge's own login (ADR 0031). */
+  authMethod: "token" | "sign-in";
   apiBaseUrl: string;
   accountLogin: string | null;
   state: "unchecked" | "ok" | "failed";
@@ -478,4 +480,35 @@ export interface ShareRequest {
   name: string;
   requestedAt: string;
   requestedBy: string | null;
+}
+
+/* Signing in to forges (ADR 0031) */
+
+export interface ForgeApp {
+  id: string;
+  forgeKind: ForgeKind;
+  webBaseUrl: string;
+  apiBaseUrl: string;
+  clientId: string;
+  hasSecret: boolean;
+  flow: "device" | "code";
+  createdAt: string;
+}
+
+export interface AvailableForgeApp {
+  id: string;
+  forgeKind: ForgeKind;
+  webBaseUrl: string;
+  flow: "device" | "code";
+}
+
+export interface ForgeSignIn {
+  id: string;
+  flow: "device" | "code";
+  state: "starting" | "waiting" | "exchanging" | "done" | "failed";
+  userCode: string | null;
+  verificationUri: string | null;
+  expiresAt: string;
+  problem: string | null;
+  connectionId: string | null;
 }

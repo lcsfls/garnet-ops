@@ -197,6 +197,13 @@
       "when": 1793285508444,
       "tag": "0027_personal_forge_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793293364419,
+      "tag": "0028_forge_sign_in",
+      "breakpoints": true
     }
   ]
 }

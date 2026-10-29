@@ -68,6 +68,22 @@ export class FakeForge {
   readonly branches = new Map<string, Commit>();
   readonly commits: Commit[] = [];
   readonly scopes: string | undefined;
+  /** Sign-in (ADR 0031): the registered client, the device flow's progress and the codes handed out. */
+  oauth = {
+    clientId: "garnetops-test-client",
+    clientSecret: null as string | null,
+    redirectUri: "",
+    /** The device flow answers "pending" this many times, then hands out the token. */
+    pendingPolls: 1,
+    polls: 0,
+    denyDevice: false,
+    /** code → S256 challenge, from {@link authorize}. */
+    codes: new Map<string, string>(),
+    /** The refresh token that is valid now; every renewal replaces it. */
+    refreshToken: "refresh-1",
+    renewals: 0,
+    expiresIn: 28_800,
+  };
   /** The account name `GET /user` answers with. */
   login = "alex";
   /** What `GET /user/repos` lists, page by page, as the forge would spell it. */
@@ -203,11 +219,15 @@ export class FakeForge {
     req.on("end", () => {
       const url = new URL(req.url ?? "/", "https://x");
       let body: unknown = null;
-      try {
-        const text = Buffer.concat(chunks).toString("utf8");
-        body = text ? JSON.parse(text) : null;
-      } catch {
-        body = "unparseable";
+      const text = Buffer.concat(chunks).toString("utf8");
+      if ((req.headers["content-type"] ?? "").startsWith("application/x-www-form-urlencoded")) {
+        body = Object.fromEntries(new URLSearchParams(text));
+      } else {
+        try {
+          body = text ? JSON.parse(text) : null;
+        } catch {
+          body = "unparseable";
+        }
       }
       const method = req.method ?? "GET";
       this.requests.push({
@@ -222,6 +242,9 @@ export class FakeForge {
         if (fault.once) this.faults.splice(this.faults.indexOf(fault), 1);
         return this.fault(fault, res);
       }
+      // The sign-in endpoints live on the web address and take no bearer token (ADR 0031).
+      if (url.pathname.startsWith("/login/"))
+        return this.signIn(method, url.pathname, body as Record<string, string>, res);
       if (req.headers.authorization !== this.authorization)
         return json(res, 401, { message: "Bad credentials" });
       const path = url.pathname.startsWith(this.prefix) ? url.pathname.slice(this.prefix.length) : null;
@@ -257,6 +280,61 @@ export class FakeForge {
     }
     res.writeHead(fault.status ?? 500, { "content-type": "application/json", ...fault.headers });
     res.end(fault.body ?? JSON.stringify({ message: "secret details of the failure" }));
+  }
+
+  /** What a person's browser gets from the authorize page: a code bound to the PKCE challenge. */
+  authorize(challenge: string): string {
+    const code = `code-${this.oauth.codes.size + 1}`;
+    this.oauth.codes.set(code, challenge);
+    return code;
+  }
+
+  private signIn(method: string, path: string, form: Record<string, string>, res: ServerResponse) {
+    const o = this.oauth;
+    if (method !== "POST" || form.client_id !== o.clientId)
+      return json(res, 401, { error: "invalid_client" });
+    if (path === "/login/device/code") {
+      return json(res, 200, {
+        device_code: "device-code-0123456789",
+        user_code: "WDJB-MJHT",
+        verification_uri: `https://${FORGE_HOST}/login/device`,
+        expires_in: 900,
+        interval: 1,
+      });
+    }
+    if (path !== "/login/oauth/access_token") return json(res, 404, { message: "Not Found" });
+    const tokens = () => {
+      o.refreshToken = `refresh-${++o.renewals + 1}`;
+      return {
+        access_token: this.token,
+        token_type: "bearer",
+        expires_in: o.expiresIn,
+        refresh_token: o.refreshToken,
+      };
+    };
+    if (form.grant_type === "urn:ietf:params:oauth:grant-type:device_code") {
+      if (o.denyDevice) return json(res, 200, { error: "access_denied" });
+      if (o.polls++ < o.pendingPolls) return json(res, 200, { error: "authorization_pending" });
+      return json(res, 200, tokens());
+    }
+    if (o.clientSecret && form.client_secret !== o.clientSecret)
+      return json(res, 401, { error: "invalid_client" });
+    if (form.grant_type === "authorization_code") {
+      const challenge = o.codes.get(form.code ?? "");
+      const verifier = createHash("sha256")
+        .update(form.code_verifier ?? "")
+        .digest("base64url");
+      if (!challenge || challenge !== verifier || form.redirect_uri !== o.redirectUri) {
+        return json(res, 400, { error: "invalid_grant" });
+      }
+      o.codes.delete(form.code as string);
+      return json(res, 200, tokens());
+    }
+    if (form.grant_type === "refresh_token") {
+      if (form.refresh_token !== o.refreshToken) return json(res, 400, { error: "invalid_grant" });
+      return json(res, 200, tokens());
+    }
+    return json(res, 400, { error: "unsupported_grant_type" });
   }
 
   private route(method: string, path: string, query: URLSearchParams, body: unknown, res: ServerResponse) {

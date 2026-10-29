@@ -282,7 +282,11 @@ async function removePersonalData(
         .where(inArray(schema.repositoryWriteAccess.repositoryId, repoIds))
     : [];
   const connections = await tx
-    .select({ id: schema.forgeConnection.id, secretId: schema.forgeConnection.secretId })
+    .select({
+      id: schema.forgeConnection.id,
+      secretId: schema.forgeConnection.secretId,
+      refreshSecretId: schema.forgeConnection.refreshSecretId,
+    })
     .from(schema.forgeConnection)
     .where(
       and(
@@ -290,6 +294,11 @@ async function removePersonalData(
         eq(schema.forgeConnection.userId, userId),
       ),
     );
+  // Sign-ins in progress go too, with their one-time secrets (ADR 0031).
+  const signIns = await tx
+    .delete(schema.forgeSignIn)
+    .where(and(eq(schema.forgeSignIn.organizationId, organizationId), eq(schema.forgeSignIn.userId, userId)))
+    .returning({ verifier: schema.forgeSignIn.verifierSecretId, code: schema.forgeSignIn.codeSecretId });
   if (repoIds.length) await tx.delete(schema.repository).where(inArray(schema.repository.id, repoIds));
   if (connections.length) {
     await tx.delete(schema.forgeConnection).where(
@@ -302,7 +311,8 @@ async function removePersonalData(
   const secrets = [
     ...repos.map((r) => r.secretId),
     ...writeTokens.map((w) => w.secretId),
-    ...connections.map((c) => c.secretId),
+    ...signIns.flatMap((x) => [x.verifier, x.code]),
+    ...connections.flatMap((c) => [c.secretId, c.refreshSecretId]),
   ].filter((id): id is string => Boolean(id));
   if (secrets.length) await tx.delete(schema.secret).where(inArray(schema.secret.id, secrets));
   return { connectionsRemoved: connections.length, privateRepositoriesRemoved: repoIds.length };

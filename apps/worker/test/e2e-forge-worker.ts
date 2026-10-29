@@ -22,6 +22,7 @@ import {
 } from "../src/fix-pr.ts";
 import { setForgeTestHooks } from "../src/forge.ts";
 import { FORGE_CONNECTION_QUEUE, type RefreshJob, refreshConnection } from "../src/forge-connection.ts";
+import { FORGE_SIGN_IN_QUEUE, runSignIn } from "../src/forge-sign-in.ts";
 import { FakeForge } from "./fake-forge.ts";
 
 const forgePort = Number(process.env.E2E_FORGE_PORT ?? 8093);
@@ -34,6 +35,12 @@ const forge = await new FakeForge("gitea", TOKEN, "team", "seeded-app", {
   files: { "package.json": MANIFEST },
 }).start(forgePort);
 setForgeTestHooks({ resolve: async () => ["192.168.1.20"], connectTo: () => "127.0.0.1", ca: forge.ca });
+// Signing in (ADR 0031): the OAuth2 application the e2e tests register, and the redirect address of the e2e app.
+forge.oauth.clientId = "garnetops-e2e-client";
+forge.oauth.clientSecret = "e2e-client-secret-0123";
+// The device flow stays "pending" until the test cancels it.
+forge.oauth.pendingPolls = 10_000;
+forge.oauth.redirectUri = `${(process.env.PUBLIC_URL ?? "").replace(/\/+$/, "")}/settings/accounts/callback`;
 // What a connected account sees (personal connections, ADR 0030): the seeded repository and two more.
 forge.listed = ["seeded-app", "billing-portal", "website"].map((name, i) => ({
   id: 500 + i,
@@ -66,6 +73,10 @@ createServer((req, res) => {
     forge.setPull(Number(merge[1]), { state: "closed", merged: true });
     return void res.end("{}");
   }
+  // What the forge's authorize page would do after the person agreed: a code bound to the PKCE challenge.
+  if (url.pathname === "/authorize") {
+    return void res.end(JSON.stringify({ code: forge.authorize(url.searchParams.get("challenge") ?? "") }));
+  }
   if (url.pathname === "/reset") {
     forge.requests.length = 0;
     return void res.end("{}");
@@ -82,6 +93,10 @@ await boss.createQueue(FIX_PR_QUEUE);
 await boss.createQueue(FIX_PR_CHECK_QUEUE);
 await boss.createQueue(FIX_PR_REFRESH_QUEUE);
 await boss.createQueue(FORGE_CONNECTION_QUEUE);
+await boss.createQueue(FORGE_SIGN_IN_QUEUE);
+await boss.work<{ signInId: string }>(FORGE_SIGN_IN_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await runSignIn(job.data.signInId);
+});
 await boss.work<RefreshJob>(FORGE_CONNECTION_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await refreshConnection(job.data);
 });

@@ -72,6 +72,8 @@ export const de: Messages = {
     commitMismatch: "Die Ref zeigt auf einen anderen Commit, als die Gate-Prüfung erwartet hat.",
     scannerUnavailable:
       "Der Scanner-Dienst hat nicht geantwortet. Ein Admin kann ihn unter Systemstatus prüfen.",
+    signInExpired:
+      "Die Anmeldung des verbundenen Kontos, das dieses Repository nutzt, ist abgelaufen. Sein Besitzer meldet sich unter Einstellungen, Verbundene Konten erneut an.",
     connectionRemoved:
       "Das verbundene Konto, über das dieses Repository hinzugefügt wurde, ist entfernt. Sein Besitzer kann das Konto wieder verbinden, oder ein Admin ersetzt die Zugangsdaten.",
   },
@@ -749,6 +751,7 @@ export const de: Messages = {
     stateFailed: "Prüfung fehlgeschlagen",
     problems: {
       "token-rejected": "Die Forge hat das Token abgelehnt. Ersetzen Sie es durch ein gültiges.",
+      "sign-in-expired": "Die Anmeldung ist abgelaufen. Melden Sie sich erneut an.",
       forbidden: "Das Token darf keine Repositories auflisten. Prüfen Sie seine Berechtigungen.",
       "rate-limited": "Die Forge bittet um weniger Anfragen. Aktualisieren Sie in ein paar Minuten erneut.",
       timeout: "Die Forge hat nicht rechtzeitig geantwortet.",
@@ -809,6 +812,62 @@ export const de: Messages = {
     requestedBy: "Beantragt von {name} {when}",
     approve: "Teilen",
     decline: "Ablehnen",
+    signIn: {
+      with: "Mit {forge} anmelden",
+      withHint: "{address}",
+      or: "oder",
+      useToken: "Stattdessen ein persönliches Zugriffstoken verwenden",
+      starting: "{forge} wird nach einem Code gefragt …",
+      deviceTitle: "Auf {forge} bestätigen",
+      deviceText:
+        "Öffnen Sie die Seite unten, melden Sie sich dort bei Bedarf an und geben Sie diesen Code ein. Dieses Fenster macht danach von selbst weiter.",
+      openPage: "{address} öffnen",
+      waiting: "Warten auf Ihre Bestätigung …",
+      redirecting: "{forge} wird geöffnet …",
+      callbackTitle: "Konto wird verbunden",
+      callbackWorking: "Die Anmeldung wird abgeschlossen …",
+      done: "Verbunden als {login}.",
+      connected: "Konto verbunden.",
+      again: "Erneut anmelden",
+      back: "Zurück zu den verbundenen Konten",
+      cancel: "Anmeldung abbrechen",
+      problems: {
+        denied: "Die Anmeldung wurde abgelehnt oder nicht bestätigt.",
+        expired: "Die Anmeldung hat zu lange gedauert. Starten Sie sie neu.",
+        "no-public-url":
+          "GarnetOps kennt seine eigene Adresse nicht (PUBLIC_URL). Wenden Sie sich an einen Admin.",
+        unknown: "Diese Anmeldung ist unbekannt, schon benutzt oder abgelaufen. Starten Sie sie neu.",
+      },
+      problemOther: "Die Anmeldung ist fehlgeschlagen ({code}).",
+    },
+    apps: {
+      title: "Anmeldung über eine Forge",
+      description:
+        "Damit verbinden Benutzer ihre Konten mit der Anmeldung der Forge statt mit einem eingefügten Token. GarnetOps wird dafür einmal pro Forge registriert.",
+      add: "Forge hinzufügen",
+      empty:
+        "Noch keine Forge. Benutzer können sich weiterhin mit einem persönlichen Zugriffstoken verbinden.",
+      clientId: "Client-ID",
+      clientSecret: "Client-Secret",
+      clientSecretHint:
+        "Wird verschlüsselt gespeichert; nur der Worker benutzt es. Nötig, um Tokens zu erneuern.",
+      clientSecretKeep: "Leer lassen, um das gespeicherte Secret zu behalten.",
+      secretStored: "Secret gespeichert",
+      noSecret: "Kein Secret (öffentlicher Client)",
+      redirectUri: "Einzutragende Weiterleitungsadresse",
+      githubSteps:
+        "Legen Sie auf GitHub eine GitHub App an (Settings, Developer settings, GitHub Apps): Berechtigungen Metadata, Contents und Pull requests auf Read, sonst nichts, kein Webhook, und Enable Device Flow einschalten. Tragen Sie dann ihre Client-ID und ein Client-Secret hier ein und installieren Sie die App für die Konten oder Organisationen, deren Repositories sichtbar sein sollen.",
+      giteaSteps:
+        "Legen Sie in Gitea oder Forgejo eine OAuth2-Anwendung an (Einstellungen, Anwendungen) mit der Weiterleitungsadresse unten. Tragen Sie dann ihre Client-ID ein, bei einem vertraulichen Client auch das Client-Secret.",
+      remove: "Entfernen",
+      removeTitle: "Anmeldung mit {forge} entfernen?",
+      removeDescription:
+        "Niemand kann sich mehr damit anmelden. Damit erstellte Verbindungen funktionieren, bis ihr Token erneuert werden muss; dann verbinden sich ihre Besitzer neu.",
+      save: "Speichern",
+      added: "Forge hinzugefügt.",
+    },
+    authToken: "Persönliches Zugriffstoken",
+    authSignIn: "Angemeldet",
     helpPrivateTitle: "Privat bis zur Freigabe",
     helpPrivateText:
       "Repositories, die Sie aus Ihrem Konto hinzufügen, sehen nur Sie, samt ihren Funden. Teilen Sie eines mit der Organisation, wenn andere es sehen sollen; Mitglieder beantragen es, Owner und Admins entscheiden.",
@@ -2011,6 +2070,9 @@ export const de: Messages = {
       forge_connection_added: "Verbundenes Konto hinzugefügt",
       forge_connection_replaced: "Token eines verbundenen Kontos ersetzt",
       forge_connection_removed: "Verbundenes Konto entfernt",
+      forge_app_added: "Anmeldung über Forge hinzugefügt",
+      forge_app_changed: "Anmeldung über Forge geändert",
+      forge_app_removed: "Anmeldung über Forge entfernt",
       scan_requested: "Scan angefordert",
       finding_accepted: "Risiko akzeptiert",
       finding_reopened: "Finding wieder geöffnet",

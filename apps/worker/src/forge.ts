@@ -155,13 +155,30 @@ function authHeaders(target: ForgeAccount): Record<string, string> {
 /** One request. 2xx returns the parsed JSON; every other status becomes a {@link ForgeError}. */
 async function call(target: ForgeAccount, options: Call): Promise<Response> {
   if (!TOKEN_PATTERN.test(target.token)) throw new ForgeError("token-rejected");
-  const base = new URL(target.apiBaseUrl);
+  const data = options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body));
+  return send(
+    target.apiBaseUrl,
+    options.method,
+    options.path,
+    { ...authHeaders(target), ...(data ? { "content-type": "application/json" } : {}) },
+    data,
+  );
+}
+
+/** One HTTPS request to `baseUrl` + `pathAndQuery`, with every rule of this file (addresses, TLS, limits, no redirects). */
+async function send(
+  baseUrl: string,
+  method: Call["method"],
+  pathAndQuery: string,
+  extraHeaders: Record<string, string>,
+  data?: Buffer,
+): Promise<Response> {
+  const base = new URL(baseUrl);
   if (base.username || base.password || base.search || base.hash) throw new ForgeError("address-refused");
   const addresses = await resolveForgeHost(base);
-  const data = options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body));
   if (data && data.length > LIMITS.requestBytes) throw new ForgeError("too-large");
   const hostname = base.hostname.replace(/^\[|\]$/g, "");
-  const path = `${base.pathname.replace(/\/+$/, "")}${options.path}`;
+  const path = `${base.pathname.replace(/\/+$/, "")}${pathAndQuery}`;
   let last = new ForgeError("connection-failed");
 
   for (const address of addresses.slice(0, CONNECT_ATTEMPTS)) {
@@ -170,7 +187,7 @@ async function call(target: ForgeAccount, options: Call): Promise<Response> {
         const req = httpsRequest({
           host: testHooks?.connectTo ? testHooks.connectTo(address) : address,
           port: base.port ? Number(base.port) : 443,
-          method: options.method,
+          method,
           path,
           agent: false,
           servername: isIP(hostname) ? undefined : hostname,
@@ -181,8 +198,8 @@ async function call(target: ForgeAccount, options: Call): Promise<Response> {
             host: base.host,
             "user-agent": "GarnetOps",
             connection: "close",
-            ...authHeaders(target),
-            ...(data ? { "content-type": "application/json", "content-length": data.length } : {}),
+            ...extraHeaders,
+            ...(data ? { "content-length": data.length } : {}),
           },
         });
         const total = setTimeout(() => req.destroy(new ForgeError("timeout")), LIMITS.totalMs);
@@ -547,4 +564,107 @@ export async function listRepositories(
   }
   items.sort((a, b) => a.fullName.localeCompare(b.fullName));
   return { items, truncated: false };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Signing in (ADR 0031): the forge's OAuth endpoints, no token sent           */
+/* -------------------------------------------------------------------------- */
+
+/** A form post to the forge's web address (`/login/...`), answered with JSON. */
+async function oauthPost(webBaseUrl: string, path: string, form: Record<string, string>): Promise<unknown> {
+  const body = Buffer.from(new URLSearchParams(form).toString());
+  const response = await send(
+    webBaseUrl,
+    "POST",
+    path,
+    { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
+    body,
+  );
+  return response.json;
+}
+
+const deviceCodeSchema = z.object({
+  device_code: z.string().min(1).max(500),
+  user_code: z.string().regex(/^[A-Z0-9-]{4,20}$/),
+  verification_uri: z.string().max(500),
+  expires_in: z.number().int().positive().max(3600),
+  interval: z.number().int().positive().max(60).optional(),
+});
+
+export interface DeviceCode {
+  deviceCode: string;
+  userCode: string;
+  /** Only an https address on the forge's own host; anything else is refused. */
+  verificationUri: string;
+  expiresInSeconds: number;
+  intervalSeconds: number;
+}
+
+/** Starts the device flow (GitHub Apps): a code for the person to confirm on the forge. */
+export async function requestDeviceCode(webBaseUrl: string, clientId: string): Promise<DeviceCode> {
+  const data = parse(
+    deviceCodeSchema,
+    await oauthPost(webBaseUrl, "/login/device/code", { client_id: clientId }),
+  );
+  const page = new URL(data.verification_uri);
+  if (page.protocol !== "https:" || page.hostname !== new URL(webBaseUrl).hostname)
+    throw new ForgeError("bad-response");
+  return {
+    deviceCode: data.device_code,
+    userCode: data.user_code,
+    verificationUri: page.toString(),
+    expiresInSeconds: data.expires_in,
+    intervalSeconds: data.interval ?? 5,
+  };
+}
+
+const tokenSchema = z.object({
+  access_token: z
+    .string()
+    .regex(/^[\x21-\x7e]{8,500}$/)
+    .optional(),
+  refresh_token: z
+    .string()
+    .regex(/^[\x21-\x7e]{8,1000}$/)
+    .optional(),
+  expires_in: z.number().int().positive().optional(),
+  error: z.string().max(100).optional(),
+});
+
+export type TokenAnswer =
+  | { kind: "token"; accessToken: string; refreshToken: string | null; expiresInSeconds: number | null }
+  | { kind: "pending" }
+  | { kind: "slow-down" }
+  | { kind: "denied" }
+  | { kind: "expired" };
+
+/**
+ * The token endpoint (`/login/oauth/access_token`): for a device code, an authorization code with its PKCE verifier,
+ * or a refresh token. GitHub answers errors of the device flow with status 200 and an `error` field; those become
+ * answers, everything else that is not a token is a {@link ForgeError}.
+ */
+export async function requestToken(webBaseUrl: string, form: Record<string, string>): Promise<TokenAnswer> {
+  let json: unknown;
+  try {
+    json = await oauthPost(webBaseUrl, "/login/oauth/access_token", form);
+  } catch (error) {
+    // Gitea and Forgejo refuse a used or wrong code or refresh token with 400 or 401.
+    if (error instanceof ForgeError && (error.status === 400 || error.status === 401))
+      return { kind: "denied" };
+    throw error;
+  }
+  const data = parse(tokenSchema, json);
+  if (data.access_token) {
+    return {
+      kind: "token",
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? null,
+      expiresInSeconds: data.expires_in ?? null,
+    };
+  }
+  if (data.error === "authorization_pending") return { kind: "pending" };
+  if (data.error === "slow_down") return { kind: "slow-down" };
+  if (data.error === "expired_token") return { kind: "expired" };
+  if (data.error) return { kind: "denied" };
+  throw new ForgeError("bad-response");
 }

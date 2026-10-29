@@ -4,10 +4,11 @@
   import { ApiError, api } from "../../../api.ts";
   import { formatRelative } from "../../../format.ts";
   import { t } from "../../../i18n.svelte.ts";
+  import { isAdmin } from "../../../nav.ts";
   import type { Me } from "../../../session.ts";
   import { StepUp } from "../../../step-up.svelte.ts";
   import { toast } from "../../../toast.svelte.ts";
-  import type { ForgeConnection } from "../../../types.ts";
+  import type { AvailableForgeApp, ForgeConnection } from "../../../types.ts";
   import Card from "../../Card.svelte";
   import CardHeader from "../../CardHeader.svelte";
   import QueryStatus from "../../QueryStatus.svelte";
@@ -18,9 +19,12 @@
   import ConfirmDialog from "../../ui/ConfirmDialog.svelte";
   import AddConnectionDialog from "./AddConnectionDialog.svelte";
   import RepositoryPicker from "./RepositoryPicker.svelte";
+  import SignInAppsCard from "./SignInAppsCard.svelte";
+  import SignInDialog from "./SignInDialog.svelte";
 
   const KNOWN_PROBLEMS = [
     "token-rejected",
+    "sign-in-expired",
     "forbidden",
     "rate-limited",
     "timeout",
@@ -46,6 +50,12 @@
     refetchInterval: (query: { state: { data?: ForgeConnection[] } }) =>
       query.state.data?.some((c) => c.state === "unchecked") ? 2000 : false,
   }));
+  // Forges an admin set up for signing in (ADR 0031); without any, connecting means pasting a token.
+  const apps = createQuery(() => ({
+    queryKey: ["forge-apps-available"],
+    queryFn: () => api<AvailableForgeApp[]>("/forge-apps/available"),
+  }));
+  let choosing = $state(false);
   let adding = $state(false);
   let replacing = $state<ForgeConnection | null>(null);
   let picking = $state<ForgeConnection | null>(null);
@@ -90,7 +100,13 @@
   <CardHeader title={t("connections.title")} description={t("connections.description")}>
     {#snippet actions()}
       {#if canEdit}
-        <Button variant="outline" onclick={() => (adding = true)}>
+        <Button
+          variant="outline"
+          onclick={() => {
+            if ((apps.data ?? []).length > 0) choosing = true;
+            else adding = true;
+          }}
+        >
           <Plus aria-hidden="true" class="size-4" />
           {t("connections.add")}
         </Button>
@@ -110,6 +126,9 @@
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-medium">{t(`repository.writeAccess.forgeNames.${c.forgeKind}`)}</span>
               <span class="font-mono text-sm break-all text-muted-foreground">{c.webBaseUrl}</span>
+              <Badge tone="neutral">
+                {c.authMethod === "sign-in" ? t("connections.authSignIn") : t("connections.authToken")}
+              </Badge>
             </div>
             <div class="mt-0.5 text-sm" aria-live="polite">
               {#if c.state === "unchecked"}
@@ -144,6 +163,11 @@
               <RefreshCw aria-hidden="true" class="size-4" />
               {t("connections.refresh")}
             </Button>
+            {#if c.authMethod === "sign-in" && c.state === "failed" && (apps.data ?? []).length > 0}
+              <Button variant="outline" class="h-9" onclick={() => (choosing = true)}>
+                {t("connections.signIn.again")}
+              </Button>
+            {/if}
             <Button
               variant="ghost"
               class="h-9 px-2.5"
@@ -172,6 +196,18 @@
   </ul>
 </Card>
 
+{#if isAdmin(me)}<SignInAppsCard {me} />{/if}
+
+{#if choosing}
+  <SignInDialog
+    apps={apps.data ?? []}
+    onClose={() => (choosing = false)}
+    onUseToken={() => {
+      choosing = false;
+      adding = true;
+    }}
+  />
+{/if}
 {#if adding}
   <AddConnectionDialog
     {me}

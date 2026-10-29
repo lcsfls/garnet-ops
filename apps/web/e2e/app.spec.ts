@@ -2084,3 +2084,113 @@ test.describe("connected accounts (ADR 0030)", () => {
     expect(problems).toEqual([]);
   });
 });
+
+test.describe("signing in to a forge (ADR 0031)", () => {
+  test("an admin registers Gitea, a person signs in with it (PKCE) and the account is connected", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    const forge = `https://forge.example.test:${E2E.forgePort}`;
+    await page.goto("/settings?section=accounts");
+    await page.getByRole("button", { name: "Add forge" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add forge" });
+    await dialog.getByLabel("Forge", { exact: true }).selectOption("gitea");
+    await expect(dialog).toContainText(`${E2E.publicUrl}/settings/accounts/callback`);
+    await dialog.getByLabel("Address of the forge").fill(forge);
+    await dialog.getByLabel("Client ID").fill("garnetops-e2e-client");
+    await dialog.getByLabel("Client secret").fill("e2e-client-secret-0123");
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByTestId("forge-app")).toContainText("Secret stored");
+    expect(await page.content()).not.toContain("e2e-client-secret-0123");
+
+    // The forge's authorize page, played by the test: it sends the browser back with a code for the PKCE challenge.
+    await page.route(`${forge}/login/oauth/authorize**`, async (route) => {
+      const asked = new URL(route.request().url());
+      expect(asked.searchParams.get("code_challenge_method")).toBe("S256");
+      expect(asked.searchParams.get("scope")).toBe("read:repository read:user");
+      const { code } = (await (
+        await fetch(
+          `http://127.0.0.1:${E2E.forgeControlPort}/authorize?challenge=${asked.searchParams.get("code_challenge")}`,
+        )
+      ).json()) as { code: string };
+      const back = new URL(asked.searchParams.get("redirect_uri") as string);
+      back.searchParams.set("code", code);
+      back.searchParams.set("state", asked.searchParams.get("state") as string);
+      await route.fulfill({ status: 302, headers: { location: back.toString() } });
+    });
+
+    await page.getByRole("button", { name: "Connect account" }).click();
+    const choose = page.getByRole("dialog", { name: "Connect account" });
+    await expect(choose.getByRole("button", { name: "Use a personal access token instead" })).toBeVisible();
+    await choose.getByRole("button", { name: /Sign in with Gitea/ }).click();
+    await expect(page).toHaveURL(/\/settings\?section=accounts$/, { timeout: 20_000 });
+    await expect(page.getByText("Account connected.")).toBeVisible();
+    const connection = page.getByTestId("forge-connection");
+    await expect(connection).toContainText("Signed in");
+    await expect(connection).toContainText("Connected as alex", { timeout: 20_000 });
+    expect(
+      await sql<{ auth_method: string; expiring: boolean }>(
+        "select auth_method, token_expires_at > now() as expiring from forge_connection",
+      ),
+    ).toEqual([{ auth_method: "sign-in", expiring: true }]);
+    expect(await sql("select 1 from secret where purpose = 'forge-sign-in'")).toEqual([]);
+
+    // Clean up for the tests after this one.
+    await page
+      .getByRole("button", { name: /^Remove: / })
+      .first()
+      .click();
+    await page
+      .getByRole("dialog", { name: /Remove the connection/ })
+      .getByRole("button", { name: "Remove" })
+      .click();
+    await expect(page.getByText("No account connected yet.")).toBeVisible();
+    await page.getByRole("button", { name: `Remove: ${forge}` }).click();
+    await page
+      .getByRole("dialog", { name: /Remove sign-in with/ })
+      .getByRole("button", { name: "Remove" })
+      .click();
+    await expect(page.getByText("No forge yet.")).toBeVisible();
+    expect(problems).toEqual([]);
+  });
+});
+
+test.describe("signing in to GitHub with a device code (ADR 0031)", () => {
+  test("shows the code to confirm on the forge, and cancels", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    const forge = `https://forge.example.test:${E2E.forgePort}`;
+    await page.goto("/settings?section=accounts");
+    await page.getByRole("button", { name: "Add forge" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add forge" });
+    await expect(dialog).toContainText("Enable Device Flow");
+    await dialog.getByLabel("Address of the forge").fill(forge);
+    await dialog.getByLabel("Client ID").fill("garnetops-e2e-client");
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByTestId("forge-app")).toContainText("No secret (public client)");
+
+    await page.getByRole("button", { name: "Connect account" }).click();
+    await page
+      .getByRole("dialog", { name: "Connect account" })
+      .getByRole("button", { name: /Sign in with GitHub/ })
+      .click();
+    const confirm = page.getByRole("dialog", { name: "Confirm on GitHub" });
+    await expect(confirm.getByTestId("device-code")).toHaveText("WDJB-MJHT", { timeout: 20_000 });
+    await expect(confirm.getByRole("link", { name: /forge\.example\.test\/login\/device/ })).toHaveAttribute(
+      "rel",
+      "noopener noreferrer",
+    );
+    await confirm.getByRole("button", { name: "Cancel sign-in" }).click();
+    await expect(confirm).toBeHidden();
+    expect(await sql("select 1 from forge_sign_in where state in ('starting', 'waiting')")).toEqual([]);
+
+    await page.getByRole("button", { name: `Remove: ${forge}` }).click();
+    await page
+      .getByRole("dialog", { name: /Remove sign-in with/ })
+      .getByRole("button", { name: "Remove" })
+      .click();
+    await expect(page.getByText("No forge yet.")).toBeVisible();
+    expect(problems).toEqual([]);
+  });
+});

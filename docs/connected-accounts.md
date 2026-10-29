@@ -1,10 +1,36 @@
 # Connected accounts
 
-**Settings → Connected accounts** lets each person connect their own account on GitHub, Gitea or Forgejo and add
-repositories by ticking them in a list, instead of pasting addresses and tokens one at a time.
+**Settings → Connected accounts** lets each person connect their own account on GitHub, Gitea or Forgejo, by signing in
+with the forge or with a personal access token, and add repositories by ticking them in a list.
 ([ADR 0030](adr/0030-personal-forge-connections.md))
 
-## Connecting an account
+## Signing in with the forge
+
+When an admin has set up sign-in for a forge (below), **Connect account** offers **Sign in with GitHub**, **Sign in with
+Gitea** or **Sign in with Forgejo** ([ADR 0031](adr/0031-sign-in-to-forges.md)):
+
+- **GitHub** shows a short code and a link to GitHub's device page. Open it, sign in to GitHub if asked (with its own second
+  factor), enter the code and approve. GarnetOps continues by itself; **Cancel sign-in** stops it.
+- **Gitea and Forgejo** open the forge's own sign-in and consent page. After you agree, the forge sends you back to GarnetOps,
+  which finishes the connection.
+
+The tokens the forge issues are stored encrypted, renewed by the worker before they expire, and never shown. If a renewal is
+refused (for example after you revoked GarnetOps on the forge), the connection says **The sign-in has expired** and offers
+**Sign in again**. **Use a personal access token instead** keeps the token form below.
+
+### Setting up sign-in (owners and admins)
+
+**Settings → Connected accounts → Sign-in with a forge → Add forge**, once per forge address:
+
+| Forge | On the forge | In GarnetOps |
+| --- | --- | --- |
+| GitHub, GitHub Enterprise Server | Create a **GitHub App** (Settings → Developer settings → GitHub Apps). Permissions: **Metadata**, **Contents** and **Pull requests** set to **Read**, nothing else. No webhook. **Enable Device Flow** on. Install the App for the accounts and organisations whose repositories people should see. | Client ID and a client secret (needed to renew tokens). |
+| Gitea, Forgejo | Create an **OAuth2 application** (Settings → Applications) with the **redirect address** GarnetOps shows (`<PUBLIC_URL>/settings/accounts/callback`). | Client ID, and the client secret for a confidential client. |
+
+The client secret is stored encrypted and only the worker uses it; it is never shown again. Removing a forge stops new
+sign-ins; connections made with it keep working until their token has to be renewed.
+
+## Connecting an account with a token
 
 Members, admins and owners can connect accounts; viewers cannot. Choose **Connect account**, then:
 
@@ -71,4 +97,6 @@ the membership.
 `POST /api/v1/forge-connections/{id}/refresh`, `GET` and `POST /api/v1/forge-connections/{id}/repositories`,
 `DELETE /api/v1/forge-connections/{id}?removeRepositories=0|1`; sharing: `POST /api/v1/repositories/{id}/share`,
 `POST /api/v1/repositories/{id}/unshare`, `GET /api/v1/share-requests`, `POST /api/v1/share-requests/{id}/approve|decline`.
-Repository objects carry `visibility` (`organization` or `private`), `mine` and `shareRequested`.
+Repository objects carry `visibility` (`organization` or `private`), `mine` and `shareRequested`. Signing in:
+`GET`, `POST`, `PATCH`, `DELETE /api/v1/forge-apps` (owners and admins), `GET /api/v1/forge-apps/available`,
+`POST /api/v1/forge-sign-in`, `GET` and `DELETE /api/v1/forge-sign-in/{id}`, `POST /api/v1/forge-sign-in/callback`.

@@ -8,6 +8,15 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Sign in with GitHub, Gitea or Forgejo** to connect an account, instead of pasting a token
+  ([ADR 0031](docs/adr/0031-sign-in-to-forges.md)). Admins register GarnetOps once per forge under **Settings → Connected
+  accounts → Sign-in with a forge**: a GitHub App with read permissions (device flow, no callback address needed) or a
+  Gitea/Forgejo OAuth2 application (authorization code with PKCE). The worker renews the tokens before they expire.
+  Pasted tokens keep working.
+- API: `/api/v1/forge-apps` and `/api/v1/forge-sign-in`; connections carry `authMethod`.
+
 ## [0.0.11] - 2026-10-29
 <!-- title: Connected accounts, private repositories and interactive statistics -->
 

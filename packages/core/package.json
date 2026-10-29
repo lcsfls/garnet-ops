@@ -21,6 +21,7 @@
     "./versions": "./src/versions.ts",
     "./manifests": "./src/manifests.ts",
     "./fix-prs": "./src/fix-prs.ts",
+    "./forge-sign-in": "./src/forge-sign-in.ts",
     "./account": "./src/account.ts",
     "./user-notifications": "./src/user-notifications.ts",
     "./directory": "./src/directory.ts",

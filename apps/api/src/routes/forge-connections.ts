@@ -68,6 +68,7 @@ function connectionDto(row: ConnectionRow, repositories: number) {
     id: row.id,
     forgeKind: row.forgeKind,
     webBaseUrl: row.webBaseUrl,
+    authMethod: row.authMethod,
     apiBaseUrl: row.apiBaseUrl,
     accountLogin: row.accountLogin,
     state: row.state,
@@ -195,9 +196,20 @@ export const forgeConnectionRoutes = new Hono<AppEnv>()
       });
       await tx
         .update(fc)
-        .set({ secretId, state: "unchecked", problem: null, updatedAt: new Date() })
+        // A pasted token replaces a sign-in (ADR 0031) as well: no renewal any more.
+        .set({
+          secretId,
+          authMethod: "token",
+          appId: null,
+          refreshSecretId: null,
+          tokenExpiresAt: null,
+          state: "unchecked",
+          problem: null,
+          updatedAt: new Date(),
+        })
         .where(eq(fc.id, row.id));
-      if (row.secretId) await tx.delete(schema.secret).where(eq(schema.secret.id, row.secretId));
+      const old = [row.secretId, row.refreshSecretId].filter((id): id is string => Boolean(id));
+      if (old.length) await tx.delete(schema.secret).where(inArray(schema.secret.id, old));
     });
     await audit(
       actor,
@@ -349,7 +361,8 @@ export const forgeConnectionRoutes = new Hono<AppEnv>()
         if (secrets.length) await tx.delete(schema.secret).where(inArray(schema.secret.id, secrets));
       }
       await tx.delete(fc).where(eq(fc.id, row.id));
-      if (row.secretId) await tx.delete(schema.secret).where(eq(schema.secret.id, row.secretId));
+      const tokens = [row.secretId, row.refreshSecretId].filter((id): id is string => Boolean(id));
+      if (tokens.length) await tx.delete(schema.secret).where(inArray(schema.secret.id, tokens));
       return repos.length;
     });
     await audit(

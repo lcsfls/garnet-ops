@@ -165,6 +165,8 @@ export default defineConfig({
         ...E2E.dev,
         NODE_ENV: "test",
         DATABASE_URL: E2E.databaseUrl,
+        // Signing in (ADR 0031): the redirect address must be the API's own.
+        PUBLIC_URL: E2E.publicUrl,
         E2E_FORGE_PORT: String(E2E.forgePort),
         E2E_FORGE_CONTROL_PORT: String(E2E.forgeControlPort),
       },

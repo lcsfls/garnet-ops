@@ -16,6 +16,7 @@ import { earlyWarningRoutes } from "./routes/early-warnings.ts";
 import { findingRoutes } from "./routes/findings.ts";
 import { fixRoutes } from "./routes/fixes.ts";
 import { forgeConnectionRoutes } from "./routes/forge-connections.ts";
+import { forgeAppRoutes, forgeSignInRoutes } from "./routes/forge-sign-in.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
 import { gateRoutes } from "./routes/gates.ts";
 import { invitationRoutes } from "./routes/invitations.ts";
@@ -110,6 +111,8 @@ const v1 = new Hono<AppEnv>()
   .route("/repositories/:id", repositorySharingRoutes)
   .route("/share-requests", shareRequestRoutes)
   .route("/forge-connections", forgeConnectionRoutes)
+  .route("/forge-apps", forgeAppRoutes)
+  .route("/forge-sign-in", forgeSignInRoutes)
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)
