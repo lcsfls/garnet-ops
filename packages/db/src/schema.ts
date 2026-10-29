@@ -2868,3 +2868,202 @@ export const pullRequest = pgTable(
     index("pull_request_org_idx").on(t.organizationId, t.updatedAt),
   ],
 );
+
+/* -------------------------------------------------------------------------- */
+/* Hosts and containers (ADR 0034)                                             */
+/* -------------------------------------------------------------------------- */
+
+/** The module switch (ADR 0033) and the opt-in registry check of hosts and containers. */
+export const hostSettings = pgTable("host_settings", {
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  /** The module: off by default; while off the agent endpoints refuse and nothing is matched. */
+  enabled: boolean("enabled").notNull().default(false),
+  enabledBy: text("enabled_by").references(() => user.id, { onDelete: "set null" }),
+  enabledAt: timestamp("enabled_at", { withTimezone: true }),
+  /** Asking public registries for newer images sends image names out of the network: off until an admin switches it on. */
+  registryChecks: boolean("registry_checks").notNull().default(false),
+  registryChecksBy: text("registry_checks_by").references(() => user.id, { onDelete: "set null" }),
+  registryChecksAt: timestamp("registry_checks_at", { withTimezone: true }),
+  updatedAt: updatedAt(),
+});
+
+/** A one-time code a host enrols with: only its SHA-256 is stored, valid for a day and one host. */
+export const agentEnrolment = pgTable(
+  "agent_enrolment",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    /** What the admin called the host; the host may report another name. */
+    label: text("label"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    hostId: text("host_id"),
+  },
+  (t) => [
+    uniqueIndex("agent_enrolment_code_uq").on(t.codeHash),
+    index("agent_enrolment_org_idx").on(t.organizationId, t.createdAt),
+  ],
+);
+
+/** A host that runs the agent. Its public key checks every request it sends; removing the host revokes it. */
+export const agentHost = pgTable(
+  "agent_host",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** The admin's name for it, or the reported host name. */
+    name: text("name").notNull(),
+    /** As the host reports it: hostile text, cleaned. */
+    hostname: text("hostname").notNull(),
+    /** Ed25519, base64url of the 32 raw bytes. */
+    publicKey: text("public_key").notNull(),
+    agentVersion: text("agent_version"),
+    dockerVersion: text("docker_version"),
+    os: text("os"),
+    enrolledBy: text("enrolled_by").references(() => user.id, { onDelete: "set null" }),
+    enrolledAt: timestamp("enrolled_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    lastInventoryAt: timestamp("last_inventory_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("agent_host_org_idx").on(t.organizationId, t.name)],
+);
+
+/** Nonces of signed requests, kept for twice the signature window so a request cannot be replayed. */
+export const agentNonce = pgTable(
+  "agent_nonce",
+  {
+    hostId: text("host_id")
+      .notNull()
+      .references(() => agentHost.id, { onDelete: "cascade" }),
+    nonce: text("nonce").notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.hostId, t.nonce] }), index("agent_nonce_seen_idx").on(t.seenAt)],
+);
+
+/** A running container as the last inventory of its host listed it. Replaced by every inventory. */
+export const hostContainer = pgTable(
+  "host_container",
+  {
+    hostId: text("host_id")
+      .notNull()
+      .references(() => agentHost.id, { onDelete: "cascade" }),
+    containerId: text("container_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** The reference it was started from ("nginx:1.27"), hostile text. */
+    imageRef: text("image_ref").notNull(),
+    imageId: text("image_id").notNull(),
+    state: text("state").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.hostId, t.containerId] }),
+    index("host_container_image_idx").on(t.organizationId, t.imageId),
+  ],
+);
+
+/** An image some host of the organisation runs, by its Docker id, with its packages and the result of the last match. */
+export const containerImage = pgTable(
+  "container_image",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    imageId: text("image_id").notNull(),
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    digests: jsonb("digests").$type<string[]>().notNull().default([]),
+    os: text("os"),
+    architecture: text("architecture"),
+    /** When the image was built, as it says. */
+    builtAt: timestamp("built_at", { withTimezone: true }),
+    /** Only the five OCI labels of ADR 0034. */
+    labels: jsonb("labels").$type<Record<string, string>>().notNull().default({}),
+    /** `sourceKey` of the source label, to link the image to a monitored repository. */
+    sourceKey: text("source_key"),
+    distro: text("distro"),
+    /** syft's package list: package URL, name, version and type. */
+    packages: jsonb("packages").$type<{ purl: string; name: string; version: string; type: string }[]>(),
+    packageCount: integer("package_count"),
+    packagesAt: timestamp("packages_at", { withTimezone: true }),
+    matchedAt: timestamp("matched_at", { withTimezone: true }),
+    /** The vulnerability database build the last match used; a newer build matches again. */
+    matchedDbBuilt: timestamp("matched_db_built", { withTimezone: true }),
+    matchError: text("match_error"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.organizationId, t.imageId] }),
+    index("container_image_source_idx").on(t.organizationId, t.sourceKey),
+  ],
+);
+
+/** A vulnerability in a package of an image. Replaced by every match; the first time it was seen is kept. */
+export const containerImageFinding = pgTable(
+  "container_image_finding",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    imageId: text("image_id").notNull(),
+    vulnerabilityId: text("vulnerability_id")
+      .notNull()
+      .references(() => vulnerability.id),
+    packageName: text("package_name").notNull(),
+    packageVersion: text("package_version").notNull(),
+    packageType: text("package_type").notNull(),
+    packagePurl: text("package_purl"),
+    fixedIn: jsonb("fixed_in").$type<string[]>(),
+    fixState: text("fix_state"),
+    severity: text("severity").notNull(),
+    severityRank: integer("severity_rank").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("container_image_finding_uq").on(
+      t.organizationId,
+      t.imageId,
+      t.vulnerabilityId,
+      t.packageType,
+      t.packageName,
+    ),
+    index("container_image_finding_list_idx").on(t.organizationId, t.imageId, t.severityRank),
+  ],
+);
+
+/** What a public registry said about an image reference (ADR 0034, opt-in): a moved tag, or a newer version tag. */
+export const imageUpdateCheck = pgTable(
+  "image_update_check",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** registry/repository:tag, as parseImageRef reads it. */
+    ref: text("ref").notNull(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+    /** The digest the tag points to in the registry now. */
+    currentDigest: text("current_digest"),
+    newerTag: text("newer_tag"),
+    newerKind: text("newer_kind", { enum: ["major", "minor", "patch"] }),
+    /** A short code; null if the check worked. */
+    error: text("error"),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.ref] })],
+);

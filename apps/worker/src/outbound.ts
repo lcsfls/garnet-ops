@@ -31,11 +31,18 @@ export type OutboundErrorCode =
 export class OutboundError extends Error {
   readonly code: OutboundErrorCode;
   readonly status: number | null;
-  constructor(code: OutboundErrorCode, status: number | null = null) {
+  /** The answer's headers for `httpStatus` (a registry's 401 names its token service in them). */
+  readonly headers: IncomingHttpHeaders | null;
+  constructor(
+    code: OutboundErrorCode,
+    status: number | null = null,
+    headers: IncomingHttpHeaders | null = null,
+  ) {
     super(code === "httpStatus" ? `HTTP ${status}` : code);
     this.name = "OutboundError";
     this.code = code;
     this.status = status;
+    this.headers = headers;
   }
 }
 
@@ -62,6 +69,8 @@ export const publicLookup: Lookup = (hostname, options, callback) => {
 
 export interface OutboundOptions {
   host: string;
+  /** GET by default; HEAD for a registry manifest, which does not count as a pull. */
+  method?: "GET" | "HEAD";
   /** Path and query. */
   path: string;
   headers?: Record<string, string>;
@@ -102,7 +111,7 @@ function mapError(error: unknown): OutboundError {
 }
 
 /**
- * GET over HTTPS. Resolves with the status and a body stream once the headers are in. A 3xx is
+ * GET (or HEAD) over HTTPS. Resolves with the status and a body stream once the headers are in. A 3xx is
  * `redirected` and any other status outside 2xx is `httpStatus`; in both cases the body is not read.
  */
 export function httpsGet(options: OutboundOptions): Promise<OutboundResponse> {
@@ -123,7 +132,7 @@ export function httpsGet(options: OutboundOptions): Promise<OutboundResponse> {
       host: options.host,
       port: options.test?.port ?? 443,
       path: options.path,
-      method: "GET",
+      method: options.method ?? "GET",
       servername: options.host,
       lookup: options.test?.lookup ?? publicLookup,
       ...(options.test?.ca ? { ca: options.test.ca } : {}),
@@ -147,7 +156,9 @@ export function httpsGet(options: OutboundOptions): Promise<OutboundResponse> {
         req.destroy();
         clearTimeout(deadline);
         finished = true;
-        return reject(new OutboundError(status >= 300 && status < 400 ? "redirected" : "httpStatus", status));
+        return reject(
+          new OutboundError(status >= 300 && status < 400 ? "redirected" : "httpStatus", status, res.headers),
+        );
       }
       finished = true;
       async function* body(): AsyncGenerator<Buffer> {

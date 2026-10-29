@@ -10,6 +10,7 @@ import {
   type LucideIcon,
   Package,
   ScrollText,
+  Server,
   Settings,
   ShieldCheck,
   Siren,
@@ -29,6 +30,7 @@ export type NavTo =
   | "/fixes"
   | "/packages"
   | "/websites"
+  | "/hosts"
   | "/settings"
   | "/team"
   | "/audit-log"
@@ -66,7 +68,10 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
   },
   {
     label: "shell.groupMonitoring",
-    items: [{ to: "/websites", label: "nav.websites", icon: Globe, module: "websites" }],
+    items: [
+      { to: "/websites", label: "nav.websites", icon: Globe, module: "websites" },
+      { to: "/hosts", label: "nav.hosts", icon: Server, module: "hosts" },
+    ],
   },
   {
     label: "shell.groupAdmin",
@@ -87,7 +92,8 @@ export function navFor(me: Me) {
     ...group,
     items: group.items.filter(
       (item) =>
-        (!item.adminOnly || isAdmin(me)) && (!item.module || me.organization?.modules?.[item.module] === true),
+        (!item.adminOnly || isAdmin(me)) &&
+        (!item.module || me.organization?.modules?.[item.module] === true),
     ),
   })).filter((group) => group.items.length > 0);
 }

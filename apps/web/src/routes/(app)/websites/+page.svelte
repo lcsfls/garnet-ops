@@ -3,6 +3,7 @@
   import { createQuery, keepPreviousData } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
+  import ModuleOff from "#lib/components/ModuleOff.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import Pagination from "#lib/components/Pagination.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
@@ -12,7 +13,6 @@
   import Tile from "#lib/components/Tile.svelte";
   import Button from "#lib/components/ui/Button.svelte";
   import AddWebsiteDialog from "#lib/components/websites/AddWebsiteDialog.svelte";
-  import ModuleOff from "#lib/components/websites/ModuleOff.svelte";
   import WebsiteRow from "#lib/components/websites/WebsiteRow.svelte";
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
@@ -71,7 +71,7 @@
 </PageHeader>
 
 {#if !on}
-  <ModuleOff canSwitch={canEdit} />
+  <ModuleOff module="websites" canSwitch={canEdit} />
 {:else}
   <details class="mb-4 rounded-xl border bg-card px-5 py-3 text-sm shadow-xs" data-testid="websites-help">
     <summary class="cursor-pointer font-medium">{t("websites.helpSummary")}</summary>

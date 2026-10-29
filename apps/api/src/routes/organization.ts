@@ -88,36 +88,45 @@ export const organizationRoutes = new Hono<AppEnv>()
       return c.json(await modulesOf(actor.organizationId));
     }
     const now = new Date();
+    const set = { enabled: input.enabled, enabledBy: actor.userId, enabledAt: now, updatedAt: now };
+    if (name === "hosts") {
+      // Hosts keep their keys while the module is off; the agent endpoints refuse until it is on again.
+      const h = schema.hostSettings;
+      await db
+        .insert(h)
+        .values({ organizationId: actor.organizationId, ...set })
+        .onConflictDoUpdate({ target: h.organizationId, set });
+    }
     const s = schema.exposureSettings;
     const a = schema.exposureAsset;
-    await db.transaction(async (tx) => {
-      const set = { enabled: input.enabled, enabledBy: actor.userId, enabledAt: now, updatedAt: now };
-      await tx
-        .insert(s)
-        .values({ organizationId: actor.organizationId, ...set })
-        .onConflictDoUpdate({ target: s.organizationId, set });
-      // Switching off also switches stage 2 off and voids its acknowledgements: switching on again starts from a safe state.
-      if (!input.enabled) {
+    if (name === "websites")
+      await db.transaction(async (tx) => {
         await tx
-          .update(a)
-          .set({
-            stage2Enabled: false,
-            stage2AcknowledgedBy: null,
-            stage2AcknowledgedAt: null,
-            updatedAt: now,
-          })
-          .where(and(eq(a.organizationId, actor.organizationId), eq(a.stage2Enabled, true)));
-        await tx
-          .update(schema.exposureRun)
-          .set({ state: "failed", error: "moduleOff", finishedAt: now })
-          .where(
-            and(
-              eq(schema.exposureRun.organizationId, actor.organizationId),
-              eq(schema.exposureRun.state, "queued"),
-            ),
-          );
-      }
-    });
+          .insert(s)
+          .values({ organizationId: actor.organizationId, ...set })
+          .onConflictDoUpdate({ target: s.organizationId, set });
+        // Switching off also switches stage 2 off and voids its acknowledgements: switching on again starts from a safe state.
+        if (!input.enabled) {
+          await tx
+            .update(a)
+            .set({
+              stage2Enabled: false,
+              stage2AcknowledgedBy: null,
+              stage2AcknowledgedAt: null,
+              updatedAt: now,
+            })
+            .where(and(eq(a.organizationId, actor.organizationId), eq(a.stage2Enabled, true)));
+          await tx
+            .update(schema.exposureRun)
+            .set({ state: "failed", error: "moduleOff", finishedAt: now })
+            .where(
+              and(
+                eq(schema.exposureRun.organizationId, actor.organizationId),
+                eq(schema.exposureRun.state, "queued"),
+              ),
+            );
+        }
+      });
     await audit(
       actor,
       input.enabled ? "organization.module_enabled" : "organization.module_disabled",

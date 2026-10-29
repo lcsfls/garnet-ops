@@ -218,6 +218,13 @@
       "when": 1793300117786,
       "tag": "0030_website_monitoring",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793311072424,
+      "tag": "0031_hosts_and_containers",
+      "breakpoints": true
     }
   ]
 }

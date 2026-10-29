@@ -1,7 +1,8 @@
 # Release of GarnetOps (ADR 0007): runs when a tag v* is pushed.
 #
-#   build    (per architecture, native runners): build the app, web and update sidecar
-#            images (the sidecar from updater/, ADR 0026), push them by digest without a
+#   build    (per architecture, native runners): build the app, web, update sidecar and host
+#            agent images (the sidecar from updater/, ADR 0026; the agent runs on the customer's
+#            hosts, ADR 0034, and is not part of the stack), push them by digest without a
 #            tag, smoke-test the digests with the production Compose file, including the
 #            upgrade from the previous release through the sidecar just built
 #   release  (after every build and smoke passed): tag and sign the multi-arch images
@@ -30,6 +31,7 @@ env:
   APP_REPOSITORY: ghcr.io/lcsfls/garnetops
   WEB_REPOSITORY: ghcr.io/lcsfls/garnetops-web
   UPDATER_REPOSITORY: ghcr.io/lcsfls/garnetops-updater
+  AGENT_REPOSITORY: ghcr.io/lcsfls/garnetops-agent
 
 jobs:
   build:
@@ -68,6 +70,15 @@ jobs:
         with:
           image: ${{ env.WEB_REPOSITORY }}
           target: web
+          platforms: ${{ matrix.platform }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the host agent image
+        id: agent
+        uses: ./updater/actions/build
+        with:
+          image: ${{ env.AGENT_REPOSITORY }}
+          target: agent
           platforms: ${{ matrix.platform }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -113,12 +124,14 @@ jobs:
           APP_DIGEST: ${{ steps.app.outputs.digest }}
           WEB_DIGEST: ${{ steps.web.outputs.digest }}
           UPDATER_DIGEST: ${{ steps.updater.outputs.digest }}
+          AGENT_DIGEST: ${{ steps.agent.outputs.digest }}
           ARCH: ${{ matrix.arch }}
         run: |
           mkdir -p digests
           printf '%s' "$APP_DIGEST" > "digests/app-$ARCH"
           printf '%s' "$WEB_DIGEST" > "digests/web-$ARCH"
           printf '%s' "$UPDATER_DIGEST" > "digests/updater-$ARCH"
+          printf '%s' "$AGENT_DIGEST" > "digests/agent-$ARCH"
 
       - name: Upload the digests
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -151,10 +164,11 @@ jobs:
       - name: The platform digests per image
         id: digests
         run: |
-          printf 'images={"app": {"repository": "%s", "digests": ["%s", "%s"]}, "web": {"repository": "%s", "digests": ["%s", "%s"]}, "updater": {"repository": "%s", "digests": ["%s", "%s"]}}\n' \
+          printf 'images={"app": {"repository": "%s", "digests": ["%s", "%s"]}, "web": {"repository": "%s", "digests": ["%s", "%s"]}, "updater": {"repository": "%s", "digests": ["%s", "%s"]}, "agent": {"repository": "%s", "digests": ["%s", "%s"]}}\n' \
             "$APP_REPOSITORY" "$(cat digests/app-amd64)" "$(cat digests/app-arm64)" \
             "$WEB_REPOSITORY" "$(cat digests/web-amd64)" "$(cat digests/web-arm64)" \
-            "$UPDATER_REPOSITORY" "$(cat digests/updater-amd64)" "$(cat digests/updater-arm64)" >> "$GITHUB_OUTPUT"
+            "$UPDATER_REPOSITORY" "$(cat digests/updater-amd64)" "$(cat digests/updater-arm64)" \
+            "$AGENT_REPOSITORY" "$(cat digests/agent-amd64)" "$(cat digests/agent-arm64)" >> "$GITHUB_OUTPUT"
 
       - name: Tag, sign and attach SBOMs
         id: publish

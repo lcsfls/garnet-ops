@@ -26,15 +26,27 @@ Security-relevant changes are listed under **Security** in every release.
   your own domains, host names and addresses from the outside (certificates and their expiry, DNS, SPF and DMARC, security
   headers). Port checks run only for names whose control you proved with a DNS TXT record or a file, and only after you confirm
   them per name. The checks are those of 0.0.3 (ADR 0023), without location data. Old `/exposure` links lead to the new page.
+- **Hosts and containers** with a host agent, a module that is off by default
+  ([ADR 0034](docs/adr/0034-host-agent-for-running-containers.md), [docs](docs/hosts.md)). An admin adds a host and gets a Compose
+  file with a one-time code; the signed agent image (`ghcr.io/lcsfls/garnetops-agent`) reports the running containers and the
+  packages of their images over HTTPS only. GarnetOps matches them against the local vulnerability database, links each image to
+  the repository it was built from (OCI source label), and the repository page shows where it runs. The agent reaches Docker only
+  through a read-only proxy and signs every report with its own key.
+- Optional check for newer images in public registries (a newer build of the tag, a newer version tag), off by default.
 - API: `GET /api/v1/organization/modules`, `PUT /api/v1/organization/modules/{name}`, `organization.modules` in
   `GET /api/v1/me`, `websites` in `GET /api/v1/search`, and `/api/v1/exposure` again (answers 409 `module-off` while the module is
   off).
+- API: `/api/v1/hosts` (hosts, images, enrolment codes, settings), `/api/v1/agent/*` for the agent (signed requests), and the
+  module `hosts` under `/api/v1/organization/modules`.
 
 ### Security
 
 - Website monitoring makes outbound connections to public hosts only after an owner or admin switches the module on (audited).
   While it is off, no check runs and its API refuses every request; switching it off also switches stage 2 off for every website
   and voids the confirmations. The worker checks the switch again before each run and each proof check.
+- The host agent never holds the Docker socket: a separate proxy without network forwards only read requests on six paths. Hosts
+  enrol with a one-time code (hashed at rest, 24 hours, one host) and sign every request with an Ed25519 key (five-minute window,
+  nonce, removed hosts refused at once). Everything a host sends is treated as hostile input.
 
 ## [0.0.11] - 2026-10-29
 <!-- title: Connected accounts, private repositories and interactive statistics -->

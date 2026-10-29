@@ -24,6 +24,7 @@
     "./forge-sign-in": "./src/forge-sign-in.ts",
     "./exposure": "./src/exposure.ts",
     "./exposure-assets": "./src/exposure-assets.ts",
+    "./agent": "./src/agent.ts",
     "./account": "./src/account.ts",
     "./user-notifications": "./src/user-notifications.ts",
     "./directory": "./src/directory.ts",

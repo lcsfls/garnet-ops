@@ -1,4 +1,9 @@
-import { readFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { E2E } from "./env.ts";
 import { OWNER, STATE_FILE, totp, watchForProblems } from "./helpers.ts";
@@ -2794,6 +2799,201 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     expect((await sql("select 1 from exposure_asset")).length).toBeGreaterThanOrEqual(EXPOSURE.total);
     await page.goto("/websites");
     await expect(page.getByTestId("websites-module-off")).toBeVisible();
+    expect(problems).toEqual([]);
+  });
+});
+
+/**
+ * Hosts and containers (ADR 0034) with the real agent code: the test plays Docker (a fake API on a Unix socket) and syft (a script),
+ * the agent enrols with the code the dialog shows and reports through the web server like a host on the network would. No worker
+ * matches here, so the image's findings are written as the worker would have.
+ */
+test.describe("hosts and containers (ADR 0034)", () => {
+  const IMAGE = "e".repeat(64);
+  const PROXY_IMAGE = "f".repeat(64);
+  const work = mkdtempSync(join(tmpdir(), "garnetops-e2e-agent-"));
+  const dockerSocket = join(work, "docker.sock");
+  let docker: import("node:http").Server;
+
+  test.beforeAll(async () => {
+    docker = createHttpServer((req, res) => {
+      const json = (body: unknown) =>
+        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(body));
+      if (req.method !== "GET") return void res.writeHead(403).end();
+      if (req.url === "/version") return json({ Version: "27.3.1", Os: "linux" });
+      if (req.url === "/containers/json")
+        return json([
+          {
+            Id: "1".repeat(64),
+            Names: ["/seeded-app"],
+            Image: "git.example.test/team/seeded-app:1.4.0",
+            ImageID: `sha256:${IMAGE}`,
+            State: "running",
+          },
+          {
+            Id: "2".repeat(64),
+            Names: ["/edge"],
+            Image: "caddy:2.8.4",
+            ImageID: `sha256:${PROXY_IMAGE}`,
+            State: "running",
+          },
+        ]);
+      if (req.url?.startsWith("/images/")) {
+        const app = req.url.includes(IMAGE);
+        return json({
+          Id: `sha256:${app ? IMAGE : PROXY_IMAGE}`,
+          RepoTags: [app ? "git.example.test/team/seeded-app:1.4.0" : "caddy:2.8.4"],
+          RepoDigests: [],
+          Os: "linux",
+          Architecture: "amd64",
+          Config: {
+            Labels: app
+              ? {
+                  "org.opencontainers.image.source": "https://git.example.test/team/seeded-app",
+                  "org.opencontainers.image.revision": "0123456789abcdef0123456789abcdef01234567",
+                  "com.example.token": "do-not-send",
+                }
+              : {},
+          },
+        });
+      }
+      res.writeHead(404).end();
+    });
+    await new Promise<void>((resolve) => docker.listen(dockerSocket, resolve));
+    writeFileSync(
+      join(work, "syft"),
+      `#!/bin/sh\nout="\${4#syft-json=}"\necho '{"artifacts":[{"name":"pkg-1","version":"1.0.0","type":"npm","purl":"pkg:npm/pkg-1@1.0.0"}],"distro":{"prettyName":"Alpine Linux v3.24"}}' > "$out"\n`,
+      { mode: 0o755 },
+    );
+  });
+  test.afterAll(async () => {
+    await new Promise<void>((resolve) => docker.close(() => resolve()));
+    rmSync(work, { recursive: true, force: true });
+    await sql("delete from agent_host");
+    await sql("delete from agent_enrolment");
+    await sql("delete from container_image");
+    await sql("delete from container_image_finding");
+    await sql("delete from host_settings");
+  });
+
+  /** Runs the agent once, as a host would. */
+  const runAgent = (code?: string) =>
+    new Promise<{ ok: boolean; output: string }>((resolve) => {
+      execFile(
+        process.execPath,
+        [fileURLToPath(new URL("../../agent/src/main.ts", import.meta.url)), "once"],
+        {
+          env: {
+            PATH: process.env.PATH,
+            NODE_ENV: "test",
+            GARNETOPS_ALLOW_HTTP_FOR_TESTS: "1",
+            GARNETOPS_URL: E2E.publicUrl,
+            GARNETOPS_STATE_DIR: join(work, "state"),
+            GARNETOPS_DOCKER_SOCKET: dockerSocket,
+            GARNETOPS_SYFT_BIN: join(work, "syft"),
+            GARNETOPS_HOST_NAME: "web-01.example.lan",
+            ...(code ? { GARNETOPS_ENROLMENT_CODE: code } : {}),
+          },
+          timeout: 60_000,
+        },
+        (error, stdout, stderr) => resolve({ ok: !error, output: `${stdout}${stderr}` }),
+      );
+    });
+
+  test("an admin adds a host, its agent enrols and reports, and every link leads to the exact result", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/hosts");
+    await expect(page.getByTestId("hosts-module-off")).toBeVisible();
+    await page.goto("/settings?section=modules");
+    await page.getByTestId("module-hosts").getByRole("button", { name: "Switch on" }).click();
+    await expect(page.getByText("Hosts and containers are on.")).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Hosts" })
+      .click();
+    await expect(page.getByRole("heading", { name: "Hosts", level: 1 })).toBeVisible();
+    await expect(page.getByText("No host yet.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Add host" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add a host" });
+    await dialog.getByLabel("Name of the host").fill("Web 1");
+    await dialog.getByRole("button", { name: "Create the code" }).click();
+    const compose = page.getByTestId("host-compose");
+    await expect(compose).toContainText("read_only: true");
+    await expect(compose).toContainText(`GARNETOPS_URL: "${E2E.publicUrl}"`);
+    await expect(compose).toContainText("ghcr.io/lcsfls/garnetops-agent:");
+    await expect(compose).toContainText("/var/run/docker.sock:/var/run/docker.sock:ro");
+    const code = /GARNETOPS_ENROLMENT_CODE: "(goe_[A-Za-z0-9_-]{43})"/.exec(
+      (await compose.textContent()) ?? "",
+    )?.[1];
+    expect(code).toBeTruthy();
+    await page.getByRole("button", { name: "Done" }).click();
+    await expect(page.getByTestId("host-codes")).toContainText("Web 1");
+
+    const first = await runAgent(code);
+    expect(first.output).toContain("reported 2 containers, 2 package lists");
+    expect(first.ok).toBe(true);
+    // The code is spent; the agent keeps its key.
+    expect(await sql("select 1 from agent_enrolment where used_at is null")).toEqual([]);
+    expect(JSON.stringify(await sql("select labels from container_image"))).not.toContain("do-not-send");
+
+    await page.reload();
+    const row = page.locator('tr[data-host="Web 1"]');
+    await expect(row).toContainText("web-01.example.lan");
+    await expect(row).toContainText("2");
+    await row.getByRole("link", { name: "Web 1" }).click();
+    await expect(page.getByRole("heading", { name: "Web 1", level: 1 })).toBeVisible();
+    const app = page.getByTestId("host-containers").locator('tr[data-container="seeded-app"]');
+    await expect(app).toContainText("git.example.test/team/seeded-app:1.4.0");
+    await expect(app).toContainText("Not checked yet");
+
+    // The worker's match, as it would have stored it.
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    await sql(
+      `insert into container_image_finding (id, organization_id, image_id, vulnerability_id, package_name, package_version, package_type,
+         fixed_in, severity, severity_rank, first_seen_at, last_seen_at)
+       select 'cif_e2e1', $1, $2, id, 'pkg-1', '1.0.0', 'npm', '["1.0.1"]', 'critical', 5, now(), now() from vulnerability order by id limit 1`,
+      [org?.id, IMAGE],
+    );
+    await sql("update container_image set matched_at = now() where image_id = $1", [IMAGE]);
+    await page.reload();
+    await expect(app.getByTitle("1 open of severity Critical")).toBeVisible();
+    // The repository the image was built from, and the image itself.
+    await expect(app.getByRole("link", { name: "seeded-app", exact: true })).toBeVisible();
+    await app.getByRole("link", { name: "git.example.test/team/seeded-app:1.4.0" }).click();
+    await expect(page).toHaveURL(new RegExp(`/hosts/images/${IMAGE}$`));
+    await expect(page.getByTestId("image-findings").locator("tbody tr")).toHaveCount(1);
+    await expect(page.getByTestId("image-findings")).toContainText("pkg-1@1.0.0");
+    await expect(page.getByText("Built from 0123456789ab")).toBeVisible();
+    await expect(page.getByTestId("image-running")).toContainText("Web 1");
+    await page.getByRole("link", { name: "seeded-app", exact: true }).first().click();
+    await expect(page.getByRole("heading", { name: "seeded-app", level: 1 })).toBeVisible();
+    const running = page.getByTestId("repository-running");
+    await expect(running).toContainText("Web 1");
+    await expect(running).toContainText("0123456789ab");
+    expect(problems).toEqual([]);
+  });
+
+  test("removing a host stops its agent for good, and the audit log has it all", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await page.goto("/hosts");
+    await page.locator('tr[data-host="Web 1"]').getByRole("link", { name: "Web 1" }).click();
+    await page.getByRole("button", { name: "Remove host" }).click();
+    await page
+      .getByRole("dialog", { name: "Remove Web 1?" })
+      .getByRole("button", { name: "Remove host" })
+      .click();
+    await expect(page.getByText("The host was removed.")).toBeVisible();
+    await expect(page.getByText("No host yet.")).toBeVisible();
+    const again = await runAgent();
+    expect(again.ok).toBe(false);
+    expect(again.output).toContain("GarnetOps refused this host");
+    await page.goto("/audit-log?group=host");
+    for (const label of ["Host enrolment code created", "Host added by its agent", "Host removed"]) {
+      await expect(page.getByText(label).first()).toBeVisible();
+    }
     expect(problems).toEqual([]);
   });
 });

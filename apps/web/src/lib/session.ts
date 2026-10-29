@@ -18,7 +18,7 @@ export interface Me {
     /** Nightly scan: local wall-clock time "HH:MM:SS" in an IANA zone (ADR 0005). */
     scanSchedule: { enabled: boolean; localTime: string; timeZone: string };
     /** Modules the organisation switched on (ADR 0033). */
-    modules: { websites: boolean };
+    modules: { websites: boolean; hosts: boolean };
   };
   role: Role;
 }

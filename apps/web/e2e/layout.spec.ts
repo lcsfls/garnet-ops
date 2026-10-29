@@ -721,3 +721,67 @@ test.describe("signed in, with website monitoring on", () => {
     });
   }
 });
+
+/** Hosts and containers (ADR 0034): a host with two containers, written as the agent would have reported them. */
+test.describe("signed in, with hosts and containers on", () => {
+  test.use({ storageState: STATE_FILE });
+  const IMAGE = "d".repeat(64);
+  test.beforeAll(async () => {
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    await sql(
+      `insert into host_settings (organization_id, enabled) values ($1, true)
+       on conflict (organization_id) do update set enabled = true`,
+      [org?.id],
+    );
+    await sql(
+      `insert into agent_host (id, organization_id, name, hostname, public_key, agent_version, docker_version, os, enrolled_at, last_seen_at, last_inventory_at)
+       values ('hst_layout', $1, 'build-runner-with-a-long-name-01', 'build-runner-with-a-long-name-01.example.lan', $2, '0.0.12', '27.3.1', 'Debian GNU/Linux 12 (bookworm)', now(), now(), now())
+       on conflict do nothing`,
+      [org?.id, "k".repeat(43)],
+    );
+    await sql(
+      `insert into container_image (organization_id, image_id, tags, digests, labels, source_key, distro, packages, package_count, packages_at, matched_at, first_seen_at, last_seen_at)
+       values ($1, $2, '["git.example.test/team/seeded-app:1.4.0"]', '[]', '{"org.opencontainers.image.source":"https://git.example.test/team/seeded-app"}',
+               'git.example.test/team/seeded-app', 'Alpine Linux v3.24', '[]', 0, now(), now(), now(), now())
+       on conflict do nothing`,
+      [org?.id, IMAGE],
+    );
+    for (const [id, name, ref] of [
+      ["1", "seeded-app-with-a-rather-long-container-name", "git.example.test/team/seeded-app:1.4.0"],
+      [
+        "2",
+        "edge",
+        "registry.example.com/infrastructure/very/long/path/to/an/image:2024.10.29-build.1234-alpine",
+      ],
+    ]) {
+      await sql(
+        `insert into host_container (host_id, container_id, organization_id, name, image_ref, image_id, state, first_seen_at, last_seen_at)
+         values ('hst_layout', $1, $2, $3, $4, $5, 'running', now(), now()) on conflict do nothing`,
+        [id?.repeat(64), org?.id, name, ref, IMAGE],
+      );
+    }
+  });
+  test.afterAll(async () => {
+    await sql("delete from agent_host where id = 'hst_layout'");
+    await sql("delete from container_image where image_id = $1", [IMAGE]);
+    await sql("update host_settings set enabled = false");
+  });
+
+  for (const { path, heading, name } of [
+    { path: "/hosts", heading: "Hosts", name: "hosts" },
+    { path: "/hosts/hst_layout", heading: "build-runner-with-a-long-name-01", name: "host" },
+    { path: `/hosts/images/${IMAGE}`, heading: "git.example.test/team/seeded-app:1.4.0", name: "host-image" },
+    { path: "/repositories/repo_e2eseeded000000001", heading: "seeded-app", name: "repository-running" },
+  ]) {
+    test(`${name} fits without horizontal scrolling`, async ({ page }, info) => {
+      const problems = watchForProblems(page);
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: heading, exact: true, level: 1 })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+      await page.screenshot({ path: info.outputPath(`${name}.png`), fullPage: true });
+      expect(problems).toEqual([]);
+    });
+  }
+});

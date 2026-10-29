@@ -75,8 +75,14 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
   });
 
   it("is off by default, and only owners and admins switch it", async () => {
-    expect((await call("GET", "/api/v1/organization/modules", "viewer")).json).toEqual({ websites: false });
-    expect(modulesOf((await call("GET", "/api/v1/me", "viewer")).json)).toEqual({ websites: false });
+    expect((await call("GET", "/api/v1/organization/modules", "viewer")).json).toEqual({
+      websites: false,
+      hosts: false,
+    });
+    expect(modulesOf((await call("GET", "/api/v1/me", "viewer")).json)).toEqual({
+      websites: false,
+      hosts: false,
+    });
     for (const role of ["viewer", "member"]) {
       expect(
         (await call("PUT", "/api/v1/organization/modules/websites", role, { enabled: true })).status,
@@ -86,8 +92,11 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
       (await call("PUT", "/api/v1/organization/modules/unknown", "admin", { enabled: true })).status,
     ).toBe(404);
     const on = await call("PUT", "/api/v1/organization/modules/websites", "admin", { enabled: true });
-    expect(on).toEqual({ status: 200, json: { websites: true } });
-    expect(modulesOf((await call("GET", "/api/v1/me", "viewer")).json)).toEqual({ websites: true });
+    expect(on).toEqual({ status: 200, json: { websites: true, hosts: false } });
+    expect(modulesOf((await call("GET", "/api/v1/me", "viewer")).json)).toEqual({
+      websites: true,
+      hosts: false,
+    });
     const audits = await t.db.select().from(schema.auditLog).where(eq(schema.auditLog.organizationId, ORG));
     expect(audits.map((a) => [a.action, a.data])).toEqual([
       ["organization.module_enabled", { module: "websites" }],
@@ -115,7 +124,7 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
       trigger: "schedule",
     });
     const off = await call("PUT", "/api/v1/organization/modules/websites", "owner", { enabled: false });
-    expect(off).toEqual({ status: 200, json: { websites: false } });
+    expect(off).toEqual({ status: 200, json: { websites: false, hosts: false } });
     const [asset] = await t.db
       .select()
       .from(schema.exposureAsset)

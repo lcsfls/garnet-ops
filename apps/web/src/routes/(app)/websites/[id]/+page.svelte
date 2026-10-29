@@ -4,6 +4,7 @@
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
   import CardHeader from "#lib/components/CardHeader.svelte";
+  import ModuleOff from "#lib/components/ModuleOff.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import Segmented from "#lib/components/Segmented.svelte";
@@ -16,7 +17,6 @@
   import FindingsCard from "#lib/components/websites/FindingsCard.svelte";
   import HistoryCard from "#lib/components/websites/HistoryCard.svelte";
   import HttpCard from "#lib/components/websites/HttpCard.svelte";
-  import ModuleOff from "#lib/components/websites/ModuleOff.svelte";
   import PortsCard from "#lib/components/websites/PortsCard.svelte";
   import Stage2Dialog from "#lib/components/websites/Stage2Dialog.svelte";
   import StageBadge from "#lib/components/websites/StageBadge.svelte";
@@ -218,7 +218,7 @@
   actions={data ? actions : undefined}
 />
 {#if !on}
-  <ModuleOff canSwitch={canEdit} />
+  <ModuleOff module="websites" canSwitch={canEdit} />
 {:else if !data}
   <Card><QueryStatus {query} /></Card>
 {:else}

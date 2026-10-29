@@ -115,6 +115,9 @@ paginated findings, and every number on the overview leads to its details.
 - [x] Per-user forge connections with a personal read token, repository picker, private
       repositories until shared (ADR 0030, 0.0.11); sign-in with a GitHub App (device flow) or a
       Gitea/Forgejo OAuth2 application with PKCE instead of a pasted token (ADR 0031, 0.0.12)
+- [x] Hosts and containers with a host agent, a module off by default (ADR 0034, `docs/hosts.md`, 0.0.12): running containers,
+      the packages and vulnerabilities of their images, the link to the repository they were built from, optional check for newer
+      images in public registries. Still open: Kubernetes, private registries, notifications about running images
 - [x] Website monitoring as a module, off by default (ADR 0023, ADR 0033, `docs/websites.md`, 0.0.12): certificates, DNS, mail
       authentication and security headers from the outside; proof of control by DNS TXT record or file; port checks only for proven
       names with a confirmation per name; switched on and off under Settings, Modules

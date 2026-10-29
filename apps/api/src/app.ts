@@ -9,6 +9,7 @@ import { requestBodyLimit } from "./lib/body-limit.ts";
 import { type AppEnv, requireActor } from "./lib/context.ts";
 import { handleError, ProblemError } from "./lib/problem.ts";
 import { accountRoutes } from "./routes/account.ts";
+import { agentRoutes } from "./routes/agent.ts";
 import { aiRoutes } from "./routes/ai.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { directoryRoutes } from "./routes/directory.ts";
@@ -20,6 +21,7 @@ import { forgeConnectionRoutes } from "./routes/forge-connections.ts";
 import { forgeAppRoutes, forgeSignInRoutes } from "./routes/forge-sign-in.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
 import { gateRoutes } from "./routes/gates.ts";
+import { hostRoutes } from "./routes/hosts.ts";
 import { invitationRoutes } from "./routes/invitations.ts";
 import { meRoutes } from "./routes/me.ts";
 import { notificationRoutes } from "./routes/notifications.ts";
@@ -95,6 +97,8 @@ export const app = new Hono()
    * on its own.
    */
   .route("/api/v1/gate", gateCiRoutes)
+  /** The host agent (ADR 0034): a one-time code to enrol, then requests signed with the host's key; no cookies. */
+  .route("/api/v1/agent", agentRoutes)
   .use("/api/v1/*", sameOrigin)
   .route("/api/v1/setup", setupRoutes)
   // The sign-in page asks what it may offer (the directory) before anyone is signed in (ADR 0020).
@@ -117,6 +121,7 @@ const v1 = new Hono<AppEnv>()
   .route("/forge-sign-in", forgeSignInRoutes)
   .route("/pull-requests", pullRequestRoutes)
   .route("/exposure", exposureRoutes)
+  .route("/hosts", hostRoutes)
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)

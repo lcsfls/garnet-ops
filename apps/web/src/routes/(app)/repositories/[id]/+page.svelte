@@ -5,6 +5,7 @@
   import { cn } from "#lib/cn.ts";
   import Card from "#lib/components/Card.svelte";
   import ExportMenu from "#lib/components/ExportMenu.svelte";
+  import RunningCard from "#lib/components/hosts/RunningCard.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import GradeSummary from "#lib/components/repositories/GradeSummary.svelte";
@@ -121,6 +122,7 @@
       </div>
     </div>
     <WriteAccessCard repo={data} {me} />
+    {#if me.organization.modules?.hosts}<RunningCard repositoryId={id} />{/if}
     <div class="grid gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <RepositoryTrend {id} />
       <ScanHistory

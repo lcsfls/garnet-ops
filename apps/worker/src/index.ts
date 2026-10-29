@@ -28,6 +28,7 @@ import {
 } from "./fix-pr.ts";
 import { FORGE_CONNECTION_QUEUE, type RefreshJob, refreshConnection } from "./forge-connection.ts";
 import { FORGE_SIGN_IN_QUEUE, runSignIn } from "./forge-sign-in.ts";
+import { startHosts } from "./hosts.ts";
 import { deliver, eventsForScan, NOTIFY_QUEUE, queueNotifications } from "./notify.ts";
 import { startPullRequestRefresh } from "./pull-requests.ts";
 import { removeRetiredQueues } from "./retired-queues.ts";
@@ -166,6 +167,8 @@ for (let i = 0; i < EXPOSURE_CONCURRENCY; i++) {
   });
 }
 await startExposureScheduler(boss);
+// Hosts and containers (ADR 0034): matching the packages of running images, and the opt-in registry check.
+await startHosts(boss);
 await startScheduler(boss);
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();

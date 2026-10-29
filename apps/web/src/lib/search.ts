@@ -164,6 +164,7 @@ export const AUDIT_FILTERS = [
   "fix_pr",
   "forge_connection",
   "exposure",
+  "host",
 ] as const;
 export const auditSearch = z.object({
   /** Action group; the API filters by the prefix "<group>.". */

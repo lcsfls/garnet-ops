@@ -68,7 +68,8 @@ describe("search params", () => {
   });
 
   it("offers no settings section and no audit group of a removed module", () => {
-    const removed = ["proxmox", "unifi", "xdr", "attacks", "host"];
+    // "host" is a group again: hosts and containers of the host agent (ADR 0034).
+    const removed = ["proxmox", "unifi", "xdr", "attacks"];
     for (const name of removed) {
       expect(SETTINGS_SECTIONS).not.toContain(name);
       expect(AUDIT_FILTERS).not.toContain(name);

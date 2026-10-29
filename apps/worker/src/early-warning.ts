@@ -49,7 +49,7 @@ type InventoryRow = {
 };
 
 /** grype's JSON report for a list of package URLs, from the scanner service or from this container. */
-async function matchPurls(purls: string[], dir: string): Promise<unknown> {
+export async function matchPurls(purls: string[], dir: string): Promise<unknown> {
   const list = join(dir, "inventory.purls");
   await writeFile(list, `${purls.join("\n")}\n`, { mode: 0o600 });
   const socket = env.GARNETOPS_SCANNER_SOCKET;

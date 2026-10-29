@@ -7,6 +7,8 @@
 #                  syft with pinned SHA-256 checksums
 #   --target web   the edge: Caddy serving the built web app, proxying /api and showing
 #                  the update sidecar's maintenance page while the API is down
+#   --target agent the host agent (ADR 0034): the read-only Docker proxy and the reporter,
+#                  with syft; it runs on the customer's hosts, not in this stack
 #
 # Base images are pinned by digest (AGENTS.md rule 1). The build argument VERSION is
 # the release version; it is baked in as APP_VERSION and the image's version label.
@@ -23,6 +25,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 COPY apps/web/package.json apps/web/
+COPY apps/agent/package.json apps/agent/
 COPY packages/core/package.json packages/core/
 COPY packages/db/package.json packages/db/
 COPY packages/i18n/package.json packages/i18n/
@@ -108,3 +111,36 @@ LABEL org.opencontainers.image.title="GarnetOps web" \
       org.opencontainers.image.version="${VERSION}"
 USER 1000:1000
 EXPOSE 8080 8443
+
+# ---------------------------------------------------------------- agent: production tree
+FROM deps AS agent-prod
+RUN rm -rf node_modules apps/*/node_modules packages/*/node_modules \
+ && corepack pnpm install --frozen-lockfile --prod --filter "@garnetops/agent..."
+COPY packages/core/src packages/core/src
+COPY apps/agent/src apps/agent/src
+COPY LICENSE LICENSING.md TRADEMARKS.md ./
+RUN rm -rf apps/api apps/worker apps/web packages/db packages/i18n vendor pnpm-lock.yaml pnpm-workspace.yaml \
+ && find apps packages -name "*.test.ts" -delete
+
+# ---------------------------------------------------------------- agent: on the customer's hosts
+FROM ${NODE_IMAGE} AS agent
+ARG VERSION=0.0.11
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+ && adduser -D -H -u 10001 garnetops-agent \
+ && mkdir -p /var/lib/garnetops-agent /run/garnetops-agent \
+ && chown 10001:10001 /var/lib/garnetops-agent
+COPY --from=agent-prod /src /app
+COPY --from=scanners /opt/scanners/syft /opt/syft/syft
+COPY --from=scanners /opt/scanners/LICENSE.syft /opt/syft/LICENSE
+WORKDIR /app
+ENV NODE_ENV=production \
+    APP_VERSION=${VERSION} \
+    GARNETOPS_SYFT_BIN=/opt/syft/syft
+LABEL org.opencontainers.image.title="GarnetOps agent" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.source="https://github.com/lcsfls/garnet-ops" \
+      org.opencontainers.image.version="${VERSION}"
+# The reporter runs as this user; the proxy service runs as root without capabilities to open the Docker socket.
+USER 10001:10001
+CMD ["node", "apps/agent/src/main.ts", "run"]
