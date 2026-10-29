@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.11] - 2026-10-29
+<!-- title: Connected accounts, private repositories and interactive statistics -->
+
 ### Added
 
 - Statistics: interactive charts. Open findings as stacked areas, found and resolved above and below a baseline, gate results as
@@ -1066,7 +1069,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.10...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.11...HEAD
+[0.0.11]: https://github.com/lcsfls/garnet-ops/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/lcsfls/garnet-ops/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/lcsfls/garnet-ops/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/lcsfls/garnet-ops/compare/v0.0.7...v0.0.8
