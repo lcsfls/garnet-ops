@@ -2,9 +2,15 @@ import { lookup as dnsLookup, type LookupAddress } from "node:dns";
 import { request } from "node:https";
 import { newId } from "@garnetops/core";
 import {
+  CHANNEL_SEVERITIES,
+  type ChannelSeverity,
+  channelAccepts,
+  channelFiltersSchema,
+  countFrom,
   isForbiddenAddress,
   type NotifyEvent,
   type NotifyPayload,
+  type SeverityCounts,
   type WebhookFormat,
   webhookBody,
   webhookUrlProblem,
@@ -29,6 +35,20 @@ export class DeliveryError extends Error {}
 const fill = (text: string, values: Record<string, string | number>) =>
   text.replace(/\{(\w+)\}/g, (match, key: string) => (key in values ? String(values[key]) : match));
 
+/**
+ * "2 critical, 3 high": the severities `finding.new` counts. The channel's minimum was applied when it was
+ * queued (the severities below it are zero), so only what the channel asked for is named.
+ */
+function newFindingList(
+  payload: NotifyPayload,
+  m: (typeof resources)[Language]["translation"]["notify"],
+): string {
+  const f = payload.findings ?? { critical: 0, high: 0, medium: 0, low: 0 };
+  return CHANNEL_SEVERITIES.filter((s) => f[s] > 0)
+    .map((s) => fill(m.severityCount[s], { count: f[s] }))
+    .join(", ");
+}
+
 /** Title and body of a notification in the channel's language (ADR 0010: summary and link only). */
 export function renderNotification(
   payload: NotifyPayload,
@@ -37,19 +57,24 @@ export function renderNotification(
   const m = resources[language].translation.notify;
   const repository = payload.repository?.name ?? "";
   const [title, body] =
-    payload.event === "finding.new_critical"
+    payload.event === "finding.new"
       ? [
-          fill(m.newCriticalTitle, { repository }),
-          fill(m.newCriticalText, payload.counts ?? { critical: 0, knownExploited: 0 }),
+          fill(m.newFindingsTitle, { repository }),
+          fill(m.newFindingsText, { list: newFindingList(payload, m) }),
         ]
-      : payload.event === "gate.blocked"
+      : payload.event === "finding.new_critical"
         ? [
-            fill(m.gateBlockedTitle, { repository }),
-            fill(m.gateBlockedText, { rules: payload.gate?.blockingRules ?? 0 }),
+            fill(m.newCriticalTitle, { repository }),
+            fill(m.newCriticalText, payload.counts ?? { critical: 0, knownExploited: 0 }),
           ]
-        : payload.event === "scan.failed"
-          ? [fill(m.scanFailedTitle, { repository }), m.scanFailedText]
-          : [m.testTitle, m.testText];
+        : payload.event === "gate.blocked"
+          ? [
+              fill(m.gateBlockedTitle, { repository }),
+              fill(m.gateBlockedText, { rules: payload.gate?.blockingRules ?? 0 }),
+            ]
+          : payload.event === "scan.failed"
+            ? [fill(m.scanFailedTitle, { repository }), m.scanFailedText]
+            : [m.testTitle, m.testText];
   return { title, text: `${body}\n${fill(m.footer, { organization: payload.organization })}` };
 }
 
@@ -334,14 +359,26 @@ export async function eventsForScan(
   const [counts] = await db
     .select({
       critical: sql<number>`count(*) filter (where ${schema.finding.severity} = 'critical')::int`,
+      high: sql<number>`count(*) filter (where ${schema.finding.severity} = 'high')::int`,
+      medium: sql<number>`count(*) filter (where ${schema.finding.severity} = 'medium')::int`,
+      low: sql<number>`count(*) filter (where ${schema.finding.severity} = 'low')::int`,
       knownExploited: sql<number>`count(*) filter (where ${schema.vulnerability.knownExploited})::int`,
     })
     .from(schema.finding)
     .innerJoin(schema.vulnerability, eq(schema.vulnerability.id, schema.finding.vulnerabilityId))
     .where(and(eq(schema.finding.firstSeenScanId, scanId), eq(schema.finding.state, "open")));
   if (counts && (counts.critical > 0 || counts.knownExploited > 0)) {
-    payloads.push({ ...base, event: "finding.new_critical", counts });
+    payloads.push({
+      ...base,
+      event: "finding.new_critical",
+      counts: { critical: counts.critical, knownExploited: counts.knownExploited },
+    });
   }
+  const findings = counts
+    ? { critical: counts.critical, high: counts.high, medium: counts.medium, low: counts.low }
+    : null;
+  // Each channel decides from which severity on it wants to hear (channelAccepts).
+  if (findings && countFrom(findings, "low") > 0) payloads.push({ ...base, event: "finding.new", findings });
   const [gate] = await db
     .select({ result: schema.gateRun.result, matches: schema.gateRun.matches })
     .from(schema.gateRun)
@@ -354,11 +391,18 @@ export async function eventsForScan(
   return { organizationId: row.organizationId, ownerUserId: row.ownerUserId, payloads };
 }
 
-/** Queues one job per subscribed channel and notification. */
+/**
+ * Queues one job per subscribed channel and notification, for the channels whose filters accept it
+ * (repositories, minimum severity). `finding.new` carries only the counts from the channel's minimum on.
+ */
 export async function queueNotifications(boss: PgBoss, organizationId: string, payloads: NotifyPayload[]) {
   if (payloads.length === 0) return;
   const channels = await db
-    .select({ id: schema.notificationChannel.id, events: schema.notificationChannel.events })
+    .select({
+      id: schema.notificationChannel.id,
+      events: schema.notificationChannel.events,
+      filters: schema.notificationChannel.filters,
+    })
     .from(schema.notificationChannel)
     .where(
       and(
@@ -367,10 +411,27 @@ export async function queueNotifications(boss: PgBoss, organizationId: string, p
       ),
     );
   for (const payload of payloads) {
-    for (const channel of channels.filter((c) =>
-      c.events.includes(payload.event as Exclude<NotifyEvent, "test">),
-    )) {
-      await boss.send(NOTIFY_QUEUE, { channelId: channel.id, payload }, { retryLimit: 2, retryDelay: 60 });
+    for (const channel of channels) {
+      if (!channel.events.includes(payload.event as Exclude<NotifyEvent, "test">)) continue;
+      // A filter the API did not write (or an older shape) counts as no filter rather than as silence.
+      const filters = channelFiltersSchema.catch({}).parse(channel.filters);
+      if (!channelAccepts(filters, payload)) continue;
+      const shown = payload.findings
+        ? { ...payload, findings: below(payload.findings, filters.minSeverity) }
+        : payload;
+      await boss.send(
+        NOTIFY_QUEUE,
+        { channelId: channel.id, payload: shown },
+        { retryLimit: 2, retryDelay: 60 },
+      );
     }
   }
+}
+
+/** The counts from `minSeverity` (default high) on; the severities below it are zero. */
+function below(findings: SeverityCounts, minSeverity: ChannelSeverity = "high"): SeverityCounts {
+  const last = CHANNEL_SEVERITIES.indexOf(minSeverity);
+  return Object.fromEntries(
+    CHANNEL_SEVERITIES.map((s, i) => [s, i <= last ? findings[s] : 0]),
+  ) as SeverityCounts;
 }

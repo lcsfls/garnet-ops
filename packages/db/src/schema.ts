@@ -237,6 +237,11 @@ export const notificationChannel = pgTable(
     format: text("format"),
     language: text("language").notNull().default("en"),
     events: jsonb("events").$type<string[]>().notNull(),
+    /** Minimum severity of `finding.new` and the repositories the channel is about (0.0.10); empty: all. */
+    filters: jsonb("filters")
+      .$type<{ minSeverity?: "critical" | "high" | "medium" | "low"; repositoryIds?: string[] }>()
+      .notNull()
+      .default({}),
     /** Settings that are not secret: hosts, ports, sender, recipients, the webhook's host for display. */
     config: jsonb("config").$type<Record<string, unknown>>().notNull(),
     secretId: text("secret_id").references(() => secret.id, { onDelete: "set null" }),

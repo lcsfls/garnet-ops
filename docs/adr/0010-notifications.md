@@ -60,3 +60,15 @@ customer's network unless the customer explicitly configures it").
 - New tables `notification_channel` and `notification_delivery` (additive migration).
 - New dependency nodemailer (MIT-0) in the worker; MIT-0 joins the allowed licences.
 - New settings section "Notifications".
+
+## Amendment (0.0.10): filters per channel and Discord embeds
+
+- A new event `finding.new` counts a scan's new open findings per severity. Each channel sets a minimum severity for it
+  (`filters.minSeverity`, high unless chosen) and receives only the counts from that severity on; a scan with new findings only
+  below the minimum sends nothing to it. `finding.new_critical` is unchanged, so existing channels receive exactly what they
+  did before (AGENTS.md rule 2).
+- A channel can be limited to chosen repositories (`filters.repositoryIds`, repositories of its own organisation only; empty
+  means all, including later ones). The worker applies both filters before it queues a message.
+- Discord messages are sent as one embed (title linking to GarnetOps, a colour per kind of event, the organisation in the
+  footer) instead of plain text. What a message contains does not change: a summary and a link, no vulnerability ids, package
+  names, paths or code. Markdown characters in repository names are escaped, and mentions stay switched off.

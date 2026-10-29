@@ -1,9 +1,47 @@
 import { isIP } from "node:net";
+import { z } from "zod";
 import { classifyAddress } from "./ai-endpoint.ts";
 
-/** What a channel can be told about (ADR 0010). "test" is sent on request only. */
-export const NOTIFY_EVENTS = ["finding.new_critical", "gate.blocked", "scan.failed"] as const;
+/**
+ * What a channel can be told about (ADR 0010). "test" is sent on request only. `finding.new` (0.0.10)
+ * counts every new finding of a scan from the channel's minimum severity on; `finding.new_critical`
+ * stays as it was.
+ */
+export const NOTIFY_EVENTS = ["finding.new_critical", "gate.blocked", "scan.failed", "finding.new"] as const;
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number] | "test";
+
+/** The severities a channel can ask for, worst first. */
+export const CHANNEL_SEVERITIES = ["critical", "high", "medium", "low"] as const;
+export type ChannelSeverity = (typeof CHANNEL_SEVERITIES)[number];
+
+/**
+ * What a channel receives on top of its events: only from this severity on (for `finding.new`,
+ * default high) and only for these repositories (none: every repository).
+ */
+export const channelFiltersSchema = z.object({
+  minSeverity: z.enum(CHANNEL_SEVERITIES).optional(),
+  repositoryIds: z.array(z.string().min(1).max(40)).max(200).optional(),
+});
+export type ChannelFilters = z.infer<typeof channelFiltersSchema>;
+
+/** New findings of a scan per severity (`finding.new`). */
+export type SeverityCounts = Record<ChannelSeverity, number>;
+
+/** Whether a channel with these filters wants this notification. A test message always goes through. */
+export function channelAccepts(filters: ChannelFilters, payload: NotifyPayload): boolean {
+  if (payload.event === "test") return true;
+  const only = filters.repositoryIds ?? [];
+  if (only.length > 0 && payload.repository && !only.includes(payload.repository.id)) return false;
+  if (payload.event === "finding.new") return countFrom(payload.findings, filters.minSeverity) > 0;
+  return true;
+}
+
+/** How many findings of `counts` are at `minSeverity` (default high) or worse. */
+export function countFrom(counts: SeverityCounts | undefined, minSeverity: ChannelSeverity = "high"): number {
+  if (!counts) return 0;
+  const last = CHANNEL_SEVERITIES.indexOf(minSeverity);
+  return CHANNEL_SEVERITIES.slice(0, last + 1).reduce((sum, s) => sum + (counts[s] ?? 0), 0);
+}
 
 export const WEBHOOK_FORMATS = ["generic", "discord", "slack"] as const;
 export type WebhookFormat = (typeof WEBHOOK_FORMATS)[number];
@@ -20,6 +58,8 @@ export interface NotifyPayload {
   counts?: { critical: number; knownExploited: number };
   /** Gate result and how many rules set to Block matched (gate.blocked). */
   gate?: { blockingRules: number };
+  /** New findings of the scan per severity (finding.new); the channel's minimum decides what is shown. */
+  findings?: SeverityCounts;
   link: string;
   at: string;
 }
@@ -58,10 +98,47 @@ export function webhookBody(
   title: string,
   text: string,
 ): unknown {
-  if (format === "discord") {
-    // Discord: content is plain text; mentions are switched off so a repository name cannot ping anyone.
-    return { content: `**${title}**\n${text}\n${payload.link}`, allowed_mentions: { parse: [] } };
-  }
+  if (format === "discord") return discordBody(payload, title, text);
   if (format === "slack") return { text: `*${title}*\n${text}\n<${payload.link}>` };
   return { title, text, ...payload };
+}
+
+/**
+ * Embed colours (sRGB of the product's fixed colours, AGENTS.md rule 6): vermilion for what is
+ * critical or broken, orange for new findings, steel blue for information. Never green: a message
+ * proves nothing about the code.
+ */
+const DISCORD_COLOURS: Record<NotifyEvent, number> = {
+  "finding.new_critical": 0xd9481f,
+  "gate.blocked": 0xd9481f,
+  "scan.failed": 0xd9481f,
+  "finding.new": 0xe07b1a,
+  test: 0x4a78a8,
+};
+
+/** Discord reads markdown in titles and descriptions; a repository name must stay plain text. */
+export function escapeDiscord(value: string): string {
+  return value.replace(/([\\*_~`|>#[\]()<-])/g, "\\$1");
+}
+
+const clip = (value: string, max: number) => (value.length > max ? `${value.slice(0, max - 1)}…` : value);
+
+/**
+ * A Discord message with one embed: the title links to GarnetOps, the colour says what kind of event it
+ * is. Mentions are switched off, so nothing in it can ping anyone.
+ */
+function discordBody(payload: NotifyPayload, title: string, text: string) {
+  return {
+    allowed_mentions: { parse: [] },
+    embeds: [
+      {
+        title: clip(escapeDiscord(title), 256),
+        url: payload.link,
+        description: clip(`${escapeDiscord(text)}\n${payload.link}`, 4096),
+        color: DISCORD_COLOURS[payload.event],
+        timestamp: payload.at,
+        footer: { text: clip(`GarnetOps · ${payload.organization}`, 2048) },
+      },
+    ],
+  };
 }

@@ -903,6 +903,41 @@ test("notifications: a Discord webhook is stored sealed, refused for unsafe addr
     "New critical or known exploited vulnerabilities · A quality gate blocked",
   );
   await expect(item).toContainText("Nothing sent yet");
+  await expect(item.getByTestId("channel-filters")).toHaveText("All repositories");
+
+  // Filters (0.0.10): new findings from a minimum severity on, only for chosen repositories.
+  await item.getByRole("button", { name: "Edit: Security chat" }).click();
+  const edit = page.getByRole("dialog", { name: "Edit the channel Security chat" });
+  await edit.getByLabel("New findings", { exact: true }).check();
+  await edit.getByLabel("New findings from").selectOption("medium");
+  await edit.getByLabel("Only these repositories").check();
+  // Nothing chosen yet: nothing to save.
+  await expect(edit.getByRole("button", { name: "Save" })).toBeDisabled();
+  await edit.getByLabel(SEEDED.repositoryName, { exact: true }).check();
+  await edit.getByRole("button", { name: "Save" }).click();
+  await expect(edit).toBeHidden();
+  await expect(item).toContainText(
+    "New critical or known exploited vulnerabilities · New findings · A quality gate blocked",
+  );
+  await expect(item.getByTestId("channel-filters")).toHaveText("Medium and above · 1 repository");
+  const saved = (await (await page.request.get("/api/v1/notifications/channels")).json()) as {
+    name: string;
+    filters: unknown;
+  }[];
+  expect(saved.find((c) => c.name === "Security chat")?.filters).toEqual({
+    minSeverity: "medium",
+    repositoryIds: ["repo_e2eseeded000000001"],
+  });
+  // A repository of another organisation, or one that does not exist, is refused.
+  const channelId = (
+    (await (await page.request.get("/api/v1/notifications/channels")).json()) as { id: string }[]
+  )[0]?.id;
+  const refused = await page.request.patch(`/api/v1/notifications/channels/${channelId}`, {
+    headers: { origin: E2E.publicUrl },
+    data: { filters: { repositoryIds: ["repo_unknown"] } },
+  });
+  expect(refused.status()).toBe(422);
+
   // The URL carries Discord's access token: never shown again, never in an API answer.
   await expect(page.getByText("never-shown-token")).toHaveCount(0);
   const listed = await page.request.get("/api/v1/notifications/channels");

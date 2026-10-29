@@ -1,0 +1,1 @@
+ALTER TABLE "notification_channel" ADD COLUMN "filters" jsonb DEFAULT '{}'::jsonb NOT NULL;

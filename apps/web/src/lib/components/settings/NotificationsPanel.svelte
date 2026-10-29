@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus, Send, Trash2 } from "@lucide/svelte";
+  import { Pencil, Plus, Send, Trash2 } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "../../api.ts";
   import { formatRelative } from "../../format.ts";
@@ -15,7 +15,8 @@
   import Button from "../ui/Button.svelte";
   import ConfirmDialog from "../ui/ConfirmDialog.svelte";
   import AddChannelDialog from "./notifications/AddChannelDialog.svelte";
-  import { type Channel, eventKey, target } from "./notifications/channels.ts";
+  import { type Channel, EVENTS, eventKey, target } from "./notifications/channels.ts";
+  import EditChannelDialog from "./notifications/EditChannelDialog.svelte";
   import EnabledSwitch from "./notifications/EnabledSwitch.svelte";
 
   /** Settings → Notifications (owners and admins). */
@@ -30,6 +31,22 @@
   }));
   let adding = $state(false);
   let deleting = $state<Channel | null>(null);
+  let editing = $state<Channel | null>(null);
+
+  /** "New findings from High · 2 repositories": the filters in one line. */
+  function filterSummary(channel: Channel): string {
+    const parts = [];
+    if (channel.events.includes("finding.new")) {
+      parts.push(t(`settings.minSeverity.${channel.filters.minSeverity ?? "high"}`));
+    }
+    const repos = channel.filters.repositoryIds?.length ?? 0;
+    parts.push(
+      repos > 0
+        ? t("settings.channelRepositoryCount", { count: repos })
+        : t("settings.channelAllRepositories"),
+    );
+    return parts.join(" · ");
+  }
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["notification-channels"] });
   const patch = createMutation(() => ({
     mutationFn: (input: { id: string; body: Partial<Pick<Channel, "enabled" | "events">> }) =>
@@ -98,8 +115,11 @@
             </div>
             <div class="text-sm break-all text-muted-foreground">{target(channel)}</div>
             <div class="text-[13px] text-muted-foreground">
-              {channel.events.map((e) => t(`settings.event.${eventKey(e)}`)).join(" · ")}
+              {EVENTS.filter((e) => channel.events.includes(e))
+                .map((e) => t(`settings.event.${eventKey(e)}`))
+                .join(" · ")}
             </div>
+            <div class="text-[13px] text-muted-foreground" data-testid="channel-filters">{filterSummary(channel)}</div>
             <div class="mt-1 text-[13px]">
               {#if channel.lastDelivery}
                 {#if channel.lastDelivery.status === "sent"}
@@ -134,6 +154,14 @@
           <Button
             variant="ghost"
             class="h-9 px-2.5"
+            aria-label={`${t("settings.editChannel")}: ${channel.name}`}
+            onclick={() => (editing = channel)}
+          >
+            <Pencil aria-hidden="true" class="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            class="h-9 px-2.5"
             aria-label={`${t("settings.deleteChannel")}: ${channel.name}`}
             onclick={() => (deleting = channel)}
           >
@@ -144,6 +172,11 @@
     {/each}
   </ul>
   <AddChannelDialog {me} open={adding} onClose={() => (adding = false)} />
+  {#if editing}
+    {#key editing.id}
+      <EditChannelDialog channel={editing} onClose={() => (editing = null)} />
+    {/key}
+  {/if}
   <ConfirmDialog
     open={deleting !== null}
     title={t("settings.deleteChannelTitle", { name: deleting?.name ?? "" })}

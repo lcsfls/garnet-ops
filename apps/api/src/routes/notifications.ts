@@ -1,5 +1,7 @@
 import { newId } from "@garnetops/core";
 import {
+  type ChannelFilters,
+  channelFiltersSchema,
   NOTIFY_EVENTS,
   type NotifyPayload,
   WEBHOOK_FORMATS,
@@ -25,6 +27,7 @@ const common = {
   name: z.string().trim().min(1).max(80),
   events,
   language: z.enum(LANGUAGES).default("en"),
+  filters: channelFiltersSchema.default({}),
 };
 const host = z
   .string()
@@ -79,7 +82,31 @@ const patchBody = z.object({
   events: events.optional(),
   language: z.enum(LANGUAGES).optional(),
   enabled: z.boolean().optional(),
+  filters: channelFiltersSchema.optional(),
 });
+
+/**
+ * Keeps only what a filter means: repositories of this organisation (each once, an unknown id is refused)
+ * and a minimum severity. No repositories means every repository.
+ */
+async function checkedFilters(organizationId: string, filters: ChannelFilters): Promise<ChannelFilters> {
+  const ids = [...new Set(filters.repositoryIds ?? [])];
+  if (ids.length > 0) {
+    const known = await db
+      .select({ id: schema.repository.id })
+      .from(schema.repository)
+      .where(and(eq(schema.repository.organizationId, organizationId), inArray(schema.repository.id, ids)));
+    if (known.length !== ids.length) {
+      throw new ProblemError(422, "validation", "Choose repositories of this organisation", undefined, {
+        errors: [{ path: "filters.repositoryIds", message: "Choose repositories of this organisation" }],
+      });
+    }
+  }
+  return {
+    ...(filters.minSeverity ? { minSeverity: filters.minSeverity } : {}),
+    ...(ids.length > 0 ? { repositoryIds: ids } : {}),
+  };
+}
 
 async function storeSecret(organizationId: string, userId: string, purpose: SecretPurpose, plain: string) {
   const id = newId("sec");
@@ -140,6 +167,7 @@ export const notificationRoutes = new Hono<AppEnv>()
         format: x.format,
         language: x.language,
         events: x.events,
+        filters: x.filters,
         enabled: x.enabled,
         // Only what is not secret: the webhook's host, the mail server and addresses.
         config: x.config,
@@ -151,6 +179,7 @@ export const notificationRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const input = createBody.parse(await c.req.json());
     requireRecentSignIn(actor);
+    const filters = await checkedFilters(actor.organizationId, input.filters);
     const id = newId("nch");
     let secretId: string | null = null;
     let config: Record<string, unknown>;
@@ -191,6 +220,7 @@ export const notificationRoutes = new Hono<AppEnv>()
       format: input.kind === "webhook" ? input.format : null,
       language: input.language,
       events: input.events,
+      filters,
       config,
       secretId,
       createdBy: actor.userId,
@@ -203,6 +233,7 @@ export const notificationRoutes = new Hono<AppEnv>()
         name: input.name,
         kind: input.kind,
         events: input.events,
+        filters,
         target:
           input.kind === "webhook"
             ? config.host
@@ -215,11 +246,12 @@ export const notificationRoutes = new Hono<AppEnv>()
   })
   .patch("/channels/:id", async (c) => {
     const actor = c.get("actor");
-    const input = patchBody.parse(await c.req.json());
+    const { filters: requested, ...input } = patchBody.parse(await c.req.json());
     const before = await ownChannel(actor.organizationId, c.req.param("id"));
+    const filters = requested ? await checkedFilters(actor.organizationId, requested) : undefined;
     await db
       .update(ch)
-      .set({ ...input, updatedAt: new Date() })
+      .set({ ...input, ...(filters ? { filters } : {}), updatedAt: new Date() })
       .where(eq(ch.id, before.id));
     await audit(
       actor,
@@ -228,6 +260,7 @@ export const notificationRoutes = new Hono<AppEnv>()
       {
         name: before.name,
         ...input,
+        ...(filters ? { filters } : {}),
       },
     );
     return c.body(null, 204);

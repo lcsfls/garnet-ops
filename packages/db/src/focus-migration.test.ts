@@ -47,9 +47,10 @@ describe.skipIf(!adminUrl)("migration 0024: focus on the developer pipeline", ()
 
     const journal = JSON.parse(readFileSync(`${folder}meta/_journal.json`, "utf8")) as Journal;
     const tags = journal.entries.map((e) => e.tag);
-    expect(tags.at(-1)).toBe(LAST);
-    // Everything before the new migration, as an installation of 0.0.3 has it.
-    for (const tag of tags.slice(0, -1))
+    const at = tags.indexOf(LAST);
+    expect(at).toBeGreaterThan(-1);
+    // Everything before this migration, as an installation of 0.0.3 has it.
+    for (const tag of tags.slice(0, at))
       for (const statement of statementsOf(tag)) await conn.pool.query(statement);
 
     const q = (text: string, values: unknown[] = []) => conn.pool.query(text, values);

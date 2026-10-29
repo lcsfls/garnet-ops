@@ -149,9 +149,47 @@ describe.skipIf(!adminUrl)("quality gate of a scan", () => {
     // The first scan finds the critical vulnerability: that is a notification (ADR 0010).
     const { eventsForScan } = await import("./notify.ts");
     const events = await eventsForScan(s?.id as string);
-    expect(events?.payloads.map((p) => p.event)).toEqual(["finding.new_critical"]);
+    expect(events?.payloads.map((p) => p.event)).toEqual(["finding.new_critical", "finding.new"]);
     expect(events?.payloads[0]?.counts).toEqual({ critical: 1, knownExploited: 0 });
+    expect(events?.payloads[1]?.findings).toMatchObject({ critical: 1, high: 3 });
     expect(JSON.stringify(events)).not.toMatch(/GHSA-|lodash|minimist/);
+
+    // Each channel gets what its events and filters ask for (0.0.10): the minimum severity of
+    // finding.new (high by default) and its repositories.
+    const channel = (id: string, events: string[], filters: Record<string, unknown>) => ({
+      id,
+      organizationId: org,
+      name: id,
+      kind: "webhook" as const,
+      format: "discord",
+      events,
+      filters,
+      config: {},
+    });
+    await conn.db
+      .insert(schema.notificationChannel)
+      .values([
+        channel("nch_all", ["finding.new"], {}),
+        channel("nch_critical", ["finding.new"], { minSeverity: "critical" }),
+        channel("nch_other_repo", ["finding.new", "finding.new_critical"], { repositoryIds: ["repo_other"] }),
+        channel("nch_this_repo", ["finding.new_critical"], { repositoryIds: [repo] }),
+      ]);
+    const sent: { channelId: string; payload: { event: string; findings?: Record<string, number> } }[] = [];
+    const boss = { send: async (_queue: string, data: (typeof sent)[number]) => void sent.push(data) };
+    const { queueNotifications } = await import("./notify.ts");
+    await queueNotifications(boss as never, org, events?.payloads ?? []);
+    expect(sent.map((s) => `${s.channelId} ${s.payload.event}`).sort()).toEqual([
+      "nch_all finding.new",
+      "nch_critical finding.new",
+      "nch_this_repo finding.new_critical",
+    ]);
+    expect(sent.find((s) => s.channelId === "nch_critical")?.payload.findings).toEqual({
+      critical: 1,
+      high: 0,
+      medium: 0,
+      low: 0,
+    });
+    await conn.db.delete(schema.notificationChannel);
     expect(s?.state).toBe("succeeded");
     expect(run?.result).toBe("notes");
     expect(run?.matches).toEqual({

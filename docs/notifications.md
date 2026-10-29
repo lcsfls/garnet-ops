@@ -14,9 +14,9 @@ they share: personal mail is sent through the organisation's mail channel (see "
 ## Organisation channels
 
 GarnetOps can tell a chat or a mailbox when a scan of a repository's branch finds **new
-critical or known exploited vulnerabilities**, when a **quality gate blocks**, or when a
-**scan fails** (ADR 0010). Owners and admins set this up under **Settings →
-Notifications**.
+critical or known exploited vulnerabilities**, **new findings** from a severity you choose,
+when a **quality gate blocks**, or when a **scan fails** (ADR 0010). Owners and admins set
+this up under **Settings → Notifications**.
 
 ## What leaves your network
 
@@ -37,6 +37,28 @@ pipeline shows them.
 
 Each channel chooses its events and the language of its messages, can be switched off,
 and has a **Send test** button. The settings show the result of the last delivery.
+
+### Filters per channel
+
+**Edit** (the pencil next to a channel) changes what a channel is sent, without touching
+where it sends to:
+
+- **New findings from**: with the event *New findings*, the channel hears of a scan's new
+  findings from this severity on (critical only, high and above, which is the default,
+  medium and above, or low and above). The message names only those severities, for
+  example "New in the last scan: 1 critical, 2 high." A scan with new findings only below
+  the minimum sends nothing to this channel.
+- **Repositories**: *All repositories* (also the ones added later), or *Only these
+  repositories*. The repository choice applies to every event of the channel, so a team
+  channel can hear only of its own repositories.
+
+### Discord
+
+Discord channels get one embed per message: the title links to the repository in
+GarnetOps, the colour says what happened (vermilion for a critical finding, a blocked gate
+or a failed scan, orange for new findings, steel blue for a test) and the footer names the
+organisation. Repository names are shown as plain text, so a name cannot add formatting or
+links to the message.
 
 ## Security
 

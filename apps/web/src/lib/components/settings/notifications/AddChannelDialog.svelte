@@ -8,14 +8,14 @@
   import StepUpPrompt from "../../StepUpPrompt.svelte";
   import Alert from "../../ui/Alert.svelte";
   import Button from "../../ui/Button.svelte";
-  import Checkbox from "../../ui/Checkbox.svelte";
   import Dialog from "../../ui/Dialog.svelte";
   import DialogFooter from "../../ui/DialogFooter.svelte";
   import Field from "../../ui/Field.svelte";
   import FormRow from "../../ui/FormRow.svelte";
   import Radio from "../../ui/Radio.svelte";
   import Select from "../../ui/Select.svelte";
-  import { type ChannelEvent, EVENTS, eventKey, FORMATS, KINDS, type Kind } from "./channels.ts";
+  import ChannelEventsFields from "./ChannelEventsFields.svelte";
+  import { type ChannelEvent, FORMATS, filtersBody, KINDS, type Kind, type MinSeverity } from "./channels.ts";
 
   let { me, open, onClose }: { me: Me; open: boolean; onClose: () => void } = $props();
 
@@ -23,6 +23,8 @@
   const stepUp = new StepUp();
   let kind = $state<Kind>("webhook");
   let events = $state<ChannelEvent[]>(["finding.new_critical", "gate.blocked"]);
+  let minSeverity = $state<MinSeverity>("high");
+  let repositoryIds = $state<string[] | null>(null);
   let error = $state<string | null>(null);
   let fieldErrors = $state<Record<string, string>>({});
   const create = createMutation(() => ({
@@ -50,6 +52,9 @@
 
   function close() {
     kind = "webhook";
+    events = ["finding.new_critical", "gate.blocked"];
+    minSeverity = "high";
+    repositoryIds = null;
     error = null;
     fieldErrors = {};
     onClose();
@@ -63,7 +68,13 @@
       s(k)
         .split(/[\s,;]+/)
         .filter(Boolean);
-    const base = { name: s("name"), events, language: s("language") || "en", kind };
+    const base = {
+      name: s("name"),
+      events,
+      language: s("language") || "en",
+      kind,
+      filters: filtersBody(minSeverity, repositoryIds),
+    };
     const body =
       kind === "webhook"
         ? { ...base, format: s("format"), url: s("url") }
@@ -181,21 +192,7 @@
         error={fieldErrors.to}
       />
     {/if}
-    <fieldset class="grid gap-2">
-      <legend class="mb-1.5 text-sm font-medium">{t("settings.channelEvents")}</legend>
-      {#each EVENTS as e (e)}
-        <label class="flex items-center gap-2.5">
-          <Checkbox
-            checked={events.includes(e)}
-            onchange={(x) => {
-              const checked = x.currentTarget.checked;
-              events = checked ? [...events, e] : events.filter((v) => v !== e);
-            }}
-          />
-          {t(`settings.event.${eventKey(e)}`)}
-        </label>
-      {/each}
-    </fieldset>
+    <ChannelEventsFields bind:events bind:minSeverity bind:repositoryIds error={fieldErrors.filters} />
     <label class="grid gap-1.5">
       <span class="text-sm font-medium">{t("settings.channelLanguage")}</span>
       <Select name="language" value={defaultLanguage}>
@@ -208,7 +205,10 @@
       <Button variant="outline" onclick={close}>
         {t("common.cancel")}
       </Button>
-      <Button type="submit" disabled={create.isPending || events.length === 0}>
+      <Button
+        type="submit"
+        disabled={create.isPending || events.length === 0 || repositoryIds?.length === 0}
+      >
         {create.isPending ? t("common.loading") : t("settings.channelSave")}
       </Button>
     </DialogFooter>

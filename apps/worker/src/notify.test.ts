@@ -165,4 +165,16 @@ describe.skipIf(!openssl)("notifications in the worker", () => {
     expect(de.title).toBe("Quality Gate blockiert: billing-portal");
     expect(de.text).toContain("Example Org");
   });
+
+  it("names only the severities a channel asked for in new findings", () => {
+    const findings = { critical: 0, high: 3, medium: 0, low: 0 };
+    const en = mod.renderNotification({ ...payload, event: "finding.new", findings }, "en");
+    expect(en.title).toBe("New findings: billing-portal");
+    expect(en.text).toContain("New in the last scan: 3 high.");
+    const de = mod.renderNotification(
+      { ...payload, event: "finding.new", findings: { critical: 1, high: 2, medium: 0, low: 0 } },
+      "de",
+    );
+    expect(de.text).toContain("Neu im letzten Scan: 1 kritisch, 2 hoch.");
+  });
 });

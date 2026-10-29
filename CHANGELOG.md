@@ -16,6 +16,13 @@ Security-relevant changes are listed under **Security** in every release.
   4.6.7. None of them is part of the sidecar image except zod. esbuild 0.27.7 stays for the sidecar's bundler (GHSA-g7r4-m6w7-qqqr,
   low): it only affects esbuild's development server, which the build does not start.
 
+### Added
+
+- Notification channels: the new event **New findings** with a minimum severity per channel (high and above unless chosen
+  otherwise), and a choice of repositories per channel. **Edit** on a channel changes its events and filters. Existing channels
+  keep exactly what they were sent before.
+- Discord channels get an embed: a title that links to GarnetOps, a colour per kind of event and the organisation in the footer.
+
 ### Changed
 
 - The release workflow sets the title and text of the GitHub release from this changelog; releases are no longer edited by hand.
