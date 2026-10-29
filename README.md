@@ -69,8 +69,8 @@ LXC container) with Docker Engine 26 or newer and the Compose plugin v2.24 or ne
 ```sh
 git clone https://github.com/lcsfls/garnet-ops.git /opt/garnetops
 cd /opt/garnetops
-docker build --target app -t garnetops:local     --build-arg VERSION=0.0.8 .
-docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.8 .
+docker build --target app -t garnetops:local     --build-arg VERSION=0.0.9 .
+docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.9 .
 
 sh deploy/install.sh garnetops.example.com garnetops:local garnetops-web:local
 echo 'UPDATER_URL=' >> .env    # in-app updates need signed releases; off for local builds
@@ -134,7 +134,7 @@ release tag:
 cd /opt/garnetops
 docker compose exec db pg_dump -U garnetops -Fc garnetops > garnetops-$(date +%F).dump
 git fetch --tags
-TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)   # the newest release, e.g. v0.0.8
+TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)   # the newest release, e.g. v0.0.9
 git checkout "$TAG"
 VERSION=$(echo "$TAG" | cut -c2-)
 docker build --target app -t garnetops:local     --build-arg VERSION="$VERSION" .

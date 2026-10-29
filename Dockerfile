@@ -64,7 +64,7 @@ RUN mkdir -p /opt/scanners \
 
 # ---------------------------------------------------------------- app: API and worker
 FROM ${NODE_IMAGE} AS app
-ARG VERSION=0.0.8
+ARG VERSION=0.0.9
 # git (GPL-2.0) and OpenSSH run as separate programs for clones, never linked (AGENTS.md rule 3).
 # npm and corepack are not needed at run time.
 RUN apk add --no-cache git openssh-client \
@@ -93,7 +93,7 @@ CMD ["node", "apps/api/src/index.ts"]
 
 # ---------------------------------------------------------------- web: the edge
 FROM ${CADDY_IMAGE} AS web
-ARG VERSION=0.0.8
+ARG VERSION=0.0.9
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=web-build /src/apps/web/build /srv
 # The Content Security Policy with the hashes of this build (ADR 0027), imported by the Caddyfile.

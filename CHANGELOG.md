@@ -8,6 +8,8 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-10-29
+
 ### Security
 
 - syft and grype run in a scanner service of their own ([ADR 0028](docs/adr/0028-scanner-isolation.md)): no network at all, no
@@ -1006,7 +1008,11 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.9...HEAD
+[0.0.9]: https://github.com/lcsfls/garnet-ops/compare/v0.0.8...v0.0.9
+[0.0.8]: https://github.com/lcsfls/garnet-ops/compare/v0.0.7...v0.0.8
+[0.0.7]: https://github.com/lcsfls/garnet-ops/compare/v0.0.6...v0.0.7
+[0.0.6]: https://github.com/lcsfls/garnet-ops/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/lcsfls/garnet-ops/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/lcsfls/garnet-ops/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/lcsfls/garnet-ops/compare/v0.0.2...v0.0.3

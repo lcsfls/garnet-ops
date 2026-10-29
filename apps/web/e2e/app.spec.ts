@@ -1471,7 +1471,7 @@ test.describe("System status", () => {
     await expect(page.getByTestId("queue-__pgboss__send-it")).toHaveCount(0);
     await expect(page.getByTestId("worker-nightly")).toContainText("Scheduled for");
     await expect(page.getByTestId("worker-database")).toContainText("migrations applied");
-    await expect(page.getByTestId("app-version")).toHaveText("0.0.8 Alpha");
+    await expect(page.getByTestId("app-version")).toHaveText("0.0.9 Alpha");
 
     // Nothing the integrations keep private is on the page: no address, no fingerprint.
     const text = (await page.getByTestId("system-status-page").textContent()) ?? "";
