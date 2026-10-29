@@ -36,6 +36,23 @@ early warnings when a new advisory affects a package a repository already uses, 
 ([docs/early-warnings.md](docs/early-warnings.md)),
 audit log, a Docker Compose stack and optional signed in-app updates.
 
+## Screenshots
+
+Demo data at 1920×1080: invented repositories on `git.example.com`, real advisories (lodash, minimist) from a recorded
+grype report. The pictures are taken with `GARNETOPS_SCREENSHOTS=1 npx playwright test --project screenshots` in
+`apps/web`.
+
+![Overview: open critical and high findings, what to fix first](docs/screenshots/overview-light.png)
+
+| | |
+| --- | --- |
+| ![Findings with the detail of one advisory](docs/screenshots/findings.png) | ![Repositories with grade, gate result and last scan](docs/screenshots/repositories.png) |
+| **Findings**: filters in the address, the detail of one finding beside the list | **Repositories**: grade A to F, open findings by severity, gate result |
+| ![Early warnings for packages a repository already uses](docs/screenshots/early-warnings.png) | ![Statistics over 30 days](docs/screenshots/statistics.png) |
+| **Early warnings**: new advisories for stored packages, before the next scan | **Statistics**: found and resolved, gate results, time to fix |
+| ![System status: database, scanners, isolation, worker](docs/screenshots/system-status.png) | ![The overview in the dark theme](docs/screenshots/overview-dark.png) |
+| **System status**: is everything current and running? | **Dark theme** |
+
 ## What GarnetOps is built on
 
 All of it runs inside your network. Scanners and Git run as separate programs, never

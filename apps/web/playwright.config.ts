@@ -40,6 +40,19 @@ export default defineConfig({
         timezoneId: "Europe/Berlin",
       },
     },
+    // The README screenshots on demo data (e2e/demo.ts). Skipped unless GARNETOPS_SCREENSHOTS=1:
+    //   GARNETOPS_SCREENSHOTS=1 npx playwright test --project screenshots
+    {
+      name: "screenshots",
+      testMatch: /screenshots\.spec\.ts/,
+      dependencies: ["auth-flow"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1920, height: 1080 },
+        locale: "en-US",
+        timezoneId: "Europe/Berlin",
+      },
+    },
     // In-app updates against the fake sidecar (ADR 0007).
     {
       name: "updates",
