@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
 import type { AppEnv } from "../lib/context.ts";
+import { modulesOf } from "../lib/modules.ts";
 
 const HITS = 5;
 const query = z.object({ q: z.string().trim().min(2).max(100) });
@@ -54,5 +55,19 @@ export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
       .orderBy(asc(p.name))
       .limit(HITS),
   ]);
-  return c.json({ repositories, vulnerabilities, packages });
+  // Monitored websites (ADR 0033), only while the module is on.
+  const websites = (await modulesOf(organizationId)).websites
+    ? await db
+        .select({ id: schema.exposureAsset.id, value: schema.exposureAsset.value })
+        .from(schema.exposureAsset)
+        .where(
+          and(
+            eq(schema.exposureAsset.organizationId, organizationId),
+            ilike(schema.exposureAsset.value, pattern),
+          ),
+        )
+        .orderBy(asc(schema.exposureAsset.value))
+        .limit(HITS)
+    : [];
+  return c.json({ repositories, vulnerabilities, packages, websites });
 });

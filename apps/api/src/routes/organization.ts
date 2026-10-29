@@ -1,13 +1,15 @@
 import { isTimeZone, schema } from "@garnetops/db";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
+import { MODULES, modulesOf } from "../lib/modules.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
 
 const o = schema.organization;
+const moduleBody = z.object({ enabled: z.boolean() });
 
 const scheduleBody = z.object({
   enabled: z.boolean(),
@@ -73,4 +75,54 @@ export const organizationRoutes = new Hono<AppEnv>()
       { before, after: { enabled: input.enabled, localTime, timeZone: input.timeZone } },
     );
     return c.json({ scanSchedule: await scheduleOf(actor.organizationId) });
+  })
+  /** The modules an organisation switches on (ADR 0033). */
+  .get("/modules", async (c) => c.json(await modulesOf(c.get("actor").organizationId)))
+  .put("/modules/:name", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    const name = MODULES.find((m) => m === c.req.param("name"));
+    if (!name) throw notFound("Module");
+    const input = moduleBody.parse(await c.req.json());
+    if ((await modulesOf(actor.organizationId))[name] === input.enabled) {
+      return c.json(await modulesOf(actor.organizationId));
+    }
+    const now = new Date();
+    const s = schema.exposureSettings;
+    const a = schema.exposureAsset;
+    await db.transaction(async (tx) => {
+      const set = { enabled: input.enabled, enabledBy: actor.userId, enabledAt: now, updatedAt: now };
+      await tx
+        .insert(s)
+        .values({ organizationId: actor.organizationId, ...set })
+        .onConflictDoUpdate({ target: s.organizationId, set });
+      // Switching off also switches stage 2 off and voids its acknowledgements: switching on again starts from a safe state.
+      if (!input.enabled) {
+        await tx
+          .update(a)
+          .set({
+            stage2Enabled: false,
+            stage2AcknowledgedBy: null,
+            stage2AcknowledgedAt: null,
+            updatedAt: now,
+          })
+          .where(and(eq(a.organizationId, actor.organizationId), eq(a.stage2Enabled, true)));
+        await tx
+          .update(schema.exposureRun)
+          .set({ state: "failed", error: "moduleOff", finishedAt: now })
+          .where(
+            and(
+              eq(schema.exposureRun.organizationId, actor.organizationId),
+              eq(schema.exposureRun.state, "queued"),
+            ),
+          );
+      }
+    });
+    await audit(
+      actor,
+      input.enabled ? "organization.module_enabled" : "organization.module_disabled",
+      { type: "organization", id: actor.organizationId },
+      { module: name },
+    );
+    return c.json(await modulesOf(actor.organizationId));
   });

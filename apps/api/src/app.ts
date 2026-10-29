@@ -13,6 +13,7 @@ import { aiRoutes } from "./routes/ai.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { directoryRoutes } from "./routes/directory.ts";
 import { earlyWarningRoutes } from "./routes/early-warnings.ts";
+import { exposureRoutes } from "./routes/exposure.ts";
 import { findingRoutes } from "./routes/findings.ts";
 import { fixRoutes } from "./routes/fixes.ts";
 import { forgeConnectionRoutes } from "./routes/forge-connections.ts";
@@ -115,6 +116,7 @@ const v1 = new Hono<AppEnv>()
   .route("/forge-apps", forgeAppRoutes)
   .route("/forge-sign-in", forgeSignInRoutes)
   .route("/pull-requests", pullRequestRoutes)
+  .route("/exposure", exposureRoutes)
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)

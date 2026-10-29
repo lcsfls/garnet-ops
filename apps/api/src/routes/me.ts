@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { db } from "../db.ts";
 import type { AppEnv } from "../lib/context.ts";
+import { modulesOf } from "../lib/modules.ts";
 
 export const meRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const actor = c.get("actor");
@@ -33,7 +34,7 @@ export const meRoutes = new Hono<AppEnv>().get("/", async (c) => {
       locale: preferences?.locale ?? null,
       timeZone: preferences?.timeZone ?? null,
     },
-    organization: org,
+    organization: org ? { ...org, modules: await modulesOf(actor.organizationId) } : org,
     role: actor.role,
   });
 });

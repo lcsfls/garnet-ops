@@ -185,6 +185,20 @@ export default defineConfig({
         E2E_DIRECTORY_CONTROL_PORT: String(E2E.directoryControlPort),
       },
     },
+    // The website monitoring part of the worker (ADR 0023, 0033) with a fake resolver and two local services; the tests steer it
+    // over a control port.
+    {
+      command: "corepack pnpm --filter @garnetops/worker exec tsx test/e2e-exposure-worker.ts",
+      url: `http://127.0.0.1:${E2E.exposureControlPort}/state`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        ...E2E.dev,
+        NODE_ENV: "test",
+        DATABASE_URL: E2E.databaseUrl,
+        E2E_EXPOSURE_CONTROL_PORT: String(E2E.exposureControlPort),
+      },
+    },
     {
       // The built app under the reverse proxy's headers, including the generated CSP (ADR 0027).
       command: `corepack pnpm build && node scripts/serve.mjs --port ${E2E.webPort}`,

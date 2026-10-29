@@ -11,6 +11,13 @@ import {
 import { startEarlyWarnings } from "./early-warning.ts";
 import { env } from "./env.ts";
 import {
+  EXPOSURE_RUN_QUEUE,
+  EXPOSURE_VERIFY_QUEUE,
+  runExposure,
+  runVerify,
+  startExposureScheduler,
+} from "./exposure.ts";
+import {
   checkWriteAccess,
   FIX_PR_CHECK_QUEUE,
   FIX_PR_QUEUE,
@@ -32,6 +39,7 @@ import { startVulnDbUpdates } from "./vulndb.ts";
 
 const AI_CONCURRENCY = 4;
 const DIRECTORY_CONCURRENCY = 4;
+const EXPOSURE_CONCURRENCY = 2;
 
 await mkdir(env.GARNETOPS_WORK_DIR, { recursive: true });
 const boss = new PgBoss({ connectionString: env.DATABASE_URL, application_name: "garnetops-worker-queue" });
@@ -47,6 +55,8 @@ await boss.createQueue(FIX_PR_REFRESH_QUEUE);
 await boss.createQueue(DIRECTORY_QUEUE);
 await boss.createQueue(FORGE_CONNECTION_QUEUE);
 await boss.createQueue(FORGE_SIGN_IN_QUEUE);
+await boss.createQueue(EXPOSURE_VERIFY_QUEUE);
+await boss.createQueue(EXPOSURE_RUN_QUEUE);
 // Queues and schedules of the modules removed in 0.0.4 (ADR 0025) would otherwise stay in the database.
 const retired = await removeRetiredQueues(boss);
 if (retired.length > 0) console.log(`worker: removed ${retired.length} retired queues`);
@@ -139,6 +149,23 @@ for (let i = 0; i < 4; i++) {
     if (job) await runSignIn(job.data.signInId);
   });
 }
+// Website monitoring (ADR 0023, a module since ADR 0033): the proof of control, stage 1 (passive) and stage 2 (light active).
+// Every outbound connection to an asset is made here, after the address was checked, and only for organisations that
+// switched the module on.
+await boss.work<{ assetId: string }>(EXPOSURE_VERIFY_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await runVerify(job.data.assetId);
+});
+for (let i = 0; i < EXPOSURE_CONCURRENCY; i++) {
+  await boss.work<{ runId: string }>(EXPOSURE_RUN_QUEUE, { batchSize: 1 }, async ([job]) => {
+    if (!job) return;
+    const started = performance.now();
+    await runExposure(job.data.runId);
+    console.log(
+      `website check ${job.data.runId} finished in ${Math.round((performance.now() - started) / 1000)} s`,
+    );
+  });
+}
+await startExposureScheduler(boss);
 await startScheduler(boss);
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();

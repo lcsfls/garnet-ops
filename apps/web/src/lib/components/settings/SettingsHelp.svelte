@@ -16,6 +16,10 @@
       { title: "connections.helpPrivateTitle", text: "connections.helpPrivateText" },
       { title: "connections.helpTokenTitle", text: "connections.helpTokenText" },
     ],
+    modules: [
+      { title: "settings.helpModulesTitle", text: "settings.helpModulesText" },
+      { title: "websites.helpNeverTitle", text: "websites.helpNeverText" },
+    ],
     signin: [
       { title: "directory.helpPasswordTitle", text: "directory.helpPasswordText" },
       { title: "directory.helpOwnersTitle", text: "directory.helpOwnersText" },

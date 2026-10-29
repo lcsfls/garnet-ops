@@ -8,7 +8,7 @@
  */
 import type { Role } from "./index.ts";
 
-export const EVENT_GROUPS = ["code", "account", "system"] as const;
+export const EVENT_GROUPS = ["code", "websites", "account", "system"] as const;
 export type EventGroup = (typeof EVENT_GROUPS)[number];
 
 export const USER_EVENTS = [
@@ -17,6 +17,10 @@ export const USER_EVENTS = [
   "scan.failed",
   "fix_pr.merged",
   "fix_pr.failed",
+  "exposure.certificate_expiring",
+  "exposure.verification_lost",
+  "exposure.new_open_port",
+  "exposure.risky_service",
   "infra.certificate_changed",
   "team.invitation_accepted",
   "team.role_changed",
@@ -38,6 +42,8 @@ export interface EventDefinition {
   channelEvent: boolean;
   /** Only the person the event is about is told, whatever their role. */
   targeted?: boolean;
+  /** Belongs to a module an organisation switches on (ADR 0033); listed and sent only while it is on. */
+  module?: "websites";
 }
 
 /** The catalogue. Order is the order of the rows in the settings matrix, per group. */
@@ -64,6 +70,38 @@ export const EVENT_CATALOG: Record<UserEvent, EventDefinition> = {
     scoped: true,
     defaultScope: "mine",
     channelEvent: false,
+  },
+  "exposure.certificate_expiring": {
+    group: "websites",
+    minRole: "admin",
+    scoped: false,
+    defaultScope: "all",
+    channelEvent: false,
+    module: "websites",
+  },
+  "exposure.verification_lost": {
+    group: "websites",
+    minRole: "admin",
+    scoped: false,
+    defaultScope: "all",
+    channelEvent: false,
+    module: "websites",
+  },
+  "exposure.new_open_port": {
+    group: "websites",
+    minRole: "admin",
+    scoped: false,
+    defaultScope: "all",
+    channelEvent: false,
+    module: "websites",
+  },
+  "exposure.risky_service": {
+    group: "websites",
+    minRole: "admin",
+    scoped: false,
+    defaultScope: "all",
+    channelEvent: false,
+    module: "websites",
   },
   "infra.certificate_changed": {
     group: "account",
@@ -103,6 +141,11 @@ export const TITLE_EVENTS = {
   scanFailed: "scan.failed",
   fixPrMerged: "fix_pr.merged",
   fixPrFailed: "fix_pr.failed",
+  exposureCertificateExpiring: "exposure.certificate_expiring",
+  exposureCertificateExpired: "exposure.certificate_expiring",
+  exposureVerificationLost: "exposure.verification_lost",
+  exposureNewOpenPort: "exposure.new_open_port",
+  exposureRiskyService: "exposure.risky_service",
   certificateChangedDirectory: "infra.certificate_changed",
   invitationAccepted: "team.invitation_accepted",
   roleChanged: "team.role_changed",

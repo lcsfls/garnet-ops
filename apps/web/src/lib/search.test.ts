@@ -68,7 +68,7 @@ describe("search params", () => {
   });
 
   it("offers no settings section and no audit group of a removed module", () => {
-    const removed = ["proxmox", "unifi", "exposure", "xdr", "attacks", "host"];
+    const removed = ["proxmox", "unifi", "xdr", "attacks", "host"];
     for (const name of removed) {
       expect(SETTINGS_SECTIONS).not.toContain(name);
       expect(AUDIT_FILTERS).not.toContain(name);
@@ -76,5 +76,9 @@ describe("search params", () => {
       expect(auditSearch.parse({ group: name })).toMatchObject({ group: undefined });
     }
     expect(auditSearch.parse({ group: "fix_pr" })).toMatchObject({ group: "fix_pr" });
+    // External exposure came back as website monitoring (ADR 0033): its entries have a filter again, settings live in Modules.
+    expect(auditSearch.parse({ group: "exposure" })).toMatchObject({ group: "exposure" });
+    expect(settingsSearch.parse({ section: "exposure" })).toEqual({ section: undefined });
+    expect(settingsSearch.parse({ section: "modules" })).toEqual({ section: "modules" });
   });
 });

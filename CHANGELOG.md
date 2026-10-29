@@ -21,6 +21,20 @@ Security-relevant changes are listed under **Security** in every release.
   repository's read credential. **Check now** checks a pull request's head exactly as a CI pipeline would.
 - API: `/api/v1/pull-requests`, `/api/v1/pull-requests/sources`, `POST /api/v1/pull-requests/refresh` and
   `POST /api/v1/pull-requests/{id}/check`.
+- **Website monitoring** is back as a module, off by default ([ADR 0033](docs/adr/0033-website-monitoring-as-a-module.md),
+  [docs](docs/websites.md)). Owners and admins switch it on under **Settings → Modules**; then **Monitoring → Websites** watches
+  your own domains, host names and addresses from the outside (certificates and their expiry, DNS, SPF and DMARC, security
+  headers). Port checks run only for names whose control you proved with a DNS TXT record or a file, and only after you confirm
+  them per name. The checks are those of 0.0.3 (ADR 0023), without location data. Old `/exposure` links lead to the new page.
+- API: `GET /api/v1/organization/modules`, `PUT /api/v1/organization/modules/{name}`, `organization.modules` in
+  `GET /api/v1/me`, `websites` in `GET /api/v1/search`, and `/api/v1/exposure` again (answers 409 `module-off` while the module is
+  off).
+
+### Security
+
+- Website monitoring makes outbound connections to public hosts only after an owner or admin switches the module on (audited).
+  While it is off, no check runs and its API refuses every request; switching it off also switches stage 2 off for every website
+  and voids the confirmations. The worker checks the switch again before each run and each proof check.
 
 ## [0.0.11] - 2026-10-29
 <!-- title: Connected accounts, private repositories and interactive statistics -->

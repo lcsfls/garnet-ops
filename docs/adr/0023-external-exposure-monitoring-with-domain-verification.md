@@ -1,6 +1,7 @@
 # ADR 0023: External exposure monitoring with domain verification
 
-> **Status: superseded by ADR 0025 (removed in 0.0.4).** The module was removed when GarnetOps became a pure developer pipeline. The text below is kept as the record of the decision; it describes the last version that has the module, the tag `v0.0.3`.
+> **Status: superseded by ADR 0025 (removed in 0.0.4), and back as the module "Website monitoring" in 0.0.12 (ADR 0033).** The checks
+> below are those of the module; ADR 0033 says what changed (a module switch, no location data, new queue names, the Svelte pages).
 
 - Status: superseded by ADR 0025 (removed in 0.0.4). Earlier status: accepted (2026-10-22)
 - Date: 2026-10-22

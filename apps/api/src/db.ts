@@ -30,4 +30,10 @@ export const QUEUES = {
   forgeSignIn: "forge-sign-in.run",
   /** Reading the open pull requests again (ADR 0032). */
   pullRequestRefresh: "pull-requests.refresh",
+  /**
+   * Website monitoring (ADR 0023, a module since ADR 0033): checking the proof of control, and a run of stage 1 (passive) or
+   * stage 2 (light active). Not the `exposure.*` names of 0.0.3, which the worker removes on start.
+   */
+  exposureVerify: "websites.verify",
+  exposureRun: "websites.run",
 } as const;

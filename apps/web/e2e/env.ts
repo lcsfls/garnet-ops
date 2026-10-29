@@ -42,6 +42,8 @@ export const E2E = {
   /** The fake Active Directory (LDAPS) and its control server (apps/worker/test/e2e-directory-worker.ts). */
   directoryPort: 8096,
   directoryControlPort: 8095,
+  /** The control server of the website monitoring worker with its fake resolver and fake services (apps/worker/test/e2e-exposure-worker.ts). */
+  exposureControlPort: 8097,
   updaterTokenFile: fileURLToPath(new URL("./.state/updater-token", import.meta.url)),
   /** The owner's TOTP secret, saved by the sign-in flow for later step-up tests (throw-away database). */
   totpSecretFile: fileURLToPath(new URL("./.state/totp-secret", import.meta.url)),

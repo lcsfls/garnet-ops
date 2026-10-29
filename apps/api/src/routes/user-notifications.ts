@@ -15,6 +15,7 @@ import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { db } from "../db.ts";
 import { type AppEnv, isAdmin } from "../lib/context.ts";
+import { modulesOf } from "../lib/modules.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
 import { userNotificationBus } from "../lib/user-notification-bus.ts";
@@ -338,7 +339,13 @@ async function preferencesView(
   const byEvent = new Map<string, Partial<Preference>>(
     stored.map((p) => [p.event, { inApp: p.inApp, email: p.email, scope: p.scope }]),
   );
+  // Events of a module that is switched off are not listed (ADR 0033).
+  const modules = await modulesOf(organizationId);
   const events = preferenceEvents(role)
+    .filter((event) => {
+      const module = EVENT_CATALOG[event].module;
+      return !module || modules[module];
+    })
     .sort(
       (a, b) =>
         EVENT_GROUPS.indexOf(EVENT_CATALOG[a].group) - EVENT_GROUPS.indexOf(EVENT_CATALOG[b].group) ||

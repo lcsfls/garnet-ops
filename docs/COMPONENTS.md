@@ -147,6 +147,14 @@ MIT, Apache-2.0, BSD-3-Clause, ISC, MIT OR Apache-2.0, and MPL-2.0 for lightning
 dev dependency of vite, unmodified, not shipped; the application's lockfile has it too). Nothing
 is outside the allowed list.
 
+## In use today (optional external services)
+
+Services the product can call only after an owner or admin switches them on; nothing is bundled.
+
+| Service | Terms | Check | Source | Use | Notes |
+|---|---|---|---|---|---|
+| crt.sh (Certificate Transparency search, Sectigo) | service terms | **terms not confirmed** (no API terms or service level could be read from the build environment; a free, best-effort service) | https://crt.sh | Website monitoring: optional subdomain suggestions for verified domains ([ADR 0023](adr/0023-external-exposure-monitoring-with-domain-verification.md), [ADR 0033](adr/0033-website-monitoring-as-a-module.md), `docs/websites.md`) | Off by default, inside a module that is off by default; switching it on needs a recent sign-in and an acknowledgement that domain names leave the network, and the exact request is shown. Worker-only calls to the fixed host through the address-checked client (`apps/worker/src/outbound.ts`: public addresses only, TLS 1.2+, no redirects, 4 MiB cap), once a day per verified domain, 100 a day, one every 10 s. No client library |
+
 ## Planned: scanning and vulnerability data
 
 | Component | Version | License | Check | Source | Status | Use | Notes |
@@ -244,7 +252,6 @@ Decided in ADR 0003; components move to "In use today (application)" when they a
 | Natural Earth admin-0 countries 1:110m (via world-atlas 2.0.2) | public domain (data); ISC (packaging) | The world map and globe shapes were removed with the attack overview (ADR 0025); the generator script and the vendored shapes are gone | 2026-10-28 |
 | DB-IP IP to Country Lite and IP to ASN Lite | CC BY 4.0 | GeoIP data of the attack overview and external exposure, never bundled; removed with those modules (ADR 0025) | 2026-10-28 |
 | MaxMind GeoLite2, GreyNoise Community API, AbuseIPDB API | MaxMind EULA; service terms | Optional GeoIP and reputation sources of the attack overview; removed with it (ADR 0025) | 2026-10-28 |
-| crt.sh (Certificate Transparency search) | service terms | Optional subdomain suggestions of external exposure; removed with it (ADR 0025) | 2026-10-28 |
 | Wazuh 4.x and 5.0.0-rc1 (customer-run integration) | GPL-2.0 | The XDR integration was removed (ADR 0025); nothing of Wazuh was ever bundled or linked | 2026-10-28 |
 | Proxmox VE 8.x and 9.x (customer-run integration) | AGPL-3.0 | The Proxmox VE integration was removed (ADR 0025); nothing of Proxmox was ever bundled or linked | 2026-10-28 |
 | UniFi Network (Ubiquiti, customer-run integration) | Proprietary, external product | The UniFi integration was removed (ADR 0025); no code or library of it was ever used | 2026-10-28 |

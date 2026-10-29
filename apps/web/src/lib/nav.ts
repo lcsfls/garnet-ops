@@ -5,6 +5,7 @@ import {
   GitBranch,
   GitPullRequest,
   GitPullRequestArrow,
+  Globe,
   LayoutGrid,
   type LucideIcon,
   Package,
@@ -27,6 +28,7 @@ export type NavTo =
   | "/pull-requests"
   | "/fixes"
   | "/packages"
+  | "/websites"
   | "/settings"
   | "/team"
   | "/audit-log"
@@ -37,6 +39,8 @@ export interface NavItem {
   label: MessageKey;
   icon: LucideIcon;
   adminOnly?: boolean;
+  /** Listed only while the organisation has this module switched on (ADR 0033). */
+  module?: keyof Me["organization"]["modules"];
 }
 
 /** Only screens that exist are listed; nothing is shown as a teaser. */
@@ -61,6 +65,10 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     ],
   },
   {
+    label: "shell.groupMonitoring",
+    items: [{ to: "/websites", label: "nav.websites", icon: Globe, module: "websites" }],
+  },
+  {
     label: "shell.groupAdmin",
     items: [
       { to: "/settings", label: "nav.settings", icon: Settings },
@@ -77,7 +85,10 @@ export const isAdmin = (me: Me) => me.role === "owner" || me.role === "admin";
 export function navFor(me: Me) {
   return NAV.map((group) => ({
     ...group,
-    items: group.items.filter((item) => !item.adminOnly || isAdmin(me)),
+    items: group.items.filter(
+      (item) =>
+        (!item.adminOnly || isAdmin(me)) && (!item.module || me.organization?.modules?.[item.module] === true),
+    ),
   })).filter((group) => group.items.length > 0);
 }
 

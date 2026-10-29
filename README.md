@@ -38,6 +38,8 @@ you until shared
 ([docs/connected-accounts.md](docs/connected-accounts.md)),
 early warnings when a new advisory affects a package a repository already uses, before the next scan
 ([docs/early-warnings.md](docs/early-warnings.md)),
+an optional module that watches your own websites from the outside, with port checks only for names you proved with a DNS TXT
+record ([docs/websites.md](docs/websites.md)),
 audit log, a Docker Compose stack and optional signed in-app updates.
 
 ## Screenshots

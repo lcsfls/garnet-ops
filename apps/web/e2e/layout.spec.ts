@@ -8,7 +8,7 @@ import {
   sidebarFooterOnOneLine,
   watchForProblems,
 } from "./helpers.ts";
-import { AI, FIXES, resetSystemStatus, sql } from "./seed.ts";
+import { AI, EXPOSURE, FIXES, resetSystemStatus, sql } from "./seed.ts";
 
 /** Layout baseline (AGENTS.md rule 5): every screen fits at 1080p with 100, 125 and 150 % scaling. */
 test.describe("signed out", () => {
@@ -674,4 +674,50 @@ test.describe("signed in", () => {
     await page.screenshot({ path: info.outputPath("add-repository-dark.png") });
     expect(problems).toEqual([]);
   });
+});
+
+/** Website monitoring (ADR 0023, 0033): the module is on for these screens only. */
+test.describe("signed in, with website monitoring on", () => {
+  test.use({ storageState: STATE_FILE });
+  test.beforeAll(async () => {
+    await sql(`insert into exposure_settings (organization_id, enabled)
+               select id, true from organization
+               on conflict (organization_id) do update set enabled = true`);
+  });
+  test.afterAll(async () => {
+    await sql("update exposure_settings set enabled = false");
+  });
+
+  for (const { path, heading, name } of [
+    { path: "/websites", heading: "Websites", name: "websites" },
+    {
+      path: "/websites?status=attention&sort=critical&dir=desc",
+      heading: "Websites",
+      name: "websites-filtered",
+    },
+    { path: `/websites/${EXPOSURE.main.id}`, heading: EXPOSURE.main.value, name: "website" },
+    { path: `/websites/${EXPOSURE.main.id}?tab=ports`, heading: EXPOSURE.main.value, name: "website-ports" },
+    { path: `/websites/${EXPOSURE.main.id}?tab=tls`, heading: EXPOSURE.main.value, name: "website-tls" },
+    { path: `/websites/${EXPOSURE.main.id}?tab=http`, heading: EXPOSURE.main.value, name: "website-http" },
+    {
+      path: `/websites/${EXPOSURE.main.id}?tab=history`,
+      heading: EXPOSURE.main.value,
+      name: "website-history",
+    },
+    { path: `/websites/${EXPOSURE.main.id}?verify=1`, heading: EXPOSURE.main.value, name: "website-verify" },
+    { path: `/websites/${EXPOSURE.main.id}?stage2=1`, heading: EXPOSURE.main.value, name: "website-stage2" },
+    { path: "/settings?section=modules", heading: "Settings", name: "settings-modules" },
+  ]) {
+    test(`${name} fits without horizontal scrolling`, async ({ page }, info) => {
+      const problems = watchForProblems(page);
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: heading, exact: true, level: 1 })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+      expect(await misalignedFormRows(page)).toEqual([]);
+      await page.screenshot({ path: info.outputPath(`${name}.png`), fullPage: true });
+      expect(problems).toEqual([]);
+    });
+  }
 });

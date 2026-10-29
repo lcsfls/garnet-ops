@@ -1449,19 +1449,22 @@ export const unifiThreatEvent = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* Removed in 0.0.4 (ADR 0025): external exposure                            */
+/* Website monitoring (ADR 0023, back as a module in 0.0.12: ADR 0033)       */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
- *
- * Organisation-wide switches of the exposure feature. Certificate Transparency is opt-in: the domain names of verified assets
- * are sent to a public search service, which is data leaving the network, so it is off until an owner or admin switches it on.
+ * Organisation-wide switches of website monitoring. The module itself is off until an owner or admin switches it on
+ * (ADR 0033). Certificate Transparency is opt-in as well: the domain names of verified assets are sent to a public search
+ * service, which is data leaving the network.
  */
 export const exposureSettings = pgTable("exposure_settings", {
   organizationId: text("organization_id")
     .primaryKey()
     .references(() => organization.id, { onDelete: "cascade" }),
+  /** The module (ADR 0033): off by default; while off nothing is looked at and the pages are hidden. */
+  enabled: boolean("enabled").notNull().default(false),
+  enabledBy: text("enabled_by").references(() => user.id, { onDelete: "set null" }),
+  enabledAt: timestamp("enabled_at", { withTimezone: true }),
   ctEnabled: boolean("ct_enabled").notNull().default(false),
   ctEnabledBy: text("ct_enabled_by").references(() => user.id, { onDelete: "set null" }),
   ctEnabledAt: timestamp("ct_enabled_at", { withTimezone: true }),
@@ -1475,8 +1478,6 @@ export const exposureSettings = pgTable("exposure_settings", {
 });
 
 /**
- * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
- *
  * A domain, host name or public address the organisation wants watched from the outside. `verifyToken` is the proof an
  * owner publishes (DNS TXT record or a file) before stage 2 may touch the asset; it is not a secret (it is published by design),
  * but it is unguessable and belongs to this organisation and asset alone. `passive` and `active` hold the newest snapshot of
@@ -1541,8 +1542,6 @@ export const exposureAsset = pgTable(
 );
 
 /**
- * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
- *
  * One look at an asset: stage 1 or stage 2. At most one is queued or running per asset and stage.
  */
 export const exposureRun = pgTable(
@@ -1577,8 +1576,6 @@ export const exposureRun = pgTable(
 );
 
 /**
- * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
- *
  * A thing wrong from the outside. Deduplicated per asset, rule and subject; resolved when the rule no longer fires.
  */
 export const exposureFinding = pgTable(
@@ -1615,8 +1612,6 @@ export const exposureFinding = pgTable(
 );
 
 /**
- * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
- *
  * A port that answered the last stage 2 run, per address. Ports that no longer answer are deleted.
  */
 export const exposurePort = pgTable(
@@ -1645,8 +1640,6 @@ export const exposurePort = pgTable(
 );
 
 /**
- * Removed in 0.0.4 (ADR 0025); data deleted; table dropped in 1.0.
- *
  * A host name found in Certificate Transparency logs or in the DNS records of an asset, under the asset's own domain. It is only a
  * suggestion: nothing is looked at until an admin adds it as an asset.
  */

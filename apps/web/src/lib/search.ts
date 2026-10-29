@@ -163,6 +163,7 @@ export const AUDIT_FILTERS = [
   "update",
   "fix_pr",
   "forge_connection",
+  "exposure",
 ] as const;
 export const auditSearch = z.object({
   /** Action group; the API filters by the prefix "<group>.". */
@@ -195,6 +196,7 @@ export type GateSearch = z.infer<typeof gateSearch>;
 export const SETTINGS_SECTIONS = [
   "scanning",
   "accounts",
+  "modules",
   "signin",
   "notifications",
   "ai",
@@ -231,6 +233,47 @@ export function toQuery(search: Record<string, unknown>, uiOnly: string[] = []):
 }
 
 export { DEFAULT_PAGE_SIZE };
+
+export const WEBSITE_SORTS = [
+  "value",
+  "verification",
+  "critical",
+  "high",
+  "medium",
+  "low",
+  "certificate",
+  "stage2",
+  "lastPassive",
+  "lastActive",
+] as const;
+export const WEBSITE_STATUSES = ["all", "attention", "unverified", "stage2"] as const;
+
+/** The Websites page (ADR 0023, 0033): filters, sort and position of the list; the add dialog. */
+export const websiteSearch = z.object({
+  status: z.enum(WEBSITE_STATUSES).optional().catch(undefined),
+  q: text(100),
+  cursor: text(512),
+  pageSize,
+  sort: sortOf(WEBSITE_SORTS),
+  dir,
+  /** Opens the "Add asset" dialog. */
+  add: flag,
+});
+export type WebsiteSearch = z.infer<typeof websiteSearch>;
+
+export const WEBSITE_TABS = ["findings", "dns", "tls", "http", "ports", "history"] as const;
+export type WebsiteTab = (typeof WEBSITE_TABS)[number];
+
+/** One website: the tab shown, which findings, and the dialogs that can be opened by a link. */
+export const websiteDetailSearch = z.object({
+  tab: z.enum(WEBSITE_TABS).optional().catch(undefined),
+  findings: z.enum(["open", "resolved", "all"]).optional().catch(undefined),
+  /** Opens the verification dialog. */
+  verify: flag,
+  /** Opens the stage 2 dialog. */
+  stage2: flag,
+});
+export type WebsiteDetailSearch = z.infer<typeof websiteDetailSearch>;
 
 /** Open pull requests with their gate result (ADR 0032). */
 export const pullRequestSearch = z.object({

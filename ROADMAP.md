@@ -9,7 +9,8 @@ Order set on 2026-10-19: repository monitoring and analysis first, AI triage
 next, then servers and XDR. **Changed on 2026-10-28 (ADR 0025): GarnetOps is a
 pure developer pipeline. The infrastructure phases (servers, Proxmox VE, UniFi,
 Wazuh/XDR, attack overview, external exposure) were removed in 0.0.4. The last
-version that has them is the tag `v0.0.3`.**
+version that has them is the tag `v0.0.3`. External exposure is back in 0.0.12 as the
+module "Website monitoring", off by default (ADR 0033).**
 
 Status markers: `[ ]` open, `[~]` in progress, `[x]` done.
 
@@ -114,6 +115,9 @@ paginated findings, and every number on the overview leads to its details.
 - [x] Per-user forge connections with a personal read token, repository picker, private
       repositories until shared (ADR 0030, 0.0.11); sign-in with a GitHub App (device flow) or a
       Gitea/Forgejo OAuth2 application with PKCE instead of a pasted token (ADR 0031, 0.0.12)
+- [x] Website monitoring as a module, off by default (ADR 0023, ADR 0033, `docs/websites.md`, 0.0.12): certificates, DNS, mail
+      authentication and security headers from the outside; proof of control by DNS TXT record or file; port checks only for proven
+      names with a confirmation per name; switched on and off under Settings, Modules
 - [x] Pull request overview: open pull requests of the monitored repositories with the gate result of their head commit,
       read with the repository's read credential, "Check now" as a CI check would (ADR 0032, `docs/pull-requests.md`,
       0.0.12). Still open: review comments on the pull request
@@ -190,7 +194,8 @@ What was removed, and the items that were open when it was:
 - UniFi (ADR 0022): network devices and the IPS preview.
 - Wazuh / XDR (ADR 0002, 0015): the XDR page, alerts, MITRE tactics, file integrity, the agent enrollment helper.
 - Attack overview (ADR 0016, 0021): world map, globe, live feed, local GeoIP (DB-IP), the optional AbuseIPDB lookup, the attack AI summary.
-- External exposure (ADR 0023): public assets, proof of control, stage 1 and 2, Certificate Transparency suggestions.
+- External exposure (ADR 0023): public assets, proof of control, stage 1 and 2, Certificate Transparency suggestions. **Back in 0.0.12 as
+  the module "Website monitoring"** (ADR 0033, below); only the location data (GeoIP) stays removed.
 
 ## Phase 5: Breadth, teams and distribution
 

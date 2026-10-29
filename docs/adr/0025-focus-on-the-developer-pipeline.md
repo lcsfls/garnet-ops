@@ -1,6 +1,6 @@
 # ADR 0025: Focus on the developer pipeline
 
-- Status: accepted (2026-10-28)
+- Status: accepted (2026-10-28); for external exposure superseded in part by ADR 0033 (back as the module "Website monitoring")
 - Date: 2026-10-28
 - Decided by: maintainer (product focus: GarnetOps becomes a pure developer pipeline)
 - Supersedes: ADR 0002, 0011, 0012, 0015, 0016, 0021, 0022 and 0023 completely; ADR 0004 (the server and firewall parts),

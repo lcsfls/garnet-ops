@@ -22,6 +22,8 @@
     "./manifests": "./src/manifests.ts",
     "./fix-prs": "./src/fix-prs.ts",
     "./forge-sign-in": "./src/forge-sign-in.ts",
+    "./exposure": "./src/exposure.ts",
+    "./exposure-assets": "./src/exposure-assets.ts",
     "./account": "./src/account.ts",
     "./user-notifications": "./src/user-notifications.ts",
     "./directory": "./src/directory.ts",

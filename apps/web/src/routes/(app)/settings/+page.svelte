@@ -7,6 +7,7 @@
   import AiSettingsPanel from "#lib/components/settings/AiSettingsPanel.svelte";
   import ConnectionsPanel from "#lib/components/settings/connections/ConnectionsPanel.svelte";
   import DirectoryPanel from "#lib/components/settings/directory/DirectoryPanel.svelte";
+  import ModulesPanel from "#lib/components/settings/modules/ModulesPanel.svelte";
   import NotificationsPanel from "#lib/components/settings/NotificationsPanel.svelte";
   import SettingsHelp from "#lib/components/settings/SettingsHelp.svelte";
   import ScanningSection from "#lib/components/settings/scanning/ScanningSection.svelte";
@@ -23,6 +24,7 @@
   const SECTION_LABELS = {
     scanning: "settings.sectionScanning",
     accounts: "settings.sectionAccounts",
+    modules: "settings.sectionModules",
     signin: "settings.sectionSignin",
     notifications: "settings.sectionNotifications",
     ai: "ai.sectionName",
@@ -76,6 +78,7 @@
     <div data-testid="settings-form" class="@container grid min-w-0 gap-4">
       {#if section === "scanning"}<ScanningSection canEdit={admin} />{/if}
       {#if section === "accounts"}<ConnectionsPanel {me} />{/if}
+      {#if section === "modules"}<ModulesPanel {me} />{/if}
       {#if section === "signin"}<DirectoryPanel {me} />{/if}
       {#if section === "notifications"}<NotificationsPanel {me} />{/if}
       {#if section === "ai"}<AiSettingsPanel {me} />{/if}

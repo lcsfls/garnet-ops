@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { Bug, GitBranch, type LucideIcon, Package, Search, Sparkles, UserRound } from "@lucide/svelte";
+  import {
+    Bug,
+    GitBranch,
+    Globe,
+    type LucideIcon,
+    Package,
+    Search,
+    Sparkles,
+    UserRound,
+  } from "@lucide/svelte";
   import { createQuery, keepPreviousData } from "@tanstack/svelte-query";
   import { goto } from "$app/navigation";
   import { api } from "../api.ts";
@@ -23,6 +32,8 @@
     repositories: { id: string; name: string }[];
     vulnerabilities: { id: string }[];
     packages: { name: string; type: string }[];
+    /** Monitored websites; only while the module is on (ADR 0033), and from older servers not at all. */
+    websites?: { id: string; value: string }[];
   }
 
   /**
@@ -95,6 +106,13 @@
               hint: t("shell.searchKindPackage", { type: p.type }),
               icon: Package,
               go: () => void goto(href("/packages", { q: p.name })),
+            })),
+            ...(data.websites ?? []).map((w) => ({
+              id: `site:${w.id}`,
+              label: w.value,
+              hint: t("shell.searchKindWebsite"),
+              icon: Globe,
+              go: () => void goto(`/websites/${encodeURIComponent(w.id)}`),
             })),
           ]
         : [];
