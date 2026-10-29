@@ -53,7 +53,7 @@ npm packages, so its upstream repository still has to be checked.
 | TypeScript | 5.9.3 | Apache-2.0 | verified | https://github.com/microsoft/TypeScript | Language (dev) | |
 | Hono | 4.13.13 | MIT | verified | https://github.com/honojs/hono | HTTP API | |
 | @hono/node-server | 2.1.5 | MIT | verified | https://github.com/honojs/node-server | Node adapter for Hono | |
-| zod | 3.25.76 | MIT | verified | https://github.com/colinhacks/zod | Validation (API, worker, web search params) | |
+| zod | 4.6.7 | MIT | verified | https://github.com/colinhacks/zod | Validation (API, worker, web search params); one copy, shared with the cicd-updater SDK and better-call | |
 | better-auth | 1.7.10 | MIT | verified | https://github.com/better-auth/better-auth | Sessions, accounts, two-factor plugin (TOTP) | Telemetry disabled in `apps/api/src/auth.ts` |
 | @better-auth/passkey | 1.7.10 | MIT | verified | https://github.com/better-auth/better-auth | WebAuthn passkeys: second factor and sign-in method (ADR 0017) | Separate package of better-auth 1.7. It verifies with `requireUserVerification: false`, so `apps/api/src/lib/passkey-policy.ts` checks the signed user-verified flag itself |
 | @better-auth/utils | 0.5.0 | MIT | verified | https://github.com/better-auth/utils | TOTP (`createOTP`) for replacing the authenticator app (ADR 0017) | Already pulled in by better-auth; now a direct dependency of the API |
@@ -98,7 +98,6 @@ npm packages, so its upstream repository still has to be checked.
 | @fontsource/ibm-plex-mono | 5.3.0 | SIL OFL 1.1 | verified | https://github.com/fontsource/font-files | Monospace font, bundled by Vite | Font license shipped with the build |
 | @playwright/test | 1.64.1 | Apache-2.0 | verified | https://github.com/microsoft/playwright | End-to-end and 1080p layout tests (dev) | Downloads Chromium for tests; never shipped |
 | @restow-backup/cicd-updater (SDK) | 1.0.0 (commit b2dd4ef) | Apache-2.0 | verified | https://github.com/restow-backup/cicd-updater | Client of the optional update sidecar: API calls, journal sync, maintenance banner, en/de message catalogs (ADR 0007) | Vendored tarball built from the reviewed commit, SHA-256 in `vendor/cicd-updater/README.md`; NOTICE file shipped in the package |
-| zod (v4) | 4.6.7 | MIT | verified | https://github.com/colinhacks/zod | Runtime dependency of the cicd-updater SDK and better-call | Installed next to zod 3 used by our own code |
 
 ## In use today (container images and CI)
 
@@ -131,7 +130,7 @@ generator fails on a licence outside MIT, ISC, Apache-2.0, BSD-2-Clause, BSD-3-C
 | Hono | 4.13.12 | MIT | verified | https://github.com/honojs/hono | HTTP API of the sidecar | Text in `updater/THIRD_PARTY_NOTICES` |
 | @hono/node-server | 2.1.3 | MIT | verified | https://github.com/honojs/node-server | Node adapter for Hono | |
 | yaml | 2.9.1 | ISC | verified | https://github.com/eemeli/yaml | `updater.yaml` and Compose files | |
-| zod | 4.6.5 | MIT | verified | https://github.com/colinhacks/zod | Validation of protocol, configuration and release documents | A second copy next to the application's zod (the SDK uses 4.6.7) |
+| zod | 4.6.7 | MIT | verified | https://github.com/colinhacks/zod | Validation of protocol, configuration and release documents | The same version as the application's zod |
 | Node.js (official image, Alpine) | 24.22.1-alpine3.24 | MIT; Alpine packages under their own licenses | to verify | https://hub.docker.com/_/node | Base of the updater image | Same digest as the application image (`NODE_IMAGE`); npm and corepack removed from the runtime stage |
 | BusyBox (Alpine base system) | from Alpine 3.24 | GPL-2.0-only | to verify | https://busybox.net | `tar` for volume backups | Unmodified, run as a separate program, never linked (rule 3). The base system of every Alpine image we ship |
 | Docker CLI, Buildx, Compose | from `docker:29.8.2-cli` | Apache-2.0 | to verify | https://github.com/docker/cli, https://github.com/docker/buildx, https://github.com/docker/compose | The sidecar drives the host's Docker engine | Copied from the official image, pinned by digest; separate programs |

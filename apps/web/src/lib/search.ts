@@ -52,7 +52,9 @@ const severities = z
     const list = (s ?? "").split(",").filter((v) => (SEVERITIES as readonly string[]).includes(v));
     return list.length ? list.join(",") : undefined;
   })
-  .catch(undefined);
+  .catch(undefined)
+  // zod 4 makes a transformed key required in the output type; the filter stays optional.
+  .optional();
 
 /** One grade to filter a list by: "A" to "F", or "none" for what was never scanned (ADR 0018). */
 const grade = z.enum(GRADE_FILTER_VALUES).optional().catch(undefined);
