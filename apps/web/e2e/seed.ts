@@ -175,10 +175,12 @@ export async function seed(): Promise<void> {
     }
     // A finding that an upgrade fixed: seen ten days ago, resolved three days ago. At noon UTC, which is
     // the same calendar day in Berlin all year, so the patch history counts 7 days also across a DST change.
-    const day = 24 * 3600 * 1000;
+    // The days count back from today in Berlin (the browser's zone in these tests), not in UTC: between
+    // 22:00 and 24:00 UTC, Berlin is already a day ahead.
+    const berlinToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(now);
     const noonUtc = (daysAgo: number) => {
-      const at = new Date(now.getTime() - daysAgo * day);
-      at.setUTCHours(12, 0, 0, 0);
+      const at = new Date(`${berlinToday}T12:00:00Z`);
+      at.setUTCDate(at.getUTCDate() - daysAgo);
       return at;
     };
     await client.query(
