@@ -8,7 +8,20 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Security
+
+- zod 4.6.7 instead of 3.25.76 in the API, the worker and the web app (GHSA-mrhx-c7xc-m3w5, high: memory exhaustion while
+  validating oversized collections). Validation behaves as before; one zod version remains in the product.
+- The update sidecar's build and test tooling: vite 8.3.5 (GHSA-587h-7wmj-h5pm and five more), fast-uri 3.1.9 (four advisories), zod
+  4.6.7. None of them is part of the sidecar image except zod. esbuild 0.27.7 stays for the sidecar's bundler (GHSA-g7r4-m6w7-qqqr,
+  low): it only affects esbuild's development server, which the build does not start.
+
+### Changed
+
+- The release workflow sets the title and text of the GitHub release from this changelog; releases are no longer edited by hand.
+
 ## [0.0.9] - 2026-10-29
+<!-- title: Isolated scanner service -->
 
 ### Security
 

@@ -270,6 +270,10 @@ lines. Commits are authored as `GarnetOps maintainers
 - **Documentation** is updated in the same PR as the behaviour it describes.
 - **Changelog:** every user-visible change gets an entry under `Unreleased` in
   `CHANGELOG.md`, following Keep a Changelog.
+- **Releases:** the release workflow takes the release title and text from the
+  version's section in `CHANGELOG.md` (title from `<!-- title: ... -->` below the
+  heading). Never create or edit a GitHub release by hand: a release published
+  before the workflow finishes blocks it.
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `security:`, `docs:`,
   `chore:`, `refactor:`, `test:`), without AI attribution (rule 8).
 

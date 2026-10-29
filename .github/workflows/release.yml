@@ -165,9 +165,20 @@ jobs:
           registry: ghcr.io
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Title and text come from CHANGELOG.md, so the release is never edited by hand: a release
+      # created or published by hand before this step blocks it.
+      - name: Release title and text from CHANGELOG.md
+        id: notes
+        run: |
+          set -euo pipefail
+          title="$(node scripts/release-notes.mjs "$GITHUB_REF_NAME" "$RUNNER_TEMP/release-notes.md")"
+          printf 'title=%s\n' "$title" >> "$GITHUB_OUTPUT"
+
       - name: release.json and the release
         uses: ./updater/actions/release-json
         with:
+          release-name: ${{ steps.notes.outputs.title }}
+          notes-file: ${{ runner.temp }}/release-notes.md
           images: ${{ steps.publish.outputs.images }}
           signing: keyless
           release-host: github
