@@ -569,6 +569,10 @@ export const FIX_PR_REASONS = [
   "write-access-missing",
   "no-push-access",
   "repository-gone",
+  // A pull request through a personal connection (ADR 0039).
+  "connection-missing",
+  "connection-disabled",
+  "write-scope-missing",
   "interrupted",
   "unexpected",
   ...(
@@ -678,4 +682,56 @@ export function repositoryKey(url: string): string {
       .replace(/\.git$/, "")
       .replace(/\/+$/, "");
   return `${location.host}/${location.owner}/${location.repo}`.toLowerCase();
+}
+
+/* -------------------------------------------------------------------------- */
+/* Fix pull requests through a personal connection (ADR 0039)                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Whether a connection to the forge at `webBaseUrl` (as {@link normalizeForgeWebBase} stores it) reaches the repository
+ * at `repositoryUrl`: the same host (and port), and below the forge's sub-path for an https address. An SSH address
+ * carries neither port nor sub-path of the web address, so its host name decides.
+ */
+export function connectionCoversRepository(webBaseUrl: string, repositoryUrl: string): boolean {
+  const location = parseRepoLocation(repositoryUrl);
+  if (!location) return false;
+  let web: URL;
+  try {
+    web = new URL(webBaseUrl);
+  } catch {
+    return false;
+  }
+  if (web.protocol !== "https:" || web.username || web.password) return false;
+  if (/^https:\/\//i.test(repositoryUrl)) {
+    const base = `https://${web.host.toLowerCase()}${web.pathname.replace(/\/+$/, "")}/`;
+    return location.webBase.startsWith(base);
+  }
+  return web.hostname.toLowerCase() === location.host;
+}
+
+/** The parts of a connection that decide whether it may open pull requests. */
+export interface ConnectionWriteFacts {
+  forgeKind: ForgeKind;
+  authMethod: "token" | "sign-in";
+  pullRequests: boolean;
+  writeScope: boolean;
+}
+
+/** A Gitea/Forgejo sign-in: its token can only write when the sign-in asked for a write scope. */
+export const needsWriteScope = (
+  connection: Pick<ConnectionWriteFacts, "forgeKind" | "authMethod">,
+): boolean => connection.authMethod === "sign-in" && connection.forgeKind !== "github";
+
+/**
+ * Why a connection cannot open fix pull requests, or null when it can as far as GarnetOps knows (the forge's push
+ * permission is checked by the worker every time). A Gitea/Forgejo sign-in needs a write scope; a GitHub App's
+ * permissions come from its registration, and a pasted token's from the forge.
+ */
+export function connectionWriteProblem(
+  connection: ConnectionWriteFacts,
+): "connection-disabled" | "write-scope-missing" | null {
+  if (!connection.pullRequests) return "connection-disabled";
+  if (needsWriteScope(connection) && !connection.writeScope) return "write-scope-missing";
+  return null;
 }

@@ -5,10 +5,16 @@
  * changed file to it, and opens a pull request with a fixed text. Nothing is cloned, nothing
  * from the repository is executed, and nothing is ever merged, approved or pushed to the
  * default branch.
+ *
+ * A request made through a person's own connected account (ADR 0039) uses that connection's
+ * token instead, and only while the connection still belongs to the person who asked, is on the
+ * repository's forge and has pull requests switched on. It never falls back to the write token.
  */
 import {
   advisoryUrl,
   branchName,
+  connectionCoversRepository,
+  connectionWriteProblem,
   type FixPrReason,
   type FixPrVulnerability,
   parseRepoLocation,
@@ -35,6 +41,7 @@ import {
   repoInfo,
   writeFile,
 } from "./forge.ts";
+import { accountOf } from "./forge-connection.ts";
 import { tellAboutFixPr } from "./user-notify.ts";
 
 export const FIX_PR_QUEUE = "fix-pr.create";
@@ -95,6 +102,83 @@ async function openTarget(
     },
     webBase: location.webBase,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* The requester's own connection (ADR 0039)                                   */
+/* -------------------------------------------------------------------------- */
+
+type ConnectionRow = typeof schema.forgeConnection.$inferSelect;
+type Opened = { target: ForgeTarget; webBase: string };
+
+/**
+ * The connection a request names, only while it still belongs to the person who made the request (in the same
+ * organisation) and is on the repository's forge. A connection's token is never used for anybody but its owner.
+ */
+async function requesterConnection(row: FixPrRow, repo: RepoRow): Promise<ConnectionRow | null> {
+  if (!row.connectionId || !row.requestedBy) return null;
+  const [connection] = await db
+    .select()
+    .from(schema.forgeConnection)
+    .where(
+      and(
+        eq(schema.forgeConnection.id, row.connectionId),
+        eq(schema.forgeConnection.organizationId, row.organizationId),
+        eq(schema.forgeConnection.userId, row.requestedBy),
+      ),
+    )
+    .limit(1);
+  if (!connection || !connectionCoversRepository(connection.webBaseUrl, repo.url)) return null;
+  return connection;
+}
+
+/** Opens a connection's token (renewed first if it is about to expire) for one repository on its forge. */
+async function openConnectionTarget(repo: RepoRow, connection: ConnectionRow): Promise<Opened> {
+  const location = parseRepoLocation(repo.url);
+  if (!location) throw new ForgeError("not-found");
+  const account = await accountOf(connection);
+  return {
+    target: {
+      kind: account.kind,
+      apiBaseUrl: account.apiBaseUrl,
+      token: account.token,
+      owner: location.owner,
+      repo: location.repo,
+    },
+    webBase: location.webBase,
+  };
+}
+
+/**
+ * The credential a request is carried out with: the repository's write token, or (`via` "connection") the requester's
+ * own connection. "write" needs the connection's opt-in and, for a Gitea/Forgejo sign-in, the write scope; "read"
+ * (the status refresh of the requester's own pull request) needs only the connection itself. A request made through a
+ * connection never falls back to the repository's token.
+ */
+async function credentialFor(
+  row: FixPrRow,
+  purpose: "write" | "read",
+): Promise<{ repo: RepoRow; open: () => Promise<Opened> } | { problem: FixPrReason }> {
+  if (row.via === "connection") {
+    const [repo] = await db
+      .select()
+      .from(schema.repository)
+      .where(eq(schema.repository.id, row.repositoryId))
+      .limit(1);
+    if (!repo || repo.organizationId !== row.organizationId) return { problem: "repository-gone" };
+    const connection = await requesterConnection(row, repo);
+    if (!connection) return { problem: "connection-missing" };
+    if (purpose === "write") {
+      const problem = connectionWriteProblem(connection);
+      if (problem) return { problem };
+    }
+    return { repo, open: () => openConnectionTarget(repo, connection) };
+  }
+  const access = await loadAccess(row.repositoryId);
+  if (!access || access.access.organizationId !== row.organizationId) {
+    return { problem: access ? "repository-gone" : "write-access-missing" };
+  }
+  return { repo: access.repo, open: () => openTarget(access.repo, access.access) };
 }
 
 async function loadAccess(repositoryId: string) {
@@ -187,10 +271,9 @@ export async function runFixPr(fixPrId: string): Promise<void> {
     .returning();
   if (!row) return; // taken, finished or cancelled
 
-  const access = await loadAccess(row.repositoryId);
-  if (!access || access.access.organizationId !== row.organizationId) {
-    return fail(row, access ? "repository-gone" : "write-access-missing");
-  }
+  const credential = await credentialFor(row, "write");
+  if ("problem" in credential) return fail(row, credential.problem);
+  const { repo } = credential;
   const kind = row.ecosystem as ManifestKind;
   // The row was validated when it was created; values that reach the forge are checked again here.
   if (
@@ -203,11 +286,14 @@ export async function runFixPr(fixPrId: string): Promise<void> {
     return fail(row, "rejected");
   }
   let created: { branch: string; target: ForgeTarget } | null = null;
+  let opened: Opened | null = null;
   try {
-    const { target, webBase } = await openTarget(access.repo, access.access);
+    opened = await credential.open();
+    const { target, webBase } = opened;
+    // The forge decides whether this token may push here: a connection's token as much as a write token.
     const info = await repoInfo(target);
     if (info.archived || info.canPush === false) return fail(row, "no-push-access");
-    const base = access.repo.branch ?? info.defaultBranch;
+    const base = repo.branch ?? info.defaultBranch;
     if (!isSafeGitRef(base)) return fail(row, "rejected");
     const head = await branchHead(target, base);
 
@@ -300,6 +386,7 @@ export async function runFixPr(fixPrId: string): Promise<void> {
       from: row.fromVersion,
       to: row.toVersion,
       branch,
+      via: row.via,
     });
   } catch (error) {
     if (created) {
@@ -311,6 +398,9 @@ export async function runFixPr(fixPrId: string): Promise<void> {
       row,
       error instanceof ForgeError && error.code === "conflict" ? "manifest-changed" : reasonOf(error),
     );
+  } finally {
+    // The token lives only in memory, and only as long as this request.
+    if (opened) opened.target.token = "";
   }
 }
 
@@ -359,37 +449,37 @@ export async function refreshFixPrs(
     )
     .orderBy(sql`${schema.fixPr.lastCheckedAt} asc nulls first`)
     .limit(REFRESH_BATCH);
-  const byRepository = new Map<string, FixPrRow[]>();
-  for (const row of rows)
-    byRepository.set(row.repositoryId, [...(byRepository.get(row.repositoryId) ?? []), row]);
+  // One credential per group: the repository's write token, or one person's connection (ADR 0039).
+  const groups = new Map<string, FixPrRow[]>();
+  for (const row of rows) {
+    const key =
+      row.via === "connection"
+        ? `${row.repositoryId}|connection|${row.connectionId ?? ""}|${row.requestedBy ?? ""}`
+        : `${row.repositoryId}|repository`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  const note = (prs: FixPrRow[], reason: string) =>
+    db
+      .update(schema.fixPr)
+      .set({ reason, lastCheckedAt: new Date() })
+      .where(
+        inArray(
+          schema.fixPr.id,
+          prs.map((p) => p.id),
+        ),
+      );
   let checked = 0;
-  for (const [repositoryId, prs] of byRepository) {
-    const access = await loadAccess(repositoryId);
-    if (!access) {
-      await db
-        .update(schema.fixPr)
-        .set({ reason: "write-access-missing", lastCheckedAt: new Date() })
-        .where(
-          inArray(
-            schema.fixPr.id,
-            prs.map((p) => p.id),
-          ),
-        );
+  for (const prs of groups.values()) {
+    const credential = await credentialFor(prs[0] as FixPrRow, "read");
+    if ("problem" in credential) {
+      await note(prs, credential.problem);
       continue;
     }
-    let opened: Awaited<ReturnType<typeof openTarget>>;
+    let opened: Opened;
     try {
-      opened = await openTarget(access.repo, access.access);
+      opened = await credential.open();
     } catch (error) {
-      await db
-        .update(schema.fixPr)
-        .set({ reason: reasonOf(error), lastCheckedAt: new Date() })
-        .where(
-          inArray(
-            schema.fixPr.id,
-            prs.map((p) => p.id),
-          ),
-        );
+      await note(prs, reasonOf(error));
       continue;
     }
     for (const pr of prs) {
@@ -424,6 +514,7 @@ export async function refreshFixPrs(
           break;
       }
     }
+    opened.target.token = "";
   }
   return checked;
 }

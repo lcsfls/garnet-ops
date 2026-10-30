@@ -186,6 +186,22 @@ describe.skipIf(!adminUrl || !openssl)("signing in to a forge", () => {
       expect(left.has(old?.refreshSecretId as string)).toBe(false);
     });
 
+    it("a GitHub App has no scopes: signing in again keeps pull requests switched on (ADR 0039)", async () => {
+      const [old] = await t.db.select().from(schema.forgeConnection);
+      await t.db
+        .update(schema.forgeConnection)
+        .set({ pullRequests: true, pullRequestsAt: new Date() })
+        .where(eq(schema.forgeConnection.id, old?.id as string));
+      const id = await start();
+      forge.oauth.polls = 0;
+      await mod.runSignIn(id);
+      expect(await connectionOf(old?.id)).toMatchObject({ pullRequests: true, writeScope: false });
+      await t.db
+        .update(schema.forgeConnection)
+        .set({ pullRequests: false, pullRequestsAt: null })
+        .where(eq(schema.forgeConnection.id, old?.id as string));
+    });
+
     it("stores a refusal on the forge as a short code", async () => {
       forge.oauth.denyDevice = true;
       const id = await start();
@@ -255,7 +271,7 @@ describe.skipIf(!adminUrl || !openssl)("signing in to a forge", () => {
       await forge.stop();
     });
 
-    const exchange = async (verifier: string, code: string) => {
+    const exchange = async (verifier: string, code: string, write = false) => {
       const id = `fsi_${++ids}`;
       await t.db.insert(schema.forgeSignIn).values({
         id,
@@ -263,6 +279,7 @@ describe.skipIf(!adminUrl || !openssl)("signing in to a forge", () => {
         userId: ALEX,
         appId,
         flow: "code",
+        write,
         state: "exchanging",
         verifierSecretId: await sealed("forge-sign-in", verifier),
         codeSecretId: await sealed("forge-sign-in", code),
@@ -295,6 +312,39 @@ describe.skipIf(!adminUrl || !openssl)("signing in to a forge", () => {
     it("fails without the right verifier: an intercepted code is useless", async () => {
       const code = forge.authorize(pkceChallenge(newSignInSecret()));
       expect(await exchange(newSignInSecret(), code)).toMatchObject({ state: "failed", problem: "denied" });
+    });
+
+    it("a sign-in with write access marks the connection; one without turns its pull requests off (ADR 0039)", async () => {
+      let verifier = newSignInSecret();
+      const written = await exchange(verifier, forge.authorize(pkceChallenge(verifier)), true);
+      const id = written?.connectionId as string;
+      expect(await connectionOf(id)).toMatchObject({ writeScope: true, pullRequests: false });
+      // The owner switches pull requests on (the API does this, audited).
+      await t.db
+        .update(schema.forgeConnection)
+        .set({ pullRequests: true, pullRequestsAt: new Date() })
+        .where(eq(schema.forgeConnection.id, id));
+      // Signing in again with write access keeps the switch.
+      verifier = newSignInSecret();
+      await exchange(verifier, forge.authorize(pkceChallenge(verifier)), true);
+      expect(await connectionOf(id)).toMatchObject({ writeScope: true, pullRequests: true });
+      // A read-only sign-in cannot write: the switch goes off, audited.
+      verifier = newSignInSecret();
+      const plain = await exchange(verifier, forge.authorize(pkceChallenge(verifier)));
+      expect(plain?.connectionId).toBe(id);
+      expect(await connectionOf(id)).toMatchObject({
+        writeScope: false,
+        pullRequests: false,
+        pullRequestsAt: null,
+      });
+      const audit = await t.db.select().from(schema.auditLog).where(eq(schema.auditLog.targetId, id));
+      expect(audit).toHaveLength(1);
+      expect(audit[0]).toMatchObject({
+        action: "forge_connection.pull_requests_disabled",
+        actorUserId: ALEX,
+        organizationId: ORG,
+      });
+      expect(audit[0]?.data).toMatchObject({ reason: "signed-in-without-write" });
     });
   });
 });

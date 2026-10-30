@@ -15,7 +15,7 @@ import { schema } from "@garnetops/db";
 import { createTestDatabase, devDatabaseUrl, type TestDatabase } from "@garnetops/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { blobSha, FakeForge } from "../test/fake-forge.ts";
+import { blobSha, FakeForge, FORGE_HOST } from "../test/fake-forge.ts";
 
 const adminUrl = devDatabaseUrl();
 const work = mkdtempSync(join(tmpdir(), "garnetops-fixpr-test-"));
@@ -30,6 +30,7 @@ afterAll(() => rmSync(work, { recursive: true, force: true }));
 const ORG = "org_fix";
 const OTHER_ORG = "org_other";
 const USER = "user_fix";
+const OTHER_USER = "user_fix_other";
 const TOKEN = "write-token-0123456789abcdef";
 const MANIFEST = `{
   "name": "demo",
@@ -421,6 +422,158 @@ describe.skipIf(!adminUrl || !openssl)("fix pull requests", () => {
       expect(forge.requests).toHaveLength(0);
     });
 
+    describe("through the requester's own connected account (ADR 0039)", () => {
+      /**
+       * A request made with `via: "connection"`: the requester's connection to the fake forge holds the token, and the
+       * repository has no write token unless asked for (to prove there is no fallback to it).
+       */
+      async function seedConnection(
+        options: {
+          owner?: string;
+          connection?: Partial<typeof schema.forgeConnection.$inferInsert>;
+          withAccess?: boolean;
+        } = {},
+      ) {
+        const s = await seed({ noAccess: !options.withAccess });
+        const n = ++ids;
+        const secretId = `sec_fixc${n}`;
+        await t.db.insert(schema.secret).values({
+          id: secretId,
+          organizationId: ORG,
+          purpose: "forge-connection-token",
+          sealed: seal(
+            TOKEN,
+            { organizationId: ORG, recordId: secretId, purpose: "forge-connection-token" },
+            publicKey,
+          ),
+          vaultKeyId: publicKey.id,
+        });
+        const connectionId = `fcn_fix${n}`;
+        await t.db.insert(schema.forgeConnection).values({
+          id: connectionId,
+          organizationId: ORG,
+          userId: options.owner ?? USER,
+          forgeKind: flavour,
+          webBaseUrl: `https://${FORGE_HOST}:${forge.port}`,
+          apiBaseUrl: forge.apiBase,
+          secretId,
+          accountLogin: "erika",
+          state: "ok",
+          pullRequests: true,
+          pullRequestsAt: new Date(),
+          ...options.connection,
+        });
+        await t.db
+          .update(schema.fixPr)
+          .set({ via: "connection", connectionId })
+          .where(eq(schema.fixPr.id, s.fixPrId));
+        return { ...s, connectionId };
+      }
+
+      beforeAll(async () => {
+        await t.db
+          .insert(schema.user)
+          .values({ id: OTHER_USER, name: "Max Example", email: "max@example.test" })
+          .onConflictDoNothing();
+      });
+      afterEach(async () => {
+        await t.db.delete(schema.forgeConnection);
+      });
+
+      it("opens the pull request with the connection's token, in the requester's name", async () => {
+        const { fixPrId } = await seedConnection();
+        await mod.runFixPr(fixPrId);
+        expect(await row(fixPrId)).toMatchObject({ state: "open", reason: null, prNumber: 1 });
+        expect(forge.fileOn("garnetops/fix-lodash-4.17.21", "package.json")).toBe(EDITED);
+        expect(forge.fileOn("main", "package.json")).toBe(MANIFEST);
+        const writes = forge.requests.filter((r) => r.method !== "GET");
+        expect(writes).toHaveLength(3);
+        expect(forge.requests.every((r) => r.authorization === forge.authorization)).toBe(true);
+        expect(forge.requests.some((r) => /merge|review|approv/.test(r.path))).toBe(false);
+        const audit = await t.db.select().from(schema.auditLog).where(eq(schema.auditLog.targetId, fixPrId));
+        expect(audit.map((a) => a.action)).toEqual(["fix_pr.opened"]);
+        expect(audit[0]).toMatchObject({ actorUserId: USER });
+        expect(audit[0]?.data).toMatchObject({ via: "connection" });
+      });
+
+      it("never uses a connection that belongs to somebody else", async () => {
+        const { fixPrId } = await seedConnection({ owner: OTHER_USER });
+        await mod.runFixPr(fixPrId);
+        expect(await row(fixPrId)).toMatchObject({ state: "failed", reason: "connection-missing" });
+        expect(forge.requests).toHaveLength(0);
+      });
+
+      it("a removed connection fails the request and never falls back to the repository's write token", async () => {
+        const { fixPrId, connectionId } = await seedConnection({ withAccess: true });
+        await t.db.delete(schema.forgeConnection).where(eq(schema.forgeConnection.id, connectionId));
+        expect(await row(fixPrId)).toMatchObject({ via: "connection", connectionId: null });
+        await mod.runFixPr(fixPrId);
+        expect(await row(fixPrId)).toMatchObject({ state: "failed", reason: "connection-missing" });
+        expect(forge.requests).toHaveLength(0);
+      });
+
+      it("a connection on another forge is not used", async () => {
+        const { fixPrId } = await seedConnection({
+          connection: { webBaseUrl: "https://other.example.test" },
+        });
+        await mod.runFixPr(fixPrId);
+        expect(await row(fixPrId)).toMatchObject({ state: "failed", reason: "connection-missing" });
+        expect(forge.requests).toHaveLength(0);
+      });
+
+      it("pull requests switched off after the request fail it without calling the forge", async () => {
+        const { fixPrId } = await seedConnection({
+          connection: { pullRequests: false, pullRequestsAt: null },
+        });
+        await mod.runFixPr(fixPrId);
+        expect(await row(fixPrId)).toMatchObject({ state: "failed", reason: "connection-disabled" });
+        expect(forge.requests).toHaveLength(0);
+      });
+
+      it.skipIf(flavour !== "gitea")("a Gitea sign-in without the write scope is not used", async () => {
+        const { fixPrId } = await seedConnection({
+          connection: { authMethod: "sign-in", writeScope: false },
+        });
+        await mod.runFixPr(fixPrId);
+        expect(await row(fixPrId)).toMatchObject({ state: "failed", reason: "write-scope-missing" });
+        expect(forge.requests).toHaveLength(0);
+      });
+
+      it("the forge's push permission decides", async () => {
+        const { fixPrId } = await seedConnection();
+        forge.faults.push({
+          match: /^GET [^?]*\/repos\/team\/app\d*$/,
+          status: 200,
+          body: JSON.stringify({ default_branch: "main", permissions: { push: false } }),
+        });
+        await mod.runFixPr(fixPrId);
+        expect(await row(fixPrId)).toMatchObject({ state: "failed", reason: "no-push-access" });
+        expect(forge.requests.filter((r) => r.method !== "GET")).toHaveLength(0);
+      });
+
+      it("refreshes the status with the requester's connection, and notes a removed one", async () => {
+        const s = await seedConnection();
+        await mod.runFixPr(s.fixPrId);
+        expect((await row(s.fixPrId))?.state).toBe("open");
+        forge.setPull(1, { state: "closed", merged: true });
+        forge.requests.length = 0;
+        await mod.refreshFixPrs({ repositoryId: s.repositoryId, force: true });
+        expect(await row(s.fixPrId)).toMatchObject({ state: "merged", reason: null });
+        expect(forge.requests.every((r) => r.method === "GET")).toBe(true);
+
+        forge.branches.delete("garnetops/fix-lodash-4.17.21");
+        await t.db.delete(schema.forgeConnection);
+        const gone = await seedConnection();
+        await mod.runFixPr(gone.fixPrId);
+        expect((await row(gone.fixPrId))?.state).toBe("open");
+        await t.db.delete(schema.forgeConnection).where(eq(schema.forgeConnection.id, gone.connectionId));
+        forge.requests.length = 0;
+        await mod.refreshFixPrs({ repositoryId: gone.repositoryId, force: true });
+        expect(await row(gone.fixPrId)).toMatchObject({ state: "open", reason: "connection-missing" });
+        expect(forge.requests).toHaveLength(0);
+      });
+    });
+
     describe("status refresh", () => {
       async function openPr() {
         const s = await seed();
@@ -562,6 +715,7 @@ describe.skipIf(!adminUrl || !openssl)("fix pull requests", () => {
           schema.auditLog,
           schema.repositoryWriteAccess,
           schema.repository,
+          schema.forgeConnection,
           schema.secret,
           schema.user,
         ]) {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ExternalLink, GitPullRequest } from "@lucide/svelte";
-  import { camelCode, PR_TONE, safeHttpsUrl } from "../../fixes.ts";
+  import { type CreateVia, camelCode, PR_TONE, safeHttpsUrl } from "../../fixes.ts";
   import { type MessageKey, t } from "../../i18n.svelte.ts";
   import type { FixProposalRow } from "../../types.ts";
   import Badge from "../ui/Badge.svelte";
@@ -16,10 +16,12 @@
     row: FixProposalRow;
     canCreate: boolean;
     admin: boolean;
-    onCreate: () => void;
+    onCreate: (via: CreateVia) => void;
   } = $props();
 
   const url = $derived(safeHttpsUrl(p.pr?.url ?? null));
+  // The viewer's own connected account can open it in their name (ADR 0039).
+  const viaConnection = $derived(p.creatableViaConnection && p.connection !== null && canCreate);
 </script>
 
 {#if p.pr && p.pr.state !== "failed" && p.pr.state !== "closed"}
@@ -56,11 +58,21 @@
           : ""}</span
       >
     {/if}
-    {#if p.writeAccess === "on" && canCreate}
-      <Button variant="outline" class="h-8 px-3 text-sm" onclick={onCreate}>
+    {#if viaConnection}
+      <Button variant="outline" class="h-8 px-3 text-sm" onclick={() => onCreate("connection")}>
         <GitPullRequest aria-hidden="true" class="size-4" />
-        {t("fixes.createPr")}
+        {p.connection?.accountLogin
+          ? t("fixes.createPrAs", { login: p.connection.accountLogin })
+          : t("fixes.createPrAsAccount")}
       </Button>
+    {/if}
+    {#if p.writeAccess === "on" && canCreate}
+      <Button variant="outline" class="h-8 px-3 text-sm" onclick={() => onCreate("repository")}>
+        <GitPullRequest aria-hidden="true" class="size-4" />
+        {viaConnection ? t("fixes.createPrWithToken") : t("fixes.createPr")}
+      </Button>
+    {:else if viaConnection}
+      <!-- The viewer's own account opens it: the repository's write token is not needed here. -->
     {:else if p.writeAccess === "failed"}
       <span class="text-sm text-muted-foreground">{t("fixes.writeFailed")}</span>
     {:else if p.writeAccess === "off"}

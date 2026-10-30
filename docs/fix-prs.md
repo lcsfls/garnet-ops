@@ -22,7 +22,8 @@ Scans, quality gates and notifications never depend on it.
   the findings, its summary is shown as read-only text with a label. It does not influence the
   proposal.
 - **Status**: the pull request if there is one (waiting, open, with its number as a link to the
-  forge), the **Create PR** button, or the reason why GarnetOps leaves the change to you.
+  forge), the **Create PR** button (or **Create PR as *your account***, below), or the reason why
+  GarnetOps leaves the change to you.
 
 Sort by package, fixes, repository, ecosystem or status; filter by "can be opened" or "by hand",
 severity, repository, ecosystem and pull request state; search for a package, a CVE or a file.
@@ -93,10 +94,33 @@ the feature off. Pull requests that are already open stay on the forge.
 The repository page shows the state: **On / Off**, who turned it on and when, the forge, the API
 address and the result of the last check.
 
+## In your own name, with your connected account
+
+Instead of a write token per repository, each person can let GarnetOps open fix pull requests
+**in their own name** with their own connected account ([connected-accounts.md](connected-accounts.md),
+[ADR 0039](adr/0039-fix-pull-requests-through-connected-accounts.md)). This is **off for every
+connection** until its owner switches it on under **Settings → Connected accounts → Pull
+requests** (recent sign-in, and a confirmation of what the token will be used for). Nobody else,
+admins included, can switch it or use the account.
+
+A proposal then offers **Create PR as *your account name*** when you have a connection with pull
+requests on, on the **same forge (host)** as the repository. The pull request is created by your
+account, so the forge shows it as yours and its own permissions apply: the worker asks the forge
+before every pull request whether your token may push to the repository, and refuses otherwise
+("The token cannot push to this repository"). The repository does not need a write token for
+this; if it has one, **Create PR with the repository token** stays available next to it.
+
+Everything else is the same: one branch, one changed manifest, the same text, nothing merged.
+The audit log records the request with `via: "connection"`. If the connection is removed, given a
+new token, or has pull requests switched off before the worker starts, the request fails ("The
+connected account it was requested with is gone …"); it never falls back to the repository's
+token.
+
 ## Creating a pull request
 
 Members, admins and owners can press **Create PR** on a proposal of a repository that has fix
-pull requests on. Viewers cannot. You are asked to confirm what will happen and, if your sign-in
+pull requests on, or **Create PR as *account*** with their own connected account (above). Viewers
+cannot. You are asked to confirm what will happen and, if your sign-in
 is older than ten minutes, to sign in again. GarnetOps then, in the background:
 
 1. creates the branch `garnetops/fix-<package>-<version>` from the repository's tracked branch;
@@ -131,6 +155,9 @@ licensed).
 - The write token can only be used by the worker, and only to read the repository, create one
   branch, change one file and open or read one pull request. Nothing in the client merges,
   approves or comments.
+- A connected account's token is used for pull requests only after its owner switched that on,
+  only for that owner's own requests, and only on the connection's own forge
+  ([ADR 0039](adr/0039-fix-pull-requests-through-connected-accounts.md)).
 - The API address is fixed when you save the token and is the only place it is ever sent to; no
   redirects are followed.
 - Text from packages and advisories is shown in the pull request as inert text (names in code

@@ -979,6 +979,152 @@ describe.skipIf(!adminUrl)("Fix proposals API", () => {
     });
   });
 
+  describe("creating a pull request through a connected account (ADR 0039)", () => {
+    /** A connection on the repositories' forge (git.example.lan), checked by the worker, pull requests on. */
+    async function addConnection(
+      userId: string,
+      overrides: Partial<typeof schema.forgeConnection.$inferInsert> = {},
+    ): Promise<string> {
+      const n = ++counter;
+      const secretId = `sec_fxc${n}`;
+      await t.db.insert(schema.secret).values({
+        id: secretId,
+        organizationId: overrides.organizationId ?? ORG,
+        purpose: "forge-connection-token",
+        sealed: {},
+        vaultKeyId: "k",
+      });
+      const id = `fcn_fx${n}`;
+      await t.db.insert(schema.forgeConnection).values({
+        id,
+        organizationId: ORG,
+        userId,
+        forgeKind: "gitea",
+        webBaseUrl: "https://git.example.lan",
+        apiBaseUrl: "https://git.example.lan/api/v1",
+        secretId,
+        accountLogin: userId === "user_a" ? "erika" : "max",
+        state: "ok",
+        pullRequests: true,
+        pullRequestsAt: new Date(),
+        ...overrides,
+      });
+      return id;
+    }
+    const viaConnection = (repositoryId: string, key: string, extra: { user?: string; age?: number } = {}) =>
+      call("POST", "/api/v1/fixes/prs", {
+        body: { repositoryId, key, via: "connection" },
+        role: "member",
+        ...extra,
+      });
+    const firstItem = async (repo: string, user = "user_a") =>
+      itemsOf(await call("GET", `/api/v1/fixes?repositoryId=${repo}`, { user, role: "member" }))[0] as Json;
+
+    beforeEach(async () => {
+      await t.db.delete(schema.forgeConnection);
+    });
+
+    it("opens it in the caller's name with the caller's own connection, without a repository write token", async () => {
+      const repo = await editableRepo();
+      const mine = await addConnection("user_a");
+      // Max's connection on the same forge is never a candidate for Erika.
+      await addConnection("user_b");
+      const item = await firstItem(repo);
+      expect(item).toMatchObject({
+        writeAccess: "off",
+        creatable: false,
+        creatableViaConnection: true,
+        connection: { id: mine, forgeKind: "gitea", accountLogin: "erika" },
+      });
+      const r = await viaConnection(repo, item.key);
+      expect(r.status).toBe(202);
+      const [row] = await t.db.select().from(schema.fixPr).where(eq(schema.fixPr.id, r.json?.id));
+      expect(row).toMatchObject({
+        state: "queued",
+        requestedBy: "user_a",
+        via: "connection",
+        connectionId: mine,
+        toVersion: "4.17.21",
+      });
+      expect(queue.sent).toEqual([
+        {
+          name: "fix-pr.create",
+          data: { fixPrId: r.json?.id },
+          options: expect.objectContaining({ retryLimit: 0 }),
+        },
+      ]);
+      const audit = await t.db.select().from(schema.auditLog).where(eq(schema.auditLog.targetId, r.json?.id));
+      expect(audit).toHaveLength(1);
+      expect(audit[0]).toMatchObject({ action: "fix_pr.created", actorUserId: "user_a" });
+      expect(audit[0]?.data).toMatchObject({ via: "connection", connection: mine, forge: "gitea" });
+      // The list shows the pull request and how it was opened.
+      const after = await firstItem(repo);
+      expect(after.pr).toMatchObject({ state: "queued", via: "connection" });
+      expect(after.creatableViaConnection).toBe(false);
+      expect((await viaConnection(repo, item.key)).status).toBe(409);
+    });
+
+    it("never uses another person's connection: without an own one it is 409 no-connection", async () => {
+      const repo = await editableRepo();
+      const theirs = await addConnection("user_b");
+      const item = await firstItem(repo);
+      expect(item).toMatchObject({ connection: null, creatableViaConnection: false });
+      // Max sees his own.
+      expect((await firstItem(repo, "user_b")).connection).toMatchObject({ id: theirs, accountLogin: "max" });
+      const r = await viaConnection(repo, item.key);
+      expect([r.status, problemCode(r)]).toEqual([409, "no-connection"]);
+      expect(await t.db.select().from(schema.fixPr).where(eq(schema.fixPr.repositoryId, repo))).toEqual([]);
+      // A connection on another forge does not count either.
+      await addConnection("user_a", {
+        webBaseUrl: "https://other.example.lan",
+        apiBaseUrl: "https://other.example.lan/api/v1",
+      });
+      const other = await viaConnection(repo, item.key);
+      expect([other.status, problemCode(other)]).toEqual([409, "no-connection"]);
+      expect(queue.sent).toEqual([]);
+    });
+
+    it.each([
+      [{ pullRequests: false, pullRequestsAt: null }, "connection-pull-requests-off"],
+      [{ authMethod: "sign-in" as const, writeScope: false }, "connection-write-scope-missing"],
+      [{ state: "failed" as const, problem: "token-rejected" }, "connection-failed"],
+    ])("refuses an own connection that cannot open it (%o → %s)", async (overrides, code) => {
+      const repo = await editableRepo();
+      await addConnection("user_a", overrides);
+      const item = await firstItem(repo);
+      expect(item).toMatchObject({ connection: null, creatableViaConnection: false });
+      const r = await viaConnection(repo, item.key);
+      expect([r.status, problemCode(r)]).toEqual([409, code]);
+      expect(queue.sent).toEqual([]);
+    });
+
+    it("needs a recent sign-in, like every pull request", async () => {
+      const repo = await editableRepo();
+      await addConnection("user_a");
+      const r = await viaConnection(repo, (await firstItem(repo)).key, { age: STALE });
+      expect([r.status, problemCode(r)]).toEqual([403, "step-up-required"]);
+      expect(queue.sent).toEqual([]);
+    });
+
+    it("without via, the repository's write token is used as before, whatever connection the caller has", async () => {
+      const repo = await editableRepo();
+      await addConnection("user_a");
+      const key = (await firstItem(repo)).key;
+      const off = await call("POST", "/api/v1/fixes/prs", { body: { repositoryId: repo, key } });
+      expect([off.status, problemCode(off)]).toEqual([409, "write-access-off"]);
+      await addAccess(repo);
+      const r = await call("POST", "/api/v1/fixes/prs", {
+        body: { repositoryId: repo, key, via: "repository" },
+      });
+      expect(r.status).toBe(202);
+      const [row] = await t.db.select().from(schema.fixPr).where(eq(schema.fixPr.id, r.json?.id));
+      expect(row).toMatchObject({ via: "repository", connectionId: null });
+      expect(
+        (await call("POST", "/api/v1/fixes/prs", { body: { repositoryId: repo, key, via: "other" } })).status,
+      ).toBe(422);
+    });
+  });
+
   describe("pull requests and refresh", () => {
     it("lists the pull requests, newest first, with filters", async () => {
       const repo = await editableRepo();

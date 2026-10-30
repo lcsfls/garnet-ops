@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { KeyRound, ListChecks, Plus, RefreshCw, Trash2, TriangleAlert } from "@lucide/svelte";
+  import {
+    GitPullRequest,
+    KeyRound,
+    ListChecks,
+    Plus,
+    RefreshCw,
+    Trash2,
+    TriangleAlert,
+  } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { ApiError, api } from "../../../api.ts";
   import { formatRelative } from "../../../format.ts";
@@ -18,6 +26,7 @@
   import Checkbox from "../../ui/Checkbox.svelte";
   import ConfirmDialog from "../../ui/ConfirmDialog.svelte";
   import AddConnectionDialog from "./AddConnectionDialog.svelte";
+  import PullRequestsDialog from "./PullRequestsDialog.svelte";
   import RepositoryPicker from "./RepositoryPicker.svelte";
   import SignInAppsCard from "./SignInAppsCard.svelte";
   import SignInDialog from "./SignInDialog.svelte";
@@ -61,6 +70,7 @@
   let picking = $state<ForgeConnection | null>(null);
   let removing = $state<ForgeConnection | null>(null);
   let removeRepositories = $state(false);
+  let managingPullRequests = $state<ForgeConnection | null>(null);
 
   const refresh = createMutation(() => ({
     mutationFn: (id: string) => api(`/forge-connections/${id}/refresh`, { method: "POST" }),
@@ -145,10 +155,27 @@
             </div>
             {#if c.broadToken}
               <div class="mt-1 flex items-start gap-1.5 text-[13px] text-warning-text">
-                <TriangleAlert aria-hidden="true" class="mt-0.5 size-3.5 flex-none" />{t("connections.broadToken")}
+                <TriangleAlert aria-hidden="true" class="mt-0.5 size-3.5 flex-none" />{c.pullRequests
+                  ? t("connections.broadTokenWrite")
+                  : t("connections.broadToken")}
               </div>
             {/if}
+            <div class="mt-1 text-sm text-muted-foreground" data-testid="connection-pull-requests">
+              {c.pullRequests ? t("connections.pullRequests.stateOn") : t("connections.pullRequests.stateOff")}
+            </div>
           </div>
+          {#if canEdit || c.pullRequests}
+            <!-- Viewers may still switch their own pull requests off. -->
+            <Button
+              variant="outline"
+              class="h-9"
+              aria-label={t("connections.pullRequests.manageLabel", { account: c.accountLogin ?? c.webBaseUrl })}
+              onclick={() => (managingPullRequests = c)}
+            >
+              <GitPullRequest aria-hidden="true" class="size-4" />
+              {t("connections.pullRequests.manage")}
+            </Button>
+          {/if}
           {#if canEdit}
             <Button disabled={c.state !== "ok"} onclick={() => (picking = c)}>
               <ListChecks aria-hidden="true" class="size-4" />
@@ -220,6 +247,16 @@
 {#if replacing}
   {#key replacing.id}
     <AddConnectionDialog {me} replacing={replacing} onClose={() => (replacing = null)} onDone={() => (replacing = null)} />
+  {/key}
+{/if}
+{#if managingPullRequests}
+  {#key managingPullRequests.id}
+    <PullRequestsDialog
+      connection={managingPullRequests}
+      apps={apps.data ?? []}
+      email={me.user.email}
+      onClose={() => (managingPullRequests = null)}
+    />
   {/key}
 {/if}
 {#if picking}

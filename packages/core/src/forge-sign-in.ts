@@ -16,6 +16,16 @@ export const SIGN_IN_SCOPES: Record<ForgeKind, string> = {
   forgejo: "read:repository read:user",
 };
 
+/**
+ * With write access, for fix pull requests in the person's own name (ADR 0039). GitHub has no scopes: the App's
+ * registration grants "Contents" and "Pull requests" read and write, or not.
+ */
+export const SIGN_IN_WRITE_SCOPES: Record<ForgeKind, string> = {
+  github: "",
+  gitea: "write:repository read:user",
+  forgejo: "write:repository read:user",
+};
+
 /** Where Gitea and Forgejo send the browser back to, below PUBLIC_URL. */
 export const SIGN_IN_CALLBACK_PATH = "/settings/accounts/callback";
 
@@ -48,6 +58,8 @@ export function authorizeUrl(input: {
   redirectUri: string;
   state: string;
   challenge: string;
+  /** Ask for the write scope (ADR 0039) instead of the read-only one. */
+  write?: boolean;
 }): string {
   const url = new URL(`${input.webBaseUrl.replace(/\/+$/, "")}/login/oauth/authorize`);
   url.searchParams.set("client_id", input.clientId);
@@ -56,7 +68,8 @@ export function authorizeUrl(input: {
   url.searchParams.set("state", input.state);
   url.searchParams.set("code_challenge", input.challenge);
   url.searchParams.set("code_challenge_method", "S256");
-  if (SIGN_IN_SCOPES[input.kind]) url.searchParams.set("scope", SIGN_IN_SCOPES[input.kind]);
+  const scope = (input.write ? SIGN_IN_WRITE_SCOPES : SIGN_IN_SCOPES)[input.kind];
+  if (scope) url.searchParams.set("scope", scope);
   return url.toString();
 }
 

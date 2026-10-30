@@ -12,7 +12,7 @@
   import { page } from "$app/state";
   import { api } from "../../api.ts";
   import { cn } from "../../cn.ts";
-  import { isBusy } from "../../fixes.ts";
+  import { type CreateVia, isBusy } from "../../fixes.ts";
   import { t } from "../../i18n.svelte.ts";
   import { layoutStep } from "../../layout-step.svelte.ts";
   import { rowClick } from "../../row-link.ts";
@@ -71,7 +71,7 @@
     queryKey: ["repositories", { pageSize: 100 }],
     queryFn: () => api<Page<RepositoryRow>>("/repositories?pageSize=100"),
   }));
-  let creating = $state<FixProposalRow | null>(null);
+  let creating = $state<{ proposal: FixProposalRow; via: CreateVia } | null>(null);
 
   const sortProps = $derived({
     current: search.sort,
@@ -280,7 +280,7 @@
                 row={p}
                 canCreate={role !== "viewer"}
                 admin={role === "owner" || role === "admin"}
-                onCreate={() => (creating = p)}
+                onCreate={(via) => (creating = { proposal: p, via })}
               />
             </td>
           </tr>
@@ -307,7 +307,7 @@
       <FixDetail
         proposal={shown}
         canCreate={role !== "viewer"}
-        onCreate={() => (creating = shown ?? null)}
+        onCreate={(via) => (creating = shown ? { proposal: shown, via } : null)}
         onClose={search.id ? () => select(undefined) : undefined}
       />
     {/key}
@@ -317,11 +317,11 @@
   {#if !sidePane && shown}
     <div class="p-4">
       {#key shown.key}
-        <FixDetail proposal={shown} canCreate={role !== "viewer"} onCreate={() => (creating = shown ?? null)} />
+        <FixDetail proposal={shown} canCreate={role !== "viewer"} onCreate={(via) => (creating = shown ? { proposal: shown, via } : null)} />
       {/key}
     </div>
   {/if}
 </Drawer>
 {#if creating}
-  <CreatePrDialog proposal={creating} {me} onClose={() => (creating = null)} onCreated={() => (creating = null)} />
+  <CreatePrDialog proposal={creating.proposal} via={creating.via} {me} onClose={() => (creating = null)} onCreated={() => (creating = null)} />
 {/if}

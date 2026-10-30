@@ -223,6 +223,36 @@ describe.skipIf(!adminUrl)("signing in to forges", () => {
     });
   });
 
+  it("asks for the write scope when the sign-in is for pull requests (ADR 0039), and remembers it", async () => {
+    const started = await call("POST", "/api/v1/forge-sign-in", ALEX, { appId: giteaApp, write: true });
+    expect(started.status).toBe(201);
+    expect(started.json?.write).toBe(true);
+    expect(new URL(started.json?.authorizeUrl as string).searchParams.get("scope")).toBe(
+      "write:repository read:user",
+    );
+    const [row] = await t.db
+      .select()
+      .from(schema.forgeSignIn)
+      .where(eq(schema.forgeSignIn.id, started.json?.id));
+    expect(row?.write).toBe(true);
+    expect((await call("GET", `/api/v1/forge-sign-in/${started.json?.id}`, ALEX)).json?.write).toBe(true);
+    // Without it, read only as before.
+    const plain = await call("POST", "/api/v1/forge-sign-in", ALEX, { appId: giteaApp });
+    expect(new URL(plain.json?.authorizeUrl as string).searchParams.get("scope")).toBe(
+      "read:repository read:user",
+    );
+    // GitHub Apps have no scopes: the flag is not stored for a device flow.
+    const github = await call("POST", "/api/v1/forge-sign-in", ALEX, { appId: githubApp, write: true });
+    const [device] = await t.db
+      .select()
+      .from(schema.forgeSignIn)
+      .where(eq(schema.forgeSignIn.id, github.json?.id));
+    expect(device?.write).toBe(false);
+    expect(
+      (await call("POST", "/api/v1/forge-sign-in", ALEX, { appId: giteaApp, write: "yes" })).status,
+    ).toBe(422);
+  });
+
   it("records a declined sign-in and drops its verifier", async () => {
     const started = await call("POST", "/api/v1/forge-sign-in", ALEX, { appId: giteaApp });
     const state = new URL(started.json?.authorizeUrl as string).searchParams.get("state") as string;

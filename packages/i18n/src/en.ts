@@ -822,6 +822,42 @@ export const en = {
     requestedBy: "Asked by {name} {when}",
     approve: "Share",
     decline: "Decline",
+    broadTokenWrite:
+      "This token can reach more than it needs. GarnetOps reads with it and, as you allowed, opens pull requests in your name; a token limited to the repositories you need is safer.",
+    pullRequests: {
+      stateOn: "Fix PRs in your name: on",
+      stateOff: "Fix PRs in your name: off",
+      manage: "Pull requests",
+      manageLabel: "Pull requests through {account}",
+      title: "Fix pull requests as {account}",
+      description:
+        "Let GarnetOps open fix pull requests in your name with this account, when you ask for one on the Fix proposals page.",
+      usesTitle: "What GarnetOps does with this account’s token",
+      usesBranch: "creates a new branch named garnetops/fix-… in the repository you choose",
+      usesCommit: "commits the one changed manifest file to that branch",
+      usesPullRequest: "opens a pull request from that branch, shown on the forge as yours",
+      never:
+        "It never merges, approves or pushes to the default branch. If a pull request fails half-way, it deletes the branch it made. Only you can use this token; nobody else’s request ever does.",
+      githubHint:
+        "On GitHub, the sign-in application needs the permissions Contents: Read and write and Pull requests: Read and write. An admin sets them on the GitHub App. GarnetOps checks the push permission before every pull request.",
+      tokenHint:
+        "Your token needs write access: on GitHub Contents and Pull requests set to Read and write, on Gitea and Forgejo the scope write:repository. GarnetOps checks the push permission before every pull request.",
+      acknowledge: "I allow GarnetOps to use my account {account} to open pull requests in my name.",
+      acknowledgeHint:
+        "You can switch this off at any time. A new token, or signing in again without write access, switches it off.",
+      writeSignInTitle: "Sign in again with write access",
+      writeSignInText:
+        "You signed in to {forge} with read access only. To open pull requests, sign in again and allow write access to repositories (write:repository). Then switch pull requests on here.",
+      writeSignIn: "Sign in with write access",
+      noApp:
+        "Signing in to this forge is no longer set up. Ask an admin, or replace the sign-in with a personal access token that can write.",
+      onSince: "On since {when}.",
+      turnOn: "Switch on",
+      turnOff: "Switch off",
+      switchedOn: "Fix pull requests through this account are on.",
+      switchedOff: "Fix pull requests through this account are off.",
+      needsAcknowledgement: "Confirm that GarnetOps may use this account first.",
+    },
     signIn: {
       with: "Sign in with {forge}",
       withHint: "{address}",
@@ -863,7 +899,7 @@ export const en = {
       noSecret: "No secret (public client)",
       redirectUri: "Redirect address to register",
       githubSteps:
-        "On GitHub, create a GitHub App (Settings, Developer settings, GitHub Apps): permissions Metadata, Contents and Pull requests set to Read and nothing else, no webhook, and Enable Device Flow on. Then enter its Client ID and a client secret here, and install the App for the accounts or organisations whose repositories people should see.",
+        "On GitHub, create a GitHub App (Settings, Developer settings, GitHub Apps): permissions Metadata, Contents and Pull requests set to Read and nothing else, no webhook, and Enable Device Flow on. Then enter its Client ID and a client secret here, and install the App for the accounts or organisations whose repositories people should see. To let people open fix pull requests in their own name, set Contents and Pull requests to Read and write instead.",
       giteaSteps:
         "On Gitea or Forgejo, create an OAuth2 application (Settings, Applications) with the redirect address below. Then enter its Client ID, and its client secret for a confidential client.",
       remove: "Remove",
@@ -2796,6 +2832,9 @@ export const en = {
     versionChange: "{from} → {to}",
     noVersion: "No fixed version known",
     createPr: "Create PR",
+    createPrAs: "Create PR as {login}",
+    createPrAsAccount: "Create PR with your account",
+    createPrWithToken: "Create PR with the repository token",
     manualBadge: "By hand",
     writeOff: "Fix PRs are off for this repository",
     writeFailed: "The write token does not work",
@@ -2893,6 +2932,11 @@ export const en = {
       noPushAccess:
         "The token cannot push to this repository: it is read-only, or the repository is archived.",
       repositoryGone: "The repository is no longer connected.",
+      connectionMissing:
+        "The connected account it was requested with is gone, belongs to someone else or is on another forge.",
+      connectionDisabled: "Pull requests were switched off for the connected account it was requested with.",
+      writeScopeMissing:
+        "The connected account was signed in without write access. Sign in again with write access under Settings, Connected accounts.",
       interrupted: "The worker stopped before the pull request was finished. Try again.",
       unexpected: "Something unexpected happened. The worker log has details.",
       editTooLarge: "The file is too large to edit automatically.",
@@ -2927,6 +2971,16 @@ export const en = {
       notEditable: "GarnetOps cannot change this automatically any more. The list will update.",
       gone: "This proposal no longer exists. The list will update.",
       rateLimited: "Too many requests. Wait a minute and try again.",
+      asAccount:
+        "In your name, with your connected account {login}. Your token can already do this on the forge; GarnetOps only does what is listed here.",
+      withRepositoryToken: "With the repository’s write token.",
+      noConnection: "You have no connected account on this repository’s forge.",
+      connectionOff:
+        "Pull requests are switched off for your connected account. Switch them on under Settings, Connected accounts.",
+      connectionWriteScope:
+        "Your connected account was signed in without write access. Sign in again with write access under Settings, Connected accounts.",
+      connectionFailed:
+        "Your connected account does not work right now. Check it under Settings, Connected accounts.",
     },
   },
   audit: {
@@ -3035,6 +3089,8 @@ export const en = {
       forge_connection_added: "Connected account added",
       forge_connection_replaced: "Connected account token replaced",
       forge_connection_removed: "Connected account removed",
+      forge_connection_pull_requests_enabled: "Fix pull requests through a connected account switched on",
+      forge_connection_pull_requests_disabled: "Fix pull requests through a connected account switched off",
       forge_app_added: "Forge sign-in added",
       forge_app_changed: "Forge sign-in changed",
       forge_app_removed: "Forge sign-in removed",

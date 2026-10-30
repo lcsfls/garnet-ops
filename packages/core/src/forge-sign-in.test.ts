@@ -50,4 +50,21 @@ describe("signing in to a forge (ADR 0031)", () => {
       scope: "read:repository read:user",
     });
   });
+
+  it("asks for the write scope only when asked to (ADR 0039)", () => {
+    const base = {
+      webBaseUrl: "https://git.example.lan",
+      clientId: "abc-123",
+      redirectUri: "https://garnetops.example.test/settings/accounts/callback",
+      state: "s",
+      challenge: "c",
+    };
+    const scope = (url: string) => new URL(url).searchParams.get("scope");
+    expect(scope(authorizeUrl({ ...base, kind: "gitea", write: true }))).toBe("write:repository read:user");
+    expect(scope(authorizeUrl({ ...base, kind: "forgejo", write: true }))).toBe("write:repository read:user");
+    expect(scope(authorizeUrl({ ...base, kind: "gitea", write: false }))).toBe("read:repository read:user");
+    expect(scope(authorizeUrl({ ...base, kind: "gitea" }))).toBe("read:repository read:user");
+    // GitHub Apps take their permissions from the registration: no scope either way.
+    expect(scope(authorizeUrl({ ...base, kind: "github", write: true }))).toBeNull();
+  });
 });

@@ -5,6 +5,8 @@ import {
   apiBaseProblem,
   branchName,
   buildProposals,
+  connectionCoversRepository,
+  connectionWriteProblem,
   defaultApiBase,
   detectForge,
   escapeMarkdown,
@@ -13,6 +15,7 @@ import {
   inlineCode,
   isProposalKey,
   type ManifestFact,
+  needsWriteScope,
   normalizeForgeWebBase,
   parseRepoLocation,
   proposalKey,
@@ -585,5 +588,65 @@ describe("personal connection addresses (ADR 0030)", () => {
     expect(repositoryKey("https://GIT.example.lan/team/app")).toBe(key);
     expect(repositoryKey("git@git.example.lan:team/app.git")).toBe(key);
     expect(repositoryKey("https://git.example.lan/team/other")).not.toBe(key);
+  });
+});
+
+describe("fix pull requests through a personal connection (ADR 0039)", () => {
+  test("a connection covers repositories on its own host, port and sub-path only", () => {
+    expect(
+      connectionCoversRepository("https://git.example.lan", "https://git.example.lan/team/app.git"),
+    ).toBe(true);
+    expect(connectionCoversRepository("https://git.example.lan", "https://GIT.example.lan/team/app")).toBe(
+      true,
+    );
+    expect(connectionCoversRepository("https://git.example.lan", "git@git.example.lan:team/app.git")).toBe(
+      true,
+    );
+    expect(
+      connectionCoversRepository("https://git.example.lan", "ssh://git@git.example.lan:2222/team/app"),
+    ).toBe(true);
+    expect(
+      connectionCoversRepository("https://git.example.lan/forge", "https://git.example.lan/forge/team/app"),
+    ).toBe(true);
+    for (const other of [
+      "https://other.example.lan/team/app.git",
+      "https://git.example.lan.example.com/team/app.git",
+      "https://git.example.lan:8443/team/app.git",
+      "git@other.example.lan:team/app.git",
+      "not a url",
+    ]) {
+      expect(connectionCoversRepository("https://git.example.lan", other), other).toBe(false);
+    }
+    expect(
+      connectionCoversRepository("https://git.example.lan/forge", "https://git.example.lan/team/app"),
+    ).toBe(false);
+    expect(
+      connectionCoversRepository("https://git.example.lan:8443", "https://git.example.lan/team/app"),
+    ).toBe(false);
+    expect(connectionCoversRepository("http://git.example.lan", "https://git.example.lan/team/app")).toBe(
+      false,
+    );
+  });
+
+  test("a connection opens pull requests only when switched on, and a Gitea/Forgejo sign-in only with a write scope", () => {
+    const on = { pullRequests: true, writeScope: false } as const;
+    expect(
+      connectionWriteProblem({ ...on, forgeKind: "github", authMethod: "token", pullRequests: false }),
+    ).toBe("connection-disabled");
+    expect(connectionWriteProblem({ ...on, forgeKind: "github", authMethod: "token" })).toBeNull();
+    expect(connectionWriteProblem({ ...on, forgeKind: "github", authMethod: "sign-in" })).toBeNull();
+    expect(connectionWriteProblem({ ...on, forgeKind: "gitea", authMethod: "token" })).toBeNull();
+    expect(connectionWriteProblem({ ...on, forgeKind: "gitea", authMethod: "sign-in" })).toBe(
+      "write-scope-missing",
+    );
+    expect(connectionWriteProblem({ ...on, forgeKind: "forgejo", authMethod: "sign-in" })).toBe(
+      "write-scope-missing",
+    );
+    expect(
+      connectionWriteProblem({ ...on, forgeKind: "forgejo", authMethod: "sign-in", writeScope: true }),
+    ).toBeNull();
+    expect(needsWriteScope({ forgeKind: "gitea", authMethod: "sign-in" })).toBe(true);
+    expect(needsWriteScope({ forgeKind: "github", authMethod: "sign-in" })).toBe(false);
+    expect(needsWriteScope({ forgeKind: "gitea", authMethod: "token" })).toBe(false);
   });
 });

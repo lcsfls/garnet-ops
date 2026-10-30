@@ -169,7 +169,8 @@ Goal: every finding can be discussed with the customer's own model, safely.
       a human can take it over as a note
 - [~] Fix pull requests: done: a separate write credential per repository (sealed, opened only by
       the worker), opt-in by owners and admins with step-up, human review always: nothing is
-      merged, approved or pushed to the default branch (ADR 0014, `docs/fix-prs.md`). Still open:
+      merged, approved or pushed to the default branch (ADR 0014, `docs/fix-prs.md`); or in the
+      requester's own name through their connected account, opt-in per connection (ADR 0039). Still open:
       AI-written code changes as pull requests (today only version bumps), tested against real
       GitHub, Gitea and Forgejo installations (fake forges with recorded request shapes only)
 - [~] Version-bump PRs (own implementation; Renovate is AGPL-3.0): Fix proposals page, branch and

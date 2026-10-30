@@ -1,7 +1,8 @@
 <script lang="ts">
   import { createMutation, useQueryClient } from "@tanstack/svelte-query";
   import { ApiError, api } from "../../api.ts";
-  import { t } from "../../i18n.svelte.ts";
+  import type { CreateVia } from "../../fixes.ts";
+  import { type MessageKey, t } from "../../i18n.svelte.ts";
   import type { Me } from "../../session.ts";
   import { StepUp } from "../../step-up.svelte.ts";
   import type { FixProposalRow } from "../../types.ts";
@@ -18,11 +19,14 @@
    */
   let {
     proposal,
+    via = "repository",
     me,
     onClose,
     onCreated,
   }: {
     proposal: FixProposalRow;
+    /** "connection": in the viewer's own name with their connected account (ADR 0039). */
+    via?: CreateVia;
     me: Me;
     onClose: () => void;
     onCreated: () => void;
@@ -31,10 +35,21 @@
   const queryClient = useQueryClient();
   const stepUp = new StepUp();
   let error = $state<string | null>(null);
+  const login = $derived(proposal.connection?.accountLogin ?? "");
+
+  const CONNECTION_ERRORS: Record<string, MessageKey> = {
+    "no-connection": "fixes.create.noConnection",
+    "connection-pull-requests-off": "fixes.create.connectionOff",
+    "connection-write-scope-missing": "fixes.create.connectionWriteScope",
+    "connection-failed": "fixes.create.connectionFailed",
+  };
 
   const create = createMutation(() => ({
     mutationFn: () =>
-      api("/fixes/prs", { method: "POST", body: { repositoryId: proposal.repositoryId, key: proposal.key } }),
+      api("/fixes/prs", {
+        method: "POST",
+        body: { repositoryId: proposal.repositoryId, key: proposal.key, via },
+      }),
     onMutate: () => {
       error = null;
     },
@@ -49,6 +64,7 @@
       else if (code === "write-access-off") error = t("fixes.create.writeOff");
       else if (code === "write-access-failed") error = t("fixes.create.writeFailed");
       else if (code === "not-editable") error = t("fixes.create.notEditable");
+      else if (code && CONNECTION_ERRORS[code]) error = t(CONNECTION_ERRORS[code]);
       else if (e instanceof ApiError && e.status === 404) error = t("fixes.create.gone");
       else if (e instanceof ApiError && e.status === 429) error = t("fixes.create.rateLimited");
       else error = t("fixes.create.failed");
@@ -68,6 +84,13 @@
   <div class="grid gap-4">
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <ul class="grid gap-2 text-sm">
+      <li class="font-medium">
+        {via === "connection" && login
+          ? t("fixes.create.asAccount", { login })
+          : via === "repository"
+            ? t("fixes.create.withRepositoryToken")
+            : t("fixes.createPrAsAccount")}
+      </li>
       <li>
         {t("fixes.create.change", {
           file: proposal.manifestPath ?? "",

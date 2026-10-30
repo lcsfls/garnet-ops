@@ -198,6 +198,8 @@ export interface FixPrSummary {
   to: string;
   branch: string | null;
   requestedBy: string | null;
+  /** "connection": opened in the requester's own name (ADR 0039). */
+  via: "repository" | "connection";
   createdAt: string;
   openedAt: string | null;
   closedAt: string | null;
@@ -230,6 +232,9 @@ export interface FixProposalRow {
   /** The branch a pull request would use. */
   branch: string | null;
   creatable: boolean;
+  /** The viewer's own connected account that can open this pull request in their name (ADR 0039). */
+  connection: { id: string; forgeKind: ForgeKind; accountLogin: string | null } | null;
+  creatableViaConnection: boolean;
   pr: FixPrSummary | null;
   aiSuggestion: {
     findingId: string;
@@ -462,6 +467,13 @@ export interface ForgeConnection {
   lastCheckedAt: string | null;
   createdAt: string;
   repositories: number;
+  /** Fix pull requests in the owner's name through this connection (ADR 0039). */
+  pullRequests: boolean;
+  pullRequestsAt: string | null;
+  /** A Gitea/Forgejo sign-in that was authorised with write access. */
+  writeScope: boolean;
+  /** A Gitea/Forgejo sign-in has to sign in again with write access before pull requests can be switched on. */
+  needsWriteSignIn: boolean;
 }
 
 export interface ConnectionRepository {

@@ -29,6 +29,12 @@ export function safeHttpsUrl(value: string | null): string | null {
   }
 }
 
+/**
+ * Whose credential opens a pull request: the viewer's own connected account, in their name (ADR 0039), or the
+ * repository's write token (ADR 0014).
+ */
+export type CreateVia = "connection" | "repository";
+
 /** True while the worker still has something to do for this pull request (the list refreshes itself). */
 export const isBusy = (state: FixPrState | undefined) => state === "queued" || state === "running";
 

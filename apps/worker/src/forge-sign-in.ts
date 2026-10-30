@@ -158,6 +158,8 @@ async function connect(signIn: SignInRow, app: AppRow, token: Token): Promise<vo
       )
       .for("update")
       .limit(1);
+    // A Gitea/Forgejo token can write only when the sign-in asked for it (ADR 0039); GitHub has no scopes.
+    const writeScope = signIn.write && app.forgeKind !== "github";
     const values = {
       forgeKind: app.forgeKind,
       apiBaseUrl: app.apiBaseUrl,
@@ -168,12 +170,37 @@ async function connect(signIn: SignInRow, app: AppRow, token: Token): Promise<vo
       appId: app.id,
       accountLogin: me.login,
       broadToken: me.broadToken,
+      writeScope,
       state: "unchecked" as const,
       problem: null,
       updatedAt: new Date(),
     };
     if (existing) {
-      await tx.update(schema.forgeConnection).set(values).where(eq(schema.forgeConnection.id, existing.id));
+      // The owner's opt-in to pull requests survives a new sign-in only where the new token can still write as before:
+      // a GitHub App (its registration decides), or a Gitea/Forgejo sign-in with the write scope. A connection that had
+      // a pasted token starts read-only again.
+      const keep =
+        existing.pullRequests &&
+        existing.authMethod === "sign-in" &&
+        (app.forgeKind === "github" || writeScope);
+      await tx
+        .update(schema.forgeConnection)
+        .set({
+          ...values,
+          pullRequests: keep,
+          pullRequestsAt: keep ? existing.pullRequestsAt : null,
+        })
+        .where(eq(schema.forgeConnection.id, existing.id));
+      if (existing.pullRequests && !keep) {
+        await tx.insert(schema.auditLog).values({
+          organizationId: signIn.organizationId,
+          actorUserId: signIn.userId,
+          action: "forge_connection.pull_requests_disabled",
+          targetType: "forge_connection",
+          targetId: existing.id,
+          data: { web: app.webBaseUrl, reason: "signed-in-without-write" },
+        });
+      }
       const old = [existing.secretId, existing.refreshSecretId].filter((id): id is string => Boolean(id));
       if (old.length) await tx.delete(schema.secret).where(inArray(schema.secret.id, old));
       return existing.id;

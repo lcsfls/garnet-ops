@@ -849,6 +849,44 @@ export const de: Messages = {
     requestedBy: "Beantragt von {name} {when}",
     approve: "Teilen",
     decline: "Ablehnen",
+    broadTokenWrite:
+      "Dieses Token reicht weiter als nötig. GarnetOps liest damit und öffnet, wie von Ihnen erlaubt, Pull Requests in Ihrem Namen; ein Token, das auf die benötigten Repositories beschränkt ist, ist sicherer.",
+    pullRequests: {
+      stateOn: "Fix-PRs in Ihrem Namen: an",
+      stateOff: "Fix-PRs in Ihrem Namen: aus",
+      manage: "Pull Requests",
+      manageLabel: "Pull Requests über {account}",
+      title: "Fix-Pull-Requests als {account}",
+      description:
+        "Erlauben Sie GarnetOps, mit diesem Konto Fix-Pull-Requests in Ihrem Namen zu öffnen, wenn Sie auf der Seite Fix-Vorschläge einen anfordern.",
+      usesTitle: "Was GarnetOps mit dem Token dieses Kontos tut",
+      usesBranch: "legt im gewählten Repository einen neuen Branch namens garnetops/fix-… an",
+      usesCommit: "committet die eine geänderte Manifest-Datei auf diesen Branch",
+      usesPullRequest:
+        "öffnet von diesem Branch einen Pull Request, der auf der Plattform als Ihrer erscheint",
+      never:
+        "GarnetOps mergt nie, genehmigt nie und pusht nie auf den Standard-Branch. Scheitert ein Pull Request auf halbem Weg, löscht GarnetOps den eigenen Branch wieder. Nur Sie können dieses Token verwenden; die Anfrage einer anderen Person nie.",
+      githubHint:
+        "Bei GitHub braucht die Anmelde-Anwendung die Berechtigungen Contents: Read and write und Pull requests: Read and write. Ein Admin stellt sie in der GitHub App ein. GarnetOps prüft vor jedem Pull Request das Push-Recht.",
+      tokenHint:
+        "Ihr Token braucht Schreibrechte: bei GitHub Contents und Pull requests auf Read and write, bei Gitea und Forgejo den Scope write:repository. GarnetOps prüft vor jedem Pull Request das Push-Recht.",
+      acknowledge:
+        "Ich erlaube GarnetOps, mein Konto {account} zu verwenden, um in meinem Namen Pull Requests zu öffnen.",
+      acknowledgeHint:
+        "Sie können das jederzeit ausschalten. Ein neues Token oder eine erneute Anmeldung ohne Schreibrechte schaltet es aus.",
+      writeSignInTitle: "Erneut mit Schreibrechten anmelden",
+      writeSignInText:
+        "Sie haben sich bei {forge} nur mit Leserechten angemeldet. Um Pull Requests zu öffnen, melden Sie sich erneut an und erlauben Schreibzugriff auf Repositories (write:repository). Schalten Sie Pull Requests danach hier ein.",
+      writeSignIn: "Mit Schreibrechten anmelden",
+      noApp:
+        "Die Anmeldung bei dieser Forge ist nicht mehr eingerichtet. Wenden Sie sich an einen Admin, oder ersetzen Sie die Anmeldung durch ein persönliches Zugriffstoken mit Schreibrechten.",
+      onSince: "An seit {when}.",
+      turnOn: "Einschalten",
+      turnOff: "Ausschalten",
+      switchedOn: "Fix-Pull-Requests über dieses Konto sind eingeschaltet.",
+      switchedOff: "Fix-Pull-Requests über dieses Konto sind ausgeschaltet.",
+      needsAcknowledgement: "Bestätigen Sie zuerst, dass GarnetOps dieses Konto verwenden darf.",
+    },
     signIn: {
       with: "Mit {forge} anmelden",
       withHint: "{address}",
@@ -893,7 +931,7 @@ export const de: Messages = {
       noSecret: "Kein Secret (öffentlicher Client)",
       redirectUri: "Einzutragende Weiterleitungsadresse",
       githubSteps:
-        "Legen Sie auf GitHub eine GitHub App an (Settings, Developer settings, GitHub Apps): Berechtigungen Metadata, Contents und Pull requests auf Read, sonst nichts, kein Webhook, und Enable Device Flow einschalten. Tragen Sie dann ihre Client-ID und ein Client-Secret hier ein und installieren Sie die App für die Konten oder Organisationen, deren Repositories sichtbar sein sollen.",
+        "Legen Sie auf GitHub eine GitHub App an (Settings, Developer settings, GitHub Apps): Berechtigungen Metadata, Contents und Pull requests auf Read, sonst nichts, kein Webhook, und Enable Device Flow einschalten. Tragen Sie dann ihre Client-ID und ein Client-Secret hier ein und installieren Sie die App für die Konten oder Organisationen, deren Repositories sichtbar sein sollen. Damit Personen Fix-Pull-Requests in ihrem eigenen Namen öffnen können, setzen Sie Contents und Pull requests stattdessen auf Read and write.",
       giteaSteps:
         "Legen Sie in Gitea oder Forgejo eine OAuth2-Anwendung an (Einstellungen, Anwendungen) mit der Weiterleitungsadresse unten. Tragen Sie dann ihre Client-ID ein, bei einem vertraulichen Client auch das Client-Secret.",
       remove: "Entfernen",
@@ -2871,6 +2909,9 @@ export const de: Messages = {
     versionChange: "{from} → {to}",
     noVersion: "Keine behobene Version bekannt",
     createPr: "PR erstellen",
+    createPrAs: "PR als {login} erstellen",
+    createPrAsAccount: "PR mit Ihrem Konto erstellen",
+    createPrWithToken: "PR mit dem Repository-Token erstellen",
     manualBadge: "Von Hand",
     writeOff: "Fix-PRs sind für dieses Repository aus",
     writeFailed: "Das Schreib-Token funktioniert nicht",
@@ -2973,6 +3014,12 @@ export const de: Messages = {
       noPushAccess:
         "Das Token darf in dieses Repository nicht pushen: Es ist nur lesend, oder das Repository ist archiviert.",
       repositoryGone: "Das Repository ist nicht mehr verbunden.",
+      connectionMissing:
+        "Das verbundene Konto, mit dem er angefordert wurde, ist weg, gehört jemand anderem oder liegt auf einer anderen Plattform.",
+      connectionDisabled:
+        "Für das verbundene Konto, mit dem er angefordert wurde, wurden Pull Requests ausgeschaltet.",
+      writeScopeMissing:
+        "Das verbundene Konto wurde ohne Schreibrechte angemeldet. Melden Sie sich unter Einstellungen, Verbundene Konten erneut mit Schreibrechten an.",
       interrupted: "Der Worker wurde beendet, bevor der Pull Request fertig war. Versuchen Sie es erneut.",
       unexpected: "Etwas Unerwartetes ist passiert. Das Worker-Log enthält Details.",
       editTooLarge: "Die Datei ist zu groß, um sie automatisch zu bearbeiten.",
@@ -3008,6 +3055,16 @@ export const de: Messages = {
       notEditable: "GarnetOps kann das nicht mehr automatisch ändern. Die Liste wird aktualisiert.",
       gone: "Diesen Vorschlag gibt es nicht mehr. Die Liste wird aktualisiert.",
       rateLimited: "Zu viele Anfragen. Warten Sie eine Minute und versuchen Sie es erneut.",
+      asAccount:
+        "In Ihrem Namen, mit Ihrem verbundenen Konto {login}. Ihr Token kann das auf der Plattform bereits; GarnetOps tut nur, was hier steht.",
+      withRepositoryToken: "Mit dem Schreib-Token des Repositorys.",
+      noConnection: "Sie haben kein verbundenes Konto auf der Plattform dieses Repositorys.",
+      connectionOff:
+        "Pull Requests sind für Ihr verbundenes Konto ausgeschaltet. Schalten Sie sie unter Einstellungen, Verbundene Konten ein.",
+      connectionWriteScope:
+        "Ihr verbundenes Konto wurde ohne Schreibrechte angemeldet. Melden Sie sich unter Einstellungen, Verbundene Konten erneut mit Schreibrechten an.",
+      connectionFailed:
+        "Ihr verbundenes Konto funktioniert gerade nicht. Prüfen Sie es unter Einstellungen, Verbundene Konten.",
     },
   },
   audit: {
@@ -3116,6 +3173,8 @@ export const de: Messages = {
       forge_connection_added: "Verbundenes Konto hinzugefügt",
       forge_connection_replaced: "Token eines verbundenen Kontos ersetzt",
       forge_connection_removed: "Verbundenes Konto entfernt",
+      forge_connection_pull_requests_enabled: "Fix-Pull-Requests über ein verbundenes Konto eingeschaltet",
+      forge_connection_pull_requests_disabled: "Fix-Pull-Requests über ein verbundenes Konto ausgeschaltet",
       forge_app_added: "Anmeldung über Forge hinzugefügt",
       forge_app_changed: "Anmeldung über Forge geändert",
       forge_app_removed: "Anmeldung über Forge entfernt",

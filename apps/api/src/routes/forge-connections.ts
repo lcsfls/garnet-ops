@@ -3,6 +3,7 @@ import {
   apiBaseFromWeb,
   apiBaseProblem,
   FORGE_KINDS,
+  needsWriteScope,
   normalizeForgeWebBase,
   repositoryKey,
 } from "@garnetops/core/fix-prs";
@@ -49,6 +50,11 @@ const tokenBody = z.object({ token: tokenSchema });
 const pickBody = z.object({ forgeIds: z.array(z.string().min(1).max(100)).min(1).max(PICK_LIMIT) });
 const listQuery = z.object({ q: z.string().trim().max(100).optional() });
 const removeQuery = z.object({ removeRepositories: z.enum(["0", "1"]).default("0") });
+const pullRequestsBody = z.object({
+  enabled: z.boolean(),
+  /** The owner read what the token will be used for (ADR 0039); required to switch on. */
+  acknowledged: z.boolean().optional(),
+});
 
 type ConnectionRow = typeof fc.$inferSelect;
 
@@ -78,6 +84,12 @@ function connectionDto(row: ConnectionRow, repositories: number) {
     lastCheckedAt: row.lastCheckedAt,
     createdAt: row.createdAt,
     repositories,
+    /** Fix pull requests in the owner's name through this connection (ADR 0039). */
+    pullRequests: row.pullRequests,
+    pullRequestsAt: row.pullRequestsAt,
+    writeScope: row.writeScope,
+    /** A Gitea/Forgejo sign-in has to sign in again with write access before pull requests can be switched on. */
+    needsWriteSignIn: needsWriteScope(row) && !row.writeScope,
   };
 }
 
@@ -197,12 +209,16 @@ export const forgeConnectionRoutes = new Hono<AppEnv>()
       await tx
         .update(fc)
         // A pasted token replaces a sign-in (ADR 0031) as well: no renewal any more.
+        // A new token starts read-only (ADR 0039): pull requests in the owner's name need a new opt-in.
         .set({
           secretId,
           authMethod: "token",
           appId: null,
           refreshSecretId: null,
           tokenExpiresAt: null,
+          writeScope: false,
+          pullRequests: false,
+          pullRequestsAt: null,
           state: "unchecked",
           problem: null,
           updatedAt: new Date(),
@@ -217,6 +233,14 @@ export const forgeConnectionRoutes = new Hono<AppEnv>()
       { type: "forge_connection", id: row.id },
       { web: row.webBaseUrl },
     );
+    if (row.pullRequests) {
+      await audit(
+        actor,
+        "forge_connection.pull_requests_disabled",
+        { type: "forge_connection", id: row.id },
+        { web: row.webBaseUrl, reason: "token-replaced" },
+      );
+    }
     await queueRefresh(row);
     return c.body(null, 204);
   })
@@ -228,6 +252,60 @@ export const forgeConnectionRoutes = new Hono<AppEnv>()
     await rateLimit(`forge-connection:refresh:${actor.userId}`, 6);
     await queueRefresh(row);
     return c.json({ queued: true }, 202);
+  })
+  /**
+   * Switches fix pull requests in the owner's name through this connection on or off (ADR 0039). Only the owner, like
+   * every route here. Switching on needs a recent sign-in, the owner's acknowledgement of what the token will be used
+   * for, and for a Gitea/Forgejo sign-in a token with the write scope. Switching off needs nothing: anybody may make
+   * their own token do less, at once.
+   */
+  .put("/:id/pull-requests", async (c) => {
+    const actor = c.get("actor");
+    const row = await ownConnection(actor, c.req.param("id"));
+    const input = pullRequestsBody.parse(await c.req.json());
+    if (input.enabled) {
+      requireRole(actor, "member");
+      requireRecentSignIn(actor);
+      if (input.acknowledged !== true) {
+        throw new ProblemError(
+          422,
+          "acknowledgement-required",
+          "Confirm that GarnetOps may use this account to open pull requests in your name",
+        );
+      }
+      if (needsWriteScope(row) && !row.writeScope) {
+        throw new ProblemError(
+          409,
+          "write-sign-in-required",
+          "Sign in to this forge again with write access first",
+        );
+      }
+      await rateLimit(`forge-connection:change:${actor.userId}`, 10);
+    }
+    if (row.pullRequests !== input.enabled) {
+      await db
+        .update(fc)
+        .set({
+          pullRequests: input.enabled,
+          pullRequestsAt: input.enabled ? new Date() : null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(fc.id, row.id), eq(fc.userId, actor.userId)));
+      await audit(
+        actor,
+        input.enabled ? "forge_connection.pull_requests_enabled" : "forge_connection.pull_requests_disabled",
+        { type: "forge_connection", id: row.id },
+        { web: row.webBaseUrl, forge: row.forgeKind, auth: row.authMethod, account: row.accountLogin },
+      );
+    }
+    const [current] = await db
+      .select({ connection: fc, repositories: count(listed.forgeId) })
+      .from(fc)
+      .leftJoin(listed, eq(listed.connectionId, fc.id))
+      .where(eq(fc.id, row.id))
+      .groupBy(fc.id);
+    if (!current) throw notFound("Connection");
+    return c.json(connectionDto(current.connection, current.repositories));
   })
   /**
    * The repositories the account can see, with whether each is already monitored: added (and visible to the

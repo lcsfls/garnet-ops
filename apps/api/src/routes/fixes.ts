@@ -11,6 +11,8 @@ import {
   apiBaseProblem,
   branchName,
   buildProposals,
+  connectionCoversRepository,
+  connectionWriteProblem,
   defaultApiBase,
   detectForge,
   FIX_PR_STATES,
@@ -166,6 +168,8 @@ const prDto = (row: PrRow, names: Map<string, string>) => ({
   to: row.toVersion,
   branch: row.branch,
   requestedBy: row.requestedBy ? (names.get(row.requestedBy) ?? null) : null,
+  /** "connection": opened in the requester's own name (ADR 0039); "repository": with the repository's write token. */
+  via: row.via,
   createdAt: row.createdAt,
   openedAt: row.openedAt,
   closedAt: row.closedAt,
@@ -342,6 +346,63 @@ function pageOf<T extends { key: string }>(
 const writeState = (access: AccessRow | null) =>
   !access ? "off" : access.status === "failed" ? "failed" : "on";
 
+/* ---- the caller's own connections (ADR 0039) ---- */
+
+type ConnectionRow = typeof schema.forgeConnection.$inferSelect;
+
+/** The caller's own forge connections. Never anybody else's, for admins neither. */
+async function ownConnections(viewer: Viewer): Promise<ConnectionRow[]> {
+  return db
+    .select()
+    .from(schema.forgeConnection)
+    .where(
+      and(
+        eq(schema.forgeConnection.organizationId, viewer.organizationId),
+        eq(schema.forgeConnection.userId, viewer.userId),
+      ),
+    );
+}
+
+/** Why a connection cannot open a pull request now, or null when it can. */
+function connectionProblem(
+  connection: ConnectionRow,
+): "connection-disabled" | "write-scope-missing" | "connection-failed" | null {
+  const problem = connectionWriteProblem(connection);
+  if (problem) return problem;
+  return connection.state === "failed" || !connection.secretId ? "connection-failed" : null;
+}
+
+/**
+ * The caller's connection for a repository: one on the repository's host that can open pull requests (the most specific
+ * forge address first), else the best one that cannot, with its problem, else none.
+ */
+function connectionFor(
+  connections: ConnectionRow[],
+  repositoryUrl: string,
+): { connection: ConnectionRow; problem: ReturnType<typeof connectionProblem> } | null {
+  const covering = connections
+    .filter((c) => connectionCoversRepository(c.webBaseUrl, repositoryUrl))
+    .map((connection) => ({ connection, problem: connectionProblem(connection) }))
+    .sort(
+      (a, b) =>
+        Number(a.problem !== null) - Number(b.problem !== null) ||
+        b.connection.webBaseUrl.length - a.connection.webBaseUrl.length,
+    );
+  return covering[0] ?? null;
+}
+
+const CONNECTION_PROBLEMS = {
+  "connection-disabled": [
+    "connection-pull-requests-off",
+    "Pull requests are not switched on for your connected account on this forge",
+  ],
+  "write-scope-missing": [
+    "connection-write-scope-missing",
+    "Your connected account was signed in without write access. Sign in again with write access",
+  ],
+  "connection-failed": ["connection-failed", "Your connected account on this forge does not work. Check it"],
+} as const;
+
 /* -------------------------------------------------------------------------- */
 /* Routes                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -349,6 +410,11 @@ const writeState = (access: AccessRow | null) =>
 const createBody = z.object({
   repositoryId: z.string().min(1).max(40),
   key: z.string().refine(isProposalKey, "Not a proposal"),
+  /**
+   * "connection": in the caller's own name, with their connected account on the repository's forge (ADR 0039).
+   * "repository" or left out: with the repository's write token (ADR 0014), as before.
+   */
+  via: z.enum(["connection", "repository"]).optional(),
 });
 
 const prListQuery = z.object({
@@ -370,14 +436,21 @@ export const fixRoutes = new Hono<AppEnv>()
   .get("/", async (c) => {
     const actor = c.get("actor");
     const input = listQuery.parse(c.req.query());
-    const [{ proposals, repositories }, prs, access] = await Promise.all([
+    const [{ proposals, repositories }, prs, access, connections] = await Promise.all([
       loadProposals(actor, input.repositoryId),
       pullRequestsByKey(actor, input.repositoryId),
       db
         .select()
         .from(schema.repositoryWriteAccess)
         .where(eq(schema.repositoryWriteAccess.organizationId, actor.organizationId)),
+      ownConnections(actor),
     ]);
+    // Per repository: the caller's own connection that can open a pull request there (ADR 0039).
+    const usableConnection = new Map<string, ConnectionRow | null>();
+    for (const repo of repositories.values()) {
+      const found = connectionFor(connections, repo.url);
+      usableConnection.set(repo.id, found && found.problem === null ? found.connection : null);
+    }
     const accessOf = new Map(access.map((a) => [a.repositoryId, a]));
     const rows: Row[] = proposals.map((p) => ({
       ...p,
@@ -407,6 +480,7 @@ export const fixRoutes = new Hono<AppEnv>()
       items: page.items.map((r) => {
         const suggestion = r.findingIds.map((id) => suggestions.get(id)).find(Boolean) ?? null;
         const live = r.pr && ACTIVE.has(r.pr.state);
+        const connection = usableConnection.get(r.repositoryId) ?? null;
         return {
           key: r.key,
           repositoryId: r.repositoryId,
@@ -432,6 +506,11 @@ export const fixRoutes = new Hono<AppEnv>()
           writeAccess: writeState(r.write),
           branch: r.action === "edit" && r.targetVersion ? branchName(r.packageName, r.targetVersion) : null,
           creatable: r.action === "edit" && r.write !== null && r.write.status !== "failed" && !live,
+          /** The caller's own connected account that can open this pull request in their name (ADR 0039). */
+          connection: connection
+            ? { id: connection.id, forgeKind: connection.forgeKind, accountLogin: connection.accountLogin }
+            : null,
+          creatableViaConnection: r.action === "edit" && connection !== null && !live,
           pr: r.pr ? prDto(r.pr, names) : null,
           aiSuggestion: suggestion,
         };
@@ -476,8 +555,10 @@ export const fixRoutes = new Hono<AppEnv>()
   })
   /**
    * Opens a fix pull request for one proposal. The proposal is computed again here from our own
-   * data; the client only names it. Needs a recent sign-in, a repository with write access, and is
-   * rate limited and audited. The worker does the rest.
+   * data; the client only names it. Needs a recent sign-in, and either a repository with write
+   * access or (`via: "connection"`, ADR 0039) the caller's own connected account on the
+   * repository's forge with pull requests switched on. Rate limited and audited. The worker does
+   * the rest.
    */
   .post("/prs", async (c) => {
     const actor = c.get("actor");
@@ -489,27 +570,49 @@ export const fixRoutes = new Hono<AppEnv>()
       rateLimit(`fixpr:org:${actor.organizationId}`, 100, 3_600_000),
     ]);
     const [repo] = await db
-      .select({ id: schema.repository.id, branch: schema.repository.branch })
+      .select({ id: schema.repository.id, branch: schema.repository.branch, url: schema.repository.url })
       .from(schema.repository)
       .where(and(eq(schema.repository.id, input.repositoryId), repositoryVisibleTo(actor)))
       .limit(1);
     if (!repo) throw notFound("Repository");
-    const [access] = await db
-      .select()
-      .from(schema.repositoryWriteAccess)
-      .where(eq(schema.repositoryWriteAccess.repositoryId, repo.id))
-      .limit(1);
-    if (!access) {
-      throw new ProblemError(
-        409,
-        "write-access-off",
-        "Fix pull requests are not switched on for this repository",
-      );
-    }
-    if (access.status === "failed") {
-      throw new ProblemError(409, "write-access-failed", "The write token does not work", undefined, {
-        reason: access.statusReason,
-      });
+    const via = input.via ?? "repository";
+    let forge: string;
+    let connectionId: string | null = null;
+    if (via === "connection") {
+      // Only the caller's own connections are looked at: another person's token is never a candidate.
+      const found = connectionFor(await ownConnections(actor), repo.url);
+      if (!found) {
+        throw new ProblemError(
+          409,
+          "no-connection",
+          "You have no connected account on this repository's forge",
+        );
+      }
+      if (found.problem) {
+        const [code, detail] = CONNECTION_PROBLEMS[found.problem];
+        throw new ProblemError(409, code, detail);
+      }
+      forge = found.connection.forgeKind;
+      connectionId = found.connection.id;
+    } else {
+      const [access] = await db
+        .select()
+        .from(schema.repositoryWriteAccess)
+        .where(eq(schema.repositoryWriteAccess.repositoryId, repo.id))
+        .limit(1);
+      if (!access) {
+        throw new ProblemError(
+          409,
+          "write-access-off",
+          "Fix pull requests are not switched on for this repository",
+        );
+      }
+      if (access.status === "failed") {
+        throw new ProblemError(409, "write-access-failed", "The write token does not work", undefined, {
+          reason: access.statusReason,
+        });
+      }
+      forge = access.forgeKind;
     }
     const { proposals } = await loadProposals(actor, repo.id);
     const proposal = proposals.find((p) => p.key === input.key);
@@ -544,6 +647,8 @@ export const fixRoutes = new Hono<AppEnv>()
         vulnerabilityIds: proposal.vulnerabilityIds,
         state: "queued",
         requestedBy: actor.userId,
+        via,
+        connectionId,
       });
     } catch (error) {
       // The unique index on live requests: somebody else asked a moment ago.
@@ -570,7 +675,9 @@ export const fixRoutes = new Hono<AppEnv>()
         to: proposal.targetVersion,
         manifest: proposal.manifestPath,
         major: proposal.majorUpgrade,
-        forge: access.forgeKind,
+        forge,
+        via,
+        ...(connectionId ? { connection: connectionId } : {}),
       },
     );
     await boss.send(

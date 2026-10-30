@@ -253,6 +253,13 @@
       "when": 1793390925630,
       "tag": "0035_website_uptime",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793391327745,
+      "tag": "0036_fix_pr_connections",
+      "breakpoints": true
     }
   ]
 }

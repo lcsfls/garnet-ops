@@ -738,6 +738,18 @@ export const fixPr = pgTable(
     /** Built by us from the repository address and the number, never taken from the forge's answer. */
     prUrl: text("pr_url"),
     requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+    /**
+     * Whose credential opens the pull request: the repository's write token (ADR 0014) or the requester's own
+     * connected account (ADR 0039). Kept apart from `connection_id`, which is cleared when the connection is removed:
+     * a request made through a connection never falls back to the repository's token.
+     */
+    via: text("via", { enum: ["repository", "connection"] })
+      .notNull()
+      .default("repository"),
+    /** The requester's own forge connection (ADR 0039). The worker uses it only while it belongs to `requested_by`. */
+    connectionId: text("connection_id").references((): AnyPgColumn => forgeConnection.id, {
+      onDelete: "set null",
+    }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     openedAt: timestamp("opened_at", { withTimezone: true }),
@@ -2794,6 +2806,14 @@ export const forgeConnection = pgTable(
     broadToken: boolean("broad_token").notNull().default(false),
     /** The forge listed more repositories than GarnetOps keeps; the list is cut. */
     truncated: boolean("truncated").notNull().default(false),
+    /**
+     * The owner's opt-in (ADR 0039) to fix pull requests opened in their name with this connection's token. Off by
+     * default; a new pasted token, or a new sign-in that cannot write, turns it off again.
+     */
+    pullRequests: boolean("pull_requests").notNull().default(false),
+    pullRequestsAt: timestamp("pull_requests_at", { withTimezone: true }),
+    /** A Gitea/Forgejo sign-in that was authorised with a write scope (`write:repository`, ADR 0039). */
+    writeScope: boolean("write_scope").notNull().default(false),
     lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -2866,6 +2886,8 @@ export const forgeSignIn = pgTable(
       .notNull()
       .references(() => forgeApp.id, { onDelete: "cascade" }),
     flow: text("flow", { enum: ["device", "code"] }).notNull(),
+    /** Asked for a write scope (Gitea, Forgejo) so that the connection can open fix pull requests (ADR 0039). */
+    write: boolean("write").notNull().default(false),
     state: text("state", { enum: ["starting", "waiting", "exchanging", "done", "failed"] })
       .notNull()
       .default("starting"),

@@ -24,7 +24,7 @@ refused (for example after you revoked GarnetOps on the forge), the connection s
 
 | Forge | On the forge | In GarnetOps |
 | --- | --- | --- |
-| GitHub, GitHub Enterprise Server | Create a **GitHub App** (Settings → Developer settings → GitHub Apps). Permissions: **Metadata**, **Contents** and **Pull requests** set to **Read**, nothing else. No webhook. **Enable Device Flow** on. Install the App for the accounts and organisations whose repositories people should see. | Client ID and a client secret (needed to renew tokens). |
+| GitHub, GitHub Enterprise Server | Create a **GitHub App** (Settings → Developer settings → GitHub Apps). Permissions: **Metadata**, **Contents** and **Pull requests** set to **Read**, nothing else. No webhook. **Enable Device Flow** on. Install the App for the accounts and organisations whose repositories people should see. To let people open fix pull requests in their name (below), set **Contents** and **Pull requests** to **Read and write** instead. | Client ID and a client secret (needed to renew tokens). |
 | Gitea, Forgejo | Create an **OAuth2 application** (Settings → Applications) with the **redirect address** GarnetOps shows (`<PUBLIC_URL>/settings/accounts/callback`). | Client ID, and the client secret for a confidential client. |
 
 The client secret is stored encrypted and only the worker uses it; it is never shown again. Removing a forge stops new
@@ -82,6 +82,27 @@ To let the organisation see it, open the repository and choose:
 Admins can make a shared repository that came from a connected account private again for its owner (**Make private again**).
 Sharing and every decision are in the audit log.
 
+## Fix pull requests in your name
+
+A connection is read-only for GarnetOps until you switch on **Pull requests** for it. GarnetOps can then open fix pull
+requests in your name with this account, when you ask for one on the Fix proposals page ([fix-prs.md](fix-prs.md),
+[ADR 0039](adr/0039-fix-pull-requests-through-connected-accounts.md)): it creates a branch `garnetops/fix-…`, commits the one
+changed manifest to it and opens a pull request. It never merges, approves or pushes to the default branch.
+
+**Pull requests** on a connection opens a dialog that lists exactly that. Switching on needs a sign-in from the last ten
+minutes and your confirmation; switching off needs neither. Only you can switch it, for your own connections; both are in
+the audit log. What the token needs:
+
+| Connection | Write access |
+| --- | --- |
+| GitHub, signed in | A GitHub App has no scopes: an admin gives the App **Contents: Read and write** and **Pull requests: Read and write** (below). Your own permission on the repository still decides. |
+| Gitea, Forgejo, signed in | Signing in asks for read access only. The dialog offers **Sign in with write access**, which signs in again asking for `write:repository read:user`; then switch pull requests on. |
+| Personal access token | GitHub: **Contents** and **Pull requests** set to **Read and write** for the repositories you want to fix. Gitea, Forgejo: the scope **write:repository**. |
+
+Before every pull request the worker asks the forge whether the token may push to the repository and refuses otherwise.
+**Replace token**, or signing in again without write access to Gitea or Forgejo, switches pull requests off again. A
+token that can do more than it needs keeps its warning.
+
 ## Removing a connection, leaving the organisation
 
 **Remove** deletes the connection and its token. Tick **Also remove the private repositories I added through it** to delete
@@ -94,9 +115,12 @@ the membership.
 ## API
 
 `GET /api/v1/forge-connections`, `POST /api/v1/forge-connections`, `PUT /api/v1/forge-connections/{id}/token`,
-`POST /api/v1/forge-connections/{id}/refresh`, `GET` and `POST /api/v1/forge-connections/{id}/repositories`,
+`POST /api/v1/forge-connections/{id}/refresh`, `PUT /api/v1/forge-connections/{id}/pull-requests` (`{ enabled,
+acknowledged }`), `GET` and `POST /api/v1/forge-connections/{id}/repositories`,
 `DELETE /api/v1/forge-connections/{id}?removeRepositories=0|1`; sharing: `POST /api/v1/repositories/{id}/share`,
 `POST /api/v1/repositories/{id}/unshare`, `GET /api/v1/share-requests`, `POST /api/v1/share-requests/{id}/approve|decline`.
 Repository objects carry `visibility` (`organization` or `private`), `mine` and `shareRequested`. Signing in:
 `GET`, `POST`, `PATCH`, `DELETE /api/v1/forge-apps` (owners and admins), `GET /api/v1/forge-apps/available`,
-`POST /api/v1/forge-sign-in`, `GET` and `DELETE /api/v1/forge-sign-in/{id}`, `POST /api/v1/forge-sign-in/callback`.
+`POST /api/v1/forge-sign-in` (`write: true` asks Gitea and Forgejo for `write:repository`), `GET` and
+`DELETE /api/v1/forge-sign-in/{id}`, `POST /api/v1/forge-sign-in/callback`. Connections carry `pullRequests`,
+`pullRequestsAt`, `writeScope` and `needsWriteSignIn`.

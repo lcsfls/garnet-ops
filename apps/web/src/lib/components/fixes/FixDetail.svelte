@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ArrowRight, ExternalLink, GitPullRequest, TriangleAlert, X } from "@lucide/svelte";
-  import { camelCode, PR_TONE, safeHttpsUrl } from "../../fixes.ts";
+  import { type CreateVia, camelCode, PR_TONE, safeHttpsUrl } from "../../fixes.ts";
   import { formatRelative } from "../../format.ts";
   import { type MessageKey, t } from "../../i18n.svelte.ts";
   import type { FixProposalRow } from "../../types.ts";
@@ -20,7 +20,7 @@
   }: {
     proposal: FixProposalRow;
     canCreate: boolean;
-    onCreate: () => void;
+    onCreate: (via: CreateVia) => void;
     onClose?: () => void;
   } = $props();
 
@@ -176,12 +176,25 @@
       </section>
     {/if}
 
-    {#if p.creatable && canCreate && p.pr?.state !== "merged"}
-      <div>
-        <Button onclick={onCreate}>
-          <GitPullRequest aria-hidden="true" class="size-4" />
-          {t("fixes.createPr")}
-        </Button>
+    {#if canCreate && p.pr?.state !== "merged" && (p.creatableViaConnection || p.creatable)}
+      <div class="flex flex-wrap gap-2">
+        {#if p.creatableViaConnection && p.connection}
+          <Button onclick={() => onCreate("connection")}>
+            <GitPullRequest aria-hidden="true" class="size-4" />
+            {p.connection.accountLogin
+              ? t("fixes.createPrAs", { login: p.connection.accountLogin })
+              : t("fixes.createPrAsAccount")}
+          </Button>
+        {/if}
+        {#if p.creatable}
+          <Button
+            variant={p.creatableViaConnection ? "outline" : "primary"}
+            onclick={() => onCreate("repository")}
+          >
+            <GitPullRequest aria-hidden="true" class="size-4" />
+            {p.creatableViaConnection ? t("fixes.createPrWithToken") : t("fixes.createPr")}
+          </Button>
+        {/if}
       </div>
     {/if}
   </div>

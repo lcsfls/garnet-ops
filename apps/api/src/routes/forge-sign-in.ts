@@ -220,7 +220,14 @@ async function dropSecrets(ids: (string | null)[]) {
   if (list.length) await db.delete(schema.secret).where(inArray(schema.secret.id, list));
 }
 
-const startBody = z.object({ appId: z.string().min(1).max(40) });
+const startBody = z.object({
+  appId: z.string().min(1).max(40),
+  /**
+   * Ask the forge for a write scope (Gitea, Forgejo), so that the connection can open fix pull requests in the person's
+   * name once they switch that on (ADR 0039). GitHub Apps have no scopes; the flag changes nothing there.
+   */
+  write: z.boolean().default(false),
+});
 const callbackBody = z.object({
   state: z.string().min(20).max(200),
   code: z.string().min(1).max(500).optional(),
@@ -246,6 +253,8 @@ export const forgeSignInRoutes = new Hono<AppEnv>()
     if (!target) throw notFound("Sign-in application");
     const id = newId("fsi");
     const flow = signInFlow(target.forgeKind);
+    // Only the code flow (Gitea, Forgejo) has scopes to ask for.
+    const write = input.write && flow === "code";
     const expiresAt = new Date(Date.now() + SIGN_IN_TTL_MS);
     if (flow === "device") {
       await db.insert(signIn).values({
@@ -281,6 +290,7 @@ export const forgeSignInRoutes = new Hono<AppEnv>()
         userId: actor.userId,
         appId: target.id,
         flow,
+        write,
         state: "waiting",
         stateHash: hashSignInState(state),
         verifierSecretId,
@@ -298,7 +308,9 @@ export const forgeSignInRoutes = new Hono<AppEnv>()
           redirectUri: signInRedirectUri(env.PUBLIC_URL),
           state,
           challenge: pkceChallenge(verifier),
+          write,
         }),
+        write,
       },
       201,
     );
@@ -310,6 +322,7 @@ export const forgeSignInRoutes = new Hono<AppEnv>()
     return c.json({
       id: row.id,
       flow: row.flow,
+      write: row.write,
       state: row.state,
       userCode: row.userCode,
       verificationUri: row.verificationUri,

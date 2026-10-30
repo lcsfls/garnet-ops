@@ -21,6 +21,23 @@ Security-relevant changes are listed under **Security** in every release.
 - API: `PUT /api/v1/exposure/{id}/uptime`, `uptime` on every website and `availability` on one website.
 - An empty **Early warnings** page says when the last check ran, with which database, how many of the organisation's packages it
   covered, and how many warnings scans confirmed or cleared lately.
+- **Fix pull requests in your own name** ([ADR 0039](docs/adr/0039-fix-pull-requests-through-connected-accounts.md),
+  [docs](docs/fix-prs.md)): with **Pull requests** switched on for one of your connected accounts (Settings → Connected
+  accounts), a fix proposal offers **Create PR as *your account*** on repositories of that forge. The pull request is opened by
+  your account, without a write token on the repository; the repository's write token stays available. For Gitea and Forgejo
+  sign-ins, **Sign in with write access** asks the forge for `write:repository` first; a GitHub App needs Contents and Pull
+  requests set to Read and write.
+- API: `PUT /api/v1/forge-connections/{id}/pull-requests`; `write` on `POST /api/v1/forge-sign-in`; `via` on
+  `POST /api/v1/fixes/prs`; `pullRequests`, `pullRequestsAt`, `writeScope` and `needsWriteSignIn` on connections;
+  `connection` and `creatableViaConnection` on fix proposals; `via` on fix pull requests.
+
+### Security
+
+- Connected accounts stay read-only until their owner switches pull requests on, with a recent sign-in and an explicit
+  confirmation; only the owner can, and both directions are audited. A connection's token is only ever used for its owner's own
+  requests, only on its own forge, and checked again by the worker when the request runs. Replacing the token, or signing in again
+  to Gitea or Forgejo without write access, switches it off again. A request made through a connection never falls back to the
+  repository's write token.
 
 ## [0.0.13] - 2026-10-30
 <!-- title: Agents without Docker, DNSSEC and software versions of websites -->
