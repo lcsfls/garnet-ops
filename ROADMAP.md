@@ -117,10 +117,14 @@ paginated findings, and every number on the overview leads to its details.
       Gitea/Forgejo OAuth2 application with PKCE instead of a pasted token (ADR 0031, 0.0.12)
 - [x] Hosts and containers with a host agent, a module off by default (ADR 0034, `docs/hosts.md`, 0.0.12): running containers,
       the packages and vulnerabilities of their images, the link to the repository they were built from, optional check for newer
-      images in public registries. Still open: Kubernetes, private registries, notifications about running images
+      images in public registries. Hosts without Docker: a small Go agent as a systemd service reports the host's kernel and
+      packages (ADR 0037). Still open: Kubernetes, private registries, notifications about running images, language packages
+      outside the distribution's package manager
 - [x] Website monitoring as a module, off by default (ADR 0023, ADR 0033, `docs/websites.md`, 0.0.12): certificates, DNS, mail
       authentication and security headers from the outside; proof of control by DNS TXT record or file; port checks only for proven
-      names with a confirmation per name; switched on and off under Settings, Modules
+      names with a confirmation per name; switched on and off under Settings, Modules; DNSSEC checked at the source (ADR 0036);
+      optional public DNS next to a slow local resolver (ADR 0035). Still open: outdated software versions (PHP, CMS), uptime and
+      hosting problems
 - [x] Pull request overview: open pull requests of the monitored repositories with the gate result of their head commit,
       read with the repository's read credential, "Check now" as a CI check would (ADR 0032, `docs/pull-requests.md`,
       0.0.12). Still open: review comments on the pull request

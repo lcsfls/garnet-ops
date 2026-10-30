@@ -2,6 +2,7 @@ import { newId } from "@garnetops/core";
 import {
   enrolBodySchema,
   hashEnrolmentCode,
+  hostPackagesSchema,
   inventorySchema,
   kernelPackage,
   NONCE_TTL_MS,
@@ -17,6 +18,14 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import type { ZodType } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
+import { env } from "../env.ts";
+import {
+  AGENT_ARCHES,
+  type AgentArch,
+  agentBinary,
+  agentBinaryName,
+  installScript,
+} from "../lib/agent-install.ts";
 import { audit } from "../lib/audit.ts";
 import { clientIp } from "../lib/ip.ts";
 import { modulesOf } from "../lib/modules.ts";
@@ -138,8 +147,37 @@ export const agentRoutes = new Hono<AgentEnv>()
     );
     return c.json({ hostId: result.id }, 201);
   })
+  /** The install script of the systemd agent (ADR 0037), with this installation's address and the checksums of its binaries. */
+  .get("/install.sh", async (c) => {
+    await rateLimit(`agent-download:${clientIp(c.req.raw.headers) ?? "unknown"}`, 60, 3600_000);
+    const sums: Partial<Record<AgentArch, string>> = {};
+    for (const arch of AGENT_ARCHES) {
+      const binary = await agentBinary(env.AGENT_BINARIES_DIR, arch);
+      if (binary) sums[arch] = binary.sha256;
+    }
+    return c.body(installScript(env.PUBLIC_URL, sums), 200, {
+      "content-type": "text/x-shellscript; charset=utf-8",
+      "content-disposition": 'attachment; filename="garnetops-agent-install.sh"',
+      "cache-control": "no-store",
+    });
+  })
+  /** The binary of the systemd agent for one architecture, as this installation was built with it. */
+  .get("/download/:target", async (c) => {
+    await rateLimit(`agent-download:${clientIp(c.req.raw.headers) ?? "unknown"}`, 60, 3600_000);
+    const arch = AGENT_ARCHES.find((a) => c.req.param("target") === `linux-${a}`);
+    const binary = arch ? await agentBinary(env.AGENT_BINARIES_DIR, arch) : null;
+    if (!arch || !binary)
+      throw new ProblemError(404, "no-agent-binary", "This installation has no agent for that target");
+    return c.body(new Uint8Array(binary.bytes), 200, {
+      "content-type": "application/octet-stream",
+      "content-disposition": `attachment; filename="${agentBinaryName(arch)}"`,
+      "x-content-sha256": binary.sha256,
+      "cache-control": "no-store",
+    });
+  })
   .use("/inventory", requireSignedHost)
   .use("/packages", requireSignedHost)
+  .use("/host-packages", requireSignedHost)
   /**
    * The running containers and their images. Containers of this host that are not in the list are gone. The answer names the
    * images whose packages are still needed.
@@ -164,6 +202,7 @@ export const agentRoutes = new Hono<AgentEnv>()
           dockerVersion: input.dockerVersion,
           os: input.kernel?.osName ?? input.os,
           lastInventoryAt: now,
+          ...(input.runtime ? { runtime: input.runtime } : {}),
           ...(input.kernel
             ? {
                 kernelRelease: input.kernel.release,
@@ -254,7 +293,35 @@ export const agentRoutes = new Hono<AgentEnv>()
         { retryLimit: 1, expireInSeconds: 1800, singletonKey: host.id },
       );
     }
-    return c.json({ needPackages: need });
+    // The host's own packages (systemd agent) are sent again only when their list changed.
+    const needHostPackages =
+      input.hostPackagesDigest !== undefined && input.hostPackagesDigest !== host.hostPackagesDigest;
+    return c.json({ needPackages: need, needHostPackages });
+  })
+  /** The packages installed on the host itself (systemd agent, ADR 0037): replace the list, then match it in the worker. */
+  .post("/host-packages", async (c) => {
+    const host = c.get("host");
+    const input = parse(hostPackagesSchema, c.get("body"));
+    const seen = new Set<string>();
+    const packages = input.packages.filter((p) => !seen.has(p.purl) && seen.add(p.purl));
+    await db
+      .update(schema.agentHost)
+      .set({
+        hostPackages: packages,
+        hostPackagesDigest: input.digest,
+        hostPackagesDistro: input.distro,
+        hostPackagesAt: new Date(),
+        hostPackagesMatchedAt: null,
+        hostPackagesMatchedDbBuilt: null,
+        hostPackagesMatchError: null,
+      })
+      .where(eq(schema.agentHost.id, host.id));
+    await boss.send(
+      QUEUES.hostPackagesMatch,
+      { hostId: host.id },
+      { retryLimit: 1, expireInSeconds: 1800, singletonKey: host.id },
+    );
+    return c.json({ packages: packages.length }, 202);
   })
   /** The package list of one image this host runs. Matching happens in the worker. */
   .post("/packages", async (c) => {

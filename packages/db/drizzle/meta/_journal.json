@@ -239,6 +239,13 @@
       "when": 1793355252427,
       "tag": "0033_public_dns",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793362306955,
+      "tag": "0034_host_packages",
+      "breakpoints": true
     }
   ]
 }

@@ -950,6 +950,26 @@ export const de: Messages = {
     hint: "Eine Prüfung verwendet dieselben Quality-Gate-Regeln wie eine CI-Pipeline und ändert den Pull Request nie.",
   },
   hosts: {
+    addRuntime: "Wie der Agent läuft",
+    runtimeDocker: "Docker (Compose)",
+    runtimeDockerHint:
+      "Zwei Container neben Docker: liest die laufenden Container, was in ihren Images steckt, und den Kernel des Hosts.",
+    runtimeSystemd: "systemd-Dienst, ohne Docker",
+    runtimeSystemdHint:
+      "Ein einzelnes kleines Programm (etwa 6 MB) als gehärteter systemd-Dienst: liest den Kernel des Hosts und seine installierten Pakete (dpkg, rpm oder apk).",
+    runtimeSystemdShort: "systemd-Dienst",
+    installTitle: "Agent auf dem Host installieren",
+    installSteps:
+      "Auf dem Host als root: das Installationsskript von dieser Installation laden, lesen und dann mit dem Einmal-Code ausführen. Es installiert den Agent für die Architektur des Servers, prüft seine Prüfsumme und startet den Dienst.",
+    packagesTitle: "Pakete auf dem Host",
+    packagesDescription:
+      "Die auf dem Host selbst installierten Pakete, abgeglichen mit der lokalen Schwachstellen-Datenbank.",
+    ownPackagesCount: "Pakete",
+    packagesReported: "Liste erhalten",
+    packagesNotYet: "Noch keine Paketliste. Sie kommt mit der nächsten Meldung des Agents.",
+    packagesNone: "Keine bekannte Schwachstelle in den Paketen dieses Hosts.",
+    packagesAffected:
+      "{count, plural, one {Betroffen von # bekannten Schwachstelle} other {Betroffen von # bekannten Schwachstellen}}",
     title: "Agents",
     description:
       "Die Server, auf denen der GarnetOps-Agent läuft, ihre laufenden Container und was in den Images steckt.",

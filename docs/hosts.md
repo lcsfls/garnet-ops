@@ -43,6 +43,31 @@ mount of the Docker socket alone would not stop writes through the Docker API, w
 
 The `/tmp` file system of the agent is where syft unpacks an image; make it larger than your largest image (4 GB in the snippet).
 
+## Hosts without Docker: the systemd agent
+
+For a server without Docker choose **systemd service, without Docker** in **Add agent** ([ADR 0037](adr/0037-systemd-host-agent.md)).
+The dialog shows three commands to run on the host as root:
+
+```sh
+curl -fsSLo garnetops-agent-install.sh https://garnetops.example.lan/api/v1/agent/install.sh
+less garnetops-agent-install.sh   # read it before you run it
+GARNETOPS_ENROLMENT_CODE='goe_...' sh garnetops-agent-install.sh
+```
+
+The script comes from your GarnetOps installation, not from the internet, and installs the agent built for this version: a single
+program of about 6 MB for linux/amd64 or linux/arm64, checked against the SHA-256 in the script. It creates the system user
+`garnetops-agent`, writes `/etc/garnetops-agent/agent.env` (readable by root and the agent only) and starts
+`garnetops-agent.service`, which systemd runs unprivileged and read-only with no capabilities, at most 256 MB memory and 20 % CPU.
+
+The systemd agent reports the running kernel and the **packages installed on the host** (dpkg on Debian and Ubuntu, rpm on the RHEL
+family and SUSE, apk on Alpine). GarnetOps matches them like an image's packages; the host page shows them under **Packages on the
+host**. A list is sent again only when it changed. It does not see Docker containers; for those use the Compose agent.
+
+- Logs: `journalctl -u garnetops-agent`
+- Update: run the install script again (from the updated installation).
+- Remove: `systemctl disable --now garnetops-agent`, then delete `/usr/local/bin/garnetops-agent`, `/etc/garnetops-agent`,
+  `/etc/systemd/system/garnetops-agent.service` and `/var/lib/garnetops-agent`, and remove the host in GarnetOps.
+
 ## What leaves the host
 
 Over HTTPS to this installation only:
@@ -53,7 +78,8 @@ Over HTTPS to this installation only:
 - per running container: its id, name, image reference, image id, state and start time;
 - per image: its id, tags, digests, OS and architecture, and only the OCI labels `org.opencontainers.image.source`, `.revision`,
   `.version`, `.title` and `.created`;
-- per image GarnetOps does not know yet: syft's package list (package URL, name, version, type).
+- per image GarnetOps does not know yet: syft's package list (package URL, name, version, type);
+- systemd agent: the packages installed on the host (package URL, name, version, type), only when the list changed.
 
 Never: file contents, paths inside images, environment variables, command lines, secrets, or the images themselves.
 

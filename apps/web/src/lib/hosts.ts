@@ -39,6 +39,19 @@ export function kernelState(kernel: KernelSummary, findings: number): KernelStat
   return findings > 0 ? "affected" : "clean";
 }
 
+/** The packages installed on a host itself (systemd agent, ADR 0037). `count` is null until the agent sent a list. */
+export interface HostPackagesSummary {
+  count: number | null;
+  distro: string | null;
+  reportedAt: string | null;
+  matchedAt: string | null;
+  matchError: string | null;
+}
+
+export interface HostPackageFinding extends KernelFinding {
+  packageType: string;
+}
+
 export interface HostRow {
   id: string;
   name: string;
@@ -50,12 +63,15 @@ export interface HostRow {
   lastSeenAt: string | null;
   lastInventoryAt: string | null;
   reporting: boolean;
+  /** How the agent runs; null for agents before 0.0.13 (all of them in a container). */
+  runtime: "container" | "systemd" | null;
   containers: number;
   images: number;
   open: SeverityCounts;
   updatesAvailable: number;
   /** `total` counts every finding, also those the distribution has not rated yet. */
   kernel: KernelSummary & { open: SeverityCounts & { total: number } };
+  hostPackages: HostPackagesSummary & { open: SeverityCounts };
 }
 
 export type UpdateState = "unchecked" | "current" | "newer-build" | "newer-version" | "failed";
@@ -84,9 +100,22 @@ export interface HostContainer {
 }
 
 export interface HostDetail
-  extends Omit<HostRow, "containers" | "images" | "open" | "updatesAvailable" | "kernel"> {
+  extends Omit<HostRow, "containers" | "images" | "open" | "updatesAvailable" | "kernel" | "hostPackages"> {
   containers: HostContainer[];
   kernel: KernelSummary & { findings: KernelFinding[] };
+  hostPackages: HostPackagesSummary & { findings: HostPackageFinding[] };
+}
+
+/** Open vulnerabilities of everything a host runs: its images and, for the systemd agent, its own packages. */
+export function hostOpen(host: HostRow): SeverityCounts {
+  const a = host.open;
+  const b = host.hostPackages.open;
+  return {
+    critical: a.critical + b.critical,
+    high: a.high + b.high,
+    medium: a.medium + b.medium,
+    low: a.low + b.low,
+  };
 }
 
 export interface ImageFinding {
@@ -167,6 +196,26 @@ export const UPDATE_TONE: Record<UpdateState, BadgeTone> = {
 
 /** The first 12 characters of an image id, as Docker shows it. */
 export const shortId = (id: string) => id.replace(/^sha256:/, "").slice(0, 12);
+
+/** A shell word that cannot break out of its quotes. */
+const sh = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+
+/**
+ * The commands for a host without Docker (ADR 0037): download the install script from this installation, read it, run it with the
+ * one-time code in the environment (not in a URL, so it stays out of logs).
+ */
+export function installCommands(input: { serverUrl: string; code: string; hostName?: string }): string {
+  const base = input.serverUrl.replace(/\/+$/, "");
+  const env = [`GARNETOPS_ENROLMENT_CODE=${sh(input.code)}`];
+  if (input.hostName) env.push(`GARNETOPS_HOST_NAME=${sh(input.hostName)}`);
+  return [
+    "# GarnetOps host agent as a systemd service (ADR 0037). On the host, as root:",
+    `curl -fsSLo garnetops-agent-install.sh ${base}/api/v1/agent/install.sh`,
+    "less garnetops-agent-install.sh   # read it before you run it",
+    `${env.join(" ")} sh garnetops-agent-install.sh`,
+    "",
+  ].join("\n");
+}
 
 /** A YAML string that cannot break out of its line. */
 const yaml = (value: string) => JSON.stringify(value);

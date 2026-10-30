@@ -40,4 +40,6 @@ export const QUEUES = {
   imageMatch: "hosts.match",
   /** Matching the running kernel of a host as the distribution's package. */
   kernelMatch: "hosts.kernel",
+  /** Matching the packages installed on a host itself (systemd agent, ADR 0037). */
+  hostPackagesMatch: "hosts.packages",
 } as const;

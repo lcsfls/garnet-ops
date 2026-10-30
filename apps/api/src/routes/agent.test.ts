@@ -32,10 +32,15 @@ vi.mock("../db.ts", async () => {
         return "job";
       },
     },
-    QUEUES: { imageMatch: "hosts.match", kernelMatch: "hosts.kernel" },
+    QUEUES: { imageMatch: "hosts.match", kernelMatch: "hosts.kernel", hostPackagesMatch: "hosts.packages" },
   };
 });
-vi.mock("../env.ts", () => ({ env: { PUBLIC_URL: "https://garnetops.example.test/" }, isProduction: false }));
+/** Where the test puts a stand-in for the built systemd agent (ADR 0037). */
+const BINS = vi.hoisted(() => `${process.env.TMPDIR ?? "/tmp"}/garnetops-agent-bins-${process.pid}`);
+vi.mock("../env.ts", () => ({
+  env: { PUBLIC_URL: "https://garnetops.example.test/", AGENT_BINARIES_DIR: BINS },
+  isProduction: false,
+}));
 vi.mock("../auth.ts", () => ({ auth: { api: {} } }));
 
 const ORG = "org_agent_a";
@@ -329,6 +334,85 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     const [unnamed] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, hostId));
     expect(unnamed).toMatchObject({ kernelPackage: null, kernelProblem: "unknownVersion" });
     await agent("/api/v1/agent/inventory", inventory({ kernel }));
+  });
+
+  it("takes the packages of the host itself from the systemd agent only when they changed, and shows their findings", async () => {
+    const pkgs = [
+      {
+        name: "bash",
+        version: "5.2.15-2+b7",
+        type: "deb",
+        purl: "pkg:deb/debian/bash@5.2.15-2+b7?arch=amd64&distro=debian-12",
+      },
+    ];
+    const digest = "d".repeat(64);
+    const first = await agent(
+      "/api/v1/agent/inventory",
+      inventory({ runtime: "systemd", hostPackagesDigest: digest }),
+    );
+    expect(first.json?.needHostPackages).toBe(true);
+    const sent = await agent("/api/v1/agent/host-packages", { distro: "debian 12", digest, packages: pkgs });
+    expect([sent.status, sent.json?.packages]).toEqual([202, 1]);
+    expect(holder.sent).toContainEqual({ name: "hosts.packages", data: { hostId } });
+    // The same list again is not asked for; a wrong digest format is refused.
+    const again = await agent(
+      "/api/v1/agent/inventory",
+      inventory({ runtime: "systemd", hostPackagesDigest: digest }),
+    );
+    expect(again.json?.needHostPackages).toBe(false);
+    expect((await agent("/api/v1/agent/host-packages", { digest: "x", packages: pkgs })).status).toBe(422);
+
+    await t.db
+      .insert(schema.vulnerability)
+      .values({ id: "CVE-2026-0007", severity: "high" })
+      .onConflictDoNothing();
+    await t.db.insert(schema.hostPackageFinding).values({
+      id: "hpf_1",
+      organizationId: ORG,
+      hostId,
+      vulnerabilityId: "CVE-2026-0007",
+      packageName: "bash",
+      packageVersion: "5.2.15-2+b7",
+      packageType: "deb",
+      severity: "high",
+      severityRank: 4,
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+    });
+    const list = await session("GET", "/api/v1/hosts", { role: "viewer" });
+    expect(list.json?.[0]).toMatchObject({
+      runtime: "systemd",
+      hostPackages: { count: 1, distro: "debian 12", open: { high: 1 } },
+    });
+    const detail = await session("GET", `/api/v1/hosts/${hostId}`, { role: "viewer" });
+    expect(
+      (detail.json as unknown as { hostPackages: { findings: unknown[] } }).hostPackages.findings,
+    ).toHaveLength(1);
+    expect((await session("GET", "/api/v1/hosts/attention")).json).toMatchObject({ count: 1 });
+    await t.db.delete(schema.hostPackageFinding);
+  });
+
+  it("serves the install script and the binaries it was built with, and no code in either", async () => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { createHash } = await import("node:crypto");
+    await mkdir(BINS, { recursive: true });
+    const bytes = Buffer.from("stand-in for the amd64 agent");
+    await writeFile(`${BINS}/garnetops-agent-linux-amd64`, bytes);
+    const sum = createHash("sha256").update(bytes).digest("hex");
+    const script = await app.request("/api/v1/agent/install.sh");
+    const text = await script.text();
+    expect(script.status).toBe(200);
+    expect(text).toContain("GARNETOPS_URL='https://garnetops.example.test'");
+    expect(text).toContain(`SHA256_amd64='${sum}'`);
+    expect(text).toContain("SHA256_arm64=''");
+    expect(text).toContain("NoNewPrivileges=yes");
+    expect(text).not.toMatch(/goe_[A-Za-z0-9_-]{43}/);
+    const download = await app.request("/api/v1/agent/download/linux-amd64");
+    expect(download.status).toBe(200);
+    expect(download.headers.get("x-content-sha256")).toBe(sum);
+    expect(Buffer.from(await download.arrayBuffer()).equals(bytes)).toBe(true);
+    expect((await app.request("/api/v1/agent/download/linux-arm64")).status).toBe(404);
+    expect((await app.request("/api/v1/agent/download/..%2F..%2Fetc%2Fpasswd")).status).toBe(404);
   });
 
   it("takes the packages of an image this host runs, and queues the match", async () => {

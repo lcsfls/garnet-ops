@@ -920,6 +920,26 @@ export const en = {
     hint: "A check uses the same quality gate rules as a CI pipeline and never changes the pull request.",
   },
   hosts: {
+    addRuntime: "How the agent runs",
+    runtimeDocker: "Docker (Compose)",
+    runtimeDockerHint:
+      "Two containers next to Docker: reads the running containers and what is in their images, and the host's kernel.",
+    runtimeSystemd: "systemd service, without Docker",
+    runtimeSystemdHint:
+      "A single small program (about 6 MB) as a hardened systemd service: reads the host's kernel and its installed packages (dpkg, rpm or apk).",
+    runtimeSystemdShort: "systemd service",
+    installTitle: "Install the agent on the host",
+    installSteps:
+      "On the host, as root: download the install script from this installation, read it, then run it with the one-time code. It installs the agent for this server's architecture, checks its checksum and starts the service.",
+    packagesTitle: "Packages on the host",
+    packagesDescription:
+      "The packages installed on the host itself, matched against the local vulnerability database.",
+    ownPackagesCount: "Packages",
+    packagesReported: "List received",
+    packagesNotYet: "No package list yet. It arrives with the agent's next report.",
+    packagesNone: "No known vulnerability in the packages of this host.",
+    packagesAffected:
+      "{count, plural, one {Affected by # known vulnerability} other {Affected by # known vulnerabilities}}",
     title: "Agents",
     description:
       "The servers that run the GarnetOps agent, their running containers and what is in the images.",

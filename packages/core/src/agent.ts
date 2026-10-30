@@ -208,6 +208,13 @@ export const inventorySchema = z.object({
       architecture: optionalText(40),
     })
     .nullish(),
+  /** How the agent runs (0.0.13): "container" (Compose) or "systemd" (no Docker, ADR 0037). */
+  runtime: z.enum(["container", "systemd"]).optional(),
+  /** SHA-256 (hex) over the sorted package URLs of the host itself (systemd agent); the answer says whether to send them. */
+  hostPackagesDigest: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   containers: z
     .array(
       z.object({
@@ -256,6 +263,12 @@ export const packagesSchema = z.object({
     .max(MAX_PACKAGES),
 });
 export type ImagePackages = z.infer<typeof packagesSchema>;
+
+/** The packages installed on the host itself, from the systemd agent (ADR 0037). Same limits as an image's list. */
+export const hostPackagesSchema = packagesSchema.omit({ imageId: true }).extend({
+  digest: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export type HostPackages = z.infer<typeof hostPackagesSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Linking an image to a repository                                            */

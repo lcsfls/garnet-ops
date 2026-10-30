@@ -26,6 +26,7 @@ export const IMAGE_MATCH_QUEUE = "hosts.match";
 export const HOSTS_TICK_QUEUE = "hosts.tick";
 export const REGISTRY_CHECK_QUEUE = "hosts.registry";
 export const KERNEL_MATCH_QUEUE = "hosts.kernel";
+export const HOST_PACKAGES_MATCH_QUEUE = "hosts.packages";
 
 /** Images no container has used for this long are forgotten, with their findings. */
 const ORPHAN_AFTER_MS = 7 * 24 * 3600_000;
@@ -197,6 +198,77 @@ export async function matchKernel(job: { hostId: string }): Promise<void> {
 }
 
 /**
+ * Matches the packages installed on a host itself (systemd agent, ADR 0037) against the local vulnerability database and replaces the
+ * host's findings with the result. A list that changed while this ran is left for its own job.
+ */
+export async function matchHostPackages(job: { hostId: string }): Promise<void> {
+  const h = schema.agentHost;
+  const p = schema.hostPackageFinding;
+  const [host] = await db.select().from(h).where(eq(h.id, job.hostId)).limit(1);
+  if (!host?.hostPackages || !host.hostPackagesDigest || !(await moduleOn(host.organizationId))) return;
+  const now = new Date();
+  const dir = await mkdtemp(join(env.GARNETOPS_WORK_DIR, "host-packages-"));
+  try {
+    const types = new Map(host.hostPackages.map((x) => [x.name, x.type]));
+    const report = parseReport(
+      await matchPurls(
+        host.hostPackages.map((x) => x.purl),
+        dir,
+      ),
+      `host:${host.id}`,
+    );
+    addAdvisoryDates(report.vulnerabilities, env.GARNETOPS_GRYPE_DB_DIR);
+    await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ digest: h.hostPackagesDigest })
+        .from(h)
+        .where(eq(h.id, host.id))
+        .for("update");
+      if (current?.digest !== host.hostPackagesDigest) return;
+      await upsertVulnerabilities(tx, report.vulnerabilities.values(), now);
+      const findings = [...report.findings.values()];
+      await tx.delete(p).where(eq(p.hostId, host.id));
+      for (const f of findings) {
+        await tx
+          .insert(p)
+          .values({
+            id: newId("hpf"),
+            organizationId: host.organizationId,
+            hostId: host.id,
+            vulnerabilityId: f.vulnerabilityId,
+            packageName: f.packageName,
+            packageVersion: f.packageVersion,
+            packageType: types.get(f.packageName) ?? f.packageType,
+            fixedIn: f.fixedIn,
+            fixState: f.fixState,
+            severity: f.severity,
+            severityRank: f.severityRank,
+            firstSeenAt: now,
+            lastSeenAt: now,
+          })
+          .onConflictDoNothing();
+      }
+      await tx
+        .update(h)
+        .set({
+          hostPackagesMatchedAt: now,
+          hostPackagesMatchedDbBuilt: report.dbBuiltAt,
+          hostPackagesMatchError: null,
+        })
+        .where(eq(h.id, host.id));
+    });
+  } catch (error) {
+    console.error(`host packages match: ${(error as Error)?.name ?? "error"}`);
+    await db
+      .update(h)
+      .set({ hostPackagesMatchedAt: now, hostPackagesMatchError: "scanner-failed" })
+      .where(eq(h.id, host.id));
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
  * One tick (every hour): images whose last match used an older vulnerability database are matched again, nonces past their window
  * and images no host has run for a week are deleted, and organisations that switched the registry check on get it once a day.
  */
@@ -250,6 +322,24 @@ export async function hostsTick(boss: Pick<PgBoss, "send">): Promise<void> {
         retryLimit: 1,
         expireInSeconds: 1800,
         singletonKey: kernel.hostId,
+      });
+    }
+    const ownLists = await db
+      .select({ hostId: h.id })
+      .from(h)
+      .where(
+        and(
+          isNotNull(h.hostPackagesDigest),
+          inArray(h.organizationId, enabledOrganizations()),
+          or(isNull(h.hostPackagesMatchedDbBuilt), lt(h.hostPackagesMatchedDbBuilt, builtAt)),
+        ),
+      )
+      .limit(200);
+    for (const own of ownLists) {
+      await boss.send(HOST_PACKAGES_MATCH_QUEUE, own, {
+        retryLimit: 1,
+        expireInSeconds: 1800,
+        singletonKey: own.hostId,
       });
     }
   }
@@ -352,6 +442,7 @@ export async function startHosts(boss: PgBoss): Promise<void> {
   await boss.createQueue(HOSTS_TICK_QUEUE);
   await boss.createQueue(REGISTRY_CHECK_QUEUE);
   await boss.createQueue(KERNEL_MATCH_QUEUE);
+  await boss.createQueue(HOST_PACKAGES_MATCH_QUEUE);
   await boss.schedule(HOSTS_TICK_QUEUE, "17 * * * *", null, { tz: "UTC" });
   await boss.work(HOSTS_TICK_QUEUE, { batchSize: 1 }, async () => {
     await hostsTick(boss).catch((error: Error) => console.error("hosts tick:", error.name));
@@ -365,6 +456,9 @@ export async function startHosts(boss: PgBoss): Promise<void> {
   );
   await boss.work<{ hostId: string }>(KERNEL_MATCH_QUEUE, { batchSize: 1 }, async ([job]) => {
     if (job) await matchKernel(job.data);
+  });
+  await boss.work<{ hostId: string }>(HOST_PACKAGES_MATCH_QUEUE, { batchSize: 1 }, async ([job]) => {
+    if (job) await matchHostPackages(job.data);
   });
   await boss.work<{ organizationId: string }>(REGISTRY_CHECK_QUEUE, { batchSize: 1 }, async ([job]) => {
     if (job)

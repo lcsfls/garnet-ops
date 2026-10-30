@@ -11,7 +11,7 @@
   import Badge from "#lib/components/ui/Badge.svelte";
   import Button from "#lib/components/ui/Button.svelte";
   import { formatDateTime, formatRelative } from "#lib/format.ts";
-  import { type HostRow, kernelState } from "#lib/hosts.ts";
+  import { type HostRow, hostOpen, kernelState } from "#lib/hosts.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
   import { rowClick } from "#lib/row-link.ts";
@@ -134,7 +134,7 @@
             </td>
             <td class="px-3 py-3 text-right tabular-nums">{host.containers}</td>
             <td class="hidden px-3 py-3 text-right tabular-nums @3xl:table-cell">{host.images}</td>
-            <td class="px-3 py-3"><OpenCounts open={host.open} /></td>
+            <td class="px-3 py-3"><OpenCounts open={hostOpen(host)} /></td>
             <td class="px-3 py-3 text-sm">
               {#if kernelAffected(host)}
                 <Badge tone="high"><TriangleAlert aria-hidden="true" />{t("hosts.kernelAffectedShort")}</Badge>
@@ -148,7 +148,10 @@
             <td class="hidden px-3 py-3 text-sm @wide:table-cell">{#if host.updatesAvailable > 0}{t("hosts.updatesCount", { count: host.updatesAvailable })}{:else}<span
                   class="text-muted-foreground">–</span
                 >{/if}</td>
-            <td class="hidden px-3 py-3 font-mono text-sm @wide:table-cell">{host.agentVersion ?? "–"}</td>
+            <td class="hidden px-3 py-3 font-mono text-sm @wide:table-cell">
+              {host.agentVersion ?? "–"}
+              {#if host.runtime === "systemd"}<div class="font-sans text-xs text-muted-foreground">{t("hosts.runtimeSystemdShort")}</div>{/if}
+            </td>
             <td class="hidden px-5 py-3 text-sm @3xl:table-cell">
               {#if host.lastInventoryAt}
                 <time datetime={host.lastInventoryAt} title={formatDateTime(host.lastInventoryAt)}>

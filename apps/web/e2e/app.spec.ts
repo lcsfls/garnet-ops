@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -3098,6 +3098,117 @@ test.describe("hosts and containers (ADR 0034)", () => {
     for (const label of ["Host enrolment code created", "Host added by its agent", "Host removed"]) {
       await expect(page.getByText(label).first()).toBeVisible();
     }
+    expect(problems).toEqual([]);
+  });
+
+  /**
+   * A host without Docker (ADR 0037): the real Go agent, built with the e2e tag (plain HTTP to the test server, a fake root file
+   * system), enrols with the code from the dialog and reports its kernel and its dpkg packages. Skipped where Go is not installed.
+   */
+  test("a host without Docker: the systemd agent enrols, reports kernel and packages, and sends them again only when they change", async ({
+    page,
+  }) => {
+    const go = ["/usr/local/go/bin/go", "/usr/bin/go"].find((p) => existsSync(p));
+    test.skip(!go, "Go is not installed");
+    const problems = watchForProblems(page);
+    const nav = page.getByRole("navigation", { name: "Main navigation" });
+    await page.goto("/hosts");
+    await nav.getByRole("link", { name: "Add agent" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add an agent" });
+    await dialog.getByLabel("Name of the host").fill("Db 1");
+    await dialog.getByLabel(/systemd service, without Docker/).check();
+    await dialog.getByRole("button", { name: "Create the code" }).click();
+    const commands = page.getByTestId("host-compose");
+    await expect(commands).toContainText(
+      `curl -fsSLo garnetops-agent-install.sh ${E2E.publicUrl}/api/v1/agent/install.sh`,
+    );
+    await expect(commands).toContainText("GARNETOPS_HOST_NAME='Db 1' sh garnetops-agent-install.sh");
+    const code = /GARNETOPS_ENROLMENT_CODE='(goe_[A-Za-z0-9_-]{43})'/.exec(
+      (await commands.textContent()) ?? "",
+    )?.[1];
+    expect(code).toBeTruthy();
+    await page.getByRole("button", { name: "Done" }).click();
+    const script = await page.request.get("/api/v1/agent/install.sh");
+    expect(await script.text()).toContain("systemctl enable --now garnetops-agent.service");
+
+    // The host: Debian 12 with two packages, and its kernel.
+    const root = join(work, "host-root");
+    const file = (path: string, text: string) => {
+      mkdirSync(join(root, path, ".."), { recursive: true });
+      writeFileSync(join(root, path), text);
+    };
+    file("etc/os-release", 'PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"\nID=debian\nVERSION_ID="12"\n');
+    file("proc/sys/kernel/osrelease", "6.1.0-26-amd64\n");
+    file(
+      "proc/version",
+      "Linux version 6.1.0-26-amd64 (debian-kernel@lists.debian.org) #1 SMP PREEMPT_DYNAMIC Debian 6.1.112-1 (2024-09-30)\n",
+    );
+    const dpkg = (extra = "") =>
+      file(
+        "var/lib/dpkg/status",
+        `Package: openssl\nStatus: install ok installed\nArchitecture: amd64\nVersion: 3.0.14-1~deb12u1\n\nPackage: bash\nStatus: install ok installed\nArchitecture: amd64\nVersion: 5.2.15-2+b7\n${extra}`,
+      );
+    dpkg();
+    const binary = join(work, "garnetops-agent-e2e");
+    await new Promise<void>((resolve, reject) =>
+      execFile(
+        go as string,
+        ["build", "-tags", "e2e", "-o", binary, "."],
+        {
+          cwd: fileURLToPath(new URL("../../host-agent/", import.meta.url)),
+          env: { ...process.env, CGO_ENABLED: "0" },
+        },
+        (error) => (error ? reject(error) : resolve()),
+      ),
+    );
+    const run = () =>
+      new Promise<{ ok: boolean; output: string }>((resolve) =>
+        execFile(
+          binary,
+          ["once"],
+          {
+            env: {
+              GARNETOPS_URL: E2E.publicUrl,
+              GARNETOPS_ENROLMENT_CODE: code as string,
+              GARNETOPS_STATE_DIR: join(work, "systemd-state"),
+              GARNETOPS_TEST_ROOT: root,
+              GARNETOPS_HOST_NAME: "db-01.example.lan",
+            },
+            timeout: 60_000,
+          },
+          (error, stdout, stderr) => resolve({ ok: !error, output: `${stdout}${stderr}` }),
+        ),
+      );
+    const first = await run();
+    expect(first.output).toContain("reported, 2 packages sent");
+    expect(first.ok).toBe(true);
+    expect((await run()).output).toContain("package list unchanged");
+    dpkg("\nPackage: curl\nStatus: install ok installed\nArchitecture: amd64\nVersion: 7.88.1-10+deb12u8\n");
+    expect((await run()).output).toContain("reported, 3 packages sent");
+    const [host] = await sql<{ id: string; runtime: string; n: number; kernel: string }>(
+      "select id, runtime, jsonb_array_length(host_packages) as n, kernel_package->>'purl' as kernel from agent_host where hostname = 'db-01.example.lan'",
+    );
+    expect(host).toMatchObject({ runtime: "systemd", n: 3 });
+    expect(host?.kernel).toContain("pkg:deb/debian/linux-image-6.1.0-26-amd64@6.1.112-1");
+
+    // No worker matches here: the finding is written as the worker would.
+    await sql(
+      "insert into vulnerability (id, severity) values ('CVE-2026-0101', 'high') on conflict do nothing",
+    );
+    await sql(
+      "insert into host_package_finding (id, organization_id, host_id, vulnerability_id, package_name, package_version, package_type, severity, severity_rank, first_seen_at, last_seen_at) select 'hpf_e2e', organization_id, id, 'CVE-2026-0101', 'openssl', '3.0.14-1~deb12u1', 'deb', 'high', 4, now(), now() from agent_host where id = $1",
+      [host?.id],
+    );
+    await sql("update agent_host set host_packages_matched_at = now() where id = $1", [host?.id]);
+    await page.goto("/hosts");
+    const row = page.locator('tr[data-host="Db 1"]');
+    await expect(row).toContainText("systemd service");
+    await row.getByRole("link", { name: "Db 1" }).click();
+    const card = page.getByTestId("host-packages");
+    await expect(card).toContainText("debian 12");
+    await expect(card).toContainText("Affected by 1 known vulnerability");
+    await expect(page.getByTestId("host-package-findings")).toContainText("openssl 3.0.14-1~deb12u1");
+    await expect(nav.getByRole("link", { name: /^Agents, 1 needs attention$/ })).toBeVisible();
     expect(problems).toEqual([]);
   });
 });

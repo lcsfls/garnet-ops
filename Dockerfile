@@ -10,11 +10,15 @@
 #   --target agent the host agent (ADR 0034): the read-only Docker proxy and the reporter,
 #                  with syft; it runs on the customer's hosts, not in this stack
 #
+# The app image also carries the systemd host agent (ADR 0037, Go, apps/host-agent) for
+# linux/amd64 and linux/arm64, which the API hands out to hosts without Docker.
+#
 # Base images are pinned by digest (AGENTS.md rule 1). The build argument VERSION is
 # the release version; it is baked in as APP_VERSION and the image's version label.
 
 ARG NODE_IMAGE=node:24.22.1-alpine3.24@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d
 ARG CADDY_IMAGE=caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+ARG GO_IMAGE=golang:1.24.7-alpine3.22@sha256:fc2cff6625f3c1c92e6c85938ac5bd09034ad0d4bc2dfb08278020b68540dbb5
 
 # ---------------------------------------------------------------- dependencies
 FROM ${NODE_IMAGE} AS deps
@@ -65,6 +69,16 @@ RUN mkdir -p /opt/scanners \
  && cp .tools/grype/LICENSE /opt/scanners/LICENSE.grype \
  && cp .tools/syft/LICENSE /opt/scanners/LICENSE.syft
 
+# ---------------------------------------------------------------- systemd host agent (Go)
+# Go cross-compiles, so the build runs on the build machine's own platform and makes both targets.
+# Standard library only: nothing is downloaded (GOTOOLCHAIN=local, no modules).
+FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS host-agent
+ARG VERSION=0.0.12
+WORKDIR /src
+COPY apps/host-agent/ ./
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-trimpath
+RUN go vet ./... && go test ./...  && for arch in amd64 arm64; do       GOOS=linux GOARCH=$arch go build -ldflags "-s -w -X main.version=${VERSION}"         -o /out/garnetops-agent-linux-$arch . ;     done  && cp /usr/local/go/LICENSE /out/LICENSE.go
+
 # ---------------------------------------------------------------- app: API and worker
 FROM ${NODE_IMAGE} AS app
 ARG VERSION=0.0.12
@@ -75,6 +89,7 @@ RUN apk add --no-cache git openssh-client \
       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 COPY --from=prod /src /app
 COPY --from=scanners /opt/scanners /opt/scanners
+COPY --from=host-agent /out /opt/garnetops/agent
 WORKDIR /app
 ENV NODE_ENV=production \
     APP_VERSION=${VERSION} \

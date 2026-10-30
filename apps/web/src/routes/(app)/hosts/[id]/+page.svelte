@@ -4,6 +4,7 @@
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
   import CardHeader from "#lib/components/CardHeader.svelte";
+  import HostPackagesCard from "#lib/components/hosts/HostPackagesCard.svelte";
   import KernelCard from "#lib/components/hosts/KernelCard.svelte";
   import OpenCounts from "#lib/components/hosts/OpenCounts.svelte";
   import UpdateBadge from "#lib/components/hosts/UpdateBadge.svelte";
@@ -85,7 +86,11 @@
           { label: t("hosts.hostname"), text: host.hostname, mono: true },
           { label: t("hosts.os"), text: host.os },
           { label: t("hosts.dockerVersion"), text: host.dockerVersion },
-          { label: t("hosts.agentVersion"), text: host.agentVersion },
+          {
+            label: t("hosts.agentVersion"),
+            text: host.agentVersion,
+            note: host.runtime === "systemd" ? t("hosts.runtimeSystemdShort") : null,
+          },
           { label: t("hosts.enrolledAt"), text: when(host.enrolledAt) },
           {
             label: t("hosts.lastReport"),
@@ -96,6 +101,7 @@
       />
     </Card>
     <KernelCard kernel={host.kernel} />
+    {#if host.runtime === "systemd" || host.hostPackages.count !== null}<HostPackagesCard packages={host.hostPackages} />{/if}
     </div>
 
     <Card>

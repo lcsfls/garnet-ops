@@ -76,6 +76,34 @@ async function kernelCounts(organizationId: string): Promise<Map<string, Counts 
   return map;
 }
 
+/** Open vulnerabilities per severity of the packages installed on each host itself (systemd agent, ADR 0037). */
+async function hostPackageCounts(organizationId: string): Promise<Map<string, Counts>> {
+  const p = schema.hostPackageFinding;
+  const rows = await db
+    .select({ hostId: p.hostId, severity: p.severity, n: sql<number>`count(*)::int` })
+    .from(p)
+    .where(eq(p.organizationId, organizationId))
+    .groupBy(p.hostId, p.severity);
+  const map = new Map<string, Counts>();
+  for (const row of rows) {
+    const counts = map.get(row.hostId) ?? emptyCounts();
+    if (row.severity in counts) counts[row.severity as keyof Counts] += row.n;
+    map.set(row.hostId, counts);
+  }
+  return map;
+}
+
+/** What the page says about the packages of the host itself: how many, from which distribution, when matched. */
+function hostPackagesSummary(host: typeof h.$inferSelect) {
+  return {
+    count: host.hostPackages?.length ?? null,
+    distro: host.hostPackagesDistro,
+    reportedAt: host.hostPackagesAt,
+    matchedAt: host.hostPackagesMatchedAt,
+    matchError: host.hostPackagesMatchError,
+  };
+}
+
 /** What the page says about a host's kernel: what runs, whether it could be checked, and when. */
 function kernelSummary(host: typeof h.$inferSelect) {
   return {
@@ -167,6 +195,7 @@ export const hostRoutes = new Hono<AppEnv>()
     const imageIds = [...new Set(containers.map((x) => x.imageId))];
     const counts = await countsByImage(actor.organizationId, imageIds);
     const kernels = await kernelCounts(actor.organizationId);
+    const ownPackages = await hostPackageCounts(actor.organizationId);
     const images = imageIds.length
       ? await db
           .select({ imageId: ci.imageId, digests: ci.digests })
@@ -203,9 +232,11 @@ export const hostRoutes = new Hono<AppEnv>()
           lastSeenAt: host.lastSeenAt,
           lastInventoryAt: host.lastInventoryAt,
           reporting: Boolean(host.lastInventoryAt && now - host.lastInventoryAt.getTime() < STALE_AFTER_MS),
+          runtime: host.runtime,
           containers: mine.length,
           images: new Set(mine.map((x) => x.imageId)).size,
           open,
+          hostPackages: { ...hostPackagesSummary(host), open: ownPackages.get(host.id) ?? emptyCounts() },
           updatesAvailable,
           kernel: { ...kernelSummary(host), open: kernels.get(host.id) ?? { ...emptyCounts(), total: 0 } },
         };
@@ -439,7 +470,8 @@ export const hostRoutes = new Hono<AppEnv>()
     const org = actor.organizationId;
     const k = schema.hostKernelFinding;
     const serious = ["critical", "high"];
-    const [hosts, images, kernels] = await Promise.all([
+    const own = schema.hostPackageFinding;
+    const [hosts, images, kernels, ownPackages] = await Promise.all([
       db.select({ id: h.id, lastInventoryAt: h.lastInventoryAt }).from(h).where(eq(h.organizationId, org)),
       db
         .selectDistinct({ hostId: hc.hostId, severity: cf.severity })
@@ -450,6 +482,10 @@ export const hostRoutes = new Hono<AppEnv>()
         .selectDistinct({ hostId: k.hostId, severity: k.severity })
         .from(k)
         .where(and(eq(k.organizationId, org), inArray(k.severity, serious))),
+      db
+        .selectDistinct({ hostId: own.hostId, severity: own.severity })
+        .from(own)
+        .where(and(eq(own.organizationId, org), inArray(own.severity, serious))),
     ]);
     const now = Date.now();
     const flagged = new Set(
@@ -459,7 +495,7 @@ export const hostRoutes = new Hono<AppEnv>()
     );
     const known = new Set(hosts.map((x) => x.id));
     let worst: "critical" | "high" | null = null;
-    for (const row of [...images, ...kernels]) {
+    for (const row of [...images, ...kernels, ...ownPackages]) {
       if (!known.has(row.hostId)) continue;
       flagged.add(row.hostId);
       if (row.severity === "critical") worst = "critical";
@@ -516,6 +552,36 @@ export const hostRoutes = new Hono<AppEnv>()
       reporting: Boolean(
         host.lastInventoryAt && Date.now() - host.lastInventoryAt.getTime() < STALE_AFTER_MS,
       ),
+      runtime: host.runtime,
+      hostPackages: {
+        ...hostPackagesSummary(host),
+        findings: await db
+          .select({
+            id: schema.hostPackageFinding.id,
+            vulnerabilityId: schema.hostPackageFinding.vulnerabilityId,
+            packageName: schema.hostPackageFinding.packageName,
+            packageVersion: schema.hostPackageFinding.packageVersion,
+            packageType: schema.hostPackageFinding.packageType,
+            fixedIn: schema.hostPackageFinding.fixedIn,
+            fixState: schema.hostPackageFinding.fixState,
+            severity: schema.hostPackageFinding.severity,
+            severityRank: schema.hostPackageFinding.severityRank,
+            firstSeenAt: schema.hostPackageFinding.firstSeenAt,
+            cvssScore: schema.vulnerability.cvssScore,
+            knownExploited: schema.vulnerability.knownExploited,
+          })
+          .from(schema.hostPackageFinding)
+          .innerJoin(
+            schema.vulnerability,
+            eq(schema.vulnerability.id, schema.hostPackageFinding.vulnerabilityId),
+          )
+          .where(eq(schema.hostPackageFinding.hostId, host.id))
+          .orderBy(
+            desc(schema.hostPackageFinding.severityRank),
+            asc(schema.hostPackageFinding.vulnerabilityId),
+          )
+          .limit(2000),
+      },
       kernel: {
         ...kernelSummary(host),
         findings: await db

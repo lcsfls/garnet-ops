@@ -25,6 +25,8 @@ const schema = z.object({
     .refine((v) => v === "" || /^https?:\/\/[^\s/]+/.test(v), "UPDATER_URL must be an http(s) URL or empty"),
   /** The sidecar's shared token, mounted read-only into the API container only. */
   UPDATER_TOKEN_FILE: z.string().min(1).default("/run/cicd-updater/token"),
+  /** The built systemd host agents (ADR 0037), served to hosts for installation: garnetops-agent-linux-{amd64,arm64}. */
+  AGENT_BINARIES_DIR: z.string().min(1).default("/opt/garnetops/agent"),
 });
 
 const parsed = schema.safeParse(process.env);

@@ -19,6 +19,13 @@ Security-relevant changes are listed under **Security** in every release.
   control, registry checks and Certificate Transparency. Both are asked at once and the first clear answer counts, so a slow local
   resolver no longer makes checks fail. Off by default.
 - API: `GET` and `PUT /api/v1/organization/dns`.
+- **Host agent without Docker** ([ADR 0037](docs/adr/0037-systemd-host-agent.md), [docs](docs/hosts.md)): a small Go program
+  (about 6 MB) that runs as a hardened systemd service and reports the host's kernel and its installed packages (dpkg, rpm, apk).
+  GarnetOps matches them against the local vulnerability database; the host page shows **Packages on the host**. Add agent offers
+  "systemd service, without Docker" with three commands; the install script and the binaries come from the GarnetOps installation
+  itself, so it works without internet access.
+- API: `GET /api/v1/agent/install.sh`, `GET /api/v1/agent/download/{target}`, `POST /api/v1/agent/host-packages`; `runtime` and
+  `hostPackages` in `GET /api/v1/hosts` and `GET /api/v1/hosts/{id}`.
 - **DNSSEC monitoring** for websites ([ADR 0036](docs/adr/0036-dnssec-monitoring.md)): the DS records at the parent, the zone's
   keys and the signatures over keys and SOA, asked of the name servers and checked by GarnetOps itself. Findings for a broken chain
   (high), signatures that run out within a day, a zone without DS at the parent, outdated algorithms, SHA-1-only DS records and
@@ -33,6 +40,8 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Security
 
+- The systemd agent runs as an unprivileged user under a strict systemd sandbox, holds no Docker socket and only reads. The install
+  script checks the binary's SHA-256 and takes the one-time code from the environment, never from a URL.
 - Choosing a public DNS provider sends the names these checks look up to it: off by default, an owner or admin with a recent
   sign-in and an acknowledgement, audited. Internal names are never asked there, and every answer still passes the address policy.
 

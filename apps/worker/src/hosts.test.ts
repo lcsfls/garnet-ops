@@ -274,6 +274,39 @@ describe.skipIf(!adminUrl || !openssl)("hosts and containers in the worker", () 
     expect(host?.kernelMatchedDbBuilt?.toISOString()).toBe("2026-10-29T04:00:00.000Z");
   });
 
+  it("matches the packages of the host itself (systemd agent) and replaces the findings with each new list", async () => {
+    const list = [
+      {
+        name: "openssl",
+        version: "3.0.11-1",
+        type: "deb",
+        purl: "pkg:deb/debian/openssl@3.0.11-1?distro=debian-12",
+      },
+    ];
+    await t.db
+      .update(schema.agentHost)
+      .set({ hostPackages: list, hostPackagesDigest: "a".repeat(64) })
+      .where(eq(schema.agentHost.id, "hst_one"));
+    writeFileSync(join(work, "report.json"), JSON.stringify(report(["CVE-2026-0001", "CVE-2026-0002"])));
+    await hosts.matchHostPackages({ hostId: "hst_one" });
+    const own = () => t.db.select().from(schema.hostPackageFinding);
+    expect((await own()).map((f) => [f.vulnerabilityId, f.packageName, f.packageType]).sort()).toEqual([
+      ["CVE-2026-0001", "openssl", "deb"],
+      ["CVE-2026-0002", "openssl", "deb"],
+    ]);
+    const [host] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, "hst_one"));
+    expect(host?.hostPackagesMatchedDbBuilt?.toISOString()).toBe("2026-10-29T04:00:00.000Z");
+    // After an update on the host, one is gone.
+    writeFileSync(join(work, "report.json"), JSON.stringify(report(["CVE-2026-0001"])));
+    await t.db
+      .update(schema.agentHost)
+      .set({ hostPackagesDigest: "b".repeat(64) })
+      .where(eq(schema.agentHost.id, "hst_one"));
+    await hosts.matchHostPackages({ hostId: "hst_one" });
+    expect((await own()).map((f) => f.vulnerabilityId)).toEqual(["CVE-2026-0001"]);
+    await t.db.delete(schema.hostPackageFinding);
+  });
+
   it("matches nothing while the module is off", async () => {
     await t.db.update(schema.hostSettings).set({ enabled: false });
     writeFileSync(join(work, "report.json"), JSON.stringify(report(["CVE-2026-0001", "CVE-2026-0003"])));

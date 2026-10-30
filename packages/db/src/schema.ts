@@ -2964,6 +2964,20 @@ export const agentHost = pgTable(
     kernelMatchedAt: timestamp("kernel_matched_at", { withTimezone: true }),
     kernelMatchedDbBuilt: timestamp("kernel_matched_db_built", { withTimezone: true }),
     kernelMatchError: text("kernel_match_error"),
+    /** How the agent runs: "container" (Compose, ADR 0034) or "systemd" (no Docker, ADR 0037). Null for agents before 0.0.13. */
+    runtime: text("runtime"),
+    /**
+     * The packages installed on the host itself (systemd agent, ADR 0037), as package URLs. Replaced whenever the host's list changes;
+     * `hostPackagesDigest` is the SHA-256 the agent computes over its sorted package URLs, so an unchanged list is not sent again.
+     */
+    hostPackages:
+      jsonb("host_packages").$type<{ name: string; version: string; type: string; purl: string }[]>(),
+    hostPackagesDigest: text("host_packages_digest"),
+    hostPackagesDistro: text("host_packages_distro"),
+    hostPackagesAt: timestamp("host_packages_at", { withTimezone: true }),
+    hostPackagesMatchedAt: timestamp("host_packages_matched_at", { withTimezone: true }),
+    hostPackagesMatchedDbBuilt: timestamp("host_packages_matched_db_built", { withTimezone: true }),
+    hostPackagesMatchError: text("host_packages_match_error"),
     createdAt: createdAt(),
   },
   (t) => [index("agent_host_org_idx").on(t.organizationId, t.name)],
@@ -2995,6 +3009,36 @@ export const hostKernelFinding = pgTable(
   (t) => [
     uniqueIndex("host_kernel_finding_uq").on(t.hostId, t.vulnerabilityId, t.packageName),
     index("host_kernel_finding_org_idx").on(t.organizationId, t.hostId, t.severityRank),
+  ],
+);
+
+/** A vulnerability of a package installed on a host itself (systemd agent, ADR 0037). Replaced by every match. */
+export const hostPackageFinding = pgTable(
+  "host_package_finding",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    hostId: text("host_id")
+      .notNull()
+      .references(() => agentHost.id, { onDelete: "cascade" }),
+    vulnerabilityId: text("vulnerability_id")
+      .notNull()
+      .references(() => vulnerability.id),
+    packageName: text("package_name").notNull(),
+    packageVersion: text("package_version").notNull(),
+    packageType: text("package_type").notNull(),
+    fixedIn: jsonb("fixed_in").$type<string[]>(),
+    fixState: text("fix_state"),
+    severity: text("severity").notNull(),
+    severityRank: integer("severity_rank").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("host_package_finding_uq").on(t.hostId, t.vulnerabilityId, t.packageName),
+    index("host_package_finding_org_idx").on(t.organizationId, t.hostId, t.severityRank),
   ],
 );
 
