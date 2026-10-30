@@ -260,6 +260,13 @@
       "when": 1793391327745,
       "tag": "0036_fix_pr_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793397070581,
+      "tag": "0037_runtime_early_warnings",
+      "breakpoints": true
     }
   ]
 }

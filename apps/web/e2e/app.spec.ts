@@ -3234,6 +3234,28 @@ test.describe("hosts and containers (ADR 0034)", () => {
     await expect(card).toContainText("Affected by 1 known vulnerability");
     await expect(page.getByTestId("host-package-findings")).toContainText("openssl 3.0.14-1~deb12u1");
     await expect(nav.getByRole("link", { name: /^Agents, 1 needs attention$/ })).toBeVisible();
+
+    // A newer database brought the advisory, and the host runs a release past its end (ADR 0041), as the worker would record it.
+    await sql(
+      "insert into runtime_early_warning (id, organization_id, kind, subject_id, host_id, vulnerability_id, package_name, package_version, package_type, severity, severity_rank) select 'rew_e2e', organization_id, 'packages', id, id, 'CVE-2026-0101', 'openssl', '3.0.14-1~deb12u1', 'deb', 'high', 4 from agent_host where id = $1",
+      [host?.id],
+    );
+    await sql("update agent_host set host_packages_distro = 'debian 11' where id = $1", [host?.id]);
+    await page.goto("/early-warnings");
+    await page
+      .getByRole("group", { name: "Early warnings for" })
+      .getByRole("button", { name: "Hosts and containers" })
+      .click();
+    await expect(page).toHaveURL(/source=hosts/);
+    const warning = page.getByTestId("early-warning-host");
+    await expect(warning).toHaveCount(1);
+    await expect(warning).toContainText("CVE-2026-0101");
+    await expect(warning).toContainText("Db 1");
+    await expect(warning).toContainText("Host packages");
+    const distributions = page.getByTestId("early-warnings-distributions");
+    await expect(distributions).toContainText("Debian 11");
+    await expect(distributions).toContainText("No regular security updates");
+    await sql("delete from runtime_early_warning");
     expect(problems).toEqual([]);
   });
 });

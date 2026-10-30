@@ -296,8 +296,12 @@ export const pullRequestSearch = z.object({
 });
 export type PullRequestSearch = z.infer<typeof pullRequestSearch>;
 
-/** Early warnings (ADR 0029): open ones, or the ones a scan closed in the last 30 days. */
+/**
+ * Early warnings (ADR 0029, 0041): open ones, or the ones closed in the last 30 days; for repositories (the default), for what runs
+ * on hosts, or for websites.
+ */
 export const earlyWarningSearch = z.object({
+  source: z.enum(["hosts", "websites"]).optional().catch(undefined),
   state: z.enum(["open", "closed"]).optional().catch(undefined),
   repositoryId: text(40),
 });

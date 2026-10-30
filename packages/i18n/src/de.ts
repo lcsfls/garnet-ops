@@ -157,6 +157,7 @@ export const de: Messages = {
       groups: {
         code: "Code",
         websites: "Websites",
+        hosts: "Hosts und Container",
         account: "Konto und Team",
         system: "System",
       },
@@ -200,6 +201,10 @@ export const de: Messages = {
         exposureDown: {
           label: "Eine Website ist nicht erreichbar oder wieder da",
           hint: "Die Erreichbarkeitsprüfung ist dreimal hintereinander gescheitert oder nach einem Ausfall wieder gelungen.",
+        },
+        hostsNewAdvisory: {
+          label: "Eine neue Sicherheitsmeldung betrifft einen laufenden Container oder Host",
+          hint: "Eine neuere Schwachstellen-Datenbank hat Meldungen für Pakete gebracht, die schon laufen. Sie sind sofort Befunde.",
         },
         infraCertificateChanged: {
           label: "Das Zertifikat eines Verzeichnisservers hat sich geändert",
@@ -2282,6 +2287,40 @@ export const de: Messages = {
       "{count, plural, one {# Frühwarnung wurde} other {# Frühwarnungen wurden}} in den letzten 30 Tagen von Scans bestätigt oder aufgelöst: siehe Geschlossen. Ein Scan nach dem Datenbank-Update beantwortet sie schnell.",
     truncated: "Es werden die ersten 500 angezeigt.",
     hint: "Frühwarnungen ändern weder Funde noch Noten oder Quality Gates. Zu Funden werden sie erst, wenn ein Scan sie bestätigt.",
+    sourceLabel: "Frühwarnungen für",
+    source: {
+      repositories: "Repositories",
+      hosts: "Hosts und Container",
+      websites: "Websites",
+    },
+    columnRunsOn: "Läuft auf",
+    columnWebsite: "Website",
+    columnSoftware: "Software",
+    columnEnds: "Sicherheitsupdates enden",
+    subjectKind: {
+      image: "Container-Image",
+      kernel: "Laufender Kernel",
+      packages: "Host-Pakete",
+      host: "Host",
+    },
+    hostsHint:
+      "Sicherheitsmeldungen, die eine neuere Schwachstellen-Datenbank für bereits laufende Images und Hosts gebracht hat. Laufende Software braucht keinen Scan: Sie sind sofort Befunde des Images oder Hosts.",
+    hostCleared: "Nicht mehr gefunden",
+    hostsEmptyOpen:
+      "Keine neuen Sicherheitsmeldungen für laufende Software. Nach jeder Aktualisierung der Schwachstellen-Datenbank gleicht GarnetOps die laufenden Images und Host-Pakete erneut ab.",
+    hostsEmptyClosed: "In den letzten 30 Tagen wurde keine Frühwarnung für Hosts oder Container geschlossen.",
+    hostsClosedRecently:
+      "{count, plural, one {# Frühwarnung wurde} other {# Frühwarnungen wurden}} in den letzten 30 Tagen geschlossen, weil sich das Image oder Paket geändert hat: siehe Geschlossen.",
+    distributionsTitle: "Distributionen kurz vor oder nach dem Supportende",
+    distributionsText:
+      "Hosts und Images, deren Distributions-Release keine regulären Sicherheitsupdates mehr bekommt oder innerhalb von 90 Tagen keine mehr bekommt. Aus den End-of-Life-Daten, die mit GarnetOps ausgeliefert werden.",
+    distributionEnded: "Keine regulären Sicherheitsupdates",
+    distributionEndedOn: "seit {date}",
+    distributionEndsIn: "{days, plural, one {Endet in # Tag} other {Endet in # Tagen}}",
+    websitesHint:
+      "Software, die eine Website nennt und deren Release-Reihe innerhalb von 90 Tagen endet. Planen Sie das Upgrade jetzt; nach dem Ende der Reihe wird sie zum Befund der Website.",
+    websitesEmpty: "Keine Website nennt Software, deren Release-Reihe in den nächsten 90 Tagen endet.",
+    line: "Reihe {cycle}",
   },
   packages: {
     title: "Pakete",
@@ -3761,6 +3800,10 @@ export const de: Messages = {
       exposureRiskyService: {
         title: "Riskanter Dienst erreichbar: {asset}",
         text: "{service} antwortet auf Port {port}. Riskante Ports insgesamt: {count}.",
+      },
+      hostsNewAdvisory: {
+        title: "Neue Sicherheitsmeldungen für {subject}",
+        text: "Die neuere Schwachstellen-Datenbank hat {count} Meldungen für das gebracht, was dort schon läuft.",
       },
       exposureDown: {
         title: "Website nicht erreichbar: {asset}",

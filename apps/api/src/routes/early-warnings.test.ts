@@ -196,6 +196,136 @@ describe.skipIf(!adminUrl)("early warnings API", () => {
     expect(JSON.stringify(after)).not.toContain('"packages":9');
   });
 
+  it("lists what a newer database brought for running hosts and images, and distributions near or past their end (ADR 0041)", async () => {
+    expect((await get("/api/v1/early-warnings/hosts")).json).toMatchObject({ enabled: false, items: [] });
+    await t.db.insert(schema.hostSettings).values([
+      { organizationId: ORG, enabled: true },
+      { organizationId: OTHER, enabled: true },
+    ]);
+    await t.db.insert(schema.agentHost).values([
+      {
+        id: "hst_ew_a",
+        organizationId: ORG,
+        name: "web-1",
+        hostname: "web-1.example.lan",
+        publicKey: "k".repeat(43),
+        enrolledAt: new Date(),
+        // Debian 11 lost regular security support on 2026-08-31.
+        hostPackagesDistro: "debian 11",
+      },
+      {
+        id: "hst_ew_b",
+        organizationId: OTHER,
+        name: "theirs",
+        hostname: "theirs.example.lan",
+        publicKey: "k".repeat(43),
+        enrolledAt: new Date(),
+        hostPackagesDistro: "debian 11",
+      },
+    ]);
+    await t.db.insert(schema.containerImage).values({
+      organizationId: ORG,
+      imageId: "b".repeat(64),
+      tags: ["nginx:1.27"],
+      distro: "debian 13",
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+    });
+    const runtime = (
+      id: string,
+      organizationId: string,
+      hostId: string,
+      state: "open" | "cleared" = "open",
+    ) => ({
+      id,
+      organizationId,
+      kind: "kernel" as const,
+      subjectId: hostId,
+      hostId,
+      vulnerabilityId: "GHSA-ew-crit",
+      packageName: `linux-${id}`,
+      packageVersion: "6.1.0",
+      packageType: "deb",
+      severity: "critical",
+      severityRank: 5,
+      state,
+      ...(state === "cleared" ? { closedAt: new Date() } : {}),
+    });
+    await t.db
+      .insert(schema.runtimeEarlyWarning)
+      .values([
+        runtime("rew_a", ORG, "hst_ew_a"),
+        runtime("rew_closed", ORG, "hst_ew_a", "cleared"),
+        runtime("rew_b", OTHER, "hst_ew_b"),
+      ]);
+    const r = (await get("/api/v1/early-warnings/hosts")).json;
+    expect(r.items.map((x: Json) => [x.id, x.kind, x.subjectName, x.knownExploited])).toEqual([
+      ["rew_a", "kernel", "web-1", true],
+    ]);
+    expect(r.closedRecently).toBe(1);
+    expect(r.distributions).toHaveLength(1);
+    expect(r.distributions[0]).toMatchObject({
+      kind: "host",
+      id: "hst_ew_a",
+      name: "web-1",
+      distribution: { name: "Debian", cycle: "11", status: "endOfLife" },
+    });
+    expect(
+      (await get("/api/v1/early-warnings/hosts?state=closed")).json.items.map((x: Json) => x.id),
+    ).toEqual(["rew_closed"]);
+    expect(JSON.stringify((await get("/api/v1/early-warnings/hosts")).json)).not.toContain("theirs");
+  });
+
+  it("lists website software whose line ends within 90 days (ADR 0041)", async () => {
+    expect((await get("/api/v1/early-warnings/websites")).json).toEqual({ enabled: false, items: [] });
+    await t.db.insert(schema.exposureSettings).values({ organizationId: ORG, enabled: true });
+    const { EOL_DATA } = await import("@garnetops/core/eol-data");
+    const line = EOL_DATA.php?.find((c) => typeof c.eol === "string" && c.latest) as {
+      cycle: string;
+      eol: string;
+      latest: string;
+    };
+    await t.db.insert(schema.exposureAsset).values({
+      id: "exa_ew_a",
+      organizationId: ORG,
+      kind: "domain",
+      value: "shop.example.com",
+      verifyToken: "T".repeat(43),
+      passive: {
+        http: {
+          status: 200,
+          headers: { "x-powered-by": `PHP/${line.latest}` },
+          generators: [],
+          url: "https://shop.example.com/",
+          finalUrl: null,
+          address: null,
+          redirects: [],
+          error: null,
+        },
+      },
+    });
+    // Thirty days before the line ends.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.parse(`${line.eol}T00:00:00Z`) - 30 * 86_400_000));
+    try {
+      const r = (await get("/api/v1/early-warnings/websites")).json;
+      expect(r.items).toEqual([
+        {
+          assetId: "exa_ew_a",
+          asset: "shop.example.com",
+          name: "PHP",
+          version: line.latest,
+          cycle: line.cycle,
+          eol: line.eol,
+        },
+      ]);
+      // Another organisation does not see it.
+      expect((await get("/api/v1/early-warnings/websites", OTHER)).json.items).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("refuses an unknown state", async () => {
     expect((await get("/api/v1/early-warnings?state=all")).status).toBe(422);
   });

@@ -3,6 +3,8 @@
   import { createMutation, createQuery, keepPreviousData, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
+  import HostWarnings from "#lib/components/early-warnings/HostWarnings.svelte";
+  import WebsiteWarnings from "#lib/components/early-warnings/WebsiteWarnings.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import RepositoryLink from "#lib/components/RepositoryLink.svelte";
@@ -13,6 +15,7 @@
   import SeverityBadge from "#lib/components/ui/SeverityBadge.svelte";
   import { formatDateTime, formatRelative } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
+  import { moduleOn } from "#lib/nav.ts";
   import { type EarlyWarningSearch, earlyWarningSearch } from "#lib/search.ts";
   import { toast } from "#lib/toast.svelte.ts";
   import type { Page, RepositoryRow, Severity } from "#lib/types.ts";
@@ -21,7 +24,10 @@
   import { page } from "$app/state";
   import type { PageData } from "./$types";
 
-  /** Early warnings (ADR 0029): new advisories for stored packages, until a scan confirms or clears them. */
+  /**
+   * Early warnings (ADR 0029, 0041): new advisories for stored packages until a scan confirms or clears them; for what runs on
+   * hosts, when the hosts module is on; and for websites, when website monitoring is on.
+   */
   let { data }: { data: PageData } = $props();
 
   interface Warning {
@@ -42,6 +48,12 @@
 
   const search: EarlyWarningSearch = $derived(parseSearch(earlyWarningSearch, new URL(page.url.href)));
   const state = $derived(search.state ?? "open");
+  const sources = $derived([
+    "repositories" as const,
+    ...(moduleOn(data.me, "hosts") ? (["hosts"] as const) : []),
+    ...(moduleOn(data.me, "websites") ? (["websites"] as const) : []),
+  ]);
+  const source = $derived(search.source && sources.includes(search.source) ? search.source : "repositories");
   const list = createQuery(() => ({
     queryKey: ["early-warnings", search],
     queryFn: () =>
@@ -55,10 +67,12 @@
       }>(href("/early-warnings", { state: search.state, repositoryId: search.repositoryId })),
     placeholderData: keepPreviousData,
     refetchInterval: 60_000,
+    enabled: source === "repositories",
   }));
   const repositories = createQuery(() => ({
     queryKey: ["repositories", { pageSize: 100 }],
     queryFn: () => api<Page<RepositoryRow>>("/repositories?pageSize=100"),
+    enabled: source === "repositories",
   }));
   const setSearch = (patch: Partial<EarlyWarningSearch>) =>
     goto(href(page.url.pathname, { ...search, ...patch }), { reset: false });
@@ -88,15 +102,27 @@
 
 <PageHeader icon={Siren} title={t("earlyWarnings.title")} description={t("earlyWarnings.description")} />
 <div class="mb-4 flex flex-wrap items-center gap-3">
-  <Segmented
-    label={t("earlyWarnings.view")}
-    value={state}
-    options={[
-      { value: "open", label: t("earlyWarnings.open") },
-      { value: "closed", label: t("earlyWarnings.closed") },
-    ]}
-    onChange={(value) => setSearch({ state: value === "open" ? undefined : value })}
-  />
+  {#if sources.length > 1}
+    <Segmented
+      label={t("earlyWarnings.sourceLabel")}
+      value={source}
+      options={sources.map((x) => ({ value: x, label: t(`earlyWarnings.source.${x}`) }))}
+      onChange={(value) =>
+        setSearch({ source: value === "repositories" ? undefined : value, repositoryId: undefined, state: undefined })}
+    />
+  {/if}
+  {#if source !== "websites"}
+    <Segmented
+      label={t("earlyWarnings.view")}
+      value={state}
+      options={[
+        { value: "open", label: t("earlyWarnings.open") },
+        { value: "closed", label: t("earlyWarnings.closed") },
+      ]}
+      onChange={(value) => setSearch({ state: value === "open" ? undefined : value })}
+    />
+  {/if}
+  {#if source === "repositories"}
   <Select
     aria-label={t("findings.repository")}
     value={search.repositoryId ?? ""}
@@ -108,7 +134,13 @@
       <option value={r.id}>{r.name}</option>
     {/each}
   </Select>
+  {/if}
 </div>
+{#if source === "hosts"}
+  <HostWarnings {state} />
+{:else if source === "websites"}
+  <WebsiteWarnings />
+{:else}
 <Card>
   <p class="border-b px-5 py-3 text-sm text-muted-foreground">{t("earlyWarnings.hint")}</p>
   <table class="w-full text-left">
@@ -197,3 +229,4 @@
     <p class="border-t px-5 py-3 text-sm text-muted-foreground">{t("earlyWarnings.truncated")}</p>
   {/if}
 </Card>
+{/if}

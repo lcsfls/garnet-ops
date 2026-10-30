@@ -100,6 +100,8 @@ vulnerability ids, package names, paths, error output or code. You only get noti
 | Code | A quality gate blocked | everyone |
 | Code | A scan failed | members, admins, owners |
 | Code | A fix pull request was merged, or failed | members, admins, owners (default: only requests you made or repositories you added) |
+| Websites (module on) | A website is down or back up (availability check, [websites](websites.md#availability)) | members, admins, owners |
+| Hosts and containers (module on) | A new advisory concerns a running container or host ([early warnings](early-warnings.md#hosts-and-containers)) | members, admins, owners |
 | Account and team | The certificate of a directory server changed (sign-in through it stops until an admin confirms the new one) | admins, owners |
 | Account and team | An invitation was accepted | admins, owners |
 | Account and team | Your role changed | you |

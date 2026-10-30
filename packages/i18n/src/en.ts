@@ -150,6 +150,7 @@ export const en = {
       groups: {
         code: "Code",
         websites: "Websites",
+        hosts: "Hosts and containers",
         account: "Account and team",
         system: "System",
       },
@@ -190,6 +191,10 @@ export const en = {
         exposureDown: {
           label: "A website is down or back up",
           hint: "The availability check failed three times in a row, or succeeded again after an outage.",
+        },
+        hostsNewAdvisory: {
+          label: "A new advisory concerns a running container or host",
+          hint: "A newer vulnerability database brought advisories for packages that already run. They are findings at once.",
         },
         infraCertificateChanged: {
           label: "The certificate of a directory server changed",
@@ -2215,6 +2220,40 @@ export const en = {
       "{count, plural, one {# early warning was} other {# early warnings were}} confirmed or cleared by scans in the last 30 days: see Closed. A scan after the database update answers them quickly.",
     truncated: "Showing the first 500.",
     hint: "Early warnings do not change findings, grades or quality gates. They become findings only when a scan confirms them.",
+    sourceLabel: "Early warnings for",
+    source: {
+      repositories: "Repositories",
+      hosts: "Hosts and containers",
+      websites: "Websites",
+    },
+    columnRunsOn: "Runs on",
+    columnWebsite: "Website",
+    columnSoftware: "Software",
+    columnEnds: "Security fixes end",
+    subjectKind: {
+      image: "Container image",
+      kernel: "Running kernel",
+      packages: "Host packages",
+      host: "Host",
+    },
+    hostsHint:
+      "Advisories a newer vulnerability database brought for images and hosts that already run. Running software needs no scan: they are findings of the image or host at once.",
+    hostCleared: "No longer found",
+    hostsEmptyOpen:
+      "No new advisories for what runs. After each update of the vulnerability database, GarnetOps matches the running images and host packages again.",
+    hostsEmptyClosed: "No early warning for hosts or containers was cleared in the last 30 days.",
+    hostsClosedRecently:
+      "{count, plural, one {# early warning was} other {# early warnings were}} cleared in the last 30 days, because the image or package changed: see Closed.",
+    distributionsTitle: "Distributions near or past their end",
+    distributionsText:
+      "Hosts and images whose distribution release no longer gets regular security updates, or stops within 90 days. From the end-of-life data that ships with GarnetOps.",
+    distributionEnded: "No regular security updates",
+    distributionEndedOn: "since {date}",
+    distributionEndsIn: "{days, plural, one {Ends in # day} other {Ends in # days}}",
+    websitesHint:
+      "Software that a website names and whose release line ends within 90 days. Plan the upgrade now; once the line has ended, it becomes a finding of the website.",
+    websitesEmpty: "No website names software whose release line ends within the next 90 days.",
+    line: "line {cycle}",
   },
   packages: {
     title: "Packages",
@@ -3669,6 +3708,10 @@ export const en = {
       exposureRiskyService: {
         title: "Risky service reachable: {asset}",
         text: "{service} answers on port {port}. Risky ports in all: {count}.",
+      },
+      hostsNewAdvisory: {
+        title: "New advisories for {subject}",
+        text: "The newer vulnerability database brought {count} advisories for what already runs there.",
       },
       exposureDown: {
         title: "Website down: {asset}",

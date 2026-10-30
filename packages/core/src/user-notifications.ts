@@ -8,7 +8,7 @@
  */
 import type { Role } from "./index.ts";
 
-export const EVENT_GROUPS = ["code", "websites", "account", "system"] as const;
+export const EVENT_GROUPS = ["code", "websites", "hosts", "account", "system"] as const;
 export type EventGroup = (typeof EVENT_GROUPS)[number];
 
 export const USER_EVENTS = [
@@ -22,6 +22,7 @@ export const USER_EVENTS = [
   "exposure.new_open_port",
   "exposure.risky_service",
   "exposure.down",
+  "hosts.new_advisory",
   "infra.certificate_changed",
   "team.invitation_accepted",
   "team.role_changed",
@@ -44,7 +45,7 @@ export interface EventDefinition {
   /** Only the person the event is about is told, whatever their role. */
   targeted?: boolean;
   /** Belongs to a module an organisation switches on (ADR 0033); listed and sent only while it is on. */
-  module?: "websites";
+  module?: "websites" | "hosts";
 }
 
 /** The catalogue. Order is the order of the rows in the settings matrix, per group. */
@@ -112,6 +113,14 @@ export const EVENT_CATALOG: Record<UserEvent, EventDefinition> = {
     channelEvent: false,
     module: "websites",
   },
+  "hosts.new_advisory": {
+    group: "hosts",
+    minRole: "member",
+    scoped: false,
+    defaultScope: "all",
+    channelEvent: false,
+    module: "hosts",
+  },
   "infra.certificate_changed": {
     group: "account",
     minRole: "admin",
@@ -157,6 +166,7 @@ export const TITLE_EVENTS = {
   exposureRiskyService: "exposure.risky_service",
   exposureDown: "exposure.down",
   exposureUp: "exposure.down",
+  hostsNewAdvisory: "hosts.new_advisory",
   certificateChangedDirectory: "infra.certificate_changed",
   invitationAccepted: "team.invitation_accepted",
   roleChanged: "team.role_changed",

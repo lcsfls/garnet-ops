@@ -5,11 +5,12 @@
  * nothing while the check is off). Skipped without the development PostgreSQL or openssl.
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:https";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { generateVaultKeyPair } from "@garnetops/core/vault";
 import { schema } from "@garnetops/db";
 import { createTestDatabase, devDatabaseUrl, type TestDatabase } from "@garnetops/db/testing";
@@ -31,7 +32,7 @@ const IMAGE = "a".repeat(64);
 const DIGEST_OLD = `sha256:${"1".repeat(64)}`;
 const DIGEST_NEW = `sha256:${"2".repeat(64)}`;
 
-const report = (ids: string[]) => ({
+const report = (ids: string[], built = "2026-10-29T04:00:00Z") => ({
   matches: ids.map((id) => ({
     vulnerability: {
       id,
@@ -45,7 +46,7 @@ const report = (ids: string[]) => ({
       purl: "pkg:deb/debian/openssl@3.0.11-1?distro=debian-12",
     },
   })),
-  descriptor: { version: "0.120.1", db: { status: { built: "2026-10-29T04:00:00Z" } } },
+  descriptor: { version: "0.120.1", db: { status: { built } } },
 });
 
 describe.skipIf(!adminUrl || !openssl)("hosts and containers in the worker", () => {
@@ -240,6 +241,49 @@ describe.skipIf(!adminUrl || !openssl)("hosts and containers in the worker", () 
     expect(second[0]?.firstSeenAt.getTime()).toBe(
       first.find((f) => f.vulnerabilityId === "CVE-2026-0001")?.firstSeenAt.getTime(),
     );
+  });
+
+  it("records what a newer database brought for a running image as an early warning, and clears it when it goes (ADR 0041)", async () => {
+    // The advisory dates the matcher reads from the vulnerability database.
+    mkdirSync(join(work, "6"), { recursive: true });
+    const advisories = new DatabaseSync(join(work, "6", "vulnerability.db"));
+    advisories.exec(
+      "create table vulnerability_handles (name text, published_date text, modified_date text)",
+    );
+    const insert = advisories.prepare("insert into vulnerability_handles values (?, ?, ?)");
+    insert.run("CVE-2026-0001", "2026-01-01 10:00:00+00:00", null);
+    insert.run("CVE-2026-0003", "2026-10-29 20:00:00+00:00", null);
+    insert.run("CVE-2026-0004", "2025-05-01 10:00:00+00:00", null);
+    advisories.close();
+    const warnings = () =>
+      t.db.select().from(schema.runtimeEarlyWarning).where(eq(schema.runtimeEarlyWarning.subjectId, IMAGE));
+
+    // A newer database adds one advisory published after the previous build, and one old one it newly matches: only the first warns.
+    writeFileSync(
+      join(work, "report.json"),
+      JSON.stringify(report(["CVE-2026-0001", "CVE-2026-0003", "CVE-2026-0004"], "2026-10-30T04:00:00Z")),
+    );
+    await hosts.matchImage({ organizationId: ORG, imageId: IMAGE });
+    let rows = await warnings();
+    expect(rows.map((w) => [w.kind, w.vulnerabilityId, w.state])).toEqual([
+      ["image", "CVE-2026-0003", "open"],
+    ]);
+    expect(rows[0]?.dbBuiltAt?.toISOString()).toBe("2026-10-30T04:00:00.000Z");
+
+    // The same database again brings nothing new.
+    await hosts.matchImage({ organizationId: ORG, imageId: IMAGE });
+    expect(await warnings()).toHaveLength(1);
+
+    // A later database no longer lists it: the warning is cleared, not deleted.
+    writeFileSync(
+      join(work, "report.json"),
+      JSON.stringify(report(["CVE-2026-0001"], "2026-10-31T04:00:00Z")),
+    );
+    await hosts.matchImage({ organizationId: ORG, imageId: IMAGE });
+    rows = await warnings();
+    expect(rows.map((w) => w.state)).toEqual(["cleared"]);
+    expect(rows[0]?.closedAt).not.toBeNull();
+    writeFileSync(join(work, "report.json"), JSON.stringify(report(["CVE-2026-0001"])));
   });
 
   it("matches the running kernel: affected, no fix yet, the distribution's rating and the highest score side by side", async () => {

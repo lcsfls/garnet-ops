@@ -3,6 +3,8 @@ import type { EolCycle } from "./eol-data.ts";
 import {
   compareVersions,
   detectSoftware,
+  endsSoon,
+  judgeDistribution,
   judgeSoftware,
   metaGenerators,
   softwareSeverity,
@@ -96,5 +98,51 @@ describe("software a website names about itself (ADR 0038)", () => {
     expect(compareVersions("8.3.10", "8.3.9")).toBeGreaterThan(0);
     expect(compareVersions("1.26", "1.26.0")).toBe(0);
     expect(compareVersions("6.4.2", "6.4.7")).toBeLessThan(0);
+  });
+});
+
+describe("what ends soon (ADR 0041)", () => {
+  const data: Record<string, EolCycle[]> = {
+    ...DATA,
+    php: [{ cycle: "8.2", eol: "2026-12-31", latest: "8.2.30" }, ...(DATA.php ?? [])],
+    debian: [
+      { cycle: "12", eol: "2028-06-30", latest: "12.15" },
+      { cycle: "11", eol: "2026-08-31", latest: "11.11" },
+    ],
+    ubuntu: [{ cycle: "24.04", eol: "2026-12-20", latest: "24.04.3" }],
+    "alpine-linux": [{ cycle: "3.20", eol: "2026-04-01", latest: "3.20.8" }],
+    "centos-stream": [{ cycle: "9", eol: "2027-05-31", latest: null }],
+  };
+
+  it("warns about a supported line that ends within 90 days, not one that ended or ends later", () => {
+    const judge = (version: string) =>
+      judgeSoftware({ product: "php", version, source: "x-powered-by" }, NOW, data);
+    expect(endsSoon(judge("8.2.30"), NOW)).toBe(true);
+    expect(endsSoon(judge("8.3.36"), NOW)).toBe(false);
+    expect(endsSoon(judge("8.1.34"), NOW)).toBe(false);
+  });
+
+  it("judges distributions as hosts and images name them", () => {
+    expect(judgeDistribution("debian 12", NOW, data)).toMatchObject({
+      name: "Debian",
+      cycle: "12",
+      status: "supported",
+    });
+    expect(judgeDistribution("debian 11", NOW, data)).toMatchObject({
+      status: "endOfLife",
+      eol: "2026-08-31",
+    });
+    expect(judgeDistribution("ubuntu-24.04", NOW, data)).toMatchObject({
+      status: "endingSoon",
+      daysLeft: 51,
+    });
+    expect(judgeDistribution("alpine 3.20.3", NOW, data)).toMatchObject({
+      name: "Alpine Linux",
+      cycle: "3.20",
+    });
+    // CentOS 7 is not CentOS Stream; an unknown distribution or version is not judged.
+    expect(judgeDistribution("centos 7", NOW, data).status).toBe("unknown");
+    expect(judgeDistribution("plan9 4", NOW, data).status).toBe("unknown");
+    expect(judgeDistribution("<script>debian 12", NOW, data).reported).toBe("scriptdebian 12");
   });
 });

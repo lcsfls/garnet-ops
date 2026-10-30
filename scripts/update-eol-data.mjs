@@ -24,6 +24,16 @@ const PRODUCTS = [
   "shopware",
   "tomcat",
   "nodejs",
+  // Distributions of hosts and container images (ADR 0041).
+  "debian",
+  "ubuntu",
+  "alpine-linux",
+  "rhel",
+  "rocky-linux",
+  "almalinux",
+  "amazon-linux",
+  "fedora",
+  "centos-stream",
 ];
 const BASE = "https://raw.githubusercontent.com/endoflife-date/endoflife.date/master/products";
 

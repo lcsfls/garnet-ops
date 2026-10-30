@@ -3208,6 +3208,53 @@ export const containerImageFinding = pgTable(
   ],
 );
 
+/**
+ * Early warnings for what runs (ADR 0041): an advisory that a newer vulnerability database brought for an image, a host's kernel or a
+ * host's own packages that were already matched with an older one. It is a finding of that image or host at once; the warning says
+ * it is new and stays open while the finding exists, then closes as cleared.
+ */
+export const runtimeEarlyWarning = pgTable(
+  "runtime_early_warning",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["image", "kernel", "packages"] }).notNull(),
+    /** The image id for `image`, the host id otherwise. */
+    subjectId: text("subject_id").notNull(),
+    hostId: text("host_id").references(() => agentHost.id, { onDelete: "cascade" }),
+    vulnerabilityId: text("vulnerability_id")
+      .notNull()
+      .references(() => vulnerability.id),
+    packageName: text("package_name").notNull(),
+    packageVersion: text("package_version").notNull(),
+    packageType: text("package_type").notNull(),
+    fixedIn: jsonb("fixed_in").$type<string[]>().notNull().default([]),
+    severity: text("severity").notNull(),
+    severityRank: integer("severity_rank").notNull(),
+    state: text("state", { enum: ["open", "cleared"] })
+      .notNull()
+      .default("open"),
+    /** The build time of the database that brought the advisory. */
+    dbBuiltAt: timestamp("db_built_at", { withTimezone: true }),
+    detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("runtime_early_warning_uq").on(
+      t.organizationId,
+      t.kind,
+      t.subjectId,
+      t.vulnerabilityId,
+      t.packageType,
+      t.packageName,
+      t.packageVersion,
+    ),
+    index("runtime_early_warning_org_state_idx").on(t.organizationId, t.state),
+  ],
+);
+
 /** What a public registry said about an image reference (ADR 0034, opt-in): a moved tag, or a newer version tag. */
 export const imageUpdateCheck = pgTable(
   "image_update_check",

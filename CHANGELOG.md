@@ -18,6 +18,12 @@ Security-relevant changes are listed under **Security** in every release.
   the answer time, the last 24 hours hour by hour and the outages, and notes a slow site (over 3 seconds on average).
 - A website opens on its **Report**: every checked area (availability, certificate, HTTPS, headers, software, mail, DNS, DNSSEC,
   ports) in one list with its state and one sentence, each leading to its details.
+- **Early warnings for hosts, containers and websites** ([ADR 0041](docs/adr/0041-early-warnings-for-what-runs-and-websites.md)):
+  the page switches between Repositories, Hosts and containers, and Websites. It lists advisories a newer vulnerability database
+  brought for running images, kernels and host packages; hosts and images whose distribution (Debian, Ubuntu, Alpine, RHEL and
+  others) no longer gets regular security updates or stops within 90 days; and website software whose release line ends within
+  90 days. Members can be told about new advisories for what runs.
+- API: `GET /api/v1/early-warnings/hosts` and `GET /api/v1/early-warnings/websites`.
 - API: `PUT /api/v1/exposure/{id}/uptime`, `uptime` on every website and `availability` on one website.
 - An empty **Early warnings** page says when the last check ran, with which database, how many of the organisation's packages it
   covered, and how many warnings scans confirmed or cleared lately.

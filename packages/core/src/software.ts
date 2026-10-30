@@ -180,3 +180,85 @@ export function judgeSoftware(found: DetectedSoftware, now: Date, data = EOL_DAT
     latest: cycle.latest,
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Early warnings (ADR 0041): what ends soon                                   */
+/* -------------------------------------------------------------------------- */
+
+/** A release line or distribution that ends within this many days is an early warning. */
+export const EOL_SOON_DAYS = 90;
+
+/** Whole days from `now` to the end of a line, or null without a date. Negative once it has ended. */
+export function daysUntilEol(eol: string | null, now: Date): number | null {
+  if (!eol) return null;
+  return Math.ceil((Date.parse(`${eol}T00:00:00Z`) - now.getTime()) / 86_400_000);
+}
+
+/** A supported line of website software whose end is near: an early warning, not yet a finding. */
+export function endsSoon(j: SoftwareJudgement, now: Date, days = EOL_SOON_DAYS): boolean {
+  if (j.status !== "current" && j.status !== "outdated") return false;
+  const left = daysUntilEol(j.eol, now);
+  return left !== null && left > 0 && left <= days;
+}
+
+/** The endoflife.date product of a distribution as hosts and images name it ("debian 12", "ubuntu-24.04", "alpine 3.20.3"). */
+const DISTRIBUTIONS: Record<string, { product: string; name: string }> = {
+  debian: { product: "debian", name: "Debian" },
+  ubuntu: { product: "ubuntu", name: "Ubuntu" },
+  alpine: { product: "alpine-linux", name: "Alpine Linux" },
+  rhel: { product: "rhel", name: "Red Hat Enterprise Linux" },
+  redhat: { product: "rhel", name: "Red Hat Enterprise Linux" },
+  rocky: { product: "rocky-linux", name: "Rocky Linux" },
+  almalinux: { product: "almalinux", name: "AlmaLinux" },
+  amzn: { product: "amazon-linux", name: "Amazon Linux" },
+  amazon: { product: "amazon-linux", name: "Amazon Linux" },
+  fedora: { product: "fedora", name: "Fedora" },
+  centos: { product: "centos-stream", name: "CentOS Stream" },
+};
+
+export interface DistributionJudgement {
+  /** The name and version as reported, cleaned. */
+  reported: string;
+  name: string | null;
+  cycle: string | null;
+  eol: string | null;
+  daysLeft: number | null;
+  /**
+   * - `endOfLife`: the release no longer gets regular security updates from the distribution.
+   * - `endingSoon`: it ends within {@link EOL_SOON_DAYS} days.
+   * - `supported`: it gets updates for longer.
+   * - `unknown`: a distribution or version without end-of-life data.
+   */
+  status: "endOfLife" | "endingSoon" | "supported" | "unknown";
+}
+
+/** Judges a distribution named by a host or an image against the end-of-life data. Reported text is hostile: only matched, never echoed raw. */
+export function judgeDistribution(reported: string, now: Date, data = EOL_DATA): DistributionJudgement {
+  const clean = reported
+    .replace(/[^\p{L}\p{N} ._-]/gu, "")
+    .trim()
+    .slice(0, 80);
+  const match = /^([a-z]+)[ _-]?(?:linux[ _-]?)?(\d[\w.]*)/i.exec(clean);
+  const known = match ? DISTRIBUTIONS[(match[1] as string).toLowerCase()] : undefined;
+  const unknown: DistributionJudgement = {
+    reported: clean,
+    name: known?.name ?? null,
+    cycle: null,
+    eol: null,
+    daysLeft: null,
+    status: "unknown",
+  };
+  if (!match || !known) return unknown;
+  const cycles = data[known.product];
+  const cycle = cycles ? cycleOf(cycles, match[2] as string) : null;
+  if (!cycle) return unknown;
+  const eol = typeof cycle.eol === "string" ? cycle.eol : null;
+  const daysLeft = daysUntilEol(eol, now);
+  const status =
+    cycle.eol === true || (daysLeft !== null && daysLeft <= 0)
+      ? "endOfLife"
+      : daysLeft !== null && daysLeft <= EOL_SOON_DAYS
+        ? "endingSoon"
+        : "supported";
+  return { reported: clean, name: known.name, cycle: cycle.cycle, eol, daysLeft, status };
+}

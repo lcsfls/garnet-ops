@@ -502,7 +502,7 @@ async function createAsset(
 }
 
 /** The software a passive snapshot shows, judged now; empty when the home page did not answer. */
-function softwareOf(passive: unknown) {
+export function softwareOf(passive: unknown) {
   const http = (passive as PassiveSnapshot | null)?.http;
   if (!http || http.status === null) return [];
   return detectSoftware(http).map((found) => ({

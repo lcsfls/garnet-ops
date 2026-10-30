@@ -138,7 +138,9 @@ paginated findings, and every number on the overview leads to its details.
       open: notifications when something stops, history
 - [x] Early warnings: after each update of the vulnerability database, the stored package inventories are
       matched again without a clone; new advisories for stored packages are listed until a scan confirms or
-      clears them, and channels can be told (ADR 0029, `docs/early-warnings.md`, 0.0.10)
+      clears them, and channels can be told (ADR 0029, `docs/early-warnings.md`, 0.0.10); for hosts and containers
+      (new advisories for what runs, distributions near or past their end) and websites (release lines ending within 90 days,
+      ADR 0041)
 - [x] Docker Compose stack, non-root containers, pinned digests, health checks;
       reverse proxy with hybrid post-quantum TLS key exchange (X25519MLKEM768) (ADR 0007)
 - [~] In-app updates with the update sidecar (cicd-updater, maintained in `updater/`): signed

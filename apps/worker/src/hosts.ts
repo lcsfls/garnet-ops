@@ -19,6 +19,7 @@ import { env } from "./env.ts";
 import { addAdvisoryDates, parseReport } from "./grype.ts";
 import { lookupFor, publicDnsOf } from "./public-dns.ts";
 import { RegistryClient, RegistryError, type RegistryTestHooks } from "./registry.ts";
+import { recordRuntimeWarnings, runtimeKey, tellAboutRuntimeWarnings } from "./runtime-early-warning.ts";
 import { readReport } from "./system-report.ts";
 import { upsertVulnerabilities } from "./vulnerability-store.ts";
 
@@ -55,7 +56,7 @@ async function moduleOn(organizationId: string): Promise<boolean> {
 export async function matchImage(job: { organizationId: string; imageId: string }): Promise<void> {
   if (!(await moduleOn(job.organizationId))) return;
   const [image] = await db
-    .select({ packages: ci.packages })
+    .select({ packages: ci.packages, matchedDbBuilt: ci.matchedDbBuilt, tags: ci.tags })
     .from(ci)
     .where(and(eq(ci.organizationId, job.organizationId), eq(ci.imageId, job.imageId)))
     .limit(1);
@@ -72,9 +73,19 @@ export async function matchImage(job: { organizationId: string; imageId: string 
   try {
     const report = parseReport(await matchPurls(purls, dir), `${job.organizationId}:${job.imageId}`);
     addAdvisoryDates(report.vulnerabilities, env.GARNETOPS_GRYPE_DB_DIR);
-    await db.transaction(async (tx) => {
+    const subject = {
+      organizationId: job.organizationId,
+      kind: "image" as const,
+      subjectId: job.imageId,
+      hostId: null,
+    };
+    const warned = await db.transaction(async (tx) => {
       await upsertVulnerabilities(tx, report.vulnerabilities.values(), now);
       const findings = [...report.findings.values()];
+      const before = await tx
+        .select({ vulnerabilityId: cf.vulnerabilityId, packageName: cf.packageName })
+        .from(cf)
+        .where(and(eq(cf.organizationId, job.organizationId), eq(cf.imageId, job.imageId)));
       const keep = findings.map((f) => `${f.vulnerabilityId}|${f.packageType}|${f.packageName}`);
       await tx
         .delete(cf)
@@ -121,7 +132,16 @@ export async function matchImage(job: { organizationId: string; imageId: string 
         .update(ci)
         .set({ matchedAt: now, matchedDbBuilt: report.dbBuiltAt, matchError: null })
         .where(where);
+      return recordRuntimeWarnings(tx, subject, {
+        previous: new Set(before.map(runtimeKey)),
+        previousDb: image.matchedDbBuilt,
+        findings,
+        vulnerabilities: report.vulnerabilities,
+        dbBuiltAt: report.dbBuiltAt,
+        now,
+      });
     });
+    await tellAboutRuntimeWarnings({ ...subject, label: image.tags[0] ?? job.imageId.slice(0, 19) }, warned);
   } catch (error) {
     console.error(`image match: ${(error as Error)?.name ?? "error"}`);
     await db.update(ci).set({ matchedAt: now, matchError: "scanner-failed" }).where(where);
@@ -145,16 +165,26 @@ export async function matchKernel(job: { hostId: string }): Promise<void> {
   try {
     const report = parseReport(await matchPurls([host.kernelPackage.purl], dir), `kernel:${host.id}`);
     addAdvisoryDates(report.vulnerabilities, env.GARNETOPS_GRYPE_DB_DIR);
-    await db.transaction(async (tx) => {
+    const subject = {
+      organizationId: host.organizationId,
+      kind: "kernel" as const,
+      subjectId: host.id,
+      hostId: host.id,
+    };
+    const warned = await db.transaction(async (tx) => {
       // The kernel may have changed while this ran: only the package that was matched is stored.
       const [current] = await tx
         .select({ kernelPackage: h.kernelPackage })
         .from(h)
         .where(eq(h.id, host.id))
         .for("update");
-      if (current?.kernelPackage?.purl !== host.kernelPackage?.purl) return;
+      if (current?.kernelPackage?.purl !== host.kernelPackage?.purl) return 0;
       await upsertVulnerabilities(tx, report.vulnerabilities.values(), now);
       const findings = [...report.findings.values()];
+      const before = await tx
+        .select({ vulnerabilityId: k.vulnerabilityId, packageName: k.packageName })
+        .from(k)
+        .where(eq(k.hostId, host.id));
       const keep = findings.map((f) => f.vulnerabilityId);
       await tx
         .delete(k)
@@ -185,7 +215,17 @@ export async function matchKernel(job: { hostId: string }): Promise<void> {
         .update(h)
         .set({ kernelMatchedAt: now, kernelMatchedDbBuilt: report.dbBuiltAt, kernelMatchError: null })
         .where(eq(h.id, host.id));
+      // A new kernel resets the previous match (routes/agent.ts), so its findings never count as new advisories.
+      return recordRuntimeWarnings(tx, subject, {
+        previous: new Set(before.map(runtimeKey)),
+        previousDb: host.kernelMatchedDbBuilt,
+        findings,
+        vulnerabilities: report.vulnerabilities,
+        dbBuiltAt: report.dbBuiltAt,
+        now,
+      });
     });
+    await tellAboutRuntimeWarnings({ ...subject, label: host.name }, warned);
   } catch (error) {
     console.error(`kernel match: ${(error as Error)?.name ?? "error"}`);
     await db
@@ -218,15 +258,25 @@ export async function matchHostPackages(job: { hostId: string }): Promise<void> 
       `host:${host.id}`,
     );
     addAdvisoryDates(report.vulnerabilities, env.GARNETOPS_GRYPE_DB_DIR);
-    await db.transaction(async (tx) => {
+    const subject = {
+      organizationId: host.organizationId,
+      kind: "packages" as const,
+      subjectId: host.id,
+      hostId: host.id,
+    };
+    const warned = await db.transaction(async (tx) => {
       const [current] = await tx
         .select({ digest: h.hostPackagesDigest })
         .from(h)
         .where(eq(h.id, host.id))
         .for("update");
-      if (current?.digest !== host.hostPackagesDigest) return;
+      if (current?.digest !== host.hostPackagesDigest) return 0;
       await upsertVulnerabilities(tx, report.vulnerabilities.values(), now);
       const findings = [...report.findings.values()];
+      const before = await tx
+        .select({ vulnerabilityId: p.vulnerabilityId, packageName: p.packageName })
+        .from(p)
+        .where(eq(p.hostId, host.id));
       await tx.delete(p).where(eq(p.hostId, host.id));
       for (const f of findings) {
         await tx
@@ -256,7 +306,16 @@ export async function matchHostPackages(job: { hostId: string }): Promise<void> 
           hostPackagesMatchError: null,
         })
         .where(eq(h.id, host.id));
+      return recordRuntimeWarnings(tx, subject, {
+        previous: new Set(before.map(runtimeKey)),
+        previousDb: host.hostPackagesMatchedDbBuilt,
+        findings,
+        vulnerabilities: report.vulnerabilities,
+        dbBuiltAt: report.dbBuiltAt,
+        now,
+      });
     });
+    await tellAboutRuntimeWarnings({ ...subject, label: host.name }, warned);
   } catch (error) {
     console.error(`host packages match: ${(error as Error)?.name ?? "error"}`);
     await db
@@ -281,6 +340,10 @@ export async function hostsTick(boss: Pick<PgBoss, "send">): Promise<void> {
     .returning({ organizationId: ci.organizationId, imageId: ci.imageId });
   for (const g of gone) {
     await db.delete(cf).where(and(eq(cf.organizationId, g.organizationId), eq(cf.imageId, g.imageId)));
+    const r = schema.runtimeEarlyWarning;
+    await db
+      .delete(r)
+      .where(and(eq(r.organizationId, g.organizationId), eq(r.kind, "image"), eq(r.subjectId, g.imageId)));
   }
 
   const vulndb = vulnDbReportSchema.safeParse(await readReport("vulndb"));
