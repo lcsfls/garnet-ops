@@ -1,4 +1,5 @@
 import type { ExposureRule, ExposureSeverity } from "@garnetops/core/exposure";
+import { softwareSeverity } from "@garnetops/core/software";
 import { UPTIME_SLOW_MS } from "@garnetops/core/uptime";
 import type { WebsiteTab } from "./search.ts";
 import { type ExposureDetail, type ExposureFindingRow, SEVERITY_ORDER } from "./websites.ts";
@@ -72,7 +73,13 @@ export const AREA_TAB: Record<ReportArea, WebsiteTab> = {
 
 export type ReportState =
   /** Open findings; `severity` is the worst of them. */
-  | { kind: "problem"; severity: ExposureSeverity; findings: ExposureFindingRow[] }
+  | {
+      kind: "problem";
+      severity: ExposureSeverity;
+      findings: ExposureFindingRow[];
+      /** Software judged past its end of life or behind its line, when no finding names it (yet). */
+      software?: { name: string; version: string; status: "endOfLife" | "outdated" };
+    }
   /** Checked, nothing open. */
   | { kind: "ok" }
   /** Not looked at yet, switched off, or not answerable from the last look. Areas that do not apply (mail for an address) are left out. */
@@ -112,6 +119,25 @@ export function websiteReport(detail: ExposureDetail): ReportRow[] {
       if (!dnsArea) return null;
     }
     if (findings.length > 0) return { kind: "problem", severity: worst(findings), findings };
+    if (area === "software") {
+      // The judgements of the last look count even before a finding names them, so the report never contradicts the HTTP tab.
+      const judged = detail.software
+        .map((j) => ({ j, severity: softwareSeverity(j) }))
+        .filter(
+          (x): x is { j: (typeof detail.software)[number]; severity: "high" | "medium" | "low" } =>
+            x.severity !== null,
+        )
+        .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity));
+      const first = judged[0];
+      if (first && (first.j.status === "endOfLife" || first.j.status === "outdated")) {
+        return {
+          kind: "problem",
+          severity: first.severity,
+          findings: [],
+          software: { name: first.j.name, version: first.j.version, status: first.j.status },
+        };
+      }
+    }
     if (area === "ports") {
       if (!detail.stage2.enabled) return { kind: "notChecked", reason: "off" };
       return detail.active ? { kind: "ok" } : { kind: "notChecked", reason: "noRun" };

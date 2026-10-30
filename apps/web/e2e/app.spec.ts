@@ -2448,9 +2448,12 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     // The report comes first: every area in one list, each leading to its details (ADR 0040 adds availability).
     const report = page.getByTestId("websites-report");
     await expect(report.locator("li")).toHaveCount(9);
-    await expect(page.getByTestId("websites-report-summary")).toContainText("areas need a look");
+    await expect(page.getByTestId("websites-report-summary")).toContainText("4 of 9 areas need a look");
     await expect(report.locator('[data-area="availability"]')).toContainText("Switched off for this website");
     await expect(report.locator('[data-area="ports"]')).toContainText("Reachable from the internet");
+    // The report agrees with the HTTP tab about the software it judged.
+    await expect(report.locator('[data-area="software"]')).toContainText("Medium");
+    await expect(report.locator('[data-area="software"]')).not.toContainText("No problems found");
     await report.locator('[data-area="ports"]').click();
     await expect(page).toHaveURL(/tab=ports/);
 

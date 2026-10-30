@@ -105,6 +105,34 @@ describe("the report of a website", () => {
     expect(rows.find((r) => r.area === "mail")?.state).toMatchObject({ kind: "problem", severity: "medium" });
   });
 
+  it("counts software judged past its end of life even before a finding names it", () => {
+    const software = [
+      {
+        product: "nginx",
+        name: "nginx",
+        version: "1.22.1",
+        source: "server",
+        status: "endOfLife",
+        cycle: "1.22",
+        eol: "2023-04-11",
+        latest: "1.22.1",
+      },
+      {
+        product: "wordpress",
+        name: "WordPress",
+        version: "6.4.2",
+        source: "generator",
+        status: "outdated",
+        cycle: "6.4",
+        eol: null,
+        latest: "6.4.7",
+      },
+    ] as unknown as ExposureDetail["software"];
+    const row = websiteReport(detail({ software })).find((r) => r.area === "software");
+    // A CMS names itself exactly, so WordPress behind its line (medium) ties with the nginx header past its end (medium).
+    expect(row?.state).toMatchObject({ kind: "problem", severity: "medium" });
+  });
+
   it("leaves out mail, DNS and DNSSEC for an address, and says when nothing was looked at yet", () => {
     const rows = websiteReport(detail({ kind: "ip", passive: null }));
     expect(rows.map((r) => r.area)).not.toContain("mail");

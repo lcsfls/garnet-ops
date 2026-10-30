@@ -1325,6 +1325,10 @@ export const de: Messages = {
       andMore: "{title} und {count, plural, one {ein weiteres} other {# weitere}}",
       downSince: "Antwortet nicht seit {when}",
       slow: "Antwortet langsam: {ms} ms im Durchschnitt in den letzten 24 Stunden",
+      software: {
+        endOfLife: "{name} bekommt keine Sicherheitsupdates mehr",
+        outdated: "{name} ist nicht die neueste Version seiner Reihe",
+      },
       availability: "{percent} % der Prüfungen in den letzten 30 Tagen beantwortet, {ms} ms im Durchschnitt",
       area: {
         availability: "Erreichbarkeit",

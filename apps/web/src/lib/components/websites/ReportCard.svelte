@@ -43,6 +43,10 @@
             ms: formatNumber(av.month.averageMs ?? 0),
           });
     }
+    if (s.kind === "problem" && s.software) {
+      const { name, version, status } = s.software;
+      return t(`websites.report.software.${status}`, { name: `${name} ${version}` });
+    }
     if (s.kind === "problem") {
       const first = s.findings.find((f) => f.severity === s.severity) ?? s.findings[0];
       const title = first ? ruleText(first).title : "";

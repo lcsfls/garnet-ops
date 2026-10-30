@@ -1280,6 +1280,10 @@ export const en = {
       andMore: "{title} and {count, plural, one {one more} other {# more}}",
       downSince: "Not answering since {when}",
       slow: "Answers slowly: {ms} ms on average in the last 24 hours",
+      software: {
+        endOfLife: "{name} gets no security fixes any more",
+        outdated: "{name} is behind the latest version of its line",
+      },
       availability: "{percent} % of checks answered in the last 30 days, {ms} ms on average",
       area: {
         availability: "Availability",
