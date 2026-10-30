@@ -29,8 +29,16 @@ import {
 import { checkAsset, newVerifyToken } from "@garnetops/core/exposure-assets";
 import { pageSizeSchema } from "@garnetops/core/pagination";
 import { detectSoftware, judgeSoftware, SOFTWARE_NAMES } from "@garnetops/core/software";
+import {
+  UPTIME_INTERVALS,
+  UPTIME_RETENTION_DAYS,
+  type UptimeCheck,
+  uptimeHours,
+  uptimeIncidents,
+  uptimeStats,
+} from "@garnetops/core/uptime";
 import { schema } from "@garnetops/db";
-import { and, count, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableColumns, gte, ilike, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
@@ -109,6 +117,15 @@ const defaultSpec: KeysetSpec<ListRow> = {
   parse: [parseText, parseText],
 };
 
+const uptimeBody = z.object({
+  enabled: z.boolean(),
+  intervalMinutes: z
+    .number()
+    .int()
+    .refine((n) => (UPTIME_INTERVALS as readonly number[]).includes(n))
+    .optional(),
+});
+
 const STATUSES = ["all", "attention", "unverified", "stage2"] as const;
 const listQuery = z.object({
   cursor: z.string().optional(),
@@ -120,7 +137,7 @@ const listQuery = z.object({
   dir: z.enum(["asc", "desc"]).optional(),
 });
 
-const attentionSql = sql`(${a.verifyState} = 'lost' or ${a.passiveError} is not null or ${a.activeError} is not null or exists (
+const attentionSql = sql`(${a.verifyState} = 'lost' or ${a.passiveError} is not null or ${a.activeError} is not null or ${a.uptimeState} = 'down' or exists (
   select 1 from ${schema.exposureFinding} f where f.asset_id = ${a.id} and f.state = 'open' and f.severity in ('critical', 'high')))`;
 
 function statusFilter(status: (typeof STATUSES)[number]) {
@@ -287,7 +304,40 @@ function present(
         : null,
     },
     open: open ?? { critical: 0, high: 0, medium: 0, low: 0 },
+    uptime: {
+      enabled: row.uptimeEnabled,
+      intervalMinutes: row.uptimeIntervalMinutes,
+      state: row.uptimeState,
+      since: iso(row.uptimeSince),
+      checkedAt: iso(row.uptimeCheckedAt),
+    },
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/** The availability history of one asset (ADR 0040): the last day's checks, the shares of good checks, and the outages. */
+async function uptimeOf(assetId: string) {
+  const u = schema.exposureUptimeCheck;
+  const since = new Date(Date.now() - UPTIME_RETENTION_DAYS * 24 * HOUR);
+  const rows = await db
+    .select({ checkedAt: u.checkedAt, up: u.up, status: u.status, responseMs: u.responseMs, error: u.error })
+    .from(u)
+    .where(and(eq(u.assetId, assetId), gte(u.checkedAt, since)))
+    .orderBy(asc(u.checkedAt))
+    .limit(50_000);
+  const checks: UptimeCheck[] = rows.map((r) => ({
+    ...r,
+    checkedAt: r.checkedAt.toISOString(),
+    error: (r.error as UptimeCheck["error"]) ?? null,
+  }));
+  const now = Date.now();
+  const dayAgo = new Date(now - 24 * HOUR);
+  return {
+    day: uptimeStats(checks, dayAgo),
+    week: uptimeStats(checks, new Date(now - 7 * 24 * HOUR)),
+    month: uptimeStats(checks, since),
+    hours: uptimeHours(checks, new Date(now)),
+    incidents: uptimeIncidents(checks).reverse().slice(0, 50),
   };
 }
 
@@ -749,6 +799,7 @@ export const exposureRoutes = new Hono<AppEnv>()
       active: row.active ?? null,
       /** What the site names about its software, judged against the committed end-of-life data (ADR 0038). */
       software: softwareOf(row.passive),
+      availability: await uptimeOf(row.id),
       findings: findings.map((x) => ({
         ...x,
         firstSeenAt: x.firstSeenAt.toISOString(),
@@ -883,6 +934,33 @@ export const exposureRoutes = new Hono<AppEnv>()
   })
 
   /* ------------------------------- stage 2 ------------------------------- */
+  /** Availability checks of one asset (ADR 0040): off by default, every 1, 5, 15 or 60 minutes. */
+  .put("/:id/uptime", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    const row = await ownAsset(actor.organizationId, c.req.param("id"));
+    const body = uptimeBody.parse(await c.req.json());
+    const interval = body.intervalMinutes ?? row.uptimeIntervalMinutes;
+    await db
+      .update(a)
+      .set({
+        uptimeEnabled: body.enabled,
+        uptimeIntervalMinutes: interval,
+        // Switched off: the state is forgotten, so switching on again starts fresh and tells nobody about an old outage.
+        ...(body.enabled ? {} : { uptimeState: null, uptimeSince: null, uptimeFailures: 0 }),
+        updatedAt: new Date(),
+      })
+      .where(eq(a.id, row.id));
+    if (body.enabled !== row.uptimeEnabled || interval !== row.uptimeIntervalMinutes) {
+      await audit(
+        actor,
+        body.enabled ? "exposure.uptime_enabled" : "exposure.uptime_disabled",
+        { type: "exposure_asset", id: row.id },
+        { value: row.value, intervalMinutes: interval },
+      );
+    }
+    return c.json({ enabled: body.enabled, intervalMinutes: interval });
+  })
   .put("/:id/stage2", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "admin");

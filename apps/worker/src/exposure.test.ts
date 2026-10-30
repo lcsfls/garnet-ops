@@ -1657,6 +1657,107 @@ describe.skipIf(!openssl || !adminUrl)(
       });
     });
 
+    /* ======================================================================== */
+    describe("availability (ADR 0040)", () => {
+      const MIN = 60_000;
+      const checks = async (assetId: string) =>
+        conn.db
+          .select()
+          .from(schema.exposureUptimeCheck)
+          .where(eq(schema.exposureUptimeCheck.assetId, assetId))
+          .orderBy(schema.exposureUptimeCheck.checkedAt);
+      const told = async (assetId: string, titleKey: string) =>
+        (
+          await conn.db
+            .select()
+            .from(schema.userNotification)
+            .where(eq(schema.userNotification.titleKey, titleKey))
+        ).filter((n) => n.link === `/websites/${assetId}?tab=availability`);
+
+      it("checks only switched-on assets that are due, turns down after three failures and up with the first success", async () => {
+        resetZone();
+        Object.assign(web, freshWeb());
+        const org = await newOrg();
+        // The test certificate names SITE.
+        const a = await addAsset(org.id, { uptimeEnabled: true, uptimeIntervalMinutes: 5, value: SITE });
+        const off = await addAsset(org.id);
+        tidyZone(a.value);
+        tidyZone(off.value);
+        const up = await import("./uptime.ts");
+        let now = new Date(Date.UTC(2026, 9, 30, 12, 0));
+        const tick = () => up.uptimeTick({ net: env(), now: () => now });
+
+        await tick();
+        expect(await checks(a.id)).toHaveLength(1);
+        expect(await checks(off.id)).toHaveLength(0);
+        expect(await asset(a.id)).toMatchObject({ uptimeState: "up", uptimeFailures: 0 });
+        expect((await checks(a.id))[0]).toMatchObject({ up: true, status: 200, error: null });
+        // Not due again within its interval.
+        now = new Date(now.getTime() + 2 * MIN);
+        await tick();
+        expect(await checks(a.id)).toHaveLength(1);
+
+        web.status = 503;
+        for (let i = 0; i < 3; i++) {
+          now = new Date(now.getTime() + 5 * MIN);
+          await tick();
+          expect((await asset(a.id)).uptimeState).toBe(i < 2 ? "up" : "down");
+        }
+        expect((await checks(a.id)).at(-1)).toMatchObject({ up: false, status: 503, error: "status" });
+        // Owner, admin and member are told.
+        expect(await told(a.id, "exposureDown")).toHaveLength(3);
+        expect((await told(a.id, "exposureDown"))[0]?.params).toMatchObject({
+          asset: a.value,
+          reason: "HTTP 503",
+        });
+        // Still down: nobody is told again.
+        now = new Date(now.getTime() + 5 * MIN);
+        await tick();
+        expect(await told(a.id, "exposureDown")).toHaveLength(3);
+
+        web.status = 404;
+        now = new Date(now.getTime() + 5 * MIN);
+        await tick();
+        const back = await asset(a.id);
+        expect(back).toMatchObject({ uptimeState: "up", uptimeFailures: 0 });
+        expect(back.uptimeSince?.toISOString()).toBe(now.toISOString());
+        expect(await told(a.id, "exposureUp")).toHaveLength(3);
+        Object.assign(web, freshWeb());
+      });
+
+      it("names the reason of a failure, never asks for a switched-off organisation, and forgets old checks", async () => {
+        resetZone();
+        Object.assign(web, freshWeb());
+        const org = await newOrg();
+        const unknown = await addAsset(org.id, { uptimeEnabled: true, value: "missing.example.com" });
+        const other = await newOrg();
+        const quiet = await addAsset(other.id, { uptimeEnabled: true });
+        tidyZone(quiet.value);
+        await conn.db
+          .update(schema.exposureSettings)
+          .set({ enabled: false })
+          .where(eq(schema.exposureSettings.organizationId, other.id));
+        const now = new Date(Date.UTC(2026, 10, 2, 12, 0));
+        await conn.db.insert(schema.exposureUptimeCheck).values({
+          id: newId("upt"),
+          organizationId: org.id,
+          assetId: unknown.id,
+          checkedAt: new Date(now.getTime() - 31 * DAY),
+          up: true,
+        });
+        const up = await import("./uptime.ts");
+        await up.uptimeTick({ net: env(), now: () => now });
+        const rows = await checks(unknown.id);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ up: false, error: "dns", status: null });
+        expect(await checks(quiet.id)).toHaveLength(0);
+        // A refused connection is its own reason.
+        zone[unknown.value] = { a: ["127.0.0.1"] };
+        const result = await up.checkAvailability(env({ httpsPort: await closedPort() }), unknown);
+        expect(result).toMatchObject({ up: false, error: "refused" });
+      });
+    });
+
     it("never wrote a secret or a body into the log or the database", async () => {
       const dump: string[] = [];
       for (const table of [

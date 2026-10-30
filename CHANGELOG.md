@@ -12,6 +12,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 - Running containers say whether they run the repository's latest scanned commit, an older one (with the date it was scanned) or
   one GarnetOps never scanned, on the host, image and repository pages (from the `org.opencontainers.image.revision` label).
+- **Availability of websites** ([ADR 0040](docs/adr/0040-website-availability.md)): a check every 1, 5, 15 or 60 minutes per
+  website, off until an owner or admin switches it on. A website is down after three failed checks in a row; members are told
+  once when it goes down and once when it is back. The new **Availability** tab shows the shares for 24 hours, 7 and 30 days,
+  the answer time, the last 24 hours hour by hour and the outages, and notes a slow site (over 3 seconds on average).
+- A website opens on its **Report**: every checked area (availability, certificate, HTTPS, headers, software, mail, DNS, DNSSEC,
+  ports) in one list with its state and one sentence, each leading to its details.
+- API: `PUT /api/v1/exposure/{id}/uptime`, `uptime` on every website and `availability` on one website.
 - An empty **Early warnings** page says when the last check ran, with which database, how many of the organisation's packages it
   covered, and how many warnings scans confirmed or cleared lately.
 

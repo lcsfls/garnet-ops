@@ -100,6 +100,32 @@ distribution (`Apache/2.4.57 (Debian)`, `PHP/8.1.2-1ubuntu2.14`) is shown but no
 without changing the number. The HTTP section of a website lists what was found and how it was judged. WordPress plugins and themes
 are not checked.
 
+## The report
+
+A website opens on its **Report**: every area that is checked, in one list, with a plain state each: availability, certificate
+and TLS, HTTPS, security headers, software versions, mail authentication, DNS records, DNSSEC and open ports (mail, DNS and DNSSEC
+only for names). An area with open findings shows the worst severity and the worst finding's title; an area without shows
+**No problems found**; an area that is switched off or was not looked at yet says so. Selecting an area opens its details. The
+report adds no checks of its own: it sums up the findings and results of the other tabs.
+
+## Availability
+
+On the **Availability** tab of a website an owner or admin can switch on a check every 1, 5, 15 or 60 minutes
+([ADR 0040](adr/0040-website-availability.md)). It is off for every asset until switched on. The check is the request stage 1
+makes anyway: one `GET /` over HTTPS to a public address of the asset, with the certificate verified, reading only the status and
+headers.
+
+- **Answering**: the server sent a status below 500 (a redirect, 401 or 404 counts: the server answered).
+- **Down**: three checks in a row failed: no answer within 10 seconds, connection refused, TLS handshake failed (also an invalid
+  certificate), not an HTTP answer, the name does not resolve or resolves only to non-public addresses, or a 5xx status. The first
+  successful check makes it answering again.
+- **Slow**: answers took more than 3 seconds on average in the last 24 hours. The site is up, but this often points to a hosting
+  problem.
+
+The tab shows the shares of successful checks for 24 hours, 7 and 30 days with the average answer time, the last 24 hours hour by
+hour, and the outages. Checks are kept 30 days. A website that is down is listed under **Needs attention** and counted in the menu.
+The checks run from your GarnetOps installation: a site blocked only for its network shows as down.
+
 ## A slow local resolver
 
 If your own resolver (a firewall or router) answers slowly, checks run into time-outs and report "DNS failed". Under
@@ -263,6 +289,10 @@ Under **Account → Notifications** (owners and admins; in the app and, if you w
 - **A new port is open on an asset**: ports open now that were not open in the previous successful stage 2 run.
 - **A risky service is reachable from the internet**: a high or critical port, once while it stays open.
 
+For every member (in the app and, if you want, by mail):
+
+- **A website is down or back up**: once when an asset with the availability check turns down, and once when it answers again.
+
 They link to the asset. They carry the asset name, counts and a list of ports, never banners or headers.
 
 ## Roles and the audit log
@@ -273,10 +303,11 @@ They link to the asset. They carry the asset name, counts and a list of ports, n
 | Add, change, remove, verify, check now | no | yes |
 | Switch stage 2 on, run it by hand, new code, Certificate Transparency on | no | yes, with a sign-in from the last ten minutes |
 | Switch stage 2 or Certificate Transparency off | no | yes |
+| Switch the availability check on or off | no | yes |
 
 The audit log (filter **Websites**) has: asset added and removed, verified, verification lost and restored, verification code
 replaced, stage 2 switched on (with the acknowledgement), off, stopped and run by hand, subdomain coverage changed, Certificate
-Transparency switched on and off.
+Transparency switched on and off, availability check switched on (or its interval changed) and off.
 
 ## Limits and what is not tested
 
@@ -295,6 +326,6 @@ Transparency switched on and off.
 `module-off` while the module is off). The switch itself is `GET /api/v1/organization/modules` and
 `PUT /api/v1/organization/modules/websites` (`{ enabled }`, owners and admins). `GET /` (filters `q`, `status`, sort and cursor),
 `GET /counts`, `GET /:id`, `POST /` (`{ value, includeSubdomains }`), `PATCH /:id`, `DELETE /:id`, `POST /:id/verify`,
-`POST /:id/verify/rotate`, `POST /:id/run`, `PUT /:id/stage2`, `POST /:id/stage2/run`, `GET` and `PUT /settings`,
+`POST /:id/verify/rotate`, `POST /:id/run`, `PUT /:id/uptime` (`{ enabled, intervalMinutes }`), `PUT /:id/stage2`, `POST /:id/stage2/run`, `GET` and `PUT /settings`,
 `POST /discoveries/:id/add` and `/dismiss`. Errors are RFC 9457 problem documents (`duplicate`, `limit-reached`, `not-verified`,
 `too-soon`, `step-up-required`, `validation` with the reason of each refused field).

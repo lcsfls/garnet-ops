@@ -1545,6 +1545,17 @@ export const exposureAsset = pgTable(
     certNotifiedLevel: integer("cert_notified_level"),
     ctCheckedAt: timestamp("ct_checked_at", { withTimezone: true }),
 
+    /**
+     * Availability (ADR 0040): off until an admin switches it on for the asset. One HTTPS request every `uptimeIntervalMinutes`;
+     * the asset counts as down after three failures in a row and as up again after the first success.
+     */
+    uptimeEnabled: boolean("uptime_enabled").notNull().default(false),
+    uptimeIntervalMinutes: integer("uptime_interval_minutes").notNull().default(5),
+    uptimeState: text("uptime_state", { enum: ["up", "down"] }),
+    uptimeSince: timestamp("uptime_since", { withTimezone: true }),
+    uptimeFailures: integer("uptime_failures").notNull().default(0),
+    uptimeCheckedAt: timestamp("uptime_checked_at", { withTimezone: true }),
+
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -1555,6 +1566,29 @@ export const exposureAsset = pgTable(
     index("exposure_asset_org_idx").on(t.organizationId, t.value, t.id),
     index("exposure_asset_due_idx").on(t.lastPassiveAt),
   ],
+);
+
+/** One availability check of an asset (ADR 0040), kept for 30 days. */
+export const exposureUptimeCheck = pgTable(
+  "exposure_uptime_check",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    assetId: text("asset_id")
+      .notNull()
+      .references(() => exposureAsset.id, { onDelete: "cascade" }),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+    up: boolean("up").notNull(),
+    /** The HTTP status, when the server answered. */
+    status: integer("status"),
+    /** Time to the answer's headers, in milliseconds. */
+    responseMs: integer("response_ms"),
+    /** Why it failed: timeout, refused, tls, dns, address, status (5xx). */
+    error: text("error"),
+  },
+  (t) => [index("exposure_uptime_check_asset_idx").on(t.assetId, t.checkedAt)],
 );
 
 /**

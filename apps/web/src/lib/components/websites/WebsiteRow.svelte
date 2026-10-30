@@ -10,6 +10,7 @@
   import { href } from "../../url.ts";
   import { isBusy, SEVERITY_ORDER, type WebsiteAsset } from "../../websites.ts";
   import ActionMenu, { type MenuAction } from "../ui/ActionMenu.svelte";
+  import Badge from "../ui/Badge.svelte";
   import ConfirmDialog from "../ui/ConfirmDialog.svelte";
   import CertificateExpiry from "./CertificateExpiry.svelte";
   import CountPill from "./CountPill.svelte";
@@ -80,6 +81,9 @@
       <Globe aria-hidden="true" class="mt-1 size-4 flex-none text-muted-foreground" />
       <div class="min-w-0">
         <a href={detailHref} class="font-medium break-all hover:underline">{asset.value}</a>
+        {#if asset.uptime.enabled && asset.uptime.state === "down"}
+          <Badge tone="high" class="ml-1.5 align-middle">{t("websites.uptimeDown")}</Badge>
+        {/if}
         <div class="text-sm text-muted-foreground">
           {t(`websites.kind.${asset.kind}`)}
           {#if summary && summary.addresses.length > 0}

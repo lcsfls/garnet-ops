@@ -45,6 +45,7 @@ function asset(over: Partial<WebsiteAsset> = {}): WebsiteAsset {
       nextManualAt: null,
     },
     open: { critical: 0, high: 0, medium: 0, low: 0 },
+    uptime: { enabled: false, intervalMinutes: 5, state: null, since: null, checkedAt: null },
     createdAt: "2026-10-22T10:00:00.000Z",
     ...over,
   };

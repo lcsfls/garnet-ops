@@ -12,12 +12,14 @@
   import Button from "#lib/components/ui/Button.svelte";
   import Checkbox from "#lib/components/ui/Checkbox.svelte";
   import ConfirmDialog from "#lib/components/ui/ConfirmDialog.svelte";
+  import AvailabilityCard from "#lib/components/websites/AvailabilityCard.svelte";
   import DnsCard from "#lib/components/websites/DnsCard.svelte";
   import Facts, { type Fact } from "#lib/components/websites/Facts.svelte";
   import FindingsCard from "#lib/components/websites/FindingsCard.svelte";
   import HistoryCard from "#lib/components/websites/HistoryCard.svelte";
   import HttpCard from "#lib/components/websites/HttpCard.svelte";
   import PortsCard from "#lib/components/websites/PortsCard.svelte";
+  import ReportCard from "#lib/components/websites/ReportCard.svelte";
   import Stage2Dialog from "#lib/components/websites/Stage2Dialog.svelte";
   import StageBadge from "#lib/components/websites/StageBadge.svelte";
   import TlsCard from "#lib/components/websites/TlsCard.svelte";
@@ -42,7 +44,7 @@
   /**
    * One website (ADR 0023): where it stands, what stage 1 and stage 2 saw, and what is wrong. Below the wide step the sections
    * are tabs and the findings are one of them; from wide on the findings are a pane of their own beside the tab, and from xwide
-   * on the DNS, TLS, HTTP and port details are shown side by side with no tabs.
+   * on the availability, DNS, TLS, HTTP and port details are shown side by side with no tabs. The report comes first in every step.
    */
   let { data: pageData }: { data: PageData } = $props();
   const me = $derived(pageData.me);
@@ -84,9 +86,16 @@
 
   const setSearch = (next: Partial<WebsiteDetailSearch>) =>
     goto(href(page.url.pathname, { ...search, ...next }), { replace: true, reset: false });
-  const tab: WebsiteTab = $derived(search.tab ?? "findings");
+  // The report is the first view: every area in one list, each leading to its details.
+  const tab: WebsiteTab = $derived(search.tab ?? "report");
   // From the wide step the findings have a pane of their own; the tab then shows one of the others.
-  const sideTab: WebsiteTab = $derived(tab === "findings" ? "dns" : tab);
+  const sideTab: WebsiteTab = $derived(tab === "findings" ? "report" : tab);
+  const openTab = (next: WebsiteTab) => {
+    // From xwide on every section is on screen: the report leads to it instead of switching a tab.
+    if (step === "xwide")
+      return document.getElementById(`website-${next}`)?.scrollIntoView({ block: "start" });
+    void setSearch({ tab: next === "report" ? undefined : next });
+  };
   const findingsState = $derived(search.findings ?? "open");
   const tabs = $derived(WEBSITE_TABS.filter((x) => step === "base" || x !== "findings"));
   const verification = $derived(data ? verificationKey(data) : null);
@@ -195,7 +204,9 @@
 
 {#snippet tabBody(which: WebsiteTab)}
   {#if data}
-    {#if which === "tls"}<TlsCard detail={data} />
+    {#if which === "report"}<ReportCard detail={data} onTab={openTab} />
+    {:else if which === "availability"}<AvailabilityCard detail={data} {canEdit} />
+    {:else if which === "tls"}<TlsCard detail={data} />
     {:else if which === "http"}<HttpCard detail={data} />
     {:else if which === "ports"}<PortsCard detail={data} {canEdit} onStage2={() => setSearch({ stage2: "1" })} />
     {:else if which === "history"}<HistoryCard detail={data} />
@@ -291,20 +302,24 @@
         label={t("websites.tabsLabel")}
         value={step === "base" ? tab : sideTab}
         options={tabs.map((x) => ({ value: x, label: t(`websites.tab.${x}`) }))}
-        onChange={(next) => setSearch({ tab: next === "findings" ? undefined : next })}
+        onChange={openTab}
       />
     {/if}
 
     {#if step === "xwide"}
+      <ReportCard detail={data} onTab={openTab} />
       <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] items-start gap-4">
         <FindingsCard detail={data} state={findingsState} onState={(findings) => setSearch({ findings })} />
         <div class="grid gap-4">
-          <DnsCard detail={data} {canEdit} />
-          <TlsCard detail={data} />
+          <div id="website-availability" class="scroll-mt-4"><AvailabilityCard detail={data} {canEdit} /></div>
+          <div id="website-dns" class="scroll-mt-4"><DnsCard detail={data} {canEdit} /></div>
+          <div id="website-tls" class="scroll-mt-4"><TlsCard detail={data} /></div>
         </div>
         <div class="grid gap-4">
-          <HttpCard detail={data} />
-          <PortsCard detail={data} {canEdit} onStage2={() => setSearch({ stage2: "1" })} />
+          <div id="website-http" class="scroll-mt-4"><HttpCard detail={data} /></div>
+          <div id="website-ports" class="scroll-mt-4">
+            <PortsCard detail={data} {canEdit} onStage2={() => setSearch({ stage2: "1" })} />
+          </div>
           <HistoryCard detail={data} />
         </div>
       </div>

@@ -2445,6 +2445,15 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(findings.locator("li")).toHaveCount(1);
     await expect(findings).toContainText("No Content-Security-Policy");
 
+    // The report comes first: every area in one list, each leading to its details (ADR 0040 adds availability).
+    const report = page.getByTestId("websites-report");
+    await expect(report.locator("li")).toHaveCount(9);
+    await expect(page.getByTestId("websites-report-summary")).toContainText("areas need a look");
+    await expect(report.locator('[data-area="availability"]')).toContainText("Switched off for this website");
+    await expect(report.locator('[data-area="ports"]')).toContainText("Reachable from the internet");
+    await report.locator('[data-area="ports"]').click();
+    await expect(page).toHaveURL(/tab=ports/);
+
     // The tab pane (findings have a pane of their own at this width).
     await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "Ports" }).click();
     const ports = page.getByTestId("websites-ports");
@@ -2483,6 +2492,14 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(page.getByTestId("websites-history")).toContainText(
       "The check took too long and was stopped.",
     );
+    // Availability is off until an admin switches it on, and can be switched off again.
+    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "Availability" }).click();
+    const availability = page.getByTestId("websites-availability");
+    await expect(availability).toContainText("Not checked. Switch it on");
+    await availability.getByRole("button", { name: "Check availability" }).click();
+    await expect(availability).toContainText("Waiting for the first check");
+    await availability.getByRole("button", { name: "Stop checking" }).click();
+    await expect(availability).toContainText("Not checked. Switch it on");
 
     // A subdomain says by whom it is covered; an address shows its reverse name and no certificate name check.
     await page.goto(`/websites/${EXPOSURE.covered.id}`);

@@ -35,6 +35,7 @@ import { removeRetiredQueues } from "./retired-queues.ts";
 import { runScan } from "./scan.ts";
 import { SCAN_QUEUE as QUEUE, startScheduler } from "./schedule.ts";
 import { startSystemReports } from "./system-report.ts";
+import { startUptime } from "./uptime.ts";
 import { startUserNotificationUpkeep, tellAboutScan } from "./user-notify.ts";
 import { startVulnDbUpdates } from "./vulndb.ts";
 
@@ -169,6 +170,7 @@ for (let i = 0; i < EXPOSURE_CONCURRENCY; i++) {
 await startExposureScheduler(boss);
 // Hosts and containers (ADR 0034): matching the packages of running images, and the opt-in registry check.
 await startHosts(boss);
+await startUptime(boss);
 await startScheduler(boss);
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();

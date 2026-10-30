@@ -698,6 +698,11 @@ test.describe("signed in, with website monitoring on", () => {
     { path: `/websites/${EXPOSURE.main.id}`, heading: EXPOSURE.main.value, name: "website" },
     { path: `/websites/${EXPOSURE.main.id}?tab=ports`, heading: EXPOSURE.main.value, name: "website-ports" },
     { path: `/websites/${EXPOSURE.main.id}?tab=tls`, heading: EXPOSURE.main.value, name: "website-tls" },
+    {
+      path: `/websites/${EXPOSURE.main.id}?tab=availability`,
+      heading: EXPOSURE.main.value,
+      name: "website-availability",
+    },
     { path: `/websites/${EXPOSURE.main.id}?tab=http`, heading: EXPOSURE.main.value, name: "website-http" },
     {
       path: `/websites/${EXPOSURE.main.id}?tab=history`,

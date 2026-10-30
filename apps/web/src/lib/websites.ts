@@ -66,6 +66,14 @@ export interface WebsiteAsset {
     nextManualAt: string | null;
   };
   open: Record<ExposureSeverity, number>;
+  /** Availability (ADR 0040); off until an admin switches it on. */
+  uptime: {
+    enabled: boolean;
+    intervalMinutes: number;
+    state: "up" | "down" | null;
+    since: string | null;
+    checkedAt: string | null;
+  };
   createdAt: string;
 }
 
@@ -121,6 +129,14 @@ export interface ExposureDetail extends WebsiteAsset {
     file: { url: string; path: string };
   } | null;
   limits: { ports: number; scheduleHours: Record<string, number> };
+  availability: {
+    day: import("@garnetops/core/uptime").UptimeStats;
+    week: import("@garnetops/core/uptime").UptimeStats;
+    month: import("@garnetops/core/uptime").UptimeStats;
+    /** The last 24 hours, hour by hour, oldest first. */
+    hours: import("@garnetops/core/uptime").UptimeHour[];
+    incidents: import("@garnetops/core/uptime").UptimeIncident[];
+  };
 }
 
 export interface ExposureCounts {

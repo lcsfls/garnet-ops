@@ -643,6 +643,85 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
     });
   });
 
+  describe("availability (ADR 0040)", () => {
+    it("is off by default, switched by admins only, audited, and forgets the state when switched off", async () => {
+      const id = await addAsset();
+      const before = await call("GET", `/api/v1/exposure/${id}`, { role: "viewer" });
+      expect(before.json?.uptime).toEqual({
+        enabled: false,
+        intervalMinutes: 5,
+        state: null,
+        since: null,
+        checkedAt: null,
+      });
+      expect(before.json?.availability.day).toEqual({ percent: null, averageMs: null, checks: 0 });
+      expect(
+        (await call("PUT", `/api/v1/exposure/${id}/uptime`, { role: "member", body: { enabled: true } }))
+          .status,
+      ).toBe(403);
+      expect(
+        (await call("PUT", `/api/v1/exposure/${id}/uptime`, { body: { enabled: true, intervalMinutes: 7 } }))
+          .status,
+      ).toBe(422);
+      const on = await call("PUT", `/api/v1/exposure/${id}/uptime`, {
+        body: { enabled: true, intervalMinutes: 1 },
+      });
+      expect(on.json).toEqual({ enabled: true, intervalMinutes: 1 });
+      expect((await audits("exposure.uptime_enabled")).some((x) => x.targetId === id)).toBe(true);
+      await t.db
+        .update(schema.exposureAsset)
+        .set({ uptimeState: "down", uptimeSince: new Date(), uptimeFailures: 4 })
+        .where(eq(schema.exposureAsset.id, id));
+      const attention = await call("GET", "/api/v1/exposure?status=attention&pageSize=100");
+      expect(attention.json?.items.map((x: Json) => x.id)).toContain(id);
+      await call("PUT", `/api/v1/exposure/${id}/uptime`, { body: { enabled: false } });
+      expect(await row(id)).toMatchObject({
+        uptimeEnabled: false,
+        uptimeIntervalMinutes: 1,
+        uptimeState: null,
+        uptimeSince: null,
+        uptimeFailures: 0,
+      });
+      expect((await audits("exposure.uptime_disabled")).some((x) => x.targetId === id)).toBe(true);
+      // Another organisation's asset stays out of reach.
+      expect(
+        (await call("PUT", `/api/v1/exposure/${id}/uptime`, { org: OTHER, body: { enabled: true } })).status,
+      ).toBe(404);
+    });
+
+    it("sums up the history: shares, hours and outages", async () => {
+      const id = await addAsset({ uptimeEnabled: true, uptimeState: "up" });
+      const now = Date.now();
+      const at = (minutesAgo: number) => new Date(now - minutesAgo * 60_000);
+      const rows = [
+        { minutesAgo: 50, up: true, responseMs: 100 },
+        { minutesAgo: 40, up: false, error: "timeout" },
+        { minutesAgo: 30, up: false, error: "timeout" },
+        { minutesAgo: 20, up: false, error: "timeout" },
+        { minutesAgo: 10, up: true, responseMs: 300 },
+      ];
+      await t.db.insert(schema.exposureUptimeCheck).values(
+        rows.map((r, i) => ({
+          id: `upt_apitest_${id}_${i}`,
+          organizationId: ORG,
+          assetId: id,
+          checkedAt: at(r.minutesAgo),
+          up: r.up,
+          responseMs: r.responseMs ?? null,
+          error: r.error ?? null,
+        })),
+      );
+      const r = await call("GET", `/api/v1/exposure/${id}`);
+      expect(r.json?.availability.day).toEqual({ percent: 40, averageMs: 200, checks: 5 });
+      expect(r.json?.availability.hours).toHaveLength(24);
+      expect(r.json?.availability.incidents).toEqual([
+        { from: at(40).toISOString(), to: at(10).toISOString(), error: "timeout", status: null },
+      ]);
+      // Another organisation never sees it.
+      expect((await call("GET", `/api/v1/exposure/${id}`, { org: OTHER })).status).toBe(404);
+    });
+  });
+
   describe("Certificate Transparency", () => {
     it("is off by default and shows the exact request and its provider", async () => {
       await t.db.insert(schema.organization).values({ id: "org_ex_ct0", name: "CT" });
