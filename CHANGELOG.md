@@ -14,6 +14,11 @@ Security-relevant changes are listed under **Security** in every release.
   critical or high vulnerability, and websites of the **Needs attention** filter, coloured by the worst severity. A **+** next to
   **Agents** and **Websites** opens their add dialogs.
 - API: `GET /api/v1/hosts/attention` and `GET /api/v1/exposure/attention`.
+- **Public DNS for public names** (Settings → Modules, [ADR 0035](docs/adr/0035-public-dns-for-public-names.md)): an owner or admin
+  can add Cloudflare (1.1.1.1), Google (8.8.8.8) or Quad9 (9.9.9.9) next to the local resolver for website checks, the proof of
+  control, registry checks and Certificate Transparency. Both are asked at once and the first clear answer counts, so a slow local
+  resolver no longer makes checks fail. Off by default.
+- API: `GET` and `PUT /api/v1/organization/dns`.
 
 ### Changed
 
@@ -21,6 +26,11 @@ Security-relevant changes are listed under **Security** in every release.
   their module is off; the page says what the module does and switches it on directly
   ([ADR 0033 amendment](docs/adr/0033-website-monitoring-as-a-module.md)).
 - Adding a website opens its page with the verification dialog, so the TXT record to set up is shown at once.
+
+### Security
+
+- Choosing a public DNS provider sends the names these checks look up to it: off by default, an owner or admin with a recent
+  sign-in and an acknowledgement, audited. Internal names are never asked there, and every answer still passes the address policy.
 
 ### Fixed
 

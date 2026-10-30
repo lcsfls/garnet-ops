@@ -122,6 +122,8 @@ Registry, Quay and others), without credentials. Once a day per image reference 
 
 Limits: public addresses only, HTTPS on port 443, no redirects except to the registry's token service, at most 300 references per
 organisation and day, one request a second, 4 MiB per answer. Private registries and registries on other ports are not checked.
+If your own resolver is slow, **Public DNS for public names** under Settings → Modules can resolve the registries through
+Cloudflare, Google or Quad9 next to it ([ADR 0035](adr/0035-public-dns-for-public-names.md)).
 
 ## Roles and the audit log
 

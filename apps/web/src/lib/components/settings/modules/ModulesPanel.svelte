@@ -7,6 +7,7 @@
   import Alert from "../../ui/Alert.svelte";
   import CertificateTransparency from "./CertificateTransparency.svelte";
   import ModuleCard from "./ModuleCard.svelte";
+  import PublicDns from "./PublicDns.svelte";
   import RegistryChecks from "./RegistryChecks.svelte";
 
   /**
@@ -31,3 +32,4 @@
 
 {#if websites}<CertificateTransparency {me} />{/if}
 {#if hosts}<RegistryChecks {me} />{/if}
+<PublicDns {me} />

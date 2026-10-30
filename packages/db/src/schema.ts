@@ -1453,6 +1453,22 @@ export const unifiThreatEvent = pgTable(
 /* -------------------------------------------------------------------------- */
 
 /**
+ * The public DNS resolver an organisation added for lookups of public names (website checks, proof of control, registry checks,
+ * Certificate Transparency), next to the local resolver. No row or a null provider: only the local resolver. Turning it on sends the
+ * names looked up to the provider, so it needs an owner or admin, a recent sign-in and an acknowledgement.
+ */
+export const publicDnsSettings = pgTable("public_dns_settings", {
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  /** One of PUBLIC_DNS_PROVIDERS in @garnetops/core/public-dns, or null. */
+  provider: text("provider"),
+  enabledBy: text("enabled_by").references(() => user.id, { onDelete: "set null" }),
+  enabledAt: timestamp("enabled_at", { withTimezone: true }),
+  updatedAt: updatedAt(),
+});
+
+/**
  * Organisation-wide switches of website monitoring. The module itself is off until an owner or admin switches it on
  * (ADR 0033). Certificate Transparency is opt-in as well: the domain names of verified assets are sent to a public search
  * service, which is data leaving the network.

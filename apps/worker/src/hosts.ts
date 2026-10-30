@@ -17,6 +17,7 @@ import { db } from "./db.ts";
 import { matchPurls } from "./early-warning.ts";
 import { env } from "./env.ts";
 import { addAdvisoryDates, parseReport } from "./grype.ts";
+import { lookupFor, publicDnsOf } from "./public-dns.ts";
 import { RegistryClient, RegistryError, type RegistryTestHooks } from "./registry.ts";
 import { readReport } from "./system-report.ts";
 import { upsertVulnerabilities } from "./vulnerability-store.ts";
@@ -307,7 +308,7 @@ export async function checkRegistries(organizationId: string, now = new Date()):
     due.set(key, parsed);
     if (due.size >= REGISTRY_CHECK.perOrganization) break;
   }
-  const client = new RegistryClient(registryTest?.hooks);
+  const client = new RegistryClient(registryTest?.hooks, lookupFor(await publicDnsOf(organizationId)));
   const gap = registryTest?.gapMs ?? REGISTRY_CHECK.gapMs;
   let first = true;
   for (const [key, ref] of due) {

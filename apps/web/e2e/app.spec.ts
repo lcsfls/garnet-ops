@@ -1393,12 +1393,16 @@ test.describe("ai", () => {
 });
 
 test.describe("focus on the developer pipeline (ADR 0025)", () => {
-  test("the navigation has no Infrastructure group and no page of a removed module", async ({ page }) => {
+  test("the navigation has no page of a removed module", async ({ page }) => {
     const problems = watchForProblems(page);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
     const nav = page.getByRole("navigation", { name: "Main navigation" });
-    await expect(nav.getByText("Infrastructure", { exact: true })).toHaveCount(0);
+    // Infrastructure holds only the two modules of the developer pipeline (ADR 0033, 0034).
+    const infrastructure = nav
+      .locator("div")
+      .filter({ has: page.getByText("Infrastructure", { exact: true }) });
+    await expect(infrastructure.getByRole("link")).toHaveText(["Agents", "Websites"]);
     for (const name of ["Servers", "Exposure", "XDR", "Attacks"]) {
       await expect(nav.getByRole("link", { name })).toHaveCount(0);
     }
@@ -2737,6 +2741,34 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(page.getByText("Stage 2 is off.")).toBeVisible();
     await page.goto("/websites");
     await expect(row(page, NEW)).toContainText("Off");
+    expect(problems).toEqual([]);
+  });
+
+  test("a public DNS resolver is added only after an owner confirms what is sent where, and can be taken back", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    await page.goto("/settings?section=modules");
+    const card = page.getByTestId("public-dns");
+    await expect(card).toContainText("Only our own resolver");
+    await card.getByLabel(/Quad9 \(9\.9\.9\.9\)/).check();
+    await expect(card).toContainText("are sent to Quad9 (9.9.9.9) at 9.9.9.9, 149.112.112.112");
+    const save = card.getByRole("button", { name: "Save" });
+    await expect(save).toBeDisabled();
+    await card.getByLabel("I understand that the names looked up are sent to Quad9 (9.9.9.9).").check();
+    await save.click();
+    await expect(page.getByText("Public DNS saved. Checks ask it from now on.")).toBeVisible();
+    await expect(card).toContainText("Chosen by");
+    const [audited] = await sql<{ data: Record<string, unknown> }>(
+      "select data from audit_log where action = 'organization.public_dns_enabled' order by id desc limit 1",
+    );
+    expect(audited?.data).toEqual({ provider: "quad9", servers: ["9.9.9.9", "149.112.112.112"] });
+    // Back to the own resolver: the safe direction, no acknowledgement.
+    await card.getByLabel(/Only our own resolver/).check();
+    await card.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("Only your own resolver answers again.")).toBeVisible();
+    expect(await sql("select provider from public_dns_settings where provider is not null")).toEqual([]);
     expect(problems).toEqual([]);
   });
 

@@ -53,19 +53,36 @@ type LookupCallback = (
 ) => void;
 export type Lookup = (hostname: string, options: object, callback: LookupCallback) => void;
 
-/** Resolves a name and refuses it unless every answer is a public address. */
-export const publicLookup: Lookup = (hostname, options, callback) => {
-  dnsLookup(hostname, { ...options, all: true }, (error, addresses) => {
-    if (error) return callback(error, []);
-    const list = addresses as LookupAddress[];
-    if (list.length === 0 || list.some((a) => classifyAddress(a.address) !== "public")) {
-      return callback(Object.assign(new Error("refused address"), { code: "EREFUSED_ADDRESS" }), []);
-    }
-    if ((options as { all?: boolean }).all) return callback(null, list);
-    const first = list[0] as LookupAddress;
-    callback(null, first.address, first.family);
-  });
-};
+/** Every address the system resolver has for a name (`getaddrinfo`, as a connection would resolve it). */
+export function systemAddresses(hostname: string, options: object = {}): Promise<LookupAddress[]> {
+  return new Promise((resolve, reject) =>
+    dnsLookup(hostname, { ...options, all: true }, (error, addresses) =>
+      error ? reject(error) : resolve(addresses as LookupAddress[]),
+    ),
+  );
+}
+
+/** A lookup that resolves with `resolveAll` and refuses the name unless every answer is a public address. */
+export function lookupVia(
+  resolveAll: (hostname: string, options: object) => Promise<LookupAddress[]>,
+): Lookup {
+  return (hostname, options, callback) => {
+    resolveAll(hostname, options).then(
+      (list) => {
+        if (list.length === 0 || list.some((a) => classifyAddress(a.address) !== "public")) {
+          return callback(Object.assign(new Error("refused address"), { code: "EREFUSED_ADDRESS" }), []);
+        }
+        if ((options as { all?: boolean }).all) return callback(null, list);
+        const first = list[0] as LookupAddress;
+        callback(null, first.address, first.family);
+      },
+      (error: NodeJS.ErrnoException) => callback(error, []),
+    );
+  };
+}
+
+/** Resolves a name through the system resolver and refuses it unless every answer is a public address. */
+export const publicLookup: Lookup = lookupVia(systemAddresses);
 
 export interface OutboundOptions {
   host: string;
@@ -77,6 +94,8 @@ export interface OutboundOptions {
   /** Overall deadline for headers and body. */
   timeoutMs: number;
   connectTimeoutMs?: number;
+  /** A lookup in place of `publicLookup` (one that also asks the organisation's public DNS); it must keep the address policy. */
+  lookup?: Lookup;
   /** Tests only: another lookup (to reach a local server), its certificate, and its port. */
   test?: { lookup?: Lookup; ca?: string; port?: number };
 }
@@ -134,7 +153,7 @@ export function httpsGet(options: OutboundOptions): Promise<OutboundResponse> {
       path: options.path,
       method: options.method ?? "GET",
       servername: options.host,
-      lookup: options.test?.lookup ?? publicLookup,
+      lookup: options.test?.lookup ?? options.lookup ?? publicLookup,
       ...(options.test?.ca ? { ca: options.test.ca } : {}),
       minVersion: "TLSv1.2",
       rejectUnauthorized: true,

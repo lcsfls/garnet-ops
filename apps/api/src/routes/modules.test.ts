@@ -31,10 +31,14 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
   let t: TestDatabase;
   let app: Hono;
 
-  async function call(method: string, path: string, role = "admin", body?: unknown) {
+  async function call(method: string, path: string, role = "admin", body?: unknown, stale = false) {
     const res = await app.request(path, {
       method,
-      headers: { "x-role": role, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+      headers: {
+        "x-role": role,
+        ...(stale ? { "x-stale": "1" } : {}),
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await res.text();
@@ -60,7 +64,7 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
           organizationId: ORG,
           role: c.req.header("x-role"),
           ip: null,
-          strongAuthAt: new Date(),
+          strongAuthAt: c.req.header("x-stale") ? new Date(0) : new Date(),
         } as never,
       );
       await next();
@@ -100,6 +104,39 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
     const audits = await t.db.select().from(schema.auditLog).where(eq(schema.auditLog.organizationId, ORG));
     expect(audits.map((a) => [a.action, a.data])).toEqual([
       ["organization.module_enabled", { module: "websites" }],
+    ]);
+  });
+
+  it("adds a public DNS resolver only with an acknowledgement and a recent sign-in, audited both ways", async () => {
+    const dns = "/api/v1/organization/dns";
+    const off = await call("GET", dns, "viewer");
+    expect(off.json).toMatchObject({ provider: null, enabledBy: null });
+    expect(((off.json?.providers ?? []) as { id: string }[]).map((p) => p.id)).toEqual([
+      "cloudflare",
+      "google",
+      "quad9",
+    ]);
+    expect((await call("PUT", dns, "member", { provider: "quad9", acknowledged: true })).status).toBe(403);
+    expect((await call("PUT", dns, "admin", { provider: "quad9" })).status).toBe(422);
+    expect((await call("PUT", dns, "admin", { provider: "quad9", acknowledged: true }, true)).status).toBe(
+      403,
+    );
+    expect((await call("PUT", dns, "admin", { provider: "8.8.8.8", acknowledged: true })).status).toBe(422);
+    const on = await call("PUT", dns, "admin", { provider: "quad9", acknowledged: true });
+    expect(on.json).toMatchObject({ provider: "quad9", enabledBy: "Alex Example" });
+    // Switching it off needs neither: it is the safe direction.
+    const back = await call("PUT", dns, "admin", { provider: null }, true);
+    expect(back.json).toMatchObject({ provider: null, enabledAt: null });
+    const audits = await t.db
+      .select({ action: schema.auditLog.action, data: schema.auditLog.data })
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.organizationId, ORG));
+    expect(audits.filter((a) => a.action.startsWith("organization.public_dns"))).toEqual([
+      {
+        action: "organization.public_dns_enabled",
+        data: { provider: "quad9", servers: ["9.9.9.9", "149.112.112.112"] },
+      },
+      { action: "organization.public_dns_disabled", data: { previous: "quad9" } },
     ]);
   });
 

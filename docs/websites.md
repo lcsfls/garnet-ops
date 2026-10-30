@@ -85,6 +85,16 @@ public addresses, one TXT query each). That way a new record counts at once, eve
 the "not there" of an earlier check, or answers for your own domain from an internal zone. Where outgoing DNS (port 53) is blocked,
 the system resolver alone decides, as before.
 
+## A slow local resolver
+
+If your own resolver (a firewall or router) answers slowly, checks run into time-outs and report "DNS failed". Under
+**Settings → Modules → Public DNS for public names** an owner or admin can add Cloudflare (1.1.1.1), Google (8.8.8.8) or Quad9
+(9.9.9.9) next to your own resolver: each lookup goes to both, the first clear answer counts
+([ADR 0035](adr/0035-public-dns-for-public-names.md)). It applies only to lookups of public names (website checks, the proof,
+registry checks, Certificate Transparency); forges, directory sign-in, mail and the AI endpoint keep using only your own resolver.
+It is off by default, because the names looked up go to the provider; choosing one needs a recent sign-in and an acknowledgement,
+and is audited.
+
 About the code:
 
 - It is 256 random bits, created for this asset in your organisation only. It is **not a secret**: you publish it. It is shown in

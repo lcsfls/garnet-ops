@@ -1,3 +1,4 @@
+import { isPublicDnsProvider, PUBLIC_DNS_IDS, PUBLIC_DNS_PROVIDERS } from "@garnetops/core/public-dns";
 import { isTimeZone, schema } from "@garnetops/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -7,9 +8,32 @@ import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
 import { MODULES, modulesOf } from "../lib/modules.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
+import { requireRecentSignIn } from "../lib/step-up.ts";
 
 const o = schema.organization;
 const moduleBody = z.object({ enabled: z.boolean() });
+const dnsBody = z.object({
+  provider: z.enum(PUBLIC_DNS_IDS).nullable(),
+  acknowledged: z.boolean().optional(),
+});
+
+/** The organisation's public DNS choice, with who made it and every provider the page offers. */
+async function publicDnsOf(organizationId: string) {
+  const d = schema.publicDnsSettings;
+  const [row] = await db
+    .select({ provider: d.provider, enabledAt: d.enabledAt, enabledBy: schema.user.name })
+    .from(d)
+    .leftJoin(schema.user, eq(schema.user.id, d.enabledBy))
+    .where(eq(d.organizationId, organizationId))
+    .limit(1);
+  const provider = isPublicDnsProvider(row?.provider) ? row.provider : null;
+  return {
+    provider,
+    enabledAt: provider && row?.enabledAt ? row.enabledAt.toISOString() : null,
+    enabledBy: provider ? (row?.enabledBy ?? null) : null,
+    providers: PUBLIC_DNS_IDS.map((id) => ({ id, ...PUBLIC_DNS_PROVIDERS[id] })),
+  };
+}
 
 const scheduleBody = z.object({
   enabled: z.boolean(),
@@ -134,4 +158,43 @@ export const organizationRoutes = new Hono<AppEnv>()
       { module: name },
     );
     return c.json(await modulesOf(actor.organizationId));
+  })
+  /** The public DNS resolver for lookups of public names, next to the local one; off by default. */
+  .get("/dns", async (c) => c.json(await publicDnsOf(c.get("actor").organizationId)))
+  .put("/dns", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    const input = dnsBody.parse(await c.req.json());
+    const current = await publicDnsOf(actor.organizationId);
+    if (current.provider === input.provider) return c.json(current);
+    if (input.provider !== null) {
+      // The names looked up go to the provider: an explicit acknowledgement and a recent sign-in.
+      if (input.acknowledged !== true) {
+        throw new ProblemError(422, "validation", "The request is not valid", undefined, {
+          errors: [{ path: "acknowledged", message: "acknowledgement_required" }],
+        });
+      }
+      requireRecentSignIn(actor);
+    }
+    const now = new Date();
+    const set = {
+      provider: input.provider,
+      enabledBy: input.provider ? actor.userId : null,
+      enabledAt: input.provider ? now : null,
+      updatedAt: now,
+    };
+    const d = schema.publicDnsSettings;
+    await db
+      .insert(d)
+      .values({ organizationId: actor.organizationId, ...set })
+      .onConflictDoUpdate({ target: d.organizationId, set });
+    await audit(
+      actor,
+      input.provider ? "organization.public_dns_enabled" : "organization.public_dns_disabled",
+      { type: "organization", id: actor.organizationId },
+      input.provider
+        ? { provider: input.provider, servers: [...PUBLIC_DNS_PROVIDERS[input.provider].servers] }
+        : { previous: current.provider },
+    );
+    return c.json(await publicDnsOf(actor.organizationId));
   });

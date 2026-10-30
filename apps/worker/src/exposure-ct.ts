@@ -62,8 +62,11 @@ export function parseCtNames(body: string, domain: string): string[] {
   return [...names].sort().slice(0, CT_LIMITS.maxNames);
 }
 
-/** The real lookup. `test` points it at a local server (tests only). */
-export function crtShFetch(test?: { lookup?: Lookup; ca?: string; port?: number }): CtFetch {
+/**
+ * The real lookup. `lookup` resolves crt.sh through the organisation's public DNS as well; `test` points it at a local server
+ * (tests only).
+ */
+export function crtShFetch(test?: { lookup?: Lookup; ca?: string; port?: number }, lookup?: Lookup): CtFetch {
   return async (domain) => {
     try {
       const response = await httpsGet({
@@ -72,6 +75,7 @@ export function crtShFetch(test?: { lookup?: Lookup; ca?: string; port?: number 
         timeoutMs: CT_LIMITS.timeoutMs,
         headers: { accept: "application/json", "user-agent": "GarnetOps-Exposure-CT/1" },
         ...(test ? { test } : {}),
+        ...(lookup ? { lookup } : {}),
       });
       const body = await readCapped(response, CT_LIMITS.maxBytes);
       return parseCtNames(body.toString("utf8"), domain);

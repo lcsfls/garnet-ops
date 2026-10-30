@@ -89,9 +89,12 @@ export class RegistryClient {
   private readonly tokens = new Map<string, string>();
 
   private readonly test: RegistryTestHooks | undefined;
+  private readonly lookup: Lookup | undefined;
 
-  constructor(test?: RegistryTestHooks) {
+  /** `lookup` resolves registries through the organisation's public DNS as well; `test` reaches a local registry. */
+  constructor(test?: RegistryTestHooks, lookup?: Lookup) {
     this.test = test;
+    this.lookup = lookup;
   }
 
   private async get(
@@ -107,6 +110,7 @@ export class RegistryClient {
       headers,
       timeoutMs: REGISTRY_LIMITS.timeoutMs,
       ...(this.test ? { test: this.test } : {}),
+      ...(this.lookup ? { lookup: this.lookup } : {}),
     });
     const body = method === "HEAD" ? Buffer.alloc(0) : await readCapped(res, REGISTRY_LIMITS.maxBytes);
     if (method === "HEAD") res.close();

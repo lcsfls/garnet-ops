@@ -2261,14 +2261,27 @@ export const en = {
     moduleHostsOffNote:
       "Off by default: once it is on, agents with a code from an admin can report to this installation.",
     moduleHostsOn: "Hosts and containers are on. Add the first agent under Infrastructure, Agents.",
+    publicDnsTitle: "Public DNS for public names",
+    publicDnsDescription:
+      "Website checks, the proof of control, the registry check and Certificate Transparency can ask a public resolver at the same time as your own; the first clear answer counts. That helps when your own resolver is slow. Forges, directory sign-in, mail and the AI endpoint always use only your own resolver.",
+    publicDnsOff: "Only our own resolver",
+    publicDnsOffText: "The default. No name leaves the network for a DNS provider.",
+    publicDnsEnabledBy: "Chosen by {name} on {when}.",
+    publicDnsLeavesTitle: "What leaves the network",
+    publicDnsLeavesText:
+      "The names these checks look up (your websites, their mail and name servers, registries, crt.sh) are sent to {provider} at {servers}, unencrypted over port 53. Nothing else is sent.",
+    publicDnsPrivacy: "The provider’s privacy policy",
+    publicDnsAcknowledge: "I understand that the names looked up are sent to {provider}.",
+    publicDnsOn: "Public DNS saved. Checks ask it from now on.",
+    publicDnsOffDone: "Only your own resolver answers again.",
     moduleHostsOffDone: "Hosts and containers are off.",
     moduleHostsOffTitle: "Switch off hosts and containers?",
     moduleHostsOffText:
       "Agents can no longer report and nothing is matched. Hosts, containers and findings are kept, and the agents report again once you switch the module on.",
-    moduleHostsOpen: "Open Hosts",
+    moduleHostsOpen: "Open Agents",
     helpModulesTitle: "What a module changes",
     helpModulesText:
-      "A module that is off does nothing and shows nothing. Switching one on or off is in the audit log, and data stays when you switch it off.",
+      "A module that is off does nothing; only owners and admins see it in the menu, to switch it on. Switching one on or off is in the audit log, and data stays when you switch it off.",
     goodToKnow: "Good to know",
     helpNightlyTitle: "When do scans run?",
     helpNightlyText:
@@ -2828,6 +2841,8 @@ export const en = {
       exposure_ct_disabled: "Certificate Transparency lookups switched off",
       organization_module_enabled: "Module switched on",
       organization_module_disabled: "Module switched off",
+      organization_public_dns_enabled: "Public DNS chosen",
+      organization_public_dns_disabled: "Public DNS switched off",
       host_enrolled: "Host added by its agent",
       host_enrolment_created: "Host enrolment code created",
       host_enrolment_revoked: "Host enrolment code withdrawn",

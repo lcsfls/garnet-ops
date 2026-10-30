@@ -69,9 +69,9 @@ import {
   readPtr,
   readTxt,
   resolveAssetAddresses,
-  systemResolver,
   tlsFull,
 } from "./exposure-net.ts";
+import { lookupFor, publicDnsOf, resolverFor } from "./public-dns.ts";
 import { tellUsers } from "./user-notify.ts";
 
 /** New names: the `exposure.*` queues of 0.0.3 are removed on every start (retired-queues.ts). */
@@ -97,7 +97,9 @@ export interface ExposureDeps {
   ctPauseMs?: number;
 }
 
-const netOf = (deps: ExposureDeps): NetEnv => deps.net ?? { dns: systemResolver() };
+/** The network of one organisation's checks: the local resolver, and its public DNS next to it if it chose one. */
+const netOf = async (deps: ExposureDeps, organizationId: string): Promise<NetEnv> =>
+  deps.net ?? { dns: resolverFor(await publicDnsOf(organizationId)) };
 const nowOf = (deps: ExposureDeps): Date => (deps.now ? deps.now() : new Date());
 const HOUR = 3_600_000;
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -363,7 +365,7 @@ export async function runVerify(assetId: string, deps: ExposureDeps = {}): Promi
     .where(eq(schema.exposureAsset.id, assetId))
     .limit(1);
   if (!asset || !(await moduleEnabled(asset.organizationId))) return;
-  const result = await checkProof(netOf(deps), asset);
+  const result = await checkProof(await netOf(deps, asset.organizationId), asset);
   await applyProof(asset, result, nowOf(deps));
 }
 
@@ -574,7 +576,9 @@ async function lookUpCertificateTransparency(
   if (!claimed) return; // switched off meanwhile, or the day's budget is used up
   let error: string | null = null;
   try {
-    const names = await (deps.ct ?? crtShFetch())(asset.value);
+    const names = await (
+      deps.ct ?? crtShFetch(undefined, lookupFor(await publicDnsOf(asset.organizationId)))
+    )(asset.value);
     await recordDiscoveries(asset, names, "ct", now);
   } catch (e) {
     error = e instanceof CtError ? e.code : "unreachable";
@@ -608,7 +612,7 @@ export async function runPassive(runId: string, deps: ExposureDeps = {}): Promis
       .where(eq(schema.exposureAsset.id, run.assetId))
       .limit(1);
     if (!asset) throw new RunError("assetRemoved");
-    const env = netOf(deps);
+    const env = await netOf(deps, asset.organizationId);
     const isAddress = asset.kind === "ip";
     const all = await orgAssets(asset.organizationId);
     const [settings] = await db
@@ -733,7 +737,7 @@ export async function runActive(runId: string, deps: ExposureDeps = {}): Promise
   try {
     const [asset] = await db.select().from(a).where(eq(a.id, run.assetId)).limit(1);
     if (!asset) throw new RunError("assetRemoved");
-    const env = netOf(deps);
+    const env = await netOf(deps, asset.organizationId);
     let all = await orgAssets(asset.organizationId);
 
     // Switched on, acknowledged and covered by a verification; the proof itself is looked at again below.

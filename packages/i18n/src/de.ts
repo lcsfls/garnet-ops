@@ -2327,14 +2327,27 @@ export const de: Messages = {
       "Standardmäßig aus: Sobald es an ist, können Agents mit einem Code von einem Admin an diese Installation melden.",
     moduleHostsOn:
       "Hosts und Container sind an. Fügen Sie den ersten Agent unter Infrastruktur, Agents hinzu.",
+    publicDnsTitle: "Öffentlicher DNS für öffentliche Namen",
+    publicDnsDescription:
+      "Website-Prüfungen, der Nachweis der Kontrolle, die Registry-Prüfung und Certificate Transparency können gleichzeitig mit Ihrem eigenen Resolver einen öffentlichen fragen; die erste eindeutige Antwort zählt. Das hilft, wenn Ihr eigener Resolver langsam ist. Forges, Verzeichnis-Anmeldung, Mail und der KI-Endpunkt nutzen immer nur Ihren eigenen Resolver.",
+    publicDnsOff: "Nur der eigene Resolver",
+    publicDnsOffText: "Die Voreinstellung. Kein Name verlässt das Netz in Richtung eines DNS-Anbieters.",
+    publicDnsEnabledBy: "Gewählt von {name} am {when}.",
+    publicDnsLeavesTitle: "Was das Netz verlässt",
+    publicDnsLeavesText:
+      "Die Namen, die diese Prüfungen nachschlagen (Ihre Websites, deren Mail- und Nameserver, Registries, crt.sh), gehen an {provider} unter {servers}, unverschlüsselt über Port 53. Sonst nichts.",
+    publicDnsPrivacy: "Datenschutzerklärung des Anbieters",
+    publicDnsAcknowledge: "Mir ist bewusst, dass die nachgeschlagenen Namen an {provider} gehen.",
+    publicDnsOn: "Öffentlicher DNS gespeichert. Die Prüfungen fragen ihn ab jetzt.",
+    publicDnsOffDone: "Es antwortet wieder nur Ihr eigener Resolver.",
     moduleHostsOffDone: "Hosts und Container sind aus.",
     moduleHostsOffTitle: "Hosts und Container ausschalten?",
     moduleHostsOffText:
       "Agents können nicht mehr melden und es wird nichts abgeglichen. Hosts, Container und Befunde bleiben erhalten, und die Agents melden wieder, sobald Sie das Modul einschalten.",
-    moduleHostsOpen: "Hosts öffnen",
+    moduleHostsOpen: "Agents öffnen",
     helpModulesTitle: "Was ein Modul ändert",
     helpModulesText:
-      "Ein ausgeschaltetes Modul tut nichts und zeigt nichts. Ein- und Ausschalten steht im Audit-Log, und die Daten bleiben beim Ausschalten erhalten.",
+      "Ein ausgeschaltetes Modul tut nichts; nur Owner und Admins sehen es im Menü, um es einzuschalten. Ein- und Ausschalten steht im Audit-Log, und die Daten bleiben beim Ausschalten erhalten.",
     goodToKnow: "Gut zu wissen",
     helpNightlyTitle: "Wann laufen Scans?",
     helpNightlyText:
@@ -2904,6 +2917,8 @@ export const de: Messages = {
       exposure_ct_disabled: "Certificate-Transparency-Abfragen ausgeschaltet",
       organization_module_enabled: "Modul eingeschaltet",
       organization_module_disabled: "Modul ausgeschaltet",
+      organization_public_dns_enabled: "Öffentlicher DNS gewählt",
+      organization_public_dns_disabled: "Öffentlicher DNS abgeschaltet",
       host_enrolled: "Host von seinem Agent hinzugefügt",
       host_enrolment_created: "Code zum Hinzufügen eines Hosts erzeugt",
       host_enrolment_revoked: "Code zum Hinzufügen eines Hosts zurückgezogen",

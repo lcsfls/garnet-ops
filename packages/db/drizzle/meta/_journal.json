@@ -232,6 +232,13 @@
       "when": 1793316295314,
       "tag": "0032_host_kernel",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793355252427,
+      "tag": "0033_public_dns",
+      "breakpoints": true
     }
   ]
 }
