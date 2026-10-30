@@ -37,6 +37,7 @@ import {
   uptimeIncidents,
   uptimeStats,
 } from "@garnetops/core/uptime";
+import { WORDPRESS_ORG } from "@garnetops/core/wordpress";
 import { schema } from "@garnetops/db";
 import { and, asc, count, desc, eq, getTableColumns, gte, ilike, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -451,13 +452,15 @@ const stage2Body = z.discriminatedUnion("enabled", [
   }),
   z.object({ enabled: z.literal(false) }),
 ]);
-const settingsBody = z.object({
-  ct: z.object({
-    enabled: z.boolean(),
-    /** Acknowledges that domain names are sent to the search service. Needed to switch it on. */
-    acknowledged: z.boolean().optional(),
-  }),
+const optIn = z.object({
+  enabled: z.boolean(),
+  /** Acknowledges what is sent to the outside service. Needed to switch it on. */
+  acknowledged: z.boolean().optional(),
 });
+/** Each part is optional (0.0.14); a body names at least one. */
+const settingsBody = z
+  .object({ ct: optIn.optional(), wordpressOrg: optIn.optional() })
+  .refine((b) => b.ct !== undefined || b.wordpressOrg !== undefined, { message: "nothing to change" });
 
 /** Adds one asset: validated, counted, de-duplicated, audited, and queued for a first look. */
 async function createAsset(
@@ -499,6 +502,25 @@ async function createAsset(
   await queueRun({ id, organizationId: actor.organizationId }, "passive", "manual", actor.userId);
   await queueVerify(id);
   return { id, kind: checked.kind, value: checked.value };
+}
+
+/** What wordpress.org said about the plugins and themes of a snapshot, when the organisation switched the lookup on. */
+async function wordpressOrgOf(organizationId: string, passive: unknown) {
+  const [settings] = await db
+    .select({ on: schema.exposureSettings.wordpressOrgEnabled })
+    .from(schema.exposureSettings)
+    .where(eq(schema.exposureSettings.organizationId, organizationId))
+    .limit(1);
+  if (!settings?.on) return null;
+  const wp = (passive as PassiveSnapshot | null)?.http?.wordpress;
+  const slugs = wp ? [...wp.plugins, ...wp.themes].map((c) => c.slug) : [];
+  if (slugs.length === 0) return [];
+  const w = schema.wordpressComponent;
+  const rows = await db
+    .select({ kind: w.kind, slug: w.slug, listed: w.listed, latest: w.latest, checkedAt: w.checkedAt })
+    .from(w)
+    .where(inArray(w.slug, slugs));
+  return rows.map((r) => ({ ...r, checkedAt: r.checkedAt.toISOString() }));
 }
 
 /** The software a passive snapshot shows, judged now; empty when the home page did not answer. */
@@ -587,15 +609,16 @@ export const exposureRoutes = new Hono<AppEnv>()
       .from(schema.exposureSettings)
       .where(eq(schema.exposureSettings.organizationId, actor.organizationId))
       .limit(1);
-    let enabledBy: string | null = null;
-    if (row?.ctEnabledBy) {
+    const nameOf = async (id: string | null | undefined) => {
+      if (!id) return null;
       const [u] = await db
         .select({ name: schema.user.name })
         .from(schema.user)
-        .where(eq(schema.user.id, row.ctEnabledBy))
+        .where(eq(schema.user.id, id))
         .limit(1);
-      enabledBy = u?.name ?? null;
-    }
+      return u?.name ?? null;
+    };
+    const enabledBy = await nameOf(row?.ctEnabledBy);
     const today = new Date().toISOString().slice(0, 10);
     return c.json({
       certificateTransparency: {
@@ -612,6 +635,12 @@ export const exposureRoutes = new Hono<AppEnv>()
         dailyBudget: CT_LIMITS.dailyBudget,
         lastError: row?.ctLastError ?? null,
       },
+      wordpressOrg: {
+        enabled: row?.wordpressOrgEnabled ?? false,
+        enabledAt: iso(row?.wordpressOrgEnabledAt),
+        enabledBy: await nameOf(row?.wordpressOrgEnabledBy),
+        host: WORDPRESS_ORG.host,
+      },
     });
   })
   .put("/settings", async (c) => {
@@ -620,6 +649,32 @@ export const exposureRoutes = new Hono<AppEnv>()
     const body = settingsBody.parse(await c.req.json());
     const s = schema.exposureSettings;
     const [row] = await db.select().from(s).where(eq(s.organizationId, actor.organizationId)).limit(1);
+    if (body.wordpressOrg && body.wordpressOrg.enabled !== (row?.wordpressOrgEnabled ?? false)) {
+      const on = body.wordpressOrg.enabled;
+      if (on) {
+        // Plugin and theme slugs leave the network: step-up and an explicit acknowledgement.
+        if (body.wordpressOrg.acknowledged !== true)
+          throw invalid([{ field: "wordpressOrg.acknowledged", code: "acknowledgement_required" }]);
+        requireRecentSignIn(actor);
+      }
+      const now = new Date();
+      const values = {
+        wordpressOrgEnabled: on,
+        wordpressOrgEnabledBy: on ? actor.userId : null,
+        wordpressOrgEnabledAt: on ? now : null,
+      };
+      await db
+        .insert(s)
+        .values({ organizationId: actor.organizationId, ...values })
+        .onConflictDoUpdate({ target: s.organizationId, set: { ...values, updatedAt: now } });
+      await audit(
+        actor,
+        on ? "exposure.wordpress_org_enabled" : "exposure.wordpress_org_disabled",
+        { type: "organization", id: actor.organizationId },
+        { host: WORDPRESS_ORG.host },
+      );
+    }
+    if (!body.ct) return c.json({ ok: true });
     const was = row?.ctEnabled ?? false;
     if (body.ct.enabled === was) return c.json({ ok: true });
     if (body.ct.enabled) {
@@ -799,6 +854,8 @@ export const exposureRoutes = new Hono<AppEnv>()
       active: row.active ?? null,
       /** What the site names about its software, judged against the committed end-of-life data (ADR 0038). */
       software: softwareOf(row.passive),
+      /** wordpress.org's answers for the site's plugins and themes; null while the lookup is off (ADR 0042). */
+      wordpressOrg: await wordpressOrgOf(actor.organizationId, row.passive),
       availability: await uptimeOf(row.id),
       findings: findings.map((x) => ({
         ...x,

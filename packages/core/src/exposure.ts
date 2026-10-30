@@ -8,7 +8,13 @@
  * markup, a link or an instruction.
  */
 
-import { detectSoftware, judgeSoftware, SOFTWARE_NAMES, softwareSeverity } from "./software.ts";
+import {
+  compareVersions,
+  detectSoftware,
+  judgeSoftware,
+  SOFTWARE_NAMES,
+  softwareSeverity,
+} from "./software.ts";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                      */
@@ -712,6 +718,7 @@ export const EXPOSURE_RULES = [
   "dnssecSha1Digest",
   "softwareEndOfLife",
   "softwareOutdated",
+  "wordpressOutdated",
   "portExposed",
 ] as const;
 export type ExposureRule = (typeof EXPOSURE_RULES)[number];
@@ -794,7 +801,15 @@ export function tlsFindings(tls: TlsSnapshot, now: Date, stage: RunStage): Findi
 }
 
 /** Findings of the HTTP answers, the DNS records and TLS of an asset. See ADR 0023 for the rules and their severities. */
-export function evaluatePassive(snapshot: PassiveSnapshot, now: Date): FindingDraft[] {
+/**
+ * @param wordpressLatest The latest versions on wordpress.org by `plugin:<slug>` or `theme:<slug>` (ADR 0042, opt-in); without it,
+ * no WordPress plugin or theme is judged.
+ */
+export function evaluatePassive(
+  snapshot: PassiveSnapshot,
+  now: Date,
+  wordpressLatest?: ReadonlyMap<string, string>,
+): FindingDraft[] {
   const out: FindingDraft[] = [];
   const stage: RunStage = "passive";
 
@@ -886,6 +901,26 @@ export function evaluatePassive(snapshot: PassiveSnapshot, now: Date): FindingDr
         );
       }
     }
+    // A version from an asset address is a hint, not a statement of the site: low (ADR 0042).
+    const wp = snapshot.http.wordpress;
+    if (wp && wordpressLatest) {
+      const all = [
+        ...wp.plugins.map((c) => ({ ...c, kind: "plugin" as const })),
+        ...wp.themes.map((c) => ({ ...c, kind: "theme" as const })),
+      ];
+      for (const c of all) {
+        const latest = wordpressLatest.get(`${c.kind}:${c.slug}`);
+        if (!c.version || !latest || compareVersions(c.version, latest) >= 0) continue;
+        out.push(
+          finding("wordpressOutdated", "low", stage, `${c.kind}:${c.slug}`, {
+            kind: c.kind,
+            slug: c.slug,
+            version: c.version,
+            latest,
+          }),
+        );
+      }
+    }
   }
   return out;
 }
@@ -948,6 +983,7 @@ const HTTP_RULES: ExposureRule[] = [
   "httpBannerVersion",
   "softwareEndOfLife",
   "softwareOutdated",
+  "wordpressOutdated",
 ];
 
 /**

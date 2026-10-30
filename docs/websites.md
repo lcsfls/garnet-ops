@@ -101,7 +101,13 @@ without changing the number. The HTTP section of a website lists what was found 
 
 **WordPress themes and plugins** ([ADR 0042](adr/0042-wordpress-plugins-and-themes.md)): the HTTP section also lists the themes
 and plugins the home page's asset addresses name (`/wp-content/plugins/<slug>/…`), with the version the address carries. Plugins
-that load nothing on the home page are not seen, and nothing else of the site is requested. They are listed, not judged yet.
+that load nothing on the home page are not seen, and nothing else of the site is requested.
+
+To judge them, an owner or admin can switch on **Latest versions of WordPress plugins and themes** under Settings → Modules
+(off by default). GarnetOps then asks api.wordpress.org once a day for the latest version of each slug: only the slug is sent, no
+website name, version or organisation. A plugin or theme behind its latest version becomes the finding **WordPress plugin or
+theme behind its latest version** (low: the version is the one an asset address names). Premium and custom plugins that
+wordpress.org does not list are shown as such and not judged.
 
 ## The report
 
@@ -304,13 +310,14 @@ They link to the asset. They carry the asset name, counts and a list of ports, n
 | --- | --- | --- |
 | See assets, findings, results | yes | yes |
 | Add, change, remove, verify, check now | no | yes |
-| Switch stage 2 on, run it by hand, new code, Certificate Transparency on | no | yes, with a sign-in from the last ten minutes |
-| Switch stage 2 or Certificate Transparency off | no | yes |
+| Switch stage 2 on, run it by hand, new code, Certificate Transparency or the wordpress.org lookup on | no | yes, with a sign-in from the last ten minutes |
+| Switch stage 2, Certificate Transparency or the wordpress.org lookup off | no | yes |
 | Switch the availability check on or off | no | yes |
 
 The audit log (filter **Websites**) has: asset added and removed, verified, verification lost and restored, verification code
 replaced, stage 2 switched on (with the acknowledgement), off, stopped and run by hand, subdomain coverage changed, Certificate
-Transparency switched on and off, availability check switched on (or its interval changed) and off.
+Transparency switched on and off, wordpress.org lookup switched on and off, availability check switched on (or its interval
+changed) and off.
 
 ## Limits and what is not tested
 

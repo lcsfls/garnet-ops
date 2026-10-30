@@ -1502,8 +1502,32 @@ export const exposureSettings = pgTable("exposure_settings", {
   ctLastRequestAt: timestamp("ct_last_request_at", { withTimezone: true }),
   /** A code from apps/worker/src/exposure-ct.ts; null if the last query worked. */
   ctLastError: text("ct_last_error"),
+  /** Latest versions of WordPress plugins and themes from wordpress.org (ADR 0042, part 2): off until an owner or admin agrees. */
+  wordpressOrgEnabled: boolean("wordpress_org_enabled").notNull().default(false),
+  wordpressOrgEnabledBy: text("wordpress_org_enabled_by").references(() => user.id, { onDelete: "set null" }),
+  wordpressOrgEnabledAt: timestamp("wordpress_org_enabled_at", { withTimezone: true }),
   updatedAt: updatedAt(),
 });
+
+/**
+ * What wordpress.org said about a plugin or theme slug (ADR 0042, part 2), for the whole installation: public data, asked only for
+ * slugs seen on websites of organisations that switched the lookup on.
+ */
+export const wordpressComponent = pgTable(
+  "wordpress_component",
+  {
+    kind: text("kind", { enum: ["plugin", "theme"] }).notNull(),
+    slug: text("slug").notNull(),
+    /** The latest version; null when wordpress.org does not list the slug (a premium or custom plugin) or the answer had none. */
+    latest: text("latest"),
+    /** Whether wordpress.org lists it. */
+    listed: boolean("listed").notNull().default(false),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+    /** A code when the last request failed; the previous answer is kept. */
+    error: text("error"),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.slug] })],
+);
 
 /**
  * A domain, host name or public address the organisation wants watched from the outside. `verifyToken` is the proof an

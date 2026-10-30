@@ -38,6 +38,7 @@ import { startSystemReports } from "./system-report.ts";
 import { startUptime } from "./uptime.ts";
 import { startUserNotificationUpkeep, tellAboutScan } from "./user-notify.ts";
 import { startVulnDbUpdates } from "./vulndb.ts";
+import { startWordPressOrg } from "./wordpress-org.ts";
 
 const AI_CONCURRENCY = 4;
 const DIRECTORY_CONCURRENCY = 4;
@@ -171,6 +172,7 @@ await startExposureScheduler(boss);
 // Hosts and containers (ADR 0034): matching the packages of running images, and the opt-in registry check.
 await startHosts(boss);
 await startUptime(boss);
+await startWordPressOrg(boss);
 await startScheduler(boss);
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();

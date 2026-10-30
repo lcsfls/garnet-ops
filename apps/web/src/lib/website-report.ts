@@ -41,6 +41,7 @@ export const RULE_AREA: Record<ExposureRule, ReportArea> = {
   httpBannerVersion: "headers",
   softwareEndOfLife: "software",
   softwareOutdated: "software",
+  wordpressOutdated: "software",
   dnsNoSpf: "mail",
   dnsSpfMultiple: "mail",
   dnsSpfPermissive: "mail",

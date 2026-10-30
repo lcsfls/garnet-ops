@@ -722,6 +722,76 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
     });
   });
 
+  describe("wordpress.org versions (ADR 0042)", () => {
+    it("is off by default, needs the acknowledgement and a recent sign-in, is audited, and shows answers only while on", async () => {
+      expect((await call("GET", "/api/v1/exposure/settings")).json?.wordpressOrg).toMatchObject({
+        enabled: false,
+        host: "api.wordpress.org",
+      });
+      const id = await addAsset({
+        passive: {
+          http: { status: 200, wordpress: { plugins: [{ slug: "akismet", version: "5.0" }], themes: [] } },
+        },
+      });
+      await t.db
+        .insert(schema.wordpressComponent)
+        .values({ kind: "plugin", slug: "akismet", listed: true, latest: "5.3.5", checkedAt: new Date() });
+      expect((await call("GET", `/api/v1/exposure/${id}`)).json?.wordpressOrg).toBeNull();
+
+      const noAck = await call("PUT", "/api/v1/exposure/settings", {
+        body: { wordpressOrg: { enabled: true } },
+      });
+      expect(noAck.status).toBe(422);
+      const stale = await call("PUT", "/api/v1/exposure/settings", {
+        age: STALE,
+        body: { wordpressOrg: { enabled: true, acknowledged: true } },
+      });
+      expect(problemCode(stale)).toBe("step-up-required");
+      expect(
+        (
+          await call("PUT", "/api/v1/exposure/settings", {
+            role: "member",
+            body: { wordpressOrg: { enabled: true, acknowledged: true } },
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await call("PUT", "/api/v1/exposure/settings", {
+            body: { wordpressOrg: { enabled: true, acknowledged: true } },
+          })
+        ).status,
+      ).toBe(200);
+      expect((await call("GET", "/api/v1/exposure/settings")).json?.wordpressOrg).toMatchObject({
+        enabled: true,
+        enabledBy: "Erika",
+      });
+      expect(await audits("exposure.wordpress_org_enabled")).toHaveLength(1);
+      // Certificate Transparency is untouched by it.
+      expect((await call("GET", "/api/v1/exposure/settings")).json?.certificateTransparency.enabled).toBe(
+        false,
+      );
+      expect((await call("GET", `/api/v1/exposure/${id}`)).json?.wordpressOrg).toMatchObject([
+        { kind: "plugin", slug: "akismet", listed: true, latest: "5.3.5" },
+      ]);
+      // Another organisation's choice is its own.
+      expect(
+        (await call("GET", "/api/v1/exposure/settings", { org: OTHER })).json?.wordpressOrg.enabled,
+      ).toBe(false);
+
+      expect(
+        (
+          await call("PUT", "/api/v1/exposure/settings", {
+            age: STALE,
+            body: { wordpressOrg: { enabled: false } },
+          })
+        ).status,
+      ).toBe(200);
+      expect(await audits("exposure.wordpress_org_disabled")).toHaveLength(1);
+      expect((await call("PUT", "/api/v1/exposure/settings", { body: {} })).status).toBe(422);
+    });
+  });
+
   describe("Certificate Transparency", () => {
     it("is off by default and shows the exact request and its provider", async () => {
       await t.db.insert(schema.organization).values({ id: "org_ex_ct0", name: "CT" });

@@ -1561,6 +1561,10 @@ export const de: Messages = {
         title: "Software hinter ihrer neuesten Version",
         text: "Die Website nennt {product} {version}; die neueste Version ihrer Linie {cycle} ist {latest}, die bekannte Schwachstellen beheben kann. Aktualisieren Sie sie.",
       },
+      wordpressOutdated: {
+        title: "WordPress-Plugin oder -Theme nicht auf dem neuesten Stand: {slug}",
+        text: "Die Startseite lädt {slug} {version}; wordpress.org hat {latest}. Updates von Plugins und Themes beheben oft Sicherheitsprobleme. Die Version ist die, die die Asset-Adresse nennt.",
+      },
       portExposed: {
         title: "Aus dem Internet erreichbar: Port {port}",
         text: "{service} ({category}) antwortet auf Port {port} von {addresses}. GarnetOps hat sich nur verbunden und nichts gesendet. Ob der Dienst geschützt ist, lässt sich daher nicht sagen.",
@@ -1732,6 +1736,26 @@ export const de: Messages = {
       "So, wie die Asset-Adressen der Startseite sie nennen. Plugins, die auf der Startseite nichts laden, sind nicht sichtbar; eine Version ist die, die die Asset-Adresse nennt.",
     wordpressKind: { theme: "Theme", plugin: "Plugin" },
     wordpressNoVersion: "keine Version genannt",
+    wpOrgTitle: "Neueste Versionen von WordPress-Plugins und -Themes",
+    wpOrgText:
+      "Vergleicht die Plugins und Themes, die die Startseiten der Websites nennen, mit den neuesten Versionen auf wordpress.org. Ein Plugin oder Theme, das nicht auf dem neuesten Stand ist, wird zum Befund (niedrig).",
+    wpOrgLeavesTitle: "Dabei werden die Namen der Plugins und Themes an {host} gesendet",
+    wpOrgLeavesText:
+      "Nur der Kurzname jedes Plugins und Themes (etwa contact-form-7), höchstens einmal am Tag. Kein Website-Name, keine Version und keine Organisation werden gesendet. Premium- und eigene Plugins, die wordpress.org nicht führt, werden nicht bewertet.",
+    wpOrgAskTitle: "Neueste Versionen bei wordpress.org abfragen?",
+    wpOrgAcknowledge:
+      "Ich bin einverstanden, dass die Kurznamen der Plugins und Themes unserer Websites an {host} gesendet werden.",
+    wpOrgSwitchOn: "Einschalten",
+    wpOrgSwitchOff: "Ausschalten",
+    wpOrgSwitchedOn: "Abfrage bei wordpress.org eingeschaltet.",
+    wpOrgSwitchedOff: "Abfrage bei wordpress.org ausgeschaltet.",
+    wpOrgNotAskedYet: "noch nicht abgefragt",
+    wpOrgNotListed: "nicht auf wordpress.org",
+    wpOrgBehind: "neueste ist {latest}",
+    wpOrgLatest: "neueste",
+    wpOrgNoteOn: "Einmal am Tag mit wordpress.org verglichen.",
+    wpOrgNoteOff:
+      "Schalten Sie die Abfrage bei wordpress.org ein (Einstellungen → Module), um sie mit den neuesten Versionen zu vergleichen.",
     bannerNote:
       "GarnetOps bewertet eine Version nur anhand des Supportendes ihrer Versionslinie, nie anhand von Schwachstellendaten, und gar nicht, wenn der Header eine Distribution nennt: Debian, Red Hat und andere beheben Sicherheitsprobleme in älteren Versionen, ohne die Nummer zu ändern.",
     portsTitle: "Ports",
@@ -3206,6 +3230,10 @@ export const de: Messages = {
       exposure_include_subdomains_changed: "Abdeckung von Subdomains geändert",
       exposure_stage1_changed: "Tägliche Prüfung der Stufe 1 geändert",
       exposure_ct_enabled: "Certificate-Transparency-Abfragen eingeschaltet",
+      exposure_wordpress_org_enabled:
+        "Abfrage der Plugin- und Theme-Versionen bei wordpress.org eingeschaltet",
+      exposure_wordpress_org_disabled:
+        "Abfrage der Plugin- und Theme-Versionen bei wordpress.org ausgeschaltet",
       exposure_ct_disabled: "Certificate-Transparency-Abfragen ausgeschaltet",
       organization_module_enabled: "Modul eingeschaltet",
       organization_module_disabled: "Modul ausgeschaltet",

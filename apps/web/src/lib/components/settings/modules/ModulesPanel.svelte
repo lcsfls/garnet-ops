@@ -9,6 +9,7 @@
   import ModuleCard from "./ModuleCard.svelte";
   import PublicDns from "./PublicDns.svelte";
   import RegistryChecks from "./RegistryChecks.svelte";
+  import WordPressOrg from "./WordPressOrg.svelte";
 
   /**
    * Settings, Modules (ADR 0033): parts of GarnetOps an organisation switches on. Website monitoring (it connects to public hosts an
@@ -31,5 +32,6 @@
 </Card>
 
 {#if websites}<CertificateTransparency {me} />{/if}
+{#if websites}<WordPressOrg {me} />{/if}
 {#if hosts}<RegistryChecks {me} />{/if}
 <PublicDns {me} />

@@ -46,6 +46,7 @@ function detail(over: Partial<ExposureDetail> = {}): ExposureDetail {
     runs: [],
     suggestions: [],
     software: [],
+    wordpressOrg: null,
     instructions: null,
     limits: { ports: 0, scheduleHours: {} },
     availability: { day: empty, week: empty, month: empty, hours: [], incidents: [] },

@@ -1515,6 +1515,10 @@ export const en = {
         title: "Software behind its latest version",
         text: "The site names {product} {version}; the latest of its line {cycle} is {latest}, which may fix known vulnerabilities. Update it.",
       },
+      wordpressOutdated: {
+        title: "WordPress plugin or theme behind its latest version: {slug}",
+        text: "The home page loads {slug} {version}; wordpress.org has {latest}. Updates of plugins and themes often fix security problems. The version is the one the asset address names.",
+      },
       portExposed: {
         title: "Reachable from the internet: port {port}",
         text: "{service} ({category}) answers on port {port} of {addresses}. GarnetOps only connected and sent nothing, so it cannot tell whether the service is protected.",
@@ -1681,6 +1685,25 @@ export const en = {
       "As the home page's asset addresses name them. Plugins that load nothing on the home page are not seen; a version is what the asset address says.",
     wordpressKind: { theme: "Theme", plugin: "Plugin" },
     wordpressNoVersion: "no version named",
+    wpOrgTitle: "Latest versions of WordPress plugins and themes",
+    wpOrgText:
+      "Compares the plugins and themes the websites' home pages name with the latest versions on wordpress.org. A plugin or theme behind its latest version becomes a finding (low).",
+    wpOrgLeavesTitle: "This sends the plugin and theme names to {host}",
+    wpOrgLeavesText:
+      "Only the slug of each plugin and theme (such as contact-form-7), at most once a day each. No website name, version or organisation is sent. Premium and custom plugins that wordpress.org does not list are not judged.",
+    wpOrgAskTitle: "Ask wordpress.org for the latest versions?",
+    wpOrgAcknowledge: "I agree that the slugs of our websites' plugins and themes are sent to {host}.",
+    wpOrgSwitchOn: "Switch on",
+    wpOrgSwitchOff: "Switch off",
+    wpOrgSwitchedOn: "wordpress.org lookup switched on.",
+    wpOrgSwitchedOff: "wordpress.org lookup switched off.",
+    wpOrgNotAskedYet: "not asked yet",
+    wpOrgNotListed: "not on wordpress.org",
+    wpOrgBehind: "latest is {latest}",
+    wpOrgLatest: "latest",
+    wpOrgNoteOn: "Compared with wordpress.org once a day.",
+    wpOrgNoteOff:
+      "Switch on the wordpress.org lookup (Settings → Modules) to compare them with the latest versions.",
     bannerNote:
       "GarnetOps judges a version only against the end-of-life data of its release line, never against vulnerability data, and not at all when the header names a distribution: Debian, Red Hat and others fix security problems in older versions without changing the number.",
     portsTitle: "Ports",
@@ -3122,6 +3145,8 @@ export const en = {
       exposure_include_subdomains_changed: "Subdomain coverage changed",
       exposure_stage1_changed: "Daily stage 1 check changed",
       exposure_ct_enabled: "Certificate Transparency lookups switched on",
+      exposure_wordpress_org_enabled: "wordpress.org lookup of plugin and theme versions switched on",
+      exposure_wordpress_org_disabled: "wordpress.org lookup of plugin and theme versions switched off",
       exposure_ct_disabled: "Certificate Transparency lookups switched off",
       organization_module_enabled: "Module switched on",
       organization_module_disabled: "Module switched off",

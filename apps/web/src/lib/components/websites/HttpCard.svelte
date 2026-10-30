@@ -1,5 +1,6 @@
 <script lang="ts">
   import { HSTS_WEAK_BELOW_SECONDS, parseHsts } from "@garnetops/core/exposure";
+  import { compareVersions } from "@garnetops/core/software";
   import { t } from "../../i18n.svelte.ts";
   import type { ExposureDetail } from "../../websites.ts";
   import Card from "../Card.svelte";
@@ -125,18 +126,35 @@
       {#if http.wordpress}
         <div class="border-t px-5 py-4" data-testid="websites-wordpress">
           <h3 class="mb-1 font-medium">{t("websites.wordpressTitle")}</h3>
-          <p class="mb-2 text-sm text-muted-foreground">{t("websites.wordpressNote")}</p>
+          <p class="mb-2 text-sm text-muted-foreground">
+            {t("websites.wordpressNote")}
+            {detail.wordpressOrg ? t("websites.wpOrgNoteOn") : t("websites.wpOrgNoteOff")}
+          </p>
           <table class="w-full text-left text-sm">
             <tbody>
               {#each [...http.wordpress.themes.map((x) => ({ ...x, kind: "theme" as const })), ...http.wordpress.plugins.map((x) => ({ ...x, kind: "plugin" as const }))] as c (`${c.kind}:${c.slug}`)}
                 <tr class="border-b align-top last:border-0">
                   <th scope="row" class="py-1.5 pr-4 font-mono text-xs font-normal break-all">{c.slug}</th>
                   <td class="py-1.5 pr-4 text-muted-foreground">{t(`websites.wordpressKind.${c.kind}`)}</td>
-                  <td class="py-1.5 font-mono break-all">
+                  <td class="py-1.5 pr-4 font-mono break-all">
                     {#if c.version}{c.version}{:else}<span class="font-sans text-muted-foreground"
                         >{t("websites.wordpressNoVersion")}</span
                       >{/if}
                   </td>
+                  {#if detail.wordpressOrg}
+                    {@const org = detail.wordpressOrg.find((x) => x.kind === c.kind && x.slug === c.slug)}
+                    <td class="py-1.5 text-muted-foreground">
+                      {#if !org}
+                        {t("websites.wpOrgNotAskedYet")}
+                      {:else if !org.listed}
+                        {t("websites.wpOrgNotListed")}
+                      {:else if org.latest && c.version && compareVersions(c.version, org.latest) < 0}
+                        <span class="text-foreground">{t("websites.wpOrgBehind", { latest: org.latest })}</span>
+                      {:else if org.latest}
+                        {t("websites.wpOrgLatest", { latest: org.latest })}
+                      {/if}
+                    </td>
+                  {/if}
                 </tr>
               {/each}
             </tbody>

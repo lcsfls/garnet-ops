@@ -66,3 +66,57 @@ function decodeURIComponentSafe(value: string): string {
     return value;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Latest versions from wordpress.org (ADR 0042, part 2, opt-in)               */
+/* -------------------------------------------------------------------------- */
+
+export type WordPressKind = "plugin" | "theme";
+
+/** The wordpress.org directory, the only host asked, and what it is asked: one slug per request, no other data. */
+export const WORDPRESS_ORG = {
+  host: "api.wordpress.org",
+  timeoutMs: 15_000,
+  maxBytes: 256 * 1024,
+  /** A slug is asked again after this long. */
+  refreshHours: 24,
+  /** Requests per run, one at a time with a pause in between. */
+  perRun: 200,
+  gapMs: 1_000,
+} as const;
+
+const NOT_NEEDED = [
+  "sections",
+  "description",
+  "short_description",
+  "reviews",
+  "banners",
+  "icons",
+  "screenshots",
+  "versions",
+  "contributors",
+  "ratings",
+  "tags",
+  "compatibility",
+  "donate_link",
+  "downloadlink",
+];
+
+/** The path of the information request for one plugin or theme; everything but the version is switched off. */
+export function wordpressOrgPath(kind: WordPressKind, slug: string): string {
+  if (!SLUG.test(slug)) throw new Error("invalid slug");
+  const fields = NOT_NEEDED.map((f) => `request[fields][${f}]=0`).join("&");
+  return kind === "plugin"
+    ? `/plugins/info/1.2/?action=plugin_information&request[slug]=${slug}&${fields}`
+    : `/themes/info/1.2/?action=theme_information&request[slug]=${slug}&${fields}`;
+}
+
+/** The latest version in a directory answer, or null when the answer names none of a valid shape. */
+export function parseWordPressOrgVersion(body: string): string | null {
+  try {
+    const value = (JSON.parse(body) as { version?: unknown })?.version;
+    return typeof value === "string" && VERSION.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}

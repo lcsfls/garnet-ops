@@ -588,6 +588,56 @@ describe.skipIf(!openssl || !adminUrl)(
         Object.assign(web, freshWeb());
       });
 
+      it("asks wordpress.org only for opted-in organisations' slugs, once a day, and judges plugins against the answers (ADR 0042)", async () => {
+        resetZone();
+        const wp = await import("./wordpress-org.ts");
+        const body = `<meta name="generator" content="WordPress 6.5.2" />
+          <script src="/wp-content/plugins/contact-form-7/a.js?ver=5.9.3"></script>
+          <script src="/wp-content/plugins/premium-only/a.js?ver=2.0"></script>`;
+        const asked: string[] = [];
+        const fetch = async (kind: "plugin" | "theme", slug: string) => {
+          asked.push(`${kind}:${slug}`);
+          return slug === "premium-only"
+            ? ({ listed: false } as const)
+            : ({ listed: true, latest: "5.9.8" } as const);
+        };
+        // Two organisations with the same plugin; only one switched the lookup on.
+        const on = await newOrg();
+        const off = await newOrg();
+        await conn.db
+          .update(schema.exposureSettings)
+          .set({ wordpressOrgEnabled: true })
+          .where(eq(schema.exposureSettings.organizationId, on.id));
+        const a = await addAsset(on.id, { value: SITE });
+        tidyZone(SITE);
+        Object.assign(web, freshWeb(), { headers: { ...TIDY_HEADERS }, body });
+        await passive(a);
+        await conn.db.delete(schema.wordpressComponent);
+        const now = new Date();
+        expect(await wp.refreshWordPressVersions({ fetch, now: () => now, gapMs: 0 })).toBe(2);
+        expect(asked.sort()).toEqual(["plugin:contact-form-7", "plugin:premium-only"]);
+        // Asked again only after a day.
+        expect(await wp.refreshWordPressVersions({ fetch, now: () => now, gapMs: 0 })).toBe(0);
+
+        // The next look judges it: behind its latest version is a low finding; an unlisted plugin is not judged.
+        await passive(a);
+        expect((await rules(a.id)).filter((r) => r.startsWith("wordpressOutdated"))).toEqual([
+          "wordpressOutdated:plugin:contact-form-7",
+        ]);
+        // The organisation without the lookup gets no such finding for the same plugin.
+        const b = await addAsset(off.id, { value: SITE });
+        await passive(b);
+        expect((await rules(b.id)).filter((r) => r.startsWith("wordpressOutdated"))).toEqual([]);
+        // Switched off: the finding is resolved at the next look.
+        await conn.db
+          .update(schema.exposureSettings)
+          .set({ wordpressOrgEnabled: false })
+          .where(eq(schema.exposureSettings.organizationId, on.id));
+        await passive(a);
+        expect((await rules(a.id)).filter((r) => r.startsWith("wordpressOutdated"))).toEqual([]);
+        Object.assign(web, freshWeb());
+      });
+
       it("looks at a tidy site and finds nothing wrong; the page body is not stored", async () => {
         resetZone();
         Object.assign(web, freshWeb(), {

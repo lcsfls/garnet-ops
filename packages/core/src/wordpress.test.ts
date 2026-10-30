@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { wordpressAssets } from "./wordpress.ts";
+import { parseWordPressOrgVersion, wordpressAssets, wordpressOrgPath } from "./wordpress.ts";
 
 describe("WordPress plugins and themes from asset addresses (ADR 0042)", () => {
   const page = `
@@ -32,5 +32,23 @@ describe("WordPress plugins and themes from asset addresses (ADR 0042)", () => {
       (_, i) => `<script src="/wp-content/plugins/p${i}/x.js"></script>`,
     ).join("");
     expect(wordpressAssets(many)?.plugins).toHaveLength(60);
+  });
+});
+
+describe("latest versions from wordpress.org (ADR 0042, part 2)", () => {
+  it("asks for one slug with every other field switched off, and refuses anything that is not a slug", () => {
+    const path = wordpressOrgPath("plugin", "contact-form-7");
+    expect(path).toMatch(
+      /^\/plugins\/info\/1\.2\/\?action=plugin_information&request\[slug\]=contact-form-7&/,
+    );
+    expect(path).toContain("request[fields][sections]=0");
+    expect(wordpressOrgPath("theme", "astra")).toMatch(/^\/themes\/info\/1\.2\/\?action=theme_information/);
+    expect(() => wordpressOrgPath("plugin", "../admin")).toThrow();
+  });
+
+  it("reads only a version of the right shape", () => {
+    expect(parseWordPressOrgVersion('{"name":"x","version":"5.9.8"}')).toBe("5.9.8");
+    expect(parseWordPressOrgVersion('{"version":"<b>1</b>"}')).toBeNull();
+    expect(parseWordPressOrgVersion("not json")).toBeNull();
   });
 });

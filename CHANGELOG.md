@@ -26,6 +26,10 @@ Security-relevant changes are listed under **Security** in every release.
 - **WordPress themes and plugins** of a website, as the home page's asset addresses name them, with their versions, on the
   HTTP tab ([ADR 0042](docs/adr/0042-wordpress-plugins-and-themes.md)). The daily look now reads up to 256 KiB of the home
   page (was 64 KiB) to see them; the page is still never stored.
+- **Latest versions from wordpress.org** (opt-in, Settings → Modules): GarnetOps asks api.wordpress.org once a day for the latest
+  version of each plugin and theme slug (only the slug is sent) and reports one that is behind as a low finding.
+- API: `wordpressOrg` in `GET` and `PUT /api/v1/exposure/settings` (`ct` is optional there now) and in
+  `GET /api/v1/exposure/{id}`.
 - API: `GET /api/v1/early-warnings/hosts` and `GET /api/v1/early-warnings/websites`.
 - API: `PUT /api/v1/exposure/{id}/uptime`, `uptime` on every website and `availability` on one website.
 - An empty **Early warnings** page says when the last check ran, with which database, how many of the organisation's packages it

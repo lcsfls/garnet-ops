@@ -122,6 +122,10 @@ export interface ExposureDetail extends WebsiteAsset {
   suggestions: { id: string; name: string; source: "ct" | "dns" }[];
   /** What the site names about its software, judged against the end-of-life data (ADR 0038). */
   software: (import("@garnetops/core/software").SoftwareJudgement & { name: string })[];
+  /** wordpress.org's answers for the site's plugins and themes; null while the lookup is off (ADR 0042). */
+  wordpressOrg:
+    | { kind: "plugin" | "theme"; slug: string; listed: boolean; latest: string | null; checkedAt: string }[]
+    | null;
   /** Only for owners and admins. */
   instructions: {
     value: string;
@@ -158,6 +162,8 @@ export interface ExposureSettings {
     dailyBudget: number;
     lastError: string | null;
   };
+  /** Latest versions of WordPress plugins and themes from wordpress.org (ADR 0042, opt-in). */
+  wordpressOrg: { enabled: boolean; enabledAt: string | null; enabledBy: string | null; host: string };
 }
 
 /* -------------------------------------------------------------------------- */

@@ -761,3 +761,40 @@ describe("limits and codes", () => {
     expect(new Set(EXPOSURE_ERRORS).size).toBe(EXPOSURE_ERRORS.length);
   });
 });
+
+describe("WordPress plugins and themes against wordpress.org (ADR 0042)", () => {
+  it("finds a plugin or theme behind its latest version only when the lookup gave versions", () => {
+    const base = passive();
+    const snapshot = passive({
+      http: {
+        ...(base.http as NonNullable<PassiveSnapshot["http"]>),
+        wordpress: {
+          plugins: [
+            { slug: "contact-form-7", version: "5.9.3" },
+            { slug: "custom", version: "1.0" },
+            { slug: "no-version", version: null },
+          ],
+          themes: [{ slug: "astra", version: "4.6.0" }],
+        },
+      },
+    });
+    const now = new Date("2026-10-30T12:00:00Z");
+    const wordpress = (latest?: Map<string, string>) =>
+      evaluatePassive(snapshot, now, latest).filter((f) => f.rule === "wordpressOutdated");
+    expect(wordpress()).toEqual([]);
+    const found = wordpress(
+      new Map([
+        ["plugin:contact-form-7", "5.9.8"],
+        ["plugin:no-version", "2.0"],
+        ["theme:astra", "4.6.0"],
+      ]),
+    );
+    expect(found.map((f) => [f.subject, f.severity, f.params])).toEqual([
+      [
+        "plugin:contact-form-7",
+        "low",
+        { kind: "plugin", slug: "contact-form-7", version: "5.9.3", latest: "5.9.8" },
+      ],
+    ]);
+  });
+});
