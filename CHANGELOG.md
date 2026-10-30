@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.13] - 2026-10-30
+<!-- title: Agents without Docker, DNSSEC and software versions of websites -->
+
 ### Added
 
 - The menu counts what needs a look under **Infrastructure**: hosts that stopped reporting or run an image or kernel with an open
@@ -1165,7 +1168,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.12...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.13...HEAD
+[0.0.13]: https://github.com/lcsfls/garnet-ops/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/lcsfls/garnet-ops/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/lcsfls/garnet-ops/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/lcsfls/garnet-ops/compare/v0.0.9...v0.0.10

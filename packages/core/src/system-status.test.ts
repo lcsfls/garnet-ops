@@ -131,11 +131,11 @@ describe("scanners", () => {
 });
 
 describe("app version", () => {
-  it("takes a release version and falls back to the 0.0.12 alpha", () => {
+  it("takes a release version and falls back to the 0.0.13 alpha", () => {
     expect(appVersionOf("0.1.0")).toBe("0.1.0");
     expect(appVersionOf("1.2.3-rc.1")).toBe("1.2.3-rc.1");
-    expect(appVersionOf("latest")).toBe("0.0.12");
-    expect(appVersionOf(undefined)).toBe("0.0.12");
+    expect(appVersionOf("latest")).toBe("0.0.13");
+    expect(appVersionOf(undefined)).toBe("0.0.13");
   });
 });
 
