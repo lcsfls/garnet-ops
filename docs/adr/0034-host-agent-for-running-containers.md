@@ -109,7 +109,7 @@ Private registries and registries that need credentials are not supported in thi
 
 | Threat | Control |
 | --- | --- |
-| The agent (or syft parsing a hostile image) is taken over and uses Docker to take over the host | the agent has no Docker socket; the proxy forwards only `GET`/`HEAD` on six read paths and has no network |
+| The agent (or syft parsing a hostile image) is taken over and uses Docker to take over the host | the agent has no Docker socket; the proxy forwards only `GET`/`HEAD` on seven read paths and has no network |
 | Someone sends fake reports for a host | every request is signed with the host's Ed25519 key; time window and nonce stop replays |
 | An enrolment code leaks | one host, 24 hours, hashed at rest, shown once; the admin sees which host used it and can remove the host |
 | A compromised host sends hostile data (huge lists, script in labels, paths) | schemas, limits per request and per field, only five labels kept, everything rendered as text |

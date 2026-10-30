@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.12] - 2026-10-30
+<!-- title: Hosts and containers, website monitoring and pull requests -->
+
 ### Added
 
 - **Sign in with GitHub, Gitea or Forgejo** to connect an account, instead of pasting a token
@@ -48,7 +51,7 @@ Security-relevant changes are listed under **Security** in every release.
 - Website monitoring makes outbound connections to public hosts only after an owner or admin switches the module on (audited).
   While it is off, no check runs and its API refuses every request; switching it off also switches stage 2 off for every website
   and voids the confirmations. The worker checks the switch again before each run and each proof check.
-- The host agent never holds the Docker socket: a separate proxy without network forwards only read requests on six paths. Hosts
+- The host agent never holds the Docker socket: a separate proxy without network forwards only read requests on seven paths. Hosts
   enrol with a one-time code (hashed at rest, 24 hours, one host) and sign every request with an Ed25519 key (five-minute window,
   nonce, removed hosts refused at once). Everything a host sends is treated as hostile input.
 
@@ -1113,7 +1116,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.11...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.12...HEAD
+[0.0.12]: https://github.com/lcsfls/garnet-ops/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/lcsfls/garnet-ops/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/lcsfls/garnet-ops/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/lcsfls/garnet-ops/compare/v0.0.8...v0.0.9

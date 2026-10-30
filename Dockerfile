@@ -67,7 +67,7 @@ RUN mkdir -p /opt/scanners \
 
 # ---------------------------------------------------------------- app: API and worker
 FROM ${NODE_IMAGE} AS app
-ARG VERSION=0.0.11
+ARG VERSION=0.0.12
 # git (GPL-2.0) and OpenSSH run as separate programs for clones, never linked (AGENTS.md rule 3).
 # npm and corepack are not needed at run time.
 RUN apk add --no-cache git openssh-client \
@@ -96,7 +96,7 @@ CMD ["node", "apps/api/src/index.ts"]
 
 # ---------------------------------------------------------------- web: the edge
 FROM ${CADDY_IMAGE} AS web
-ARG VERSION=0.0.11
+ARG VERSION=0.0.12
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=web-build /src/apps/web/build /srv
 # The Content Security Policy with the hashes of this build (ADR 0027), imported by the Caddyfile.
@@ -124,7 +124,7 @@ RUN rm -rf apps/api apps/worker apps/web packages/db packages/i18n vendor pnpm-l
 
 # ---------------------------------------------------------------- agent: on the customer's hosts
 FROM ${NODE_IMAGE} AS agent
-ARG VERSION=0.0.11
+ARG VERSION=0.0.12
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
  && adduser -D -H -u 10001 garnetops-agent \
