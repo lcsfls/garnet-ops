@@ -11,7 +11,7 @@
   import Button from "#lib/components/ui/Button.svelte";
   import Select from "#lib/components/ui/Select.svelte";
   import SeverityBadge from "#lib/components/ui/SeverityBadge.svelte";
-  import { formatRelative } from "#lib/format.ts";
+  import { formatDateTime, formatRelative } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { type EarlyWarningSearch, earlyWarningSearch } from "#lib/search.ts";
   import { toast } from "#lib/toast.svelte.ts";
@@ -45,9 +45,14 @@
   const list = createQuery(() => ({
     queryKey: ["early-warnings", search],
     queryFn: () =>
-      api<{ items: Warning[]; truncated: boolean }>(
-        href("/early-warnings", { state: search.state, repositoryId: search.repositoryId }),
-      ),
+      api<{
+        items: Warning[];
+        truncated: boolean;
+        lastCheck: { checkedAt: string; dbBuiltAt: string | null } | null;
+        packages: number;
+        repositories: number;
+        closedRecently: number;
+      }>(href("/early-warnings", { state: search.state, repositoryId: search.repositoryId })),
     placeholderData: keepPreviousData,
     refetchInterval: 60_000,
   }));
@@ -164,9 +169,29 @@
   </table>
   <QueryStatus query={list} />
   {#if list.data && list.data.items.length === 0}
-    <p class="px-5 py-6 text-muted-foreground">
-      {state === "open" ? t("earlyWarnings.emptyOpen") : t("earlyWarnings.emptyClosed")}
-    </p>
+    <div class="grid gap-2 px-5 py-6 text-muted-foreground" data-testid="early-warnings-empty">
+      <p>{state === "open" ? t("earlyWarnings.emptyOpen") : t("earlyWarnings.emptyClosed")}</p>
+      {#if state === "open"}
+        {@const d = list.data}
+        {#if d.packages === 0}
+          <p>{t("earlyWarnings.noPackages")}</p>
+        {:else if d.lastCheck}
+          <p>
+            {t("earlyWarnings.lastCheck", {
+              when: formatDateTime(d.lastCheck.checkedAt),
+              database: d.lastCheck.dbBuiltAt ? formatDateTime(d.lastCheck.dbBuiltAt) : "–",
+              packages: d.packages,
+              repositories: d.repositories,
+            })}
+          </p>
+        {:else}
+          <p>{t("earlyWarnings.notCheckedYet")}</p>
+        {/if}
+        {#if d.closedRecently > 0}
+          <p>{t("earlyWarnings.closedRecently", { count: d.closedRecently })}</p>
+        {/if}
+      {/if}
+    </div>
   {/if}
   {#if list.data?.truncated}
     <p class="border-t px-5 py-3 text-sm text-muted-foreground">{t("earlyWarnings.truncated")}</p>

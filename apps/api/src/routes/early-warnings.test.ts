@@ -151,6 +151,51 @@ describe.skipIf(!adminUrl)("early warnings API", () => {
     expect((await get("/api/v1/early-warnings?repositoryId=repo_b1")).json.items).toEqual([]);
   });
 
+  it("says what the last check looked at, counting only this organisation's packages", async () => {
+    const before = (await get("/api/v1/early-warnings")).json;
+    expect(before).toMatchObject({ lastCheck: null, packages: 0, repositories: 0, closedRecently: 1 });
+    await t.db.insert(schema.repositoryPackage).values([
+      {
+        id: "rpk_a",
+        organizationId: ORG,
+        scanId: "scan_a",
+        repositoryId: "repo_a1",
+        name: "lodash",
+        version: "4.17.20",
+        type: "npm",
+        purl: "pkg:npm/lodash@4.17.20",
+      },
+      {
+        id: "rpk_b",
+        organizationId: OTHER,
+        scanId: "scan_b",
+        repositoryId: "repo_b1",
+        name: "left-pad",
+        version: "1.0.0",
+        type: "npm",
+        purl: "pkg:npm/left-pad@1.0.0",
+      },
+    ]);
+    await t.db.insert(schema.systemReport).values({
+      key: "early_warning",
+      data: {
+        checkedAt: "2026-10-30T06:00:00.000Z",
+        dbBuiltAt: "2026-10-30T04:00:00Z",
+        warnings: 0,
+        packages: 9,
+      },
+      reportedAt: new Date(),
+    });
+    const after = (await get("/api/v1/early-warnings")).json;
+    expect(after).toMatchObject({
+      lastCheck: { checkedAt: "2026-10-30T06:00:00.000Z", dbBuiltAt: "2026-10-30T04:00:00Z" },
+      packages: 1,
+      repositories: 1,
+    });
+    // The installation-wide count of the report is never passed on.
+    expect(JSON.stringify(after)).not.toContain('"packages":9');
+  });
+
   it("refuses an unknown state", async () => {
     expect((await get("/api/v1/early-warnings?state=all")).status).toBe(422);
   });

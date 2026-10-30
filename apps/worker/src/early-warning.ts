@@ -33,6 +33,9 @@ const reportSchema = z.object({
   /** The build time of the database the last check used; a check runs again only for a newer one. */
   dbBuiltAt: z.string().nullable(),
   warnings: z.number().int().min(0),
+  /** How much was checked, so an empty page can say why it is empty (0.0.14; absent before). */
+  packages: z.number().int().min(0).optional(),
+  repositories: z.number().int().min(0).optional(),
 });
 
 type InventoryRow = {
@@ -119,6 +122,8 @@ export async function checkEarlyWarnings(boss: Pick<PgBoss, "send"> | null): Pro
     checkedAt: new Date().toISOString(),
     dbBuiltAt: builtAt,
     warnings: created.length,
+    packages: purls.length,
+    repositories: new Set(rows.map((r) => r.repositoryId)).size,
   } satisfies z.infer<typeof reportSchema>);
   if (boss && created.length > 0) await notify(boss, rows, created);
   return created.length;

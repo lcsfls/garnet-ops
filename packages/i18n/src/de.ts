@@ -2137,6 +2137,14 @@ export const de: Messages = {
     emptyOpen:
       "Keine Frühwarnungen. Nach jedem Update der Schwachstellendatenbank prüft GarnetOps die gespeicherten Pakete aller Repositories erneut.",
     emptyClosed: "In den letzten 30 Tagen wurde keine Frühwarnung geschlossen.",
+    noPackages:
+      "Noch keine gespeicherten Pakete: Scans schreiben sie (mit einer Software-Stückliste), und die Prüfung nutzt sie nach dem nächsten Update der Schwachstellen-Datenbank.",
+    lastCheck:
+      "Letzte Prüfung {when} mit der Datenbank vom {database}: {packages, plural, one {# Paket} other {# Pakete}} aus {repositories, plural, one {# Repository} other {# Repositorys}}, nichts Neues dafür.",
+    notCheckedYet:
+      "Noch nicht geprüft: Die erste Prüfung läuft nach dem nächsten Update der Schwachstellen-Datenbank.",
+    closedRecently:
+      "{count, plural, one {# Frühwarnung wurde} other {# Frühwarnungen wurden}} in den letzten 30 Tagen von Scans bestätigt oder aufgelöst: siehe Geschlossen. Ein Scan nach dem Datenbank-Update beantwortet sie schnell.",
     truncated: "Es werden die ersten 500 angezeigt.",
     hint: "Frühwarnungen ändern weder Funde noch Noten oder Quality Gates. Zu Funden werden sie erst, wenn ein Scan sie bestätigt.",
   },

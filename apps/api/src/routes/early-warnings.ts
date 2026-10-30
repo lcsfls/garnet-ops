@@ -10,6 +10,15 @@ const MAX = 500;
 /** Closed early warnings stay visible this long, so the outcome of a confirming scan can be seen. */
 const CLOSED_DAYS = 30;
 
+/** The worker's report of the last check (installation-wide, no organisation's data in it). */
+const lastCheckSchema = z.object({
+  checkedAt: z.string(),
+  dbBuiltAt: z.string().nullable(),
+  warnings: z.number(),
+  packages: z.number().optional(),
+  repositories: z.number().optional(),
+});
+
 const query = z.object({
   state: z.enum(["open", "closed"]).default("open"),
   repositoryId: z.string().min(1).max(40).optional(),
@@ -59,5 +68,46 @@ export const earlyWarningRoutes = new Hono<AppEnv>().get("/", async (c) => {
         : [desc(w.closedAt), w.id]),
     )
     .limit(MAX + 1);
-  return c.json({ items: rows.slice(0, MAX), truncated: rows.length > MAX });
+  // What the last check looked at and how many warnings scans closed lately, so an empty page explains itself.
+  const [report] = await db
+    .select({ data: schema.systemReport.data })
+    .from(schema.systemReport)
+    .where(eq(schema.systemReport.key, "early_warning"))
+    .limit(1);
+  const last = lastCheckSchema.safeParse(report?.data);
+  const [closed] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(w)
+    .where(
+      and(
+        eq(w.organizationId, actor.organizationId),
+        visibleRepository(w.repositoryId, actor),
+        ne(w.state, "open"),
+        gte(w.closedAt, sql`now() - make_interval(days => ${CLOSED_DAYS})`),
+      ),
+    );
+  // The counts are this organisation's own: the report counts the whole installation.
+  const p = schema.repositoryPackage;
+  const [stored] = await db
+    .select({
+      packages: sql<number>`count(distinct ${p.purl})::int`,
+      repositories: sql<number>`count(distinct ${p.repositoryId})::int`,
+    })
+    .from(p)
+    .innerJoin(schema.repository, eq(schema.repository.id, p.repositoryId))
+    .where(
+      and(
+        eq(schema.repository.organizationId, actor.organizationId),
+        visibleRepository(p.repositoryId, actor),
+        sql`${p.purl} is not null`,
+      ),
+    );
+  return c.json({
+    items: rows.slice(0, MAX),
+    truncated: rows.length > MAX,
+    lastCheck: last.success ? { checkedAt: last.data.checkedAt, dbBuiltAt: last.data.dbBuiltAt } : null,
+    packages: stored?.packages ?? 0,
+    repositories: stored?.repositories ?? 0,
+    closedRecently: closed?.n ?? 0,
+  });
 });

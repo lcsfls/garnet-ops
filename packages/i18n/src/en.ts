@@ -2074,6 +2074,14 @@ export const en = {
     emptyOpen:
       "No early warnings. After each update of the vulnerability database, GarnetOps checks the stored packages of all repositories again.",
     emptyClosed: "No early warning was closed in the last 30 days.",
+    noPackages:
+      "No stored packages yet: scans write them (with a software bill of materials), and the check uses them after the next update of the vulnerability database.",
+    lastCheck:
+      "Last check {when} with the database of {database}: {packages, plural, one {# package} other {# packages}} from {repositories, plural, one {# repository} other {# repositories}}, nothing new for them.",
+    notCheckedYet:
+      "Not checked yet: the first check runs after the next update of the vulnerability database.",
+    closedRecently:
+      "{count, plural, one {# early warning was} other {# early warnings were}} confirmed or cleared by scans in the last 30 days: see Closed. A scan after the database update answers them quickly.",
     truncated: "Showing the first 500.",
     hint: "Early warnings do not change findings, grades or quality gates. They become findings only when a scan confirms them.",
   },
