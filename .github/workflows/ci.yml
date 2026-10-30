@@ -41,7 +41,7 @@ jobs:
       - name: Unit tests
         run: corepack pnpm test
 
-      - name: Host agent (Go): format, vet, tests
+      - name: "Host agent (Go): format, vet, tests"
         # The same pinned image as the Dockerfile's host-agent stage; standard library only, nothing is downloaded.
         run: >-
           docker run --rm -v "$PWD/apps/host-agent:/src" -w /src -e GOTOOLCHAIN=local -e CGO_ENABLED=0
