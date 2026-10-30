@@ -19,6 +19,10 @@ Security-relevant changes are listed under **Security** in every release.
   control, registry checks and Certificate Transparency. Both are asked at once and the first clear answer counts, so a slow local
   resolver no longer makes checks fail. Off by default.
 - API: `GET` and `PUT /api/v1/organization/dns`.
+- **DNSSEC monitoring** for websites ([ADR 0036](docs/adr/0036-dnssec-monitoring.md)): the DS records at the parent, the zone's
+  keys and the signatures over keys and SOA, asked of the name servers and checked by GarnetOps itself. Findings for a broken chain
+  (high), signatures that run out within a day, a zone without DS at the parent, outdated algorithms, SHA-1-only DS records and
+  zones without DNSSEC. The DNS section shows state, keys, DS records and how long the signatures hold.
 
 ### Changed
 

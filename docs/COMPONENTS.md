@@ -63,6 +63,9 @@ npm packages, so its upstream repository still has to be checked.
 | drizzle-kit | 0.31.11 | MIT | to verify | https://github.com/drizzle-team/drizzle-orm | Migration generator (dev) | License from package metadata only. Its deprecated `@esbuild-kit/core-utils` dependency is forced to esbuild 0.25.12 (MIT) by a pnpm override in `pnpm-workspace.yaml` (GHSA-67mh-4wv8-2f99); `pnpm db:generate` reports no schema changes |
 | pg (node-postgres) | 8.23.1 | MIT | verified | https://github.com/brianc/node-postgres | PostgreSQL driver | |
 | pg-boss | 12.38.0 | MIT | verified | https://github.com/timgit/pg-boss | Job queue in Postgres | |
+| dns-packet | 5.6.1 | MIT | verified | https://github.com/mafintosh/dns-packet | DNS wire format for the DNSSEC check of website monitoring (worker, ADR 0036) | |
+| @leichtgewicht/ip-codec | 2.0.5 | MIT | verified | https://github.com/martinheidegger/ip-codec | Address encoding, a dependency of dns-packet | |
+| @types/dns-packet | 5.6.5 | MIT | verified | https://github.com/DefinitelyTyped/DefinitelyTyped | Type definitions (dev) | |
 | PostgreSQL | 17 (embedded, dev only) | PostgreSQL License | to verify | https://www.postgresql.org | Database | Production version pinned with the Compose stack |
 | embedded-postgres | 17.10.0-beta.17 | MIT | verified | https://github.com/leinelissen/embedded-postgres | Local development database without Docker (dev only) | Ships PostgreSQL binaries; never part of a release |
 | tsx | 4.23.15 | MIT | verified | https://github.com/privatenumber/tsx | Runs TypeScript in development | |

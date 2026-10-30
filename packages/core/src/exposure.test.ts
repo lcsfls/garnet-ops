@@ -281,7 +281,15 @@ function passive(over: Partial<PassiveSnapshot> = {}): PassiveSnapshot {
       failed: [],
       spf: { records: 1, policy: "fail", record: "v=spf1 mx -all" },
       dmarc: { found: true, policy: "reject", record: "v=DMARC1; p=reject" },
-      dnssec: "unknown",
+      dnssec: {
+        zone: "example.com",
+        state: "secure",
+        problem: null,
+        ds: [{ keyTag: 2371, algorithm: 13, digestType: 2, matches: true }],
+        keys: [{ keyTag: 2371, algorithm: 13, flags: 257 }],
+        signatures: [],
+        expiresAt: "2030-01-01T00:00:00.000Z",
+      },
     },
     tls: [tls()],
     http: {
@@ -599,6 +607,12 @@ describe("rules a snapshot could not judge", () => {
     const out = unjudgedRules(passive({ dns: { ...dns, failed: ["txt", "caa"] } }));
     expect(out).toEqual(expect.arrayContaining(["dnsNoSpf", "dnsSpfPermissive", "dnsNoCaa"]));
     expect(out).not.toContain("dnsNoDmarc");
+  });
+  it("leaves the DNSSEC rules alone when the name servers could not be asked (and for snapshots before 0.0.13)", () => {
+    const dns = passive().dns as NonNullable<PassiveSnapshot["dns"]>;
+    const out = unjudgedRules(passive({ dns: { ...dns, dnssec: "unknown" } }));
+    expect(out).toEqual(expect.arrayContaining(["dnssecMissing", "dnssecBroken", "dnssecExpiring"]));
+    expect(out).not.toContain("dnsNoCaa");
   });
   it("leaves TLS and header rules alone when the servers did not answer in time", () => {
     const silent = passive({

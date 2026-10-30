@@ -1327,6 +1327,30 @@ export const en = {
         title: "Resolves to a non-public address",
         text: "The name resolves to {addresses}. GarnetOps connected to nothing for this name.",
       },
+      dnssecMissing: {
+        title: "DNSSEC not set up",
+        text: "The zone {zone} is not signed, so resolvers cannot tell a forged answer for it from a real one. Your DNS provider or registrar can usually switch DNSSEC on.",
+      },
+      dnssecNotDelegated: {
+        title: "Zone signed, but no DS record at the parent",
+        text: "{zone} has DNSSEC keys, but the parent zone has no DS record for them, so resolvers treat the zone as unsigned. Add the DS record at your registrar.",
+      },
+      dnssecBroken: {
+        title: "DNSSEC is broken",
+        text: "The DNSSEC chain of {zone} does not hold. Resolvers that validate (many large ones do) answer with an error for this domain, so it is unreachable for their users. The DNS card says which step fails.",
+      },
+      dnssecExpiring: {
+        title: "DNSSEC signatures run out soon",
+        text: "The signatures of {zone} run out in {hours} hours. If they are not renewed in time, the domain becomes unreachable for validating resolvers.",
+      },
+      dnssecWeakAlgorithm: {
+        title: "Outdated DNSSEC algorithm",
+        text: "{zone} uses algorithm {algorithm}, which current guidance (RFC 8624) says not to use for signing any more. Roll over to ECDSA P-256 (13) or Ed25519 (15).",
+      },
+      dnssecSha1Digest: {
+        title: "DS record with SHA-1 only",
+        text: "The parent's DS records for {zone} use SHA-1 only. Add a DS record with SHA-256 at your registrar.",
+      },
       portExposed: {
         title: "Reachable from the internet: port {port}",
         text: "{service} ({category}) answers on port {port} of {addresses}. GarnetOps only connected and sent nothing, so it cannot tell whether the service is protected.",
@@ -1386,7 +1410,29 @@ export const en = {
     dnsDnssec: "DNSSEC",
     dnsPtr: "Reverse names",
     dnsNone: "None",
-    dnssecUnknown: "Not checked: the system resolver interface does not say whether an answer was validated.",
+    dnssecUnknown: "Not checked: the name servers of the zone could not be asked.",
+    dnssecState: {
+      unsigned: "Not signed",
+      insecure: "Signed, but no DS record at the parent",
+      secure: "Signed and valid",
+      broken: "Broken",
+    },
+    dnssecZone: "Zone {zone}",
+    dnssecProblem: {
+      noDnskey: "The parent has a DS record, but the zone has no DNSKEY record.",
+      dsNoMatch: "No DS record at the parent matches a key of the zone (often after a key rollover).",
+      dnskeyNotSigned: "The keys of the zone are not signed.",
+      dnskeySignatureInvalid: "The signature over the keys does not check out.",
+      soaNotSigned: "The SOA record is not signed.",
+      soaSignatureInvalid: "The signature over the SOA record does not check out.",
+      signatureExpired: "The signatures have run out.",
+      signatureNotYetValid: "The signatures are not valid yet (a clock or signer problem).",
+    },
+    dnssecKeys: "DNSKEY",
+    dnssecDs: "DS at the parent",
+    dnssecDsMatches: "matches a key",
+    dnssecDsNoMatch: "matches no key",
+    dnssecValidUntil: "Signatures valid until",
     spfPolicy: {
       fail: "Only the listed senders may send (-all).",
       softfail: "Other senders are suspicious (~all).",

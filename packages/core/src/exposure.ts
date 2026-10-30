@@ -480,9 +480,56 @@ export interface DnsSnapshot {
   /** The SPF record (cleaned) and how many there are; DMARC likewise. */
   spf: { records: number; policy: SpfPolicy; record: string | null };
   dmarc: { found: boolean; policy: DmarcPolicy | null; record: string | null };
-  /** The resolver API does not report DNSSEC validation: always "unknown" (the web app says so). */
-  dnssec: "unknown";
+  /**
+   * DNSSEC of the zone the name lies in, read from the zone's and its parent's name servers and checked here (ADR 0036).
+   * "unknown" when the name servers could not be asked (and in snapshots taken before 0.0.13).
+   */
+  dnssec: DnssecSnapshot | "unknown";
 }
+
+/**
+ * - `unsigned`: neither a DS record at the parent nor DNSKEY records in the zone.
+ * - `insecure`: the zone is signed but the parent has no DS record, so validating resolvers treat it as unsigned.
+ * - `secure`: a DS record matches a key, the keys are signed by it, and the SOA record is signed by a key of the zone.
+ * - `broken`: the chain does not hold (see `problem`); validating resolvers then answer SERVFAIL for the whole domain.
+ */
+export type DnssecState = "unsigned" | "insecure" | "secure" | "broken";
+export const DNSSEC_PROBLEMS = [
+  "noDnskey",
+  "dsNoMatch",
+  "dnskeyNotSigned",
+  "dnskeySignatureInvalid",
+  "soaNotSigned",
+  "soaSignatureInvalid",
+  "signatureExpired",
+  "signatureNotYetValid",
+] as const;
+export type DnssecProblem = (typeof DNSSEC_PROBLEMS)[number];
+
+export interface DnssecSnapshot {
+  /** The zone that was checked: the name itself or the nearest parent with name servers of its own. */
+  zone: string;
+  state: DnssecState;
+  problem: DnssecProblem | null;
+  ds: { keyTag: number; algorithm: number; digestType: number; matches: boolean }[];
+  keys: { keyTag: number; algorithm: number; flags: number }[];
+  signatures: {
+    covers: "DNSKEY" | "SOA";
+    keyTag: number;
+    algorithm: number;
+    inception: string;
+    expiration: string;
+    /** null: an algorithm GarnetOps cannot check; it is then not counted either way. */
+    valid: boolean | null;
+  }[];
+  /** When the earliest of the signatures that hold the chain together runs out. */
+  expiresAt: string | null;
+}
+
+/** Algorithms RFC 8624 says must not or should not be used for signing any more. */
+export const WEAK_DNSSEC_ALGORITHMS: readonly number[] = [1, 3, 5, 6, 7, 12];
+/** A DNSSEC signature with less than this left is reported (live signers keep days ahead). */
+export const DNSSEC_EXPIRY_WARNING_MS = 24 * 3600_000;
 
 export interface PassiveSnapshot {
   version: 1;
@@ -651,6 +698,12 @@ export const EXPOSURE_RULES = [
   "dnsNoCaa",
   "dnsDanglingCname",
   "dnsNonPublicAddress",
+  "dnssecMissing",
+  "dnssecNotDelegated",
+  "dnssecBroken",
+  "dnssecExpiring",
+  "dnssecWeakAlgorithm",
+  "dnssecSha1Digest",
   "portExposed",
 ] as const;
 export type ExposureRule = (typeof EXPOSURE_RULES)[number];
@@ -810,10 +863,50 @@ export function evaluatePassive(snapshot: PassiveSnapshot, now: Date): FindingDr
       else if (dns.dmarc.policy === "none") out.push(finding("dnsDmarcNone", "low", stage));
     }
     if (!dns.failed.includes("caa") && !dns.caaFound) out.push(finding("dnsNoCaa", "low", stage));
+    if (dns.dnssec !== "unknown") out.push(...dnssecFindings(dns.dnssec, now, stage));
   }
   return out;
 }
 
+/** What the DNSSEC state of a zone means for an asset in it (ADR 0036). */
+export function dnssecFindings(d: DnssecSnapshot, now: Date, stage: RunStage): FindingDraft[] {
+  const out: FindingDraft[] = [];
+  const zone = { zone: d.zone };
+  if (d.state === "unsigned") out.push(finding("dnssecMissing", "low", stage, "", zone));
+  if (d.state === "insecure") out.push(finding("dnssecNotDelegated", "medium", stage, "", zone));
+  if (d.state === "broken")
+    out.push(finding("dnssecBroken", "high", stage, "", { ...zone, problem: d.problem ?? "" }));
+  if (d.state === "secure" && d.expiresAt) {
+    const left = Date.parse(d.expiresAt) - now.getTime();
+    if (left < DNSSEC_EXPIRY_WARNING_MS) {
+      out.push(
+        finding("dnssecExpiring", "medium", stage, "", {
+          ...zone,
+          hours: Math.max(0, Math.floor(left / 3600_000)),
+        }),
+      );
+    }
+  }
+  if (d.state !== "unsigned") {
+    const weak = [...new Set([...d.keys, ...d.ds].map((k) => k.algorithm))].filter((a) =>
+      WEAK_DNSSEC_ALGORITHMS.includes(a),
+    );
+    if (weak.length > 0)
+      out.push(finding("dnssecWeakAlgorithm", "medium", stage, "", { ...zone, algorithm: weak.join(", ") }));
+    if (d.ds.length > 0 && d.ds.every((x) => x.digestType === 1))
+      out.push(finding("dnssecSha1Digest", "low", stage, "", zone));
+  }
+  return out;
+}
+
+const DNSSEC_RULES: ExposureRule[] = [
+  "dnssecMissing",
+  "dnssecNotDelegated",
+  "dnssecBroken",
+  "dnssecExpiring",
+  "dnssecWeakAlgorithm",
+  "dnssecSha1Digest",
+];
 const TLS_RULES: ExposureRule[] = [
   "tlsExpired",
   "tlsExpiring",
@@ -843,6 +936,8 @@ export function unjudgedRules(s: PassiveSnapshot): ExposureRule[] {
   if (dns?.failed.includes("txt")) out.push("dnsNoSpf", "dnsSpfMultiple", "dnsSpfPermissive");
   if (dns?.failed.includes("dmarc")) out.push("dnsNoDmarc", "dnsDmarcNone");
   if (dns?.failed.includes("caa")) out.push("dnsNoCaa");
+  // Name servers that could not be asked, or a snapshot from before 0.0.13: DNSSEC findings stay as they are.
+  if (!dns || dns.dnssec === "unknown") out.push(...DNSSEC_RULES);
   const lookupFailed = dns?.failed.some((f) => f === "a" || f === "aaaa") ?? false;
   if (lookupFailed && s.addresses.length === 0) {
     out.push(

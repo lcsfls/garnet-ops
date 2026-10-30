@@ -2457,7 +2457,9 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(page.getByText("v=spf1 mx -all")).toBeVisible();
     await expect(page.getByText("Only the listed senders may send (-all).")).toBeVisible();
     await expect(page.getByText("Forged mail is rejected (p=reject).")).toBeVisible();
-    await expect(page.getByText("Not checked: the system resolver interface does not say")).toBeVisible();
+    await expect(page.getByText("Signed and valid")).toBeVisible();
+    await expect(page.getByText("KSK 2371 · ECDSA P-256 (13)")).toBeVisible();
+    await expect(page.getByText("2371 · ECDSA P-256 (13) · SHA-256 · matches a key")).toBeVisible();
     const suggestions = page.getByTestId("websites-suggestions");
     await expect(suggestions.locator("li")).toHaveCount(3);
     await expect(suggestions).toContainText("api.example.com");

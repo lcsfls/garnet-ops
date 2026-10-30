@@ -56,6 +56,7 @@ import { schema } from "@garnetops/db";
 import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import { db } from "./db.ts";
+import { readDnssec } from "./dnssec.ts";
 import { CtError, type CtFetch, crtShFetch } from "./exposure-ct.ts";
 import {
   fetchHomepage,
@@ -623,6 +624,7 @@ export async function runPassive(runId: string, deps: ExposureDeps = {}): Promis
 
     const resolved = await resolveAssetAddresses(env, asset.value);
     const dns: DnsSnapshot | null = isAddress ? null : await readDns(env, asset.value, resolved);
+    if (dns) dns.dnssec = await readDnssec(env, asset.value, now);
     const addresses = resolved.addresses.slice(0, MAX_ADDRESSES_PER_ASSET);
 
     const tls: TlsSnapshot[] = [];

@@ -1369,6 +1369,30 @@ export const de: Messages = {
         title: "Löst auf eine nicht öffentliche Adresse auf",
         text: "Der Name löst auf {addresses} auf. GarnetOps hat sich für diesen Namen mit nichts verbunden.",
       },
+      dnssecMissing: {
+        title: "DNSSEC nicht eingerichtet",
+        text: "Die Zone {zone} ist nicht signiert, daher können Resolver eine gefälschte Antwort nicht von einer echten unterscheiden. Ihr DNS-Anbieter oder Registrar kann DNSSEC meist einschalten.",
+      },
+      dnssecNotDelegated: {
+        title: "Zone signiert, aber kein DS-Eintrag bei der übergeordneten Zone",
+        text: "{zone} hat DNSSEC-Schlüssel, aber die übergeordnete Zone hat keinen DS-Eintrag dafür, daher behandeln Resolver die Zone als unsigniert. Tragen Sie den DS-Eintrag bei Ihrem Registrar ein.",
+      },
+      dnssecBroken: {
+        title: "DNSSEC ist defekt",
+        text: "Die DNSSEC-Kette von {zone} hält nicht. Validierende Resolver (viele große tun das) antworten für diese Domain mit einem Fehler, sie ist für deren Nutzer also nicht erreichbar. Die DNS-Karte zeigt, welcher Schritt scheitert.",
+      },
+      dnssecExpiring: {
+        title: "DNSSEC-Signaturen laufen bald ab",
+        text: "Die Signaturen von {zone} laufen in {hours} Stunden ab. Werden sie nicht rechtzeitig erneuert, ist die Domain für validierende Resolver nicht mehr erreichbar.",
+      },
+      dnssecWeakAlgorithm: {
+        title: "Veralteter DNSSEC-Algorithmus",
+        text: "{zone} nutzt Algorithmus {algorithm}, den aktuelle Empfehlungen (RFC 8624) nicht mehr zum Signieren vorsehen. Wechseln Sie auf ECDSA P-256 (13) oder Ed25519 (15).",
+      },
+      dnssecSha1Digest: {
+        title: "DS-Eintrag nur mit SHA-1",
+        text: "Die DS-Einträge der übergeordneten Zone für {zone} nutzen nur SHA-1. Tragen Sie bei Ihrem Registrar einen DS-Eintrag mit SHA-256 ein.",
+      },
       portExposed: {
         title: "Aus dem Internet erreichbar: Port {port}",
         text: "{service} ({category}) antwortet auf Port {port} von {addresses}. GarnetOps hat sich nur verbunden und nichts gesendet. Ob der Dienst geschützt ist, lässt sich daher nicht sagen.",
@@ -1428,8 +1452,30 @@ export const de: Messages = {
     dnsDnssec: "DNSSEC",
     dnsPtr: "Reverse-Namen",
     dnsNone: "Keine",
-    dnssecUnknown:
-      "Nicht geprüft: Die Schnittstelle des Systemresolvers sagt nicht, ob eine Antwort validiert wurde.",
+    dnssecUnknown: "Nicht geprüft: Die Nameserver der Zone waren nicht erreichbar.",
+    dnssecState: {
+      unsigned: "Nicht signiert",
+      insecure: "Signiert, aber kein DS-Eintrag bei der übergeordneten Zone",
+      secure: "Signiert und gültig",
+      broken: "Defekt",
+    },
+    dnssecZone: "Zone {zone}",
+    dnssecProblem: {
+      noDnskey: "Die übergeordnete Zone hat einen DS-Eintrag, die Zone aber keinen DNSKEY-Eintrag.",
+      dsNoMatch:
+        "Kein DS-Eintrag der übergeordneten Zone passt zu einem Schlüssel der Zone (oft nach einem Schlüsselwechsel).",
+      dnskeyNotSigned: "Die Schlüssel der Zone sind nicht signiert.",
+      dnskeySignatureInvalid: "Die Signatur über die Schlüssel ist ungültig.",
+      soaNotSigned: "Der SOA-Eintrag ist nicht signiert.",
+      soaSignatureInvalid: "Die Signatur über den SOA-Eintrag ist ungültig.",
+      signatureExpired: "Die Signaturen sind abgelaufen.",
+      signatureNotYetValid: "Die Signaturen sind noch nicht gültig (ein Uhrzeit- oder Signierproblem).",
+    },
+    dnssecKeys: "DNSKEY",
+    dnssecDs: "DS bei der übergeordneten Zone",
+    dnssecDsMatches: "passt zu einem Schlüssel",
+    dnssecDsNoMatch: "passt zu keinem Schlüssel",
+    dnssecValidUntil: "Signaturen gültig bis",
     spfPolicy: {
       fail: "Nur die genannten Absender dürfen senden (-all).",
       softfail: "Andere Absender sind verdächtig (~all).",

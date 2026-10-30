@@ -237,15 +237,37 @@ export async function readPtr(env: NetEnv, addresses: readonly string[]): Promis
 /** At most this many name server addresses are asked for the verification record before giving up on them. */
 const MAX_ZONE_SERVERS_ASKED = 3;
 
-/** The name servers of the zone `name` lies in: the NS answer of the name or of its nearest parent that has one. */
-async function zoneServers(env: NetEnv, name: string): Promise<string[]> {
+/**
+ * The zone `name` lies in and its name servers: the NS answer of the name or of its nearest parent that has one. A top-level
+ * domain counts only with `topLevel` (the parent of a domain, for its DS records).
+ */
+export async function zoneOf(
+  env: NetEnv,
+  name: string,
+  topLevel = false,
+): Promise<{ zone: string; servers: string[] } | null> {
   const labels = name.split(".");
-  for (let i = 0; i < labels.length - 1; i++) {
-    const ns = await ask(() => env.dns.resolveNs(labels.slice(i).join(".")));
-    if (ns === undefined) return [];
-    if (ns.length > 0) return ns.slice(0, 4);
+  for (let i = 0; i < labels.length - (topLevel ? 0 : 1); i++) {
+    const zone = labels.slice(i).join(".");
+    const ns = await ask(() => env.dns.resolveNs(zone));
+    if (ns === undefined) return null;
+    if (ns.length > 0) return { zone, servers: ns.slice(0, 4) };
   }
-  return [];
+  return null;
+}
+
+/** The public addresses of a zone's name servers, at most `max`. */
+export async function serverAddresses(
+  env: NetEnv,
+  servers: readonly string[],
+  max: number,
+): Promise<string[]> {
+  const out: string[] = [];
+  for (const host of servers) {
+    out.push(...(await resolveAssetAddresses(env, host)).addresses);
+    if (out.length >= max) break;
+  }
+  return out.slice(0, max);
 }
 
 /**
@@ -256,14 +278,10 @@ async function zoneServers(env: NetEnv, name: string): Promise<string[]> {
  */
 async function readTxtAtZone(env: NetEnv, name: string): Promise<string[][] | undefined> {
   const at = env.dnsAt ?? serverResolver;
-  let asked = 0;
-  for (const host of await zoneServers(env, name)) {
-    const { addresses } = await resolveAssetAddresses(env, host);
-    for (const address of addresses) {
-      if (asked++ >= MAX_ZONE_SERVERS_ASKED) return undefined;
-      const answer = await ask(() => at(address).resolveTxt(name));
-      if (answer !== undefined) return answer;
-    }
+  const zone = await zoneOf(env, name);
+  for (const address of zone ? await serverAddresses(env, zone.servers, MAX_ZONE_SERVERS_ASKED) : []) {
+    const answer = await ask(() => at(address).resolveTxt(name));
+    if (answer !== undefined) return answer;
   }
   return undefined;
 }

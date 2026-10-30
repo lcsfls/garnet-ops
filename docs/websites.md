@@ -114,8 +114,10 @@ If the domain loses its proof, or the option is switched off, or the domain is r
 
 For each asset, daily:
 
-- **DNS** (domains): A, AAAA, CNAME, MX, NS, CAA, the SPF record, the DMARC policy. DNSSEC is not checked: the resolver interface
-  Node.js offers does not say whether an answer was validated, and GarnetOps does not guess. Reverse names for addresses.
+- **DNS** (domains): A, AAAA, CNAME, MX, NS, CAA, the SPF record, the DMARC policy. Reverse names for addresses.
+- **DNSSEC** (domains, [ADR 0036](adr/0036-dnssec-monitoring.md)): the zone's DS records at the parent, its DNSKEY records and the
+  signatures over the keys and over the SOA record, asked directly of the name servers and checked by GarnetOps itself (RSA, ECDSA
+  P-256 and P-384, Ed25519, Ed448). The DNS section shows the state, the keys, the DS records and until when the signatures hold.
 - **TLS on port 443**: certificate chain and expiry, names, key, the protocol and cipher a modern client gets, and whether the
   server still accepts **TLS 1.0 and TLS 1.1** (two extra handshakes that send no data).
 - **HTTP**: one `GET /` over HTTPS and one over plain HTTP on port 80. Redirects are followed at most 3 times, only to the same
@@ -146,6 +148,12 @@ Plain rules. The severity says how unusual or risky a finding is, not that you a
 | No CAA record | low | |
 | CNAME to a name that does not resolve | medium | A takeover risk if someone else can register that name |
 | Resolves to a non-public address | low | Nothing was connected to |
+| DNSSEC broken | high | A DS record names no key, a signature does not check out or has run out: validating resolvers answer with an error for the whole domain |
+| DNSSEC signatures run out within a day | medium | Live signers keep days ahead; less than a day left means signing has stopped |
+| Zone signed, but no DS record at the parent | medium | Resolvers treat the zone as unsigned until the registrar has the DS record |
+| Outdated DNSSEC algorithm | medium | RSA/SHA-1 and older (RFC 8624) |
+| DNSSEC not set up | low | |
+| DS records with SHA-1 only | low | |
 
 **About banners.** A version in a `Server` header is shown as a fact with the advice to check whether it is current. GarnetOps does
 **not** match banner versions against vulnerability data: Debian, Red Hat and other distributions fix security problems in older
@@ -256,7 +264,9 @@ Transparency switched on and off.
 ## Limits and what is not tested
 
 - Up to 200 assets per organisation; the newest 60 runs per asset and stage are kept.
-- DNSSEC is not checked. The registrable domain used for redirects and DMARC is an approximation without the public suffix list.
+- DNSSEC is checked for the zone, not for every name in it, and denial of existence (NSEC, NSEC3) is not checked. When the name
+  servers cannot be asked (outgoing DNS on port 53 blocked), DNSSEC shows "not checked" and its findings stay as they were.
+- The registrable domain used for redirects and DMARC is an approximation without the public suffix list.
 - SPF is judged by its final policy; includes are not followed.
 - A name behind a CDN shows the CDN's certificate, headers and ports.
 - Tested with local servers on loopback, throw-away certificates and a fake resolver; **not** against the real internet, real CDNs,

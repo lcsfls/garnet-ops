@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createMutation, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "../../api.ts";
+  import { formatDateTime } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import { toast } from "../../toast.svelte.ts";
   import type { ExposureDetail } from "../../websites.ts";
@@ -65,10 +66,56 @@
             note: dns.dmarc.policy ? t(`websites.dmarcPolicy.${dns.dmarc.policy}`) : null,
           }
         : { label: t("websites.dnsDmarc"), text: failedText("dmarc", t("websites.dnsNone")) },
-      { label: t("websites.dnsDnssec"), text: t("websites.dnssecUnknown") },
     );
+    list.push(...dnssecRows(dns.dnssec));
     return list;
   });
+
+  /** Technical names, the same in every language. */
+  const ALGORITHMS: Record<number, string> = {
+    5: "RSA/SHA-1",
+    7: "RSA/SHA-1 NSEC3",
+    8: "RSA/SHA-256",
+    10: "RSA/SHA-512",
+    13: "ECDSA P-256",
+    14: "ECDSA P-384",
+    15: "Ed25519",
+    16: "Ed448",
+  };
+  const DIGESTS: Record<number, string> = { 1: "SHA-1", 2: "SHA-256", 4: "SHA-384" };
+  const algorithm = (n: number) => `${ALGORITHMS[n] ?? "?"} (${n})`;
+
+  function dnssecRows(d: NonNullable<typeof dns>["dnssec"]): Fact[] {
+    if (d === "unknown") return [{ label: t("websites.dnsDnssec"), text: t("websites.dnssecUnknown") }];
+    const rows: Fact[] = [
+      {
+        label: t("websites.dnsDnssec"),
+        text: t(`websites.dnssecState.${d.state}`),
+        note: d.problem
+          ? t(`websites.dnssecProblem.${d.problem}`)
+          : t("websites.dnssecZone", { zone: d.zone }),
+      },
+    ];
+    if (d.keys.length > 0) {
+      rows.push({
+        label: t("websites.dnssecKeys"),
+        list: d.keys.map((k) => `${k.flags & 1 ? "KSK" : "ZSK"} ${k.keyTag} · ${algorithm(k.algorithm)}`),
+      });
+    }
+    if (d.ds.length > 0) {
+      rows.push({
+        label: t("websites.dnssecDs"),
+        list: d.ds.map(
+          (x) =>
+            `${x.keyTag} · ${algorithm(x.algorithm)} · ${DIGESTS[x.digestType] ?? x.digestType} · ${
+              x.matches ? t("websites.dnssecDsMatches") : t("websites.dnssecDsNoMatch")
+            }`,
+        ),
+      });
+    }
+    if (d.expiresAt) rows.push({ label: t("websites.dnssecValidUntil"), text: formatDateTime(d.expiresAt) });
+    return rows;
+  }
 </script>
 
 <Card class={className}>

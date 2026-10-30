@@ -298,7 +298,18 @@ async function seedExposure(client: Client, orgId: string, now: Date) {
     caaFound: true,
     spf: { records: 1, policy: "fail", record: "v=spf1 mx -all" },
     dmarc: { found: true, policy: "reject", record: "v=DMARC1; p=reject; rua=mailto:dmarc@example.com" },
-    dnssec: "unknown",
+    dnssec: {
+      zone: name,
+      state: "secure",
+      problem: null,
+      ds: [{ keyTag: 2371, algorithm: 13, digestType: 2, matches: true }],
+      keys: [
+        { keyTag: 2371, algorithm: 13, flags: 257 },
+        { keyTag: 34505, algorithm: 13, flags: 256 },
+      ],
+      signatures: [],
+      expiresAt: iso(minutes(-60 * 24 * 10)),
+    },
   });
   const passive = (over: Record<string, unknown>) => ({
     version: 1,
