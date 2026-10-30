@@ -26,6 +26,10 @@ Security-relevant changes are listed under **Security** in every release.
   itself, so it works without internet access.
 - API: `GET /api/v1/agent/install.sh`, `GET /api/v1/agent/download/{target}`, `POST /api/v1/agent/host-packages`; `runtime` and
   `hostPackages` in `GET /api/v1/hosts` and `GET /api/v1/hosts/{id}`.
+- **Software versions of websites** ([ADR 0038](docs/adr/0038-website-software-versions.md)): PHP, nginx and Apache from the headers,
+  WordPress, Drupal, Joomla, TYPO3, MediaWiki and Astro from the home page's generator tag, judged against the end-of-life data of
+  endoflife.date that ships with GarnetOps. New findings for software without security fixes and software behind the latest version
+  of its line; distribution builds (Debian, Ubuntu, Red Hat) are shown but not judged, because they fix without changing the number.
 - **DNSSEC monitoring** for websites ([ADR 0036](docs/adr/0036-dnssec-monitoring.md)): the DS records at the parent, the zone's
   keys and the signatures over keys and SOA, asked of the name servers and checked by GarnetOps itself. Findings for a broken chain
   (high), signatures that run out within a day, a zone without DS at the parent, outdated algorithms, SHA-1-only DS records and

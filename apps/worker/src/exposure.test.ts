@@ -609,7 +609,9 @@ describe.skipIf(!openssl || !adminUrl)(
       it("lists missing headers, a banner with a version, plain HTTP without a redirect, and weak mail policies, as findings with the rule's severity", async () => {
         resetZone();
         Object.assign(web, freshWeb(), {
-          headers: { server: "Apache/2.4.57 (Debian)", "x-powered-by": "PHP/8.2.7" },
+          // Release lines with no end in sight in the committed data (Apache 2.4) or years away (PHP 8.5), so the result does not
+          // change with the date.
+          headers: { server: "Apache/2.4.57 (Debian)", "x-powered-by": "PHP/8.5.1" },
         });
         plainState.redirect = false;
         const org = await newOrg();
@@ -631,15 +633,25 @@ describe.skipIf(!openssl || !adminUrl)(
             "httpNosniffMissing:",
             "httpPermissionsPolicyMissing:",
             "httpReferrerPolicyMissing:",
+            // PHP is behind the latest of its line (ADR 0038); Apache names Debian, whose builds carry fixes without a new
+            // number, so it is not judged.
+            "softwareOutdated:php",
           ].sort(),
         );
         const all = await findings(a.id);
+        expect(all.find((f) => f.rule === "softwareOutdated" && f.subject === "php")?.params).toMatchObject({
+          product: "PHP",
+          version: "8.5.1",
+          cycle: "8.5",
+        });
         const banner = all.find((f) => f.rule === "httpBannerVersion" && f.subject === "server");
         expect(banner).toMatchObject({ severity: "low", stage: "passive" });
         expect(banner?.params).toMatchObject({ banner: "Apache/2.4.57 (Debian)" });
         // With a mail server, missing SPF and DMARC are medium.
         expect(all.find((f) => f.rule === "dnsNoSpf")?.severity).toBe("medium");
+        // Medium: SPF, DMARC and no redirect to HTTPS; a version from a server header counts low.
         expect((await run(result.id)).findingCounts).toMatchObject({ medium: 3, low: expect.any(Number) });
+        expect(all.find((f) => f.rule === "softwareOutdated")?.severity).toBe("low");
         plainState.redirect = true;
       });
 

@@ -43,6 +43,25 @@
       },
     ];
     if (http?.finalUrl) list.push({ label: t("websites.httpFinal"), text: http.finalUrl, mono: true });
+    for (const s of detail.software) {
+      list.push({
+        label: s.name,
+        text: s.version,
+        mono: true,
+        note:
+          s.status === "endOfLife"
+            ? s.eol
+              ? t("websites.softwareEndOfLifeSince", { cycle: s.cycle ?? "", date: s.eol })
+              : t("websites.softwareEndOfLife", { cycle: s.cycle ?? "" })
+            : s.status === "outdated"
+              ? t("websites.softwareOutdated", { latest: s.latest ?? "" })
+              : s.status === "current"
+                ? t("websites.softwareCurrent", { cycle: s.cycle ?? "" })
+                : s.status === "distribution"
+                  ? t("websites.softwareDistribution")
+                  : t("websites.softwareUnknown"),
+      });
+    }
     if (http && http.redirects.length > 0) {
       list.push({
         label: t("websites.httpRedirects"),
@@ -61,7 +80,7 @@
   {#if !p}
     <p class="px-5 pb-5 text-muted-foreground">{t("websites.notYet")}</p>
   {:else}
-    <Facts {rows} />
+    <div data-testid="websites-http"><Facts {rows} /></div>
     {#if http && http.status !== null}
       <div class="border-t px-5 py-4">
         <h3 class="mb-2 font-medium">{t("websites.headersTitle")}</h3>

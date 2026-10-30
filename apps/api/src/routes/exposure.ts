@@ -18,6 +18,7 @@ import {
   type ExposureSeverity,
   effectiveVerification,
   MAX_ASSETS,
+  type PassiveSnapshot,
   SCHEDULE_HOURS,
   STAGE2_ACKNOWLEDGEMENT_ID,
   VERIFY_FILE_PATH,
@@ -27,6 +28,7 @@ import {
 } from "@garnetops/core/exposure";
 import { checkAsset, newVerifyToken } from "@garnetops/core/exposure-assets";
 import { pageSizeSchema } from "@garnetops/core/pagination";
+import { detectSoftware, judgeSoftware, SOFTWARE_NAMES } from "@garnetops/core/software";
 import { schema } from "@garnetops/db";
 import { and, count, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -449,6 +451,16 @@ async function createAsset(
   return { id, kind: checked.kind, value: checked.value };
 }
 
+/** The software a passive snapshot shows, judged now; empty when the home page did not answer. */
+function softwareOf(passive: unknown) {
+  const http = (passive as PassiveSnapshot | null)?.http;
+  if (!http || http.status === null) return [];
+  return detectSoftware(http).map((found) => ({
+    ...judgeSoftware(found, new Date()),
+    name: SOFTWARE_NAMES[found.product],
+  }));
+}
+
 /* -------------------------------------------------------------------------- */
 /* Routes                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -735,6 +747,8 @@ export const exposureRoutes = new Hono<AppEnv>()
       ...present(row, all, open.get(row.id), runs.get(row.id)),
       passive: row.passive ?? null,
       active: row.active ?? null,
+      /** What the site names about its software, judged against the committed end-of-life data (ADR 0038). */
+      software: softwareOf(row.passive),
       findings: findings.map((x) => ({
         ...x,
         firstSeenAt: x.firstSeenAt.toISOString(),

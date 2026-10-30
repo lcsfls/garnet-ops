@@ -8,6 +8,8 @@
  * markup, a link or an instruction.
  */
 
+import { detectSoftware, judgeSoftware, SOFTWARE_NAMES, softwareSeverity } from "./software.ts";
+
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -454,6 +456,8 @@ export interface HttpSnapshot {
   redirects: { to: string; status: number; followed: boolean }[];
   /** The captured response headers, cleaned; only the names in {@link CAPTURED_HEADERS}. */
   headers: Record<string, string>;
+  /** The `<meta name="generator">` values of the final page (ADR 0038), at most three; absent in snapshots before 0.0.13. */
+  generators?: string[];
   error: "refused" | "timeout" | "tls" | "address" | "protocol" | "tooLarge" | null;
 }
 
@@ -704,6 +708,8 @@ export const EXPOSURE_RULES = [
   "dnssecExpiring",
   "dnssecWeakAlgorithm",
   "dnssecSha1Digest",
+  "softwareEndOfLife",
+  "softwareOutdated",
   "portExposed",
 ] as const;
 export type ExposureRule = (typeof EXPOSURE_RULES)[number];
@@ -865,6 +871,20 @@ export function evaluatePassive(snapshot: PassiveSnapshot, now: Date): FindingDr
     if (!dns.failed.includes("caa") && !dns.caaFound) out.push(finding("dnsNoCaa", "low", stage));
     if (dns.dnssec !== "unknown") out.push(...dnssecFindings(dns.dnssec, now, stage));
   }
+  if (snapshot.http && snapshot.http.status !== null) {
+    for (const s of detectSoftware(snapshot.http).map((d) => judgeSoftware(d, now))) {
+      const severity = softwareSeverity(s);
+      if (!severity) continue;
+      const params = { product: SOFTWARE_NAMES[s.product], version: s.version, cycle: s.cycle ?? "" };
+      if (s.status === "endOfLife") {
+        out.push(finding("softwareEndOfLife", severity, stage, s.product, { ...params, eol: s.eol ?? "" }));
+      } else {
+        out.push(
+          finding("softwareOutdated", severity, stage, s.product, { ...params, latest: s.latest ?? "" }),
+        );
+      }
+    }
+  }
   return out;
 }
 
@@ -924,6 +944,8 @@ const HTTP_RULES: ExposureRule[] = [
   "httpReferrerPolicyMissing",
   "httpPermissionsPolicyMissing",
   "httpBannerVersion",
+  "softwareEndOfLife",
+  "softwareOutdated",
 ];
 
 /**

@@ -1371,6 +1371,14 @@ export const en = {
         title: "DS record with SHA-1 only",
         text: "The parent's DS records for {zone} use SHA-1 only. Add a DS record with SHA-256 at your registrar.",
       },
+      softwareEndOfLife: {
+        title: "Software without security fixes",
+        text: "The site names {product} {version}. Its release line {cycle} no longer gets fixes, security fixes included. Move to a supported version.",
+      },
+      softwareOutdated: {
+        title: "Software behind its latest version",
+        text: "The site names {product} {version}; the latest of its line {cycle} is {latest}, which may fix known vulnerabilities. Update it.",
+      },
       portExposed: {
         title: "Reachable from the internet: port {port}",
         text: "{service} ({category}) answers on port {port} of {addresses}. GarnetOps only connected and sent nothing, so it cannot tell whether the service is protected.",
@@ -1453,6 +1461,13 @@ export const en = {
     dnssecDsMatches: "matches a key",
     dnssecDsNoMatch: "matches no key",
     dnssecValidUntil: "Signatures valid until",
+    softwareEndOfLifeSince: "Release line {cycle} gets no fixes since {date}, security fixes included.",
+    softwareEndOfLife: "Release line {cycle} gets no fixes any more, security fixes included.",
+    softwareOutdated: "Behind the latest of its line, {latest}, which may carry security fixes.",
+    softwareCurrent: "Latest of the supported line {cycle}.",
+    softwareUnknown: "Not judged: no end-of-life data for this product or version.",
+    softwareDistribution:
+      "Built by a distribution, which fixes security problems without changing the number: not judged by the version.",
     spfPolicy: {
       fail: "Only the listed senders may send (-all).",
       softfail: "Other senders are suspicious (~all).",
@@ -1526,7 +1541,7 @@ export const en = {
     hstsShort: "Shorter than 180 days.",
     bannersTitle: "Server banners",
     bannerNote:
-      "Check whether the version shown here is current. GarnetOps does not match banner versions against vulnerability data: Debian, Red Hat and others fix security problems in older versions without changing the number, so a banner says little.",
+      "GarnetOps judges a version only against the end-of-life data of its release line, never against vulnerability data, and not at all when the header names a distribution: Debian, Red Hat and others fix security problems in older versions without changing the number.",
     portsTitle: "Ports",
     portsDescription: "Stage 2 connects to {count} fixed, common ports. It sends nothing to them.",
     portsOff: "Stage 2 is off for this asset, so no port has been checked.",

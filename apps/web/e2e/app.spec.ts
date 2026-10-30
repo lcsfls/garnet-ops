@@ -2470,9 +2470,14 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "HTTP" }).click();
     await expect(page.getByTestId("websites-headers")).toContainText("max-age=31536000");
     await expect(page.getByTestId("websites-banners")).toContainText("nginx/1.22.1");
-    await expect(
-      page.getByText("GarnetOps does not match banner versions against vulnerability data"),
-    ).toBeVisible();
+    await expect(page.getByText("never against vulnerability data")).toBeVisible();
+    // What the site names about its software, judged against the end-of-life data (ADR 0038).
+    const httpCard = page.getByTestId("websites-http");
+    await expect(httpCard).toContainText("WordPress");
+    await expect(httpCard).toContainText("6.4.2");
+    await expect(httpCard).toContainText("Behind the latest of its line");
+    await expect(httpCard).toContainText("nginx");
+    await expect(httpCard).toContainText("Release line 1.22 gets no fixes since");
     await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "History" }).click();
     await expect(page.getByTestId("websites-history").locator("tbody tr")).toHaveCount(3);
     await expect(page.getByTestId("websites-history")).toContainText(

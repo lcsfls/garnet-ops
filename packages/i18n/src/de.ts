@@ -1413,6 +1413,14 @@ export const de: Messages = {
         title: "DS-Eintrag nur mit SHA-1",
         text: "Die DS-Einträge der übergeordneten Zone für {zone} nutzen nur SHA-1. Tragen Sie bei Ihrem Registrar einen DS-Eintrag mit SHA-256 ein.",
       },
+      softwareEndOfLife: {
+        title: "Software ohne Sicherheitskorrekturen",
+        text: "Die Website nennt {product} {version}. Ihre Versionslinie {cycle} bekommt keine Korrekturen mehr, auch keine Sicherheitskorrekturen. Wechseln Sie auf eine unterstützte Version.",
+      },
+      softwareOutdated: {
+        title: "Software hinter ihrer neuesten Version",
+        text: "Die Website nennt {product} {version}; die neueste Version ihrer Linie {cycle} ist {latest}, die bekannte Schwachstellen beheben kann. Aktualisieren Sie sie.",
+      },
       portExposed: {
         title: "Aus dem Internet erreichbar: Port {port}",
         text: "{service} ({category}) antwortet auf Port {port} von {addresses}. GarnetOps hat sich nur verbunden und nichts gesendet. Ob der Dienst geschützt ist, lässt sich daher nicht sagen.",
@@ -1496,6 +1504,16 @@ export const de: Messages = {
     dnssecDsMatches: "passt zu einem Schlüssel",
     dnssecDsNoMatch: "passt zu keinem Schlüssel",
     dnssecValidUntil: "Signaturen gültig bis",
+    softwareEndOfLifeSince:
+      "Die Versionslinie {cycle} bekommt seit {date} keine Korrekturen mehr, auch keine Sicherheitskorrekturen.",
+    softwareEndOfLife:
+      "Die Versionslinie {cycle} bekommt keine Korrekturen mehr, auch keine Sicherheitskorrekturen.",
+    softwareOutdated:
+      "Hinter der neuesten Version ihrer Linie, {latest}, die Sicherheitskorrekturen enthalten kann.",
+    softwareCurrent: "Neueste Version der unterstützten Linie {cycle}.",
+    softwareUnknown: "Nicht bewertet: keine Daten zum Supportende für dieses Produkt oder diese Version.",
+    softwareDistribution:
+      "Von einer Distribution gebaut, die Sicherheitsprobleme behebt, ohne die Nummer zu ändern: nicht nach der Version bewertet.",
     spfPolicy: {
       fail: "Nur die genannten Absender dürfen senden (-all).",
       softfail: "Andere Absender sind verdächtig (~all).",
@@ -1570,7 +1588,7 @@ export const de: Messages = {
     hstsShort: "Kürzer als 180 Tage.",
     bannersTitle: "Server-Banner",
     bannerNote:
-      "Prüfen Sie, ob die hier gezeigte Version aktuell ist. GarnetOps gleicht Banner-Versionen nicht mit Schwachstellendaten ab: Debian, Red Hat und andere beheben Sicherheitsprobleme in älteren Versionen, ohne die Nummer zu ändern. Ein Banner sagt daher wenig.",
+      "GarnetOps bewertet eine Version nur anhand des Supportendes ihrer Versionslinie, nie anhand von Schwachstellendaten, und gar nicht, wenn der Header eine Distribution nennt: Debian, Red Hat und andere beheben Sicherheitsprobleme in älteren Versionen, ohne die Nummer zu ändern.",
     portsTitle: "Ports",
     portsDescription: "Stufe 2 verbindet sich mit {count} festen, gängigen Ports. Sie sendet nichts dorthin.",
     portsOff: "Stufe 2 ist für dieses Asset aus, deshalb wurde kein Port geprüft.",

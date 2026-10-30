@@ -112,6 +112,8 @@ export interface ExposureDetail extends WebsiteAsset {
   ports: ExposurePortRow[];
   runs: ExposureHistoryRow[];
   suggestions: { id: string; name: string; source: "ct" | "dns" }[];
+  /** What the site names about its software, judged against the end-of-life data (ADR 0038). */
+  software: (import("@garnetops/core/software").SoftwareJudgement & { name: string })[];
   /** Only for owners and admins. */
   instructions: {
     value: string;

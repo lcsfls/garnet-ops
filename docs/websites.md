@@ -85,6 +85,21 @@ public addresses, one TXT query each). That way a new record counts at once, eve
 the "not there" of an earlier check, or answers for your own domain from an internal zone. Where outgoing DNS (port 53) is blocked,
 the system resolver alone decides, as before.
 
+## Software versions
+
+The daily look also notes what a site says about its own software: `Server` (nginx, Apache), `X-Powered-By` (PHP) and the
+`<meta name="generator">` tag of the home page (WordPress, Drupal, Joomla, TYPO3, MediaWiki, Astro). Each version is judged
+against the end-of-life data of [endoflife.date](https://endoflife.date) that ships with GarnetOps (no request at run time; the
+data is refreshed with every release, [ADR 0038](adr/0038-website-software-versions.md)):
+
+- **Software without security fixes**: its release line has ended (for example PHP 8.1 after 31 December 2025).
+- **Software behind its latest version**: a newer version of the same line exists, which may fix known vulnerabilities.
+
+A CMS names its own version exactly, so it counts fully. A server header counts one step lower, and a header that names a
+distribution (`Apache/2.4.57 (Debian)`, `PHP/8.1.2-1ubuntu2.14`) is shown but not judged: distributions fix security problems
+without changing the number. The HTTP section of a website lists what was found and how it was judged. WordPress plugins and themes
+are not checked.
+
 ## A slow local resolver
 
 If your own resolver (a firewall or router) answers slowly, checks run into time-outs and report "DNS failed". Under
@@ -140,6 +155,8 @@ Plain rules. The severity says how unusual or risky a finding is, not that you a
 | No HSTS / HSTS shorter than 180 days | low | |
 | No Content-Security-Policy, X-Content-Type-Options, framing protection, Referrer-Policy or Permissions-Policy | low | One finding per header |
 | Server names a version | low | The `Server` or `X-Powered-By` header shows e.g. `nginx/1.22.1` |
+| Software without security fixes | high for a CMS's own version, medium from a server header | The release line has ended ([ADR 0038](adr/0038-website-software-versions.md)) |
+| Software behind its latest version | medium for a CMS, low from a server header | A newer version of the same line exists |
 | Plain HTTP does not redirect to HTTPS | medium | Port 80 answers with content |
 | Only plain HTTP is offered | medium | Nothing speaks HTTPS on 443 |
 | No SPF record / no DMARC policy | medium with a mail server (MX), otherwise low | |

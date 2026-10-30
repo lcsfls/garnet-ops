@@ -26,6 +26,7 @@
     "./exposure-assets": "./src/exposure-assets.ts",
     "./agent": "./src/agent.ts",
     "./public-dns": "./src/public-dns.ts",
+    "./software": "./src/software.ts",
     "./account": "./src/account.ts",
     "./user-notifications": "./src/user-notifications.ts",
     "./directory": "./src/directory.ts",

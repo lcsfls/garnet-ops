@@ -47,6 +47,7 @@ import {
   type TlsSnapshot,
 } from "@garnetops/core/exposure";
 import { addressAllowed } from "@garnetops/core/exposure-assets";
+import { metaGenerators } from "@garnetops/core/software";
 
 /* -------------------------------------------------------------------------- */
 /* Environment                                                                 */
@@ -597,7 +598,7 @@ export interface PageTarget {
 /**
  * GET `/` of an asset over HTTPS, following at most three redirects to the same site or a verified asset on the default ports
  * (every followed host is resolved and checked again). Records the status, the final URL, the redirects that were seen and whether
- * they were followed, and the captured headers. The body is read up to 64 KiB and dropped.
+ * they were followed, and the captured headers. The body is read up to 64 KiB; only its generator tags are kept.
  */
 export async function fetchHomepage(
   env: NetEnv,
@@ -651,6 +652,8 @@ export async function fetchHomepage(
     snapshot.address = used;
     snapshot.status = result.status;
     snapshot.headers = result.headers;
+    // The page itself is dropped; only what it says about its software stays (ADR 0038).
+    snapshot.generators = metaGenerators(result.body.toString("utf8"));
     snapshot.finalUrl = current.toString();
     if (result.status >= 300 && result.status < 400 && result.location) {
       let target: URL | null = null;

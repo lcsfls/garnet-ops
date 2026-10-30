@@ -123,8 +123,8 @@ paginated findings, and every number on the overview leads to its details.
 - [x] Website monitoring as a module, off by default (ADR 0023, ADR 0033, `docs/websites.md`, 0.0.12): certificates, DNS, mail
       authentication and security headers from the outside; proof of control by DNS TXT record or file; port checks only for proven
       names with a confirmation per name; switched on and off under Settings, Modules; DNSSEC checked at the source (ADR 0036);
-      optional public DNS next to a slow local resolver (ADR 0035). Still open: outdated software versions (PHP, CMS), uptime and
-      hosting problems
+      optional public DNS next to a slow local resolver (ADR 0035); software versions (PHP, nginx, Apache, WordPress and other CMS)
+      judged against end-of-life data (ADR 0038). Still open: WordPress plugins and themes, uptime and hosting problems
 - [x] Pull request overview: open pull requests of the monitored repositories with the gate result of their head commit,
       read with the repository's read credential, "Check now" as a CI check would (ADR 0032, `docs/pull-requests.md`,
       0.0.12). Still open: review comments on the pull request

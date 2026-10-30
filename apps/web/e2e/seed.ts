@@ -388,7 +388,12 @@ async function seedExposure(client: Client, orgId: string, now: Date) {
           { subject: main.value, sans: [main.value, `www.${main.value}`] },
         ),
       ],
-      http: http(`https://${main.value}/`, 200, { ...headers, server: "nginx/1.22.1" }),
+      http: http(
+        `https://${main.value}/`,
+        200,
+        { ...headers, server: "nginx/1.22.1" },
+        { generators: ["WordPress 6.4.2"] },
+      ),
     }),
     active: {
       version: 1,
