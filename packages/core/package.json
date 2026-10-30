@@ -28,6 +28,7 @@
     "./public-dns": "./src/public-dns.ts",
     "./software": "./src/software.ts",
     "./eol-data": "./src/eol-data.ts",
+    "./wordpress": "./src/wordpress.ts",
     "./uptime": "./src/uptime.ts",
     "./account": "./src/account.ts",
     "./user-notifications": "./src/user-notifications.ts",

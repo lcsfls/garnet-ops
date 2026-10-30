@@ -23,6 +23,9 @@ Security-relevant changes are listed under **Security** in every release.
   brought for running images, kernels and host packages; hosts and images whose distribution (Debian, Ubuntu, Alpine, RHEL and
   others) no longer gets regular security updates or stops within 90 days; and website software whose release line ends within
   90 days. Members can be told about new advisories for what runs.
+- **WordPress themes and plugins** of a website, as the home page's asset addresses name them, with their versions, on the
+  HTTP tab ([ADR 0042](docs/adr/0042-wordpress-plugins-and-themes.md)). The daily look now reads up to 256 KiB of the home
+  page (was 64 KiB) to see them; the page is still never stored.
 - API: `GET /api/v1/early-warnings/hosts` and `GET /api/v1/early-warnings/websites`.
 - API: `PUT /api/v1/exposure/{id}/uptime`, `uptime` on every website and `availability` on one website.
 - An empty **Early warnings** page says when the last check ran, with which database, how many of the organisation's packages it

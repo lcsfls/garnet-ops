@@ -48,6 +48,7 @@ import {
 } from "@garnetops/core/exposure";
 import { addressAllowed } from "@garnetops/core/exposure-assets";
 import { metaGenerators } from "@garnetops/core/software";
+import { wordpressAssets } from "@garnetops/core/wordpress";
 
 /* -------------------------------------------------------------------------- */
 /* Environment                                                                 */
@@ -652,8 +653,15 @@ export async function fetchHomepage(
     snapshot.address = used;
     snapshot.status = result.status;
     snapshot.headers = result.headers;
-    // The page itself is dropped; only what it says about its software stays (ADR 0038).
-    snapshot.generators = metaGenerators(result.body.toString("utf8"));
+    // The page itself is dropped; only what it says about its software stays (ADR 0038, ADR 0042).
+    const page = result.body.toString("utf8");
+    snapshot.generators = metaGenerators(page);
+    const wordpressVersion = /^WordPress (\d[\w.]*)/i.exec(
+      snapshot.generators.find((g) => /^WordPress /i.test(g)) ?? "",
+    )?.[1];
+    const wordpress = wordpressAssets(page, wordpressVersion ?? null);
+    if (wordpress) snapshot.wordpress = wordpress;
+    else delete snapshot.wordpress;
     snapshot.finalUrl = current.toString();
     if (result.status >= 300 && result.status < 400 && result.location) {
       let target: URL | null = null;

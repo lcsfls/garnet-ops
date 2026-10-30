@@ -97,8 +97,11 @@ data is refreshed with every release, [ADR 0038](adr/0038-website-software-versi
 
 A CMS names its own version exactly, so it counts fully. A server header counts one step lower, and a header that names a
 distribution (`Apache/2.4.57 (Debian)`, `PHP/8.1.2-1ubuntu2.14`) is shown but not judged: distributions fix security problems
-without changing the number. The HTTP section of a website lists what was found and how it was judged. WordPress plugins and themes
-are not checked.
+without changing the number. The HTTP section of a website lists what was found and how it was judged.
+
+**WordPress themes and plugins** ([ADR 0042](adr/0042-wordpress-plugins-and-themes.md)): the HTTP section also lists the themes
+and plugins the home page's asset addresses name (`/wp-content/plugins/<slug>/…`), with the version the address carries. Plugins
+that load nothing on the home page are not seen, and nothing else of the site is requested. They are listed, not judged yet.
 
 ## The report
 
@@ -163,7 +166,7 @@ For each asset, daily:
   server still accepts **TLS 1.0 and TLS 1.1** (two extra handshakes that send no data).
 - **HTTP**: one `GET /` over HTTPS and one over plain HTTP on port 80. Redirects are followed at most 3 times, only to the same
   registrable domain or to another verified asset, only on the default ports. Status, final address and the security headers are
-  kept; the page itself is read up to 64 KiB and **never stored**.
+  kept; the page itself is read up to 256 KiB and **never stored**.
 
 If a name resolves to an address that is not public, GarnetOps **connects to nothing for that name** and says so.
 

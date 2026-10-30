@@ -1727,6 +1727,11 @@ export const de: Messages = {
     headerMissing: "nicht gesetzt",
     hstsShort: "Kürzer als 180 Tage.",
     bannersTitle: "Server-Banner",
+    wordpressTitle: "WordPress-Themes und -Plugins",
+    wordpressNote:
+      "So, wie die Asset-Adressen der Startseite sie nennen. Plugins, die auf der Startseite nichts laden, sind nicht sichtbar; eine Version ist die, die die Asset-Adresse nennt.",
+    wordpressKind: { theme: "Theme", plugin: "Plugin" },
+    wordpressNoVersion: "keine Version genannt",
     bannerNote:
       "GarnetOps bewertet eine Version nur anhand des Supportendes ihrer Versionslinie, nie anhand von Schwachstellendaten, und gar nicht, wenn der Header eine Distribution nennt: Debian, Red Hat und andere beheben Sicherheitsprobleme in älteren Versionen, ohne die Nummer zu ändern.",
     portsTitle: "Ports",

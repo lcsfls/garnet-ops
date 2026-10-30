@@ -1676,6 +1676,11 @@ export const en = {
     headerMissing: "not set",
     hstsShort: "Shorter than 180 days.",
     bannersTitle: "Server banners",
+    wordpressTitle: "WordPress themes and plugins",
+    wordpressNote:
+      "As the home page's asset addresses name them. Plugins that load nothing on the home page are not seen; a version is what the asset address says.",
+    wordpressKind: { theme: "Theme", plugin: "Plugin" },
+    wordpressNoVersion: "no version named",
     bannerNote:
       "GarnetOps judges a version only against the end-of-life data of its release line, never against vulnerability data, and not at all when the header names a distribution: Debian, Red Hat and others fix security problems in older versions without changing the number.",
     portsTitle: "Ports",

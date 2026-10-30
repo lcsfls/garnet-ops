@@ -563,6 +563,31 @@ describe.skipIf(!openssl || !adminUrl)(
 
     /* ======================================================================== */
     describe("stage 1", () => {
+      it("notes the WordPress plugins and themes the home page's asset addresses name, and nothing else of the page (ADR 0042)", async () => {
+        resetZone();
+        Object.assign(web, freshWeb(), {
+          headers: { ...TIDY_HEADERS },
+          body: `<meta name="generator" content="WordPress 6.5.2" />
+            <link href="/wp-content/themes/twentytwentyfour/style.css?ver=1.2" rel="stylesheet" />
+            <script src="/wp-content/plugins/contact-form-7/a.js?ver=5.9.3"></script>
+            <script src="/wp-content/plugins/plain/a.js?ver=6.5.2"></script>
+            SECRET-BODY-MARKER`,
+        });
+        const org = await newOrg();
+        const a = await addAsset(org.id, { value: SITE });
+        tidyZone(SITE);
+        await passive(a);
+        const snapshot = (await asset(a.id)).passive as PassiveSnapshot;
+        expect(snapshot.http?.wordpress).toEqual({
+          plugins: [
+            { slug: "contact-form-7", version: "5.9.3" },
+            { slug: "plain", version: null },
+          ],
+          themes: [{ slug: "twentytwentyfour", version: "1.2" }],
+        });
+        Object.assign(web, freshWeb());
+      });
+
       it("looks at a tidy site and finds nothing wrong; the page body is not stored", async () => {
         resetZone();
         Object.assign(web, freshWeb(), {

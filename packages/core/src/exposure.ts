@@ -19,7 +19,7 @@ export const MAX_ASSETS = 200;
 /** Addresses of one name that are looked at (the first ones of the resolver's answer). */
 export const MAX_ADDRESSES_PER_ASSET = 4;
 /** The body of the one page that is read is cut here and never stored. */
-export const MAX_HTTP_BODY_BYTES = 64 * 1024;
+export const MAX_HTTP_BODY_BYTES = 256 * 1024;
 /** Redirects that are followed, and only inside the same site or to a verified asset. */
 export const MAX_REDIRECTS = 3;
 /** Findings and snapshots keep this many characters of any one remote string. */
@@ -458,6 +458,8 @@ export interface HttpSnapshot {
   headers: Record<string, string>;
   /** The `<meta name="generator">` values of the final page (ADR 0038), at most three; absent in snapshots before 0.0.13. */
   generators?: string[];
+  /** WordPress plugins and themes the home page's asset addresses name (ADR 0042); absent when none, and before 0.0.14. */
+  wordpress?: import("./wordpress.ts").WordPressAssets;
   error: "refused" | "timeout" | "tls" | "address" | "protocol" | "tooLarge" | null;
 }
 
