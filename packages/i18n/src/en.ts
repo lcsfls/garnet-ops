@@ -920,6 +920,10 @@ export const en = {
     hint: "A check uses the same quality gate rules as a CI pipeline and never changes the pull request.",
   },
   hosts: {
+    syncCurrent: "The repository's latest scanned commit.",
+    syncOlder: "An older commit, scanned {scanned}; the latest scanned is {latest} on {branch}.",
+    syncDifferent:
+      "A commit GarnetOps has not scanned (newer, another branch or a local build); the latest scanned is {latest} on {branch}.",
     addRuntime: "How the agent runs",
     runtimeDocker: "Docker (Compose)",
     runtimeDockerHint:

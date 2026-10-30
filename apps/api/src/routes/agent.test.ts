@@ -525,7 +525,52 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
       name: "app",
       hostName: "Web 1",
       revision: "0123456789abcdef0123456789abcdef01234567",
+      sync: { state: "unknown" },
     });
+    // The running revision against the repository's scans: an earlier scanned commit is older, the last one is current, a
+    // commit never scanned is different.
+    const scanRow = (id: string, commitSha: string, finishedAt: string) => ({
+      id,
+      organizationId: ORG,
+      repositoryId: "repo_agent_app",
+      state: "succeeded" as const,
+      trigger: "schedule" as const,
+      branch: "main",
+      commitSha,
+      finishedAt: new Date(finishedAt),
+    });
+    await t.db
+      .insert(schema.scan)
+      .values([
+        scanRow("scan_old", "0123456789abcdef0123456789abcdef01234567", "2026-10-01T00:00:00Z"),
+        scanRow("scan_new", "fedcba9876543210fedcba9876543210fedcba98", "2026-10-29T00:00:00Z"),
+      ]);
+    const lastScan = (id: string) =>
+      t.db
+        .update(schema.repository)
+        .set({ lastScanId: id })
+        .where(eq(schema.repository.id, "repo_agent_app"));
+    const syncOf = async () => {
+      const list = (await session("GET", "/api/v1/hosts/by-repository/repo_agent_app")).json as unknown as {
+        sync: unknown;
+      }[];
+      return list[0]?.sync;
+    };
+    await lastScan("scan_new");
+    expect(await syncOf()).toMatchObject({
+      state: "older",
+      latest: { commit: "fedcba9876543210fedcba9876543210fedcba98", branch: "main" },
+      runningScannedAt: "2026-10-01T00:00:00.000Z",
+    });
+    await lastScan("scan_old");
+    expect(await syncOf()).toMatchObject({ state: "current" });
+    await t.db.delete(schema.scan).where(eq(schema.scan.id, "scan_old"));
+    await lastScan("scan_new");
+    expect(await syncOf()).toMatchObject({ state: "different" });
+    const detailSync = (await session("GET", `/api/v1/hosts/${hostId}`)).json as unknown as {
+      containers: { name: string; sync: { state: string } | null }[];
+    };
+    expect(detailSync.containers.find((c) => c.name === "app")?.sync?.state).toBe("different");
     // Another organisation sees nothing of it.
     await setModule(OTHER, true);
     expect((await session("GET", "/api/v1/hosts/attention", { org: OTHER })).json).toEqual({

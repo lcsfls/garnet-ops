@@ -136,6 +136,92 @@ async function visibleRepositoriesByKey(actor: Actor): Promise<Map<string, { id:
   return map;
 }
 
+/**
+ * Whether a running image is the repository's latest scanned commit (its `org.opencontainers.image.revision` label against the
+ * commit of the repository's last scan): `current`, `older` (the revision was scanned before, so it is an earlier commit),
+ * `different` (a commit GarnetOps never scanned: newer, from another branch, or a local build), or `unknown` (no revision label,
+ * or the repository was never scanned).
+ */
+export type RevisionSync = {
+  state: "current" | "older" | "different" | "unknown";
+  latest: { commit: string; branch: string | null; scannedAt: string | null } | null;
+  /** When the running revision itself was scanned, for `older`. */
+  runningScannedAt: string | null;
+};
+
+const sameCommit = (a: string, b: string) => {
+  const x = a.toLowerCase();
+  const y = b.toLowerCase();
+  return x.length >= 7 && y.length >= 7 && (x.startsWith(y) || y.startsWith(x));
+};
+
+async function revisionSync(
+  pairs: { repositoryId: string; revision: string | null }[],
+): Promise<(repositoryId: string, revision: string | null) => RevisionSync> {
+  const ids = [...new Set(pairs.map((p) => p.repositoryId))];
+  const latest = new Map<string, { commit: string; branch: string | null; scannedAt: Date | null }>();
+  const scanned = new Map<string, { commit: string; at: Date | null }[]>();
+  if (ids.length > 0) {
+    const last = await db
+      .select({
+        repositoryId: schema.repository.id,
+        commit: schema.scan.commitSha,
+        branch: schema.scan.branch,
+        scannedAt: schema.scan.finishedAt,
+      })
+      .from(schema.repository)
+      .innerJoin(schema.scan, eq(schema.scan.id, schema.repository.lastScanId))
+      .where(inArray(schema.repository.id, ids));
+    for (const row of last) {
+      if (row.commit)
+        latest.set(row.repositoryId, { commit: row.commit, branch: row.branch, scannedAt: row.scannedAt });
+    }
+    // Revisions are what a host reported: only commit ids (7 to 64 hex characters) are looked up, as bound parameters.
+    const revisions = [
+      ...new Set(pairs.map((p) => p.revision?.toLowerCase() ?? "").filter((r) => /^[0-9a-f]{7,64}$/.test(r))),
+    ];
+    if (revisions.length > 0) {
+      const earlier = await db
+        .select({
+          repositoryId: schema.scan.repositoryId,
+          commit: schema.scan.commitSha,
+          at: schema.scan.finishedAt,
+        })
+        .from(schema.scan)
+        .where(
+          and(
+            inArray(schema.scan.repositoryId, ids),
+            eq(schema.scan.state, "succeeded"),
+            sql`lower(${schema.scan.commitSha}) like any (array[${sql.join(
+              revisions.map((r) => sql`${`${r}%`}`),
+              sql`, `,
+            )}]::text[])`,
+          ),
+        );
+      for (const row of earlier) {
+        if (!row.commit) continue;
+        scanned.set(row.repositoryId, [
+          ...(scanned.get(row.repositoryId) ?? []),
+          { commit: row.commit, at: row.at },
+        ]);
+      }
+    }
+  }
+  return (repositoryId, revision) => {
+    const last = latest.get(repositoryId) ?? null;
+    const view = last
+      ? { commit: last.commit, branch: last.branch, scannedAt: last.scannedAt?.toISOString() ?? null }
+      : null;
+    if (!last || !revision || revision.length < 7)
+      return { state: "unknown", latest: view, runningScannedAt: null };
+    if (sameCommit(revision, last.commit)) return { state: "current", latest: view, runningScannedAt: null };
+    const seen = (scanned.get(repositoryId) ?? []).find((s) => sameCommit(revision, s.commit));
+    return seen
+      ? { state: "older", latest: view, runningScannedAt: seen.at?.toISOString() ?? null }
+      : { state: "different", latest: view, runningScannedAt: null };
+  };
+}
+
 /** What the registry check said about a container's reference, if it was checked. */
 async function updatesByRef(organizationId: string, refs: string[]) {
   const map = new Map<string, typeof schema.imageUpdateCheck.$inferSelect>();
@@ -404,6 +490,7 @@ export const hostRoutes = new Hono<AppEnv>()
     const repository = image.sourceKey
       ? ((await visibleRepositoriesByKey(actor)).get(image.sourceKey) ?? null)
       : null;
+    const imageRevision = image.labels?.["org.opencontainers.image.revision"] ?? null;
     const refs = [
       ...new Set(running.map((r) => imageRefKey(r.imageRef)).filter((r): r is string => Boolean(r))),
     ];
@@ -422,6 +509,12 @@ export const hostRoutes = new Hono<AppEnv>()
       matchedAt: image.matchedAt,
       matchError: image.matchError,
       repository,
+      sync: repository
+        ? (await revisionSync([{ repositoryId: repository.id, revision: imageRevision }]))(
+            repository.id,
+            imageRevision,
+          )
+        : null,
       running,
       findings,
       updates: refs.map((ref) => ({
@@ -459,7 +552,14 @@ export const hostRoutes = new Hono<AppEnv>()
       .where(and(eq(hc.organizationId, actor.organizationId), eq(ci.sourceKey, key)))
       .orderBy(asc(h.name), asc(hc.name));
     const counts = await countsByImage(actor.organizationId, [...new Set(rows.map((r) => r.imageId))]);
-    return c.json(rows.map((r) => ({ ...r, open: counts.get(r.imageId) ?? emptyCounts() })));
+    const sync = await revisionSync(rows.map((r) => ({ repositoryId: repo.id, revision: r.revision })));
+    return c.json(
+      rows.map((r) => ({
+        ...r,
+        open: counts.get(r.imageId) ?? emptyCounts(),
+        sync: sync(repo.id, r.revision),
+      })),
+    );
   })
   /**
    * The number the navigation shows next to Agents: hosts that need a look because they stopped reporting or run an
@@ -535,6 +635,12 @@ export const hostRoutes = new Hono<AppEnv>()
       .orderBy(asc(hc.name));
     const counts = await countsByImage(actor.organizationId, [...new Set(rows.map((r) => r.imageId))]);
     const repos = await visibleRepositoriesByKey(actor);
+    const sync = await revisionSync(
+      rows.flatMap(({ sourceKey: key, revision }) => {
+        const repository = key ? repos.get(key) : undefined;
+        return repository ? [{ repositoryId: repository.id, revision }] : [];
+      }),
+    );
     const updates = await updatesByRef(
       actor.organizationId,
       rows.map((r) => imageRefKey(r.imageRef)).filter((r): r is string => Boolean(r)),
@@ -609,9 +715,11 @@ export const hostRoutes = new Hono<AppEnv>()
       },
       containers: rows.map(({ sourceKey: key, digests, ...r }) => {
         const ref = imageRefKey(r.imageRef);
+        const repository = key ? (repos.get(key) ?? null) : null;
         return {
           ...r,
-          repository: key ? (repos.get(key) ?? null) : null,
+          repository,
+          sync: repository ? sync(repository.id, r.revision) : null,
           open: counts.get(r.imageId) ?? emptyCounts(),
           update: updateOf(ref ? updates.get(ref) : undefined, digests ?? []),
         };

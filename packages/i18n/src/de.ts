@@ -950,6 +950,10 @@ export const de: Messages = {
     hint: "Eine Prüfung verwendet dieselben Quality-Gate-Regeln wie eine CI-Pipeline und ändert den Pull Request nie.",
   },
   hosts: {
+    syncCurrent: "Der zuletzt gescannte Commit des Repositorys.",
+    syncOlder: "Ein älterer Commit, gescannt {scanned}; zuletzt gescannt ist {latest} auf {branch}.",
+    syncDifferent:
+      "Ein Commit, den GarnetOps nicht gescannt hat (neuer, anderer Branch oder lokaler Build); zuletzt gescannt ist {latest} auf {branch}.",
     addRuntime: "Wie der Agent läuft",
     runtimeDocker: "Docker (Compose)",
     runtimeDockerHint:

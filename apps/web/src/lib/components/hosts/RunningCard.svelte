@@ -7,6 +7,7 @@
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
   import OpenCounts from "./OpenCounts.svelte";
+  import SyncNote from "./SyncNote.svelte";
 
   /** "Where does this run?": the containers the host agents report that run images built from this repository (ADR 0034). */
   let { repositoryId }: { repositoryId: string } = $props();
@@ -40,6 +41,7 @@
               <a href={`/hosts/images/${encodeURIComponent(r.imageId)}`} class="text-primary-text hover:underline">{r.name}</a>
               <div class="font-mono text-xs break-all text-muted-foreground">
                 {r.imageRef}{r.revision ? ` · ${r.revision.slice(0, 12)}` : ""}
+                <SyncNote sync={r.sync} />
               </div>
             </td>
             <td class="px-3 py-2.5"><OpenCounts open={r.open} /></td>

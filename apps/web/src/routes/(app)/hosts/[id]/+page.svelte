@@ -7,6 +7,7 @@
   import HostPackagesCard from "#lib/components/hosts/HostPackagesCard.svelte";
   import KernelCard from "#lib/components/hosts/KernelCard.svelte";
   import OpenCounts from "#lib/components/hosts/OpenCounts.svelte";
+  import SyncNote from "#lib/components/hosts/SyncNote.svelte";
   import UpdateBadge from "#lib/components/hosts/UpdateBadge.svelte";
   import ModuleOff from "#lib/components/ModuleOff.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
@@ -143,6 +144,7 @@
                   {#if c.repository}
                     <RepositoryLink id={c.repository.id} name={c.repository.name} />
                     {#if c.revision}<div class="font-mono text-xs text-muted-foreground">{c.revision.slice(0, 12)}</div>{/if}
+                    <SyncNote sync={c.sync} />
                   {:else}
                     <span class="text-muted-foreground" title={t("hosts.noRepositoryHint")}>{t("hosts.noRepository")}</span>
                   {/if}

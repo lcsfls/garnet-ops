@@ -4,6 +4,7 @@
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
   import CardHeader from "#lib/components/CardHeader.svelte";
+  import SyncNote from "#lib/components/hosts/SyncNote.svelte";
   import UpdateBadge from "#lib/components/hosts/UpdateBadge.svelte";
   import ModuleOff from "#lib/components/ModuleOff.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
@@ -137,5 +138,6 @@
   {#if image?.repository}
     <RepositoryLink id={image.repository.id} name={image.repository.name} />
     {#if revision}<span class="block font-mono text-xs text-muted-foreground">{t("hosts.revision", { revision: revision.slice(0, 12) })}</span>{/if}
+    <SyncNote sync={image?.sync ?? null} />
   {/if}
 {/snippet}

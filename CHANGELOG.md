@@ -8,6 +8,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- Running containers say whether they run the repository's latest scanned commit, an older one (with the date it was scanned) or
+  one GarnetOps never scanned, on the host, image and repository pages (from the `org.opencontainers.image.revision` label).
+- An empty **Early warnings** page says when the last check ran, with which database, how many of the organisation's packages it
+  covered, and how many warnings scans confirmed or cleared lately.
+
 ## [0.0.13] - 2026-10-30
 <!-- title: Agents without Docker, DNSSEC and software versions of websites -->
 

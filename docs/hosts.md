@@ -131,6 +131,10 @@ this next to every result.
   without `.git`) is **linked to it**. The host page shows the repository next to the container, the image page shows it with the
   revision it was built from, and the repository page lists **Running containers**: which host runs which container built from it.
 - A container leads to its image, an image to the hosts that run it and to its repository.
+- **Is it the latest?** With the `org.opencontainers.image.revision` label, GarnetOps compares the running commit with the
+  repository's last scan: *the latest scanned commit*, *an older commit* (it was scanned before, with the date), or *a commit
+  GarnetOps has not scanned* (newer than the last scan, another branch, or a local build). Shown on the host, the image and the
+  repository page.
 - A private repository (ADR 0030) is linked only for the people who see it.
 
 Add the label when you build your images, for example with `docker build --label org.opencontainers.image.source=https://git.example.com/team/app`

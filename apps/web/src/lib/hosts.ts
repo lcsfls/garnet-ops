@@ -81,6 +81,13 @@ export interface UpdateInfo {
   kind: "major" | "minor" | "patch" | null;
 }
 
+/** The running revision against the repository's scans (see revisionSync in apps/api/src/routes/hosts.ts). */
+export interface RevisionSync {
+  state: "current" | "older" | "different" | "unknown";
+  latest: { commit: string; branch: string | null; scannedAt: string | null } | null;
+  runningScannedAt: string | null;
+}
+
 export interface HostContainer {
   containerId: string;
   name: string;
@@ -95,6 +102,7 @@ export interface HostContainer {
   matchedAt: string | null;
   matchError: string | null;
   repository: { id: string; name: string } | null;
+  sync: RevisionSync | null;
   open: SeverityCounts;
   update: UpdateInfo;
 }
@@ -148,6 +156,7 @@ export interface ImageDetail {
   matchedAt: string | null;
   matchError: string | null;
   repository: { id: string; name: string } | null;
+  sync: RevisionSync | null;
   running: {
     hostId: string;
     hostName: string;
@@ -170,6 +179,7 @@ export interface RunningContainer {
   revision: string | null;
   lastSeenAt: string;
   open: SeverityCounts;
+  sync: RevisionSync;
 }
 
 export interface HostSettings {
