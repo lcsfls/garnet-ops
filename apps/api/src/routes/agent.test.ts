@@ -398,6 +398,9 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
       open: { critical: 1 },
       reporting: true,
     });
+    // The navigation counts the host: it runs an image with a critical vulnerability.
+    const attention = await session("GET", "/api/v1/hosts/attention", { role: "viewer" });
+    expect(attention.json).toEqual({ count: 1, worst: "critical" });
 
     await t.db.insert(schema.hostKernelFinding).values({
       id: "hkf_1",
@@ -441,6 +444,10 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     });
     // Another organisation sees nothing of it.
     await setModule(OTHER, true);
+    expect((await session("GET", "/api/v1/hosts/attention", { org: OTHER })).json).toEqual({
+      count: 0,
+      worst: null,
+    });
     expect((await session("GET", `/api/v1/hosts/${hostId}`, { org: OTHER })).status).toBe(404);
     expect((await session("GET", `/api/v1/hosts/images/${IMAGE}`, { org: OTHER })).status).toBe(404);
   });

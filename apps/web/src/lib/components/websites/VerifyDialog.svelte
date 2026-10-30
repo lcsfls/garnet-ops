@@ -2,7 +2,7 @@
   import { Check, Loader } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { untrack } from "svelte";
-  import { api } from "../../api.ts";
+  import { ApiError, api } from "../../api.ts";
   import { formatDateTime } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import { StepUp } from "../../step-up.svelte.ts";
@@ -27,7 +27,8 @@
   /** From when on a check counts as the answer to "Check now", until it arrives. */
   let since = $state<number | null>(null);
   let confirmRotate = $state(false);
-  let failed = $state(false);
+  /** Why the last action failed: checked too often in the last hour, or anything else. */
+  let failed = $state<"tooOften" | true | false>(false);
 
   const detail = createQuery(() => ({
     queryKey: ["websites", "asset", assetId],
@@ -57,9 +58,9 @@
       // Wait for a check newer than the last one; a little before now, as the worker's clock may differ.
       since = Math.max(Date.now() - 5000, checkedAt + 1);
     },
-    onError: () => {
+    onError: (e: Error) => {
       since = null;
-      failed = true;
+      failed = e instanceof ApiError && e.status === 429 ? "tooOften" : true;
     },
   }));
   const rotate = createMutation(() => ({
@@ -78,6 +79,9 @@
     },
   }));
 
+  const failedText = $derived(
+    failed === "tooOften" ? t("websites.verifyTooOften") : t("errors.actionFailed"),
+  );
   const key = $derived(asset ? verificationKey(asset) : null);
   const instructions = $derived(asset?.instructions ?? null);
   const problem = $derived.by(() => {
@@ -98,7 +102,7 @@
     <p class="text-muted-foreground">{detail.isError ? t("errors.loadFailed") : t("common.loading")}</p>
   {:else}
     <div class="grid gap-4">
-      {#if failed}<Alert tone="error">{t("errors.actionFailed")}</Alert>{/if}
+      {#if failed}<Alert tone="error">{failedText}</Alert>{/if}
       {#if key === "verified"}
         <Alert tone="info">
           <span data-testid="verify-state">
@@ -159,7 +163,7 @@
   description={t("websites.verifyNewCodeText")}
   confirmLabel={t("websites.verifyNewCode")}
   pending={rotate.isPending}
-  error={failed ? t("errors.actionFailed") : null}
+  error={failed ? failedText : null}
   onConfirm={() => rotate.mutate()}
   onClose={() => (confirmRotate = false)}
 />

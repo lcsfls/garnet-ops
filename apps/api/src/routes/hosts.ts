@@ -430,6 +430,43 @@ export const hostRoutes = new Hono<AppEnv>()
     const counts = await countsByImage(actor.organizationId, [...new Set(rows.map((r) => r.imageId))]);
     return c.json(rows.map((r) => ({ ...r, open: counts.get(r.imageId) ?? emptyCounts() })));
   })
+  /**
+   * The number the navigation shows next to Agents: hosts that need a look because they stopped reporting or run an
+   * image or a kernel with an open critical or high vulnerability, and the worst of those severities.
+   */
+  .get("/attention", async (c) => {
+    const actor = c.get("actor");
+    const org = actor.organizationId;
+    const k = schema.hostKernelFinding;
+    const serious = ["critical", "high"];
+    const [hosts, images, kernels] = await Promise.all([
+      db.select({ id: h.id, lastInventoryAt: h.lastInventoryAt }).from(h).where(eq(h.organizationId, org)),
+      db
+        .selectDistinct({ hostId: hc.hostId, severity: cf.severity })
+        .from(hc)
+        .innerJoin(cf, and(eq(cf.organizationId, hc.organizationId), eq(cf.imageId, hc.imageId)))
+        .where(and(eq(hc.organizationId, org), inArray(cf.severity, serious))),
+      db
+        .selectDistinct({ hostId: k.hostId, severity: k.severity })
+        .from(k)
+        .where(and(eq(k.organizationId, org), inArray(k.severity, serious))),
+    ]);
+    const now = Date.now();
+    const flagged = new Set(
+      hosts
+        .filter((x) => !x.lastInventoryAt || now - x.lastInventoryAt.getTime() >= STALE_AFTER_MS)
+        .map((x) => x.id),
+    );
+    const known = new Set(hosts.map((x) => x.id));
+    let worst: "critical" | "high" | null = null;
+    for (const row of [...images, ...kernels]) {
+      if (!known.has(row.hostId)) continue;
+      flagged.add(row.hostId);
+      if (row.severity === "critical") worst = "critical";
+      else if (worst === null) worst = "high";
+    }
+    return c.json({ count: flagged.size, worst });
+  })
   /** One host and its containers. */
   .get("/:id", async (c) => {
     const actor = c.get("actor");

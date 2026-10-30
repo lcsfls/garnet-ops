@@ -371,7 +371,7 @@ export const en = {
     mainNavigation: "Main navigation",
     groupDaily: "Daily",
     groupCode: "Code",
-    groupMonitoring: "Monitoring",
+    groupInfrastructure: "Infrastructure",
     localOnly: "Local only",
     localOnlyHint: "No code, finding or log leaves your network.",
     accountMenu: "Account: {name}",
@@ -385,6 +385,7 @@ export const en = {
     useLightTheme: "Switch to light theme",
     useDarkTheme: "Switch to dark theme",
     criticalOpenBadge: "{count, plural, one {# critical open} other {# critical open}}",
+    attentionBadge: "{count, plural, one {# needs attention} other {# need attention}}",
     version: "Version {version}",
     collapseSidebar: "Collapse sidebar",
     expandSidebar: "Expand sidebar",
@@ -691,7 +692,9 @@ export const en = {
     statistics: "Statistics",
     pullRequests: "Pull requests",
     websites: "Websites",
-    hosts: "Hosts",
+    agents: "Agents",
+    addAgent: "Add agent",
+    addWebsite: "Add website",
   },
   severity: {
     critical: "Critical",
@@ -917,15 +920,14 @@ export const en = {
     hint: "A check uses the same quality gate rules as a CI pipeline and never changes the pull request.",
   },
   hosts: {
-    title: "Hosts",
+    title: "Agents",
     description:
       "The servers that run the GarnetOps agent, their running containers and what is in the images.",
     moduleOffTitle: "Hosts and containers are switched off",
     moduleOffText:
-      "An owner or admin switches them on under Settings, Modules. Until then agents cannot report and nothing is matched.",
-    moduleOffLink: "Open Settings, Modules",
-    back: "All hosts",
-    add: "Add host",
+      "An owner or admin switches them on, here or under Settings, Modules. Until then agents cannot report and nothing is matched.",
+    back: "All agents",
+    add: "Add agent",
     empty: "No host yet. Add one: GarnetOps hands you a Compose file with a one-time code for the agent.",
     columnHost: "Host",
     columnContainers: "Containers",
@@ -948,7 +950,7 @@ export const en = {
     helpKeyTitle: "One code, then a key",
     helpKeyText:
       "The one-time code works once, for 24 hours. The agent then signs every report with its own key. Remove a host here and its key stops working at once.",
-    addTitle: "Add a host",
+    addTitle: "Add an agent",
     addDescription: "GarnetOps creates a one-time code and a Compose file for the agent.",
     addLabel: "Name of the host",
     addLabelHint: "Optional. Shown in the list; otherwise the host's own name is used.",
@@ -1083,8 +1085,7 @@ export const en = {
     description: "Your public domains, host names and addresses, seen from the outside.",
     moduleOffTitle: "Website monitoring is switched off",
     moduleOffText:
-      "An owner or admin switches it on under Settings, Modules. Until then GarnetOps looks at no website and keeps what it found before.",
-    moduleOffLink: "Open Settings, Modules",
+      "An owner or admin switches it on, here or under Settings, Modules. Until then GarnetOps looks at no website and keeps what it found before.",
     back: "All websites",
     add: "Add asset",
     addTitle: "Add an asset",
@@ -1097,7 +1098,7 @@ export const en = {
     addStage1Note:
       "Adding an asset starts only what any browser or mail server does: DNS lookups, a TLS handshake and one request for the home page. Nothing more happens until you verify the asset and switch on stage 2.",
     addSubmit: "Add asset",
-    added: "Asset added. The first look is running.",
+    added: "Asset added. The first look is running; set up the record shown to prove it is yours.",
     addErrors: {
       empty: "Enter a domain, host name or address.",
       tooLong: "This is too long for a host name.",
@@ -1486,6 +1487,8 @@ export const en = {
     runOpenPorts: "{count, plural, =0 {no open ports} one {# open port} other {# open ports}}",
     schedule: { daily: "Daily", weekly: "Weekly" },
     verifyOpen: "Verify…",
+    verifyTooOften:
+      "Checked twelve times in the last hour. Try again later; GarnetOps also checks the proof once a day.",
     verifyTitle: "Verify {asset}",
     verifyDescription:
       "Stage 2 only runs for assets whose control you proved. Publish one of the two proofs, then check. The code is not a secret; it is unguessable and belongs to this asset in this organisation.",
@@ -2246,7 +2249,7 @@ export const en = {
       "Watches your own public domains, host names and addresses from the outside: certificates, DNS, mail authentication and security headers. Port checks run only for names whose control you proved with a DNS TXT record or a file, and only after you confirm them per name.",
     moduleWebsitesOffNote:
       "Off by default: once it is on, GarnetOps connects to the public hosts you add, from this installation.",
-    moduleWebsitesOn: "Website monitoring is on. Add the first website under Websites.",
+    moduleWebsitesOn: "Website monitoring is on. Add the first website under Infrastructure, Websites.",
     moduleWebsitesOffDone: "Website monitoring is off.",
     moduleWebsitesOffTitle: "Switch off website monitoring?",
     moduleWebsitesOffText:
@@ -2257,7 +2260,7 @@ export const en = {
       "A small agent on your servers reports the running containers and the packages of their images. GarnetOps matches them against the local vulnerability database and links each image to the repository it was built from. The agent only reads and talks to GarnetOps over HTTPS.",
     moduleHostsOffNote:
       "Off by default: once it is on, agents with a code from an admin can report to this installation.",
-    moduleHostsOn: "Hosts and containers are on. Add the first host under Hosts.",
+    moduleHostsOn: "Hosts and containers are on. Add the first agent under Infrastructure, Agents.",
     moduleHostsOffDone: "Hosts and containers are off.",
     moduleHostsOffTitle: "Switch off hosts and containers?",
     moduleHostsOffText:

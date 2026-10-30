@@ -465,6 +465,31 @@ test("a repository opens its own page with scan and patch history", async ({ pag
   expect(problems).toEqual([]);
 });
 
+test("a finished scan reloads what it changed on the repository page", async ({ page }) => {
+  const problems = watchForProblems(page);
+  const id = "repo_e2eseeded000000001";
+  const detail = `/api/v1/repositories/${id}`;
+  // The page sees the scan running twice, then finished: the history must load again, not only the header.
+  let polls = 0;
+  await page.route(`**${detail}`, async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    polls++;
+    if (polls <= 2) body.lastScan = { ...body.lastScan, state: "running", finishedAt: null };
+    await route.fulfill({ response: res, json: body });
+  });
+  let historyLoads = 0;
+  page.on("request", (req) => {
+    if (req.method() === "GET" && new URL(req.url()).pathname === "/api/v1/scans") historyLoads++;
+  });
+  await page.goto(`/repositories/${id}`);
+  await expect(page.getByRole("button", { name: "Scanning" })).toBeVisible();
+  await expect.poll(() => historyLoads).toBe(1);
+  await expect(page.getByRole("button", { name: "Scan now" })).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => historyLoads).toBeGreaterThan(1);
+  expect(problems).toEqual([]);
+});
+
 /** Grades A to F (ADR 0018) on the repositories screens. The seeded repository has a known exploited vulnerability with a fix: F. */
 test.describe("repository grades", () => {
   const SEEDED_LINE = "F: 1 known exploited vulnerability with a fix (pkg-1)";
@@ -2294,14 +2319,18 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await control("DELETE", `/resolve/${NEW}`);
   });
 
-  test("is off until an admin switches it on under Settings, Modules; the page and the menu entry follow", async ({
+  test("is off until an admin switches it on from its page; the menu shows it to admins all along", async ({
     page,
   }) => {
     const problems = watchForProblems(page);
+    const nav = page.getByRole("navigation", { name: "Main navigation" });
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "Websites" })).toHaveCount(0);
-    await page.goto("/websites");
+    // Admins find the module in the menu while it is off, without the "+" (nothing can be added yet).
+    await expect(nav.getByText("Infrastructure")).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Add website" })).toHaveCount(0);
+    await nav.getByRole("link", { name: "Websites" }).click();
     await expect(page.getByTestId("websites-module-off")).toContainText("Website monitoring is switched off");
+    await expect(page.getByTestId("websites-module-off")).toContainText("certificates");
     // Old links of 0.0.3 lead to the new page.
     await page.goto(`/websites/${EXPOSURE.main.id}`);
     await expect(page).toHaveURL(new RegExp(`/websites/${EXPOSURE.main.id}$`));
@@ -2309,17 +2338,16 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     // The API refuses everything while the module is off.
     expect((await page.request.get("/api/v1/exposure")).status()).toBe(409);
 
-    await page.getByRole("link", { name: "Open Settings, Modules" }).click();
-    await expect(page).toHaveURL(/\/settings\?section=modules$/);
-    const card = page.getByTestId("module-websites");
-    await expect(card).toContainText("Off");
-    await expect(card).toContainText("Off by default");
-    await card.getByRole("button", { name: "Switch on" }).click();
+    await page.getByTestId("websites-module-off").getByRole("button", { name: "Switch on" }).click();
     await expect(page.getByText("Website monitoring is on.")).toBeVisible();
-    await expect(card).toContainText("On");
-    await expect(
-      page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Websites" }),
-    ).toBeVisible();
+    // Switched on where the admin stands: the website's own page shows at once.
+    await expect(page.getByRole("heading", { name: EXPOSURE.main.value, level: 1 })).toBeVisible();
+    await expect(page.getByTestId("websites-module-off")).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: "Add website" })).toBeVisible();
+    // The menu counts what needs a look, as the "attention" filter of the list does.
+    await expect(nav.getByRole("link", { name: /^Websites, \d+ need attention$/ })).toBeVisible();
+    await page.goto("/settings?section=modules");
+    await expect(page.getByTestId("module-websites")).toContainText("On");
     const [audited] = await sql<{ action: string; data: Record<string, unknown> }>(
       "select action, data from audit_log where action like 'organization.module_%' order by id desc limit 1",
     );
@@ -2508,7 +2536,15 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await dialog.getByLabel("Include subdomains").check();
     await dialog.getByRole("button", { name: "Add asset" }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.getByText("Asset added. The first look is running.")).toBeVisible();
+    await expect(page.getByText("Asset added. The first look is running;")).toBeVisible();
+    // The new website opens with the record to set up, so the proof of control is the next step.
+    await expect(page).toHaveURL(/\/websites\/exa_[A-Za-z0-9]+\?verify=1$/);
+    const verify = page.getByRole("dialog", { name: `Verify ${NEW}` });
+    await expect(verify.getByTestId("verify-dns-name")).toHaveText(`_garnetops-challenge.${NEW}`);
+    await expect(verify.getByTestId("verify-dns-value")).toContainText("garnetops-verify=");
+    await verify.getByRole("button", { name: "Close" }).first().click();
+    await expect(verify).toBeHidden();
+    await page.goto("/websites");
     const added = row(page, NEW);
     await expect(added).toContainText("Not verified");
     // The worker makes the first look: the name resolves to a local address, nothing answers on 443 or 80.
@@ -2781,7 +2817,7 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     );
     await expect(page.getByRole("dialog")).toContainText("Das ist keine Rechtsberatung");
   });
-  test("switching the module off keeps the websites, switches stage 2 off and hides the page", async ({
+  test("switching the module off keeps the websites, switches stage 2 off and shows the switch instead of the page", async ({
     page,
   }) => {
     const problems = watchForProblems(page);
@@ -2792,9 +2828,10 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(confirm).toContainText("Websites, findings and history are kept");
     await confirm.getByRole("button", { name: "Switch off" }).click();
     await expect(page.getByText("Website monitoring is off.")).toBeVisible();
-    await expect(
-      page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Websites" }),
-    ).toHaveCount(0);
+    // Admins keep the entry (to switch it on again), without the "+" and without a count.
+    const nav = page.getByRole("navigation", { name: "Main navigation" });
+    await expect(nav.getByRole("link", { name: "Websites", exact: true })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Add website" })).toHaveCount(0);
     expect(await sql("select 1 from exposure_asset where stage2_enabled")).toEqual([]);
     expect((await sql("select 1 from exposure_asset")).length).toBeGreaterThanOrEqual(EXPOSURE.total);
     await page.goto("/websites");
@@ -2913,20 +2950,18 @@ test.describe("hosts and containers (ADR 0034)", () => {
     page,
   }) => {
     const problems = watchForProblems(page);
-    await page.goto("/hosts");
-    await expect(page.getByTestId("hosts-module-off")).toBeVisible();
-    await page.goto("/settings?section=modules");
-    await page.getByTestId("module-hosts").getByRole("button", { name: "Switch on" }).click();
+    const nav = page.getByRole("navigation", { name: "Main navigation" });
+    await page.goto("/");
+    await nav.getByRole("link", { name: "Agents" }).click();
+    await page.getByTestId("hosts-module-off").getByRole("button", { name: "Switch on" }).click();
     await expect(page.getByText("Hosts and containers are on.")).toBeVisible();
-    await page
-      .getByRole("navigation", { name: "Main navigation" })
-      .getByRole("link", { name: "Hosts" })
-      .click();
-    await expect(page.getByRole("heading", { name: "Hosts", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agents", level: 1 })).toBeVisible();
     await expect(page.getByText("No host yet.")).toBeVisible();
 
-    await page.getByRole("button", { name: "Add host" }).click();
-    const dialog = page.getByRole("dialog", { name: "Add a host" });
+    // The "+" in the menu opens the dialog, as the button on the page does.
+    await nav.getByRole("link", { name: "Add agent" }).click();
+    await expect(page).toHaveURL(/\/hosts\?add=1$/);
+    const dialog = page.getByRole("dialog", { name: "Add an agent" });
     await dialog.getByLabel("Name of the host").fill("Web 1");
     await dialog.getByRole("button", { name: "Create the code" }).click();
     const compose = page.getByTestId("host-compose");

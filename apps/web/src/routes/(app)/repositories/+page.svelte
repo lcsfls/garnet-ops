@@ -17,6 +17,7 @@
   import Button from "#lib/components/ui/Button.svelte";
   import { formatWallClock } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
+  import { refreshWhenScansFinish } from "#lib/scan-follow.svelte.ts";
   import { type RepositorySearch, repositorySearch, toQuery } from "#lib/search.ts";
   import type { GateResult, Grade, Page, RepositoryRow } from "#lib/types.ts";
   import { href, parseSearch } from "#lib/url.ts";
@@ -43,6 +44,10 @@
         ? 4000
         : false,
   }));
+  refreshWhenScansFinish(
+    () =>
+      query.data?.items.some((r) => r.lastScan && ["queued", "running"].includes(r.lastScan.state)) ?? false,
+  );
 
   // The latest gate result of each repository's own branch (pull request checks excluded).
   const gates = createQuery(() => ({

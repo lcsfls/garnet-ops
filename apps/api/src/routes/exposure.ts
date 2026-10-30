@@ -633,6 +633,36 @@ export const exposureRoutes = new Hono<AppEnv>()
     return c.body(null, 204);
   })
 
+  /**
+   * The number the navigation shows next to Websites: the assets of the "attention" filter (open critical or high
+   * findings, a lost verification, a failed run), and the worst severity among their open findings.
+   */
+  .get("/attention", async (c) => {
+    const actor = c.get("actor");
+    const f = schema.exposureFinding;
+    const [[assets], severities] = await Promise.all([
+      db
+        .select({ n: count() })
+        .from(a)
+        .where(and(eq(a.organizationId, actor.organizationId), attentionSql)),
+      db
+        .selectDistinct({ severity: f.severity })
+        .from(f)
+        .where(
+          and(
+            eq(f.organizationId, actor.organizationId),
+            eq(f.state, "open"),
+            inArray(f.severity, ["critical", "high"]),
+          ),
+        ),
+    ]);
+    const has = (severity: string) => severities.some((r) => r.severity === severity);
+    return c.json({
+      count: assets?.n ?? 0,
+      worst: has("critical") ? "critical" : has("high") ? "high" : null,
+    });
+  })
+
   /* ------------------------------ detail ------------------------------ */
   .get("/:id", async (c) => {
     const actor = c.get("actor");

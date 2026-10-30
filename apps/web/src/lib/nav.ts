@@ -41,8 +41,13 @@ export interface NavItem {
   label: MessageKey;
   icon: LucideIcon;
   adminOnly?: boolean;
-  /** Listed only while the organisation has this module switched on (ADR 0033). */
+  /**
+   * The module the page belongs to (ADR 0033). Owners and admins always see it, so they find the feature and can switch
+   * it on from its page; everyone else sees it while it is on.
+   */
   module?: keyof Me["organization"]["modules"];
+  /** Where the "+" next to the item leads (owners and admins, module on): the page with its add dialog open. */
+  add?: { to: string; label: MessageKey };
 }
 
 /** Only screens that exist are listed; nothing is shown as a teaser. */
@@ -67,10 +72,22 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "shell.groupMonitoring",
+    label: "shell.groupInfrastructure",
     items: [
-      { to: "/websites", label: "nav.websites", icon: Globe, module: "websites" },
-      { to: "/hosts", label: "nav.hosts", icon: Server, module: "hosts" },
+      {
+        to: "/hosts",
+        label: "nav.agents",
+        icon: Server,
+        module: "hosts",
+        add: { to: "/hosts?add=1", label: "nav.addAgent" },
+      },
+      {
+        to: "/websites",
+        label: "nav.websites",
+        icon: Globe,
+        module: "websites",
+        add: { to: "/websites?add=1", label: "nav.addWebsite" },
+      },
     ],
   },
   {
@@ -85,6 +102,8 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
 ];
 
 export const isAdmin = (me: Me) => me.role === "owner" || me.role === "admin";
+export const moduleOn = (me: Me, module: keyof Me["organization"]["modules"]) =>
+  me.organization?.modules?.[module] === true;
 
 /** The navigation as this user sees it. */
 export function navFor(me: Me) {
@@ -92,8 +111,7 @@ export function navFor(me: Me) {
     ...group,
     items: group.items.filter(
       (item) =>
-        (!item.adminOnly || isAdmin(me)) &&
-        (!item.module || me.organization?.modules?.[item.module] === true),
+        (!item.adminOnly || isAdmin(me)) && (!item.module || isAdmin(me) || moduleOn(me, item.module)),
     ),
   })).filter((group) => group.items.length > 0);
 }

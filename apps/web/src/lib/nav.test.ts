@@ -7,11 +7,11 @@ const me = (role: Me["role"], websites = false) =>
 const items = (role: Me["role"]) => navFor(me(role)).flatMap((g) => g.items.map((i) => i.to));
 
 describe("navigation of the developer pipeline", () => {
-  it("has the daily, code, monitoring and admin groups and no infrastructure group", () => {
+  it("has the daily, code, infrastructure and admin groups", () => {
     expect(NAV.map((g) => g.label)).toEqual([
       "shell.groupDaily",
       "shell.groupCode",
-      "shell.groupMonitoring",
+      "shell.groupInfrastructure",
       "shell.groupAdmin",
     ]);
     const code = NAV.find((g) => g.label === "shell.groupCode");
@@ -45,12 +45,17 @@ describe("navigation of the developer pipeline", () => {
     ]);
   });
 
-  it("lists Websites only while the module is on (ADR 0033)", () => {
-    expect(items("viewer")).not.toContain("/websites");
-    const on = navFor(me("viewer", true)).flatMap((g) => g.items.map((i) => i.to));
-    expect(on).toContain("/websites");
-    expect(navFor(me("viewer")).map((g) => g.label)).not.toContain("shell.groupMonitoring");
-    expect(navTrail("/websites/exa_1")?.group).toBe("shell.groupMonitoring");
+  it("lists Agents and Websites to owners and admins always, to everyone else while the module is on", () => {
+    const infra = (m: Me) =>
+      navFor(m)
+        .find((g) => g.label === "shell.groupInfrastructure")
+        ?.items.map((i) => i.to);
+    expect(infra(me("owner"))).toEqual(["/hosts", "/websites"]);
+    expect(infra(me("admin"))).toEqual(["/hosts", "/websites"]);
+    expect(infra(me("viewer"))).toBeUndefined();
+    expect(infra(me("member", true))).toEqual(["/websites"]);
+    expect(navTrail("/websites/exa_1")?.group).toBe("shell.groupInfrastructure");
+    expect(navTrail("/hosts/hst_1")?.item.label).toBe("nav.agents");
   });
 
   it("knows the breadcrumb of a page and of a page below it", () => {

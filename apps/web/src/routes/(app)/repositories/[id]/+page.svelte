@@ -18,6 +18,7 @@
   import Tile from "#lib/components/Tile.svelte";
   import Button from "#lib/components/ui/Button.svelte";
   import { t } from "#lib/i18n.svelte.ts";
+  import { refreshWhenScansFinish } from "#lib/scan-follow.svelte.ts";
   import { type RepositoryDetailSearch, repositoryDetailSearch } from "#lib/search.ts";
   import { toast } from "#lib/toast.svelte.ts";
   import type { RepositoryDetail, Severity } from "#lib/types.ts";
@@ -62,6 +63,7 @@
 
   const data = $derived(repo.data);
   const busy = $derived(data?.lastScan ? ["queued", "running"].includes(data.lastScan.state) : false);
+  refreshWhenScansFinish(() => busy);
 </script>
 
 {#snippet meta()}

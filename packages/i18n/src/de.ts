@@ -388,7 +388,7 @@ export const de: Messages = {
     mainNavigation: "Hauptnavigation",
     groupDaily: "Täglich",
     groupCode: "Code",
-    groupMonitoring: "Überwachung",
+    groupInfrastructure: "Infrastruktur",
     localOnly: "Nur lokal",
     localOnlyHint: "Kein Code, kein Finding und kein Log verlässt Ihr Netzwerk.",
     accountMenu: "Konto: {name}",
@@ -402,6 +402,7 @@ export const de: Messages = {
     useLightTheme: "Zur hellen Darstellung wechseln",
     useDarkTheme: "Zur dunklen Darstellung wechseln",
     criticalOpenBadge: "{count, plural, one {# kritisch offen} other {# kritisch offen}}",
+    attentionBadge: "{count, plural, one {# braucht Aufmerksamkeit} other {# brauchen Aufmerksamkeit}}",
     version: "Version {version}",
     collapseSidebar: "Seitenleiste einklappen",
     expandSidebar: "Seitenleiste ausklappen",
@@ -714,7 +715,9 @@ export const de: Messages = {
     pullRequests: "Pull Requests",
     statistics: "Statistik",
     websites: "Websites",
-    hosts: "Hosts",
+    agents: "Agents",
+    addAgent: "Agent hinzufügen",
+    addWebsite: "Website hinzufügen",
   },
   severity: {
     critical: "Kritisch",
@@ -947,15 +950,14 @@ export const de: Messages = {
     hint: "Eine Prüfung verwendet dieselben Quality-Gate-Regeln wie eine CI-Pipeline und ändert den Pull Request nie.",
   },
   hosts: {
-    title: "Hosts",
+    title: "Agents",
     description:
       "Die Server, auf denen der GarnetOps-Agent läuft, ihre laufenden Container und was in den Images steckt.",
     moduleOffTitle: "Hosts und Container sind ausgeschaltet",
     moduleOffText:
-      "Ein Owner oder Admin schaltet sie unter Einstellungen, Module ein. Bis dahin können Agents nichts melden und es wird nichts abgeglichen.",
-    moduleOffLink: "Einstellungen, Module öffnen",
-    back: "Alle Hosts",
-    add: "Host hinzufügen",
+      "Ein Owner oder Admin schaltet sie ein, hier oder unter Einstellungen, Module. Bis dahin können Agents nichts melden und es wird nichts abgeglichen.",
+    back: "Alle Agents",
+    add: "Agent hinzufügen",
     empty:
       "Noch kein Host. Fügen Sie einen hinzu: GarnetOps gibt Ihnen eine Compose-Datei mit einem Einmal-Code für den Agent.",
     columnHost: "Host",
@@ -980,7 +982,7 @@ export const de: Messages = {
     helpKeyTitle: "Ein Code, dann ein Schlüssel",
     helpKeyText:
       "Der Einmal-Code gilt einmal und 24 Stunden lang. Danach signiert der Agent jede Meldung mit einem eigenen Schlüssel. Entfernen Sie hier einen Host, gilt sein Schlüssel sofort nicht mehr.",
-    addTitle: "Host hinzufügen",
+    addTitle: "Agent hinzufügen",
     addDescription: "GarnetOps erzeugt einen Einmal-Code und eine Compose-Datei für den Agent.",
     addLabel: "Name des Hosts",
     addLabelHint: "Optional. Erscheint in der Liste; sonst wird der eigene Name des Hosts verwendet.",
@@ -1120,8 +1122,7 @@ export const de: Messages = {
     description: "Ihre öffentlichen Domains, Hostnamen und Adressen, von außen betrachtet.",
     moduleOffTitle: "Die Website-Überwachung ist ausgeschaltet",
     moduleOffText:
-      "Ein Owner oder Admin schaltet sie unter Einstellungen, Module ein. Bis dahin prüft GarnetOps keine Website und behält, was es vorher gefunden hat.",
-    moduleOffLink: "Einstellungen, Module öffnen",
+      "Ein Owner oder Admin schaltet sie ein, hier oder unter Einstellungen, Module. Bis dahin prüft GarnetOps keine Website und behält, was es vorher gefunden hat.",
     back: "Alle Websites",
     add: "Asset hinzufügen",
     addTitle: "Asset hinzufügen",
@@ -1136,7 +1137,8 @@ export const de: Messages = {
     addStage1Note:
       "Beim Hinzufügen passiert nur, was jeder Browser und jeder Mailserver tut: DNS-Abfragen, ein TLS-Handshake und eine Anfrage für die Startseite. Mehr geschieht erst, wenn Sie das Asset verifizieren und Stufe 2 einschalten.",
     addSubmit: "Asset hinzufügen",
-    added: "Asset hinzugefügt. Die erste Prüfung läuft.",
+    added:
+      "Asset hinzugefügt. Die erste Prüfung läuft; richten Sie den angezeigten Eintrag ein, um zu belegen, dass er Ihnen gehört.",
     addErrors: {
       empty: "Geben Sie eine Domain, einen Hostnamen oder eine Adresse ein.",
       tooLong: "Das ist für einen Hostnamen zu lang.",
@@ -1529,6 +1531,8 @@ export const de: Messages = {
     runOpenPorts: "{count, plural, =0 {keine offenen Ports} one {# offener Port} other {# offene Ports}}",
     schedule: { daily: "Täglich", weekly: "Wöchentlich" },
     verifyOpen: "Verifizieren…",
+    verifyTooOften:
+      "In der letzten Stunde zwölfmal geprüft. Versuchen Sie es später; GarnetOps prüft den Nachweis außerdem einmal am Tag.",
     verifyTitle: "{asset} verifizieren",
     verifyDescription:
       "Stufe 2 läuft nur für Assets, deren Kontrolle Sie nachgewiesen haben. Veröffentlichen Sie einen der beiden Nachweise und prüfen Sie dann. Der Code ist kein Geheimnis; er ist nicht erratbar und gehört zu diesem Asset in dieser Organisation.",
@@ -2309,7 +2313,8 @@ export const de: Messages = {
       "Prüft Ihre eigenen öffentlichen Domains, Hostnamen und Adressen von außen: Zertifikate, DNS, Mail-Authentifizierung und Security-Header. Port-Prüfungen laufen nur für Namen, deren Kontrolle Sie per DNS-TXT-Eintrag oder Datei nachgewiesen haben, und erst nach Ihrer Bestätigung je Name.",
     moduleWebsitesOffNote:
       "Standardmäßig aus: Sobald es an ist, verbindet sich GarnetOps von dieser Installation aus mit den öffentlichen Hosts, die Sie hinzufügen.",
-    moduleWebsitesOn: "Die Website-Überwachung ist an. Fügen Sie die erste Website unter Websites hinzu.",
+    moduleWebsitesOn:
+      "Die Website-Überwachung ist an. Fügen Sie die erste Website unter Infrastruktur, Websites hinzu.",
     moduleWebsitesOffDone: "Die Website-Überwachung ist aus.",
     moduleWebsitesOffTitle: "Website-Überwachung ausschalten?",
     moduleWebsitesOffText:
@@ -2320,7 +2325,8 @@ export const de: Messages = {
       "Ein kleiner Agent auf Ihren Servern meldet die laufenden Container und die Pakete ihrer Images. GarnetOps gleicht sie mit der lokalen Schwachstellen-Datenbank ab und verknüpft jedes Image mit dem Repository, aus dem es gebaut wurde. Der Agent liest nur und spricht per HTTPS mit GarnetOps.",
     moduleHostsOffNote:
       "Standardmäßig aus: Sobald es an ist, können Agents mit einem Code von einem Admin an diese Installation melden.",
-    moduleHostsOn: "Hosts und Container sind an. Fügen Sie den ersten Host unter Hosts hinzu.",
+    moduleHostsOn:
+      "Hosts und Container sind an. Fügen Sie den ersten Agent unter Infrastruktur, Agents hinzu.",
     moduleHostsOffDone: "Hosts und Container sind aus.",
     moduleHostsOffTitle: "Hosts und Container ausschalten?",
     moduleHostsOffText:

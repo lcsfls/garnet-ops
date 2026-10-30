@@ -1,14 +1,18 @@
 # Website monitoring
 
-**Monitoring → Websites** watches your own public domains, host names and IP addresses from the outside:
+**Infrastructure → Websites** watches your own public domains, host names and IP addresses from the outside:
 which certificate is about to expire, which security headers are missing, whether mail authentication is set up,
 and, for assets you verified, which common ports answer from the internet (ADR 0023, ADR 0033).
 
 ## Switch the module on
 
 Website monitoring is a module and is **off by default**: once it is on, GarnetOps connects from your installation to the public
-hosts you add. An owner or admin switches it on under **Settings → Modules → Website monitoring**. Until then nothing is looked at,
-the page and its menu entry are hidden and the API answers `409 module-off`.
+hosts you add. Owners and admins see **Infrastructure → Websites** in the menu all along and switch the module on right there, or
+under **Settings → Modules → Website monitoring**. Until then nothing is looked at, other members do not see the entry, and the API
+answers `409 module-off`.
+
+Once it is on, the **+** next to **Websites** in the menu adds a website, and the menu counts the websites that need a look (the
+**Needs attention** filter of the list: an open critical or high finding, a lost verification, a failed check).
 
 Switching it off again keeps your websites, findings and history, but switches stage 2 off for every website (each needs a new
 confirmation later) and drops checks that were still waiting. Both are in the audit log.
@@ -52,7 +56,8 @@ Adding an asset starts stage 1 at once, and then every day.
 
 ## Verify an asset
 
-Stage 2 only runs for assets whose control you proved. Open **Websites → the asset → Verify…**. Publish **one** of these:
+Stage 2 only runs for assets whose control you proved. Right after you add an asset, its page opens with this dialog; later you
+find it under **Websites → the asset → Verify…**. Publish **one** of these:
 
 **A DNS record** (domains and host names). Add a TXT record:
 
@@ -72,7 +77,13 @@ The file may contain the bare code or `garnetops-verify=<code>` on a line of its
 certificate. An address is tried over HTTPS and then plain HTTP. **Redirects are not followed**, and the file must be at most 1 KiB.
 
 Press **Check now**. The worker looks up the proof and the dialog shows the result: the proof was found, or why not (record
-missing, record with another value, file missing, file without the code, file redirected, certificate refused, ...).
+missing, record with another value, file missing, file without the code, file redirected, certificate refused, ...). A check can
+be started twelve times an hour per asset; GarnetOps also checks once a day.
+
+The worker asks for the TXT record both through the system resolver and **directly at the domain's own name servers** (only at
+public addresses, one TXT query each). That way a new record counts at once, even if a resolver in your network still remembers
+the "not there" of an earlier check, or answers for your own domain from an internal zone. Where outgoing DNS (port 53) is blocked,
+the system resolver alone decides, as before.
 
 About the code:
 

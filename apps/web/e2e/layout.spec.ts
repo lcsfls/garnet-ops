@@ -768,7 +768,7 @@ test.describe("signed in, with hosts and containers on", () => {
   });
 
   for (const { path, heading, name } of [
-    { path: "/hosts", heading: "Hosts", name: "hosts" },
+    { path: "/hosts", heading: "Agents", name: "hosts" },
     { path: "/hosts/hst_layout", heading: "build-runner-with-a-long-name-01", name: "host" },
     { path: `/hosts/images/${IMAGE}`, heading: "git.example.test/team/seeded-app:1.4.0", name: "host-image" },
     { path: "/repositories/repo_e2eseeded000000001", heading: "seeded-app", name: "repository-running" },

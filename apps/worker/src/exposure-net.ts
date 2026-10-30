@@ -79,11 +79,20 @@ export interface NetEnv {
   bannerReadMs?: number;
   /** Tests only: a hook that sees the moment each stage 2 attempt starts. */
   onAttempt?: (port: number, address: string) => void;
+  /** A resolver that asks one name server and nothing else; tests pass a fake. */
+  dnsAt?: (server: string) => DnsLike;
 }
 
 /** The system resolver with short time-outs. */
 export function systemResolver(): DnsLike {
   return new Resolver({ timeout: 3000, tries: 2 }) as unknown as DnsLike;
+}
+
+/** A resolver that asks only `server` (an address), for the zone's own name servers. */
+export function serverResolver(server: string): DnsLike {
+  const resolver = new Resolver({ timeout: 3000, tries: 1 });
+  resolver.setServers([server]);
+  return resolver as unknown as DnsLike;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -225,9 +234,50 @@ export async function readPtr(env: NetEnv, addresses: readonly string[]): Promis
   return [...names].slice(0, 5);
 }
 
-/** The TXT answer for the verification record. `undefined` is a failed lookup, an empty list is "not there". */
+/** At most this many name server addresses are asked for the verification record before giving up on them. */
+const MAX_ZONE_SERVERS_ASKED = 3;
+
+/** The name servers of the zone `name` lies in: the NS answer of the name or of its nearest parent that has one. */
+async function zoneServers(env: NetEnv, name: string): Promise<string[]> {
+  const labels = name.split(".");
+  for (let i = 0; i < labels.length - 1; i++) {
+    const ns = await ask(() => env.dns.resolveNs(labels.slice(i).join(".")));
+    if (ns === undefined) return [];
+    if (ns.length > 0) return ns.slice(0, 4);
+  }
+  return [];
+}
+
+/**
+ * The verification record as the zone's own name servers answer it. Asking them directly sees a record the moment it is
+ * published: a recursive resolver may still hold the "not there" of an earlier check (negative caching), and a resolver with
+ * an internal view of the organisation's own domain (split horizon) never sees the public record at all. Only public
+ * addresses are asked, with one TXT query each. `undefined` when no name server could be asked.
+ */
+async function readTxtAtZone(env: NetEnv, name: string): Promise<string[][] | undefined> {
+  const at = env.dnsAt ?? serverResolver;
+  let asked = 0;
+  for (const host of await zoneServers(env, name)) {
+    const { addresses } = await resolveAssetAddresses(env, host);
+    for (const address of addresses) {
+      if (asked++ >= MAX_ZONE_SERVERS_ASKED) return undefined;
+      const answer = await ask(() => at(address).resolveTxt(name));
+      if (answer !== undefined) return answer;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The TXT answer for the verification record, from the zone's name servers and the system resolver together: the record
+ * counts if either sees it, so a network that blocks direct DNS still verifies through its resolver. `undefined` is a failed
+ * lookup on both ways, an empty list is "not there".
+ */
 export async function readTxt(env: NetEnv, name: string): Promise<string[][] | undefined> {
-  return ask(() => env.dns.resolveTxt(name));
+  const [direct, system] = await Promise.all([readTxtAtZone(env, name), ask(() => env.dns.resolveTxt(name))]);
+  if (direct === undefined) return system;
+  if (system === undefined) return direct;
+  return [...direct, ...system];
 }
 
 /* -------------------------------------------------------------------------- */

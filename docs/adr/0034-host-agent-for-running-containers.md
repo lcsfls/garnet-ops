@@ -39,7 +39,7 @@ container; nothing of the image leaves the host.
 - **Only outbound, only HTTPS.** The agent connects to the address of the GarnetOps installation (`PUBLIC_URL`), verifies its
   certificate against the system store (or a CA file the team sets for an internal CA) and refuses `http://` addresses. Nothing
   connects to the agent. No redirect is followed.
-- **Enrolment.** An owner or admin creates an enrolment code (Monitoring → Hosts → Add host). It is 256 random bits, valid for 24 hours
+- **Enrolment.** An owner or admin creates an enrolment code (Infrastructure → Agents → Add agent). It is 256 random bits, valid for 24 hours
   and for one host, stored only as a SHA-256 hash, and shown once inside the Compose snippet. On its first start the agent creates an
   Ed25519 key pair (the private key stays in the agent's volume, mode 0600) and sends the code and the public key to
   `POST /api/v1/agent/enroll`. The code is spent; the host is created with the public key.

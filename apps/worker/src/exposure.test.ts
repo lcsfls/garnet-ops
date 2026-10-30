@@ -378,6 +378,42 @@ describe.skipIf(!openssl || !adminUrl)(
         expect(await audits(a.id)).toContain("exposure.verified");
       });
 
+      it("asks the zone's own name servers, so a cached or internal 'not there' does not hide a published record", async () => {
+        resetZone();
+        const org = await newOrg();
+        const a = await addAsset(org.id);
+        // The system resolver does not see the record (it cached the miss of an earlier check, or has an internal view of the
+        // domain); the domain's name server answers with it.
+        zone[a.value] = { ns: [`ns1.${a.value}`, "ns.internal.example.com"] };
+        zone[`ns1.${a.value}`] = { a: ["192.0.2.53"] };
+        zone["ns.internal.example.com"] = { a: ["10.0.0.53"] };
+        const asked: string[] = [];
+        const dnsAt = (server: string) => {
+          asked.push(server);
+          return {
+            ...dns,
+            resolveTxt: async () => [[verifyRecordValue(a.verifyToken)]],
+          };
+        };
+        await ex.runVerify(a.id, { net: env({ dnsAt }) });
+        expect(await asset(a.id)).toMatchObject({ verifyState: "verified", verifyMethod: "dns" });
+        // A name server that resolves to a non-public address is never asked.
+        expect(asked).toEqual(["192.0.2.53"]);
+      });
+
+      it("still verifies through the system resolver when the name servers cannot be asked", async () => {
+        resetZone();
+        const org = await newOrg();
+        const a = await addAsset(org.id);
+        zone[a.value] = { ns: [`ns1.${a.value}`] };
+        zone[`ns1.${a.value}`] = { a: ["192.0.2.53"] };
+        zone[`_garnetops-challenge.${a.value}`] = { txt: [[verifyRecordValue(a.verifyToken)]] };
+        const refused = () => Object.assign(new Error("refused"), { code: "EREFUSED" });
+        const dnsAt = () => ({ ...dns, resolveTxt: () => Promise.reject(refused()) });
+        await ex.runVerify(a.id, { net: env({ dnsAt }) });
+        expect(await asset(a.id)).toMatchObject({ verifyState: "verified", verifyMethod: "dns" });
+      });
+
       it("explains why a record is missing or different, and stays unverified", async () => {
         resetZone();
         const org = await newOrg();

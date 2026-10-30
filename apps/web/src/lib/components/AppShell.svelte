@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { ChevronRight, Lock, Moon, PanelLeft, Sun } from "@lucide/svelte";
+  import { ChevronRight, Lock, Moon, PanelLeft, Plus, Sun } from "@lucide/svelte";
   import { createQuery } from "@tanstack/svelte-query";
   import type { Snippet } from "svelte";
   import { page } from "$app/state";
+  import { api } from "../api.ts";
   import { cn } from "../cn.ts";
   import { formatNumber } from "../format.ts";
   import { t } from "../i18n.svelte.ts";
-  import { navFor, navTrail } from "../nav.ts";
+  import { isAdmin, moduleOn, type NavItem, navFor, navTrail } from "../nav.ts";
   import type { Me } from "../session.ts";
   import { findingCountsQuery, systemQuery } from "../shell.ts";
   import { resolvedTheme, setTheme } from "../theme.svelte.ts";
@@ -18,6 +19,7 @@
   import ToastRegion from "./ToastRegion.svelte";
   import UserMenu from "./UserMenu.svelte";
   import Badge from "./ui/Badge.svelte";
+  import { BADGE_TONE, type BadgeTone } from "./ui/tones.ts";
   import Wordmark from "./Wordmark.svelte";
 
   let { me, children }: { me: Me; children: Snippet } = $props();
@@ -35,6 +37,42 @@
   const counts = createQuery(() => ({ ...findingCountsQuery(), refetchInterval: 60_000 }));
   const system = createQuery(() => systemQuery);
   const criticalOpen = $derived(counts.data?.open.critical ?? 0);
+  // What needs a look under Infrastructure: the same "attention" the pages filter by.
+  type Attention = { count: number; worst: "critical" | "high" | null };
+  const hostsAttention = createQuery(() => ({
+    queryKey: ["hosts", "attention"],
+    queryFn: () => api<Attention>("/hosts/attention"),
+    enabled: moduleOn(me, "hosts"),
+    refetchInterval: 60_000,
+  }));
+  const websitesAttention = createQuery(() => ({
+    queryKey: ["websites", "attention"],
+    queryFn: () => api<Attention>("/exposure/attention"),
+    enabled: moduleOn(me, "websites"),
+    refetchInterval: 60_000,
+  }));
+  function badgeOf(item: NavItem): { count: number; tone: BadgeTone; label: string } | null {
+    if (item.to === "/findings")
+      return criticalOpen > 0
+        ? {
+            count: criticalOpen,
+            tone: "critical",
+            label: t("shell.criticalOpenBadge", { count: criticalOpen }),
+          }
+        : null;
+    const attention =
+      item.to === "/hosts"
+        ? hostsAttention.data
+        : item.to === "/websites"
+          ? websitesAttention.data
+          : undefined;
+    if (!attention || attention.count === 0 || !item.module || !moduleOn(me, item.module)) return null;
+    return {
+      count: attention.count,
+      tone: attention.worst ?? "neutral",
+      label: t("shell.attentionBadge", { count: attention.count }),
+    };
+  }
   const trail = $derived(navTrail(page.url.pathname));
   const versionText = $derived(
     system.data ? t("shell.version", { version: displayVersion(system.data.version, t("shell.alpha")) }) : "",
@@ -80,20 +118,17 @@
           {#if !collapsed}<div class="px-2 pb-1.5 text-sm text-muted-foreground">{t(group.label)}</div>{/if}
           <ul class="grid gap-0.5">
             {#each group.items as item (item.to)}
-              {@const badge = item.to === "/findings" && criticalOpen > 0 ? criticalOpen : null}
+              {@const badge = badgeOf(item)}
               {@const active = isActive(item.to)}
-              <li>
+              {@const add = !collapsed && item.add && isAdmin(me) && item.module && moduleOn(me, item.module) ? item.add : null}
+              <li class="flex items-center gap-0.5">
                 <a
                   href={item.to}
                   title={collapsed ? t(item.label) : undefined}
-                  aria-label={badge !== null
-                    ? `${t(item.label)}, ${t("shell.criticalOpenBadge", { count: badge })}`
-                    : collapsed
-                      ? t(item.label)
-                      : undefined}
+                  aria-label={badge !== null ? `${t(item.label)}, ${badge.label}` : collapsed ? t(item.label) : undefined}
                   aria-current={active ? "page" : undefined}
                   class={cn(
-                    "flex h-9 items-center gap-2.5 rounded-md hover:bg-sidebar-hover",
+                    "flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md hover:bg-sidebar-hover",
                     collapsed ? "relative justify-center" : "px-2",
                     active && "bg-sidebar-accent font-medium text-sidebar-accent-foreground hover:bg-sidebar-accent",
                   )}
@@ -103,15 +138,27 @@
                   {#if badge !== null}
                     <span
                       aria-hidden="true"
+                      data-testid="nav-badge-{item.to.slice(1)}"
                       class={cn(
-                        "rounded-md bg-destructive/15 px-1.5 text-xs leading-5 font-semibold text-destructive-text",
+                        "rounded-md px-1.5 text-xs leading-5 font-semibold",
+                        BADGE_TONE[badge.tone],
                         collapsed ? "absolute -top-1 -right-1" : "ml-auto",
                       )}
                     >
-                      {formatNumber(badge)}
+                      {formatNumber(badge.count)}
                     </span>
                   {/if}
                 </a>
+                {#if add}
+                  <a
+                    href={add.to}
+                    aria-label={t(add.label)}
+                    title={t(add.label)}
+                    class="grid size-9 flex-none place-items-center rounded-md text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"
+                  >
+                    <Plus aria-hidden="true" class="size-4" />
+                  </a>
+                {/if}
               </li>
             {/each}
           </ul>

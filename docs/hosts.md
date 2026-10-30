@@ -1,18 +1,22 @@
 # Hosts and containers
 
-**Monitoring → Hosts** shows which containers run on your servers, what is in their images, which known vulnerabilities those
+**Infrastructure → Agents** shows which containers run on your servers, what is in their images, which known vulnerabilities those
 images carry, which repository each image was built from, and whether a newer image exists ([ADR 0034](adr/0034-host-agent-for-running-containers.md)).
 A small agent on each server reports to GarnetOps; GarnetOps never connects to your servers.
 
 ## Switch the module on
 
-Hosts and containers are a module and are **off by default**. An owner or admin switches them on under **Settings → Modules → Hosts
-and containers**. While the module is off, agents cannot report (their requests are refused), nothing is matched and the pages are
-hidden. Hosts and their data are kept; the agents report again once the module is on.
+Hosts and containers are a module and are **off by default**. Owners and admins see **Infrastructure → Agents** in the menu all
+along and switch the module on right there, or under **Settings → Modules → Hosts and containers**. While the module is off, agents
+cannot report (their requests are refused), nothing is matched and other members do not see the entry. Hosts and their data are
+kept; the agents report again once the module is on.
+
+Once it is on, the **+** next to **Agents** in the menu adds a host, and the menu counts the hosts that need a look: no report for
+more than a day, or an open critical or high vulnerability in a running image or in the kernel.
 
 ## Add a host
 
-1. **Monitoring → Hosts → Add host** (owners and admins). Give the host a name if you like.
+1. **Infrastructure → Agents → Add agent**, or the **+** next to **Agents** (owners and admins). Give the host a name if you like.
 2. GarnetOps shows a Compose file with a **one-time code**. The code works for one host, for 24 hours, and is shown only now.
 3. On the host, save it as `docker-compose.yml` in an empty folder and run `docker compose up -d`.
 4. The host appears after its first report, usually within a minute.

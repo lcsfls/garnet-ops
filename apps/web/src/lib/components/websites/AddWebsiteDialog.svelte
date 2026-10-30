@@ -1,8 +1,10 @@
 <script lang="ts">
   import { createMutation, useQueryClient } from "@tanstack/svelte-query";
+  import { goto } from "$app/navigation";
   import { ApiError, api } from "../../api.ts";
   import { t } from "../../i18n.svelte.ts";
   import { toast } from "../../toast.svelte.ts";
+  import { href } from "../../url.ts";
   import Alert from "../ui/Alert.svelte";
   import Button from "../ui/Button.svelte";
   import Checkbox from "../ui/Checkbox.svelte";
@@ -28,7 +30,7 @@
 
   /**
    * Adds a domain, host name or public address (ADR 0023). Nothing is looked at from outside until it exists, and only stage 1;
-   * verification comes later. Mounted fresh each time it opens.
+   * the website then opens with its proof of control to set up. Mounted fresh each time it opens.
    */
   let { onClose }: { onClose: () => void } = $props();
 
@@ -43,10 +45,11 @@
     onMutate: () => {
       error = null;
     },
-    onSuccess: async () => {
+    // The proof of control comes right after: the new website opens with its TXT record and file to set up.
+    onSuccess: async ({ id }) => {
       await queryClient.invalidateQueries({ queryKey: ["websites"] });
       toast.success(t("websites.added"));
-      onClose();
+      await goto(href(`/websites/${encodeURIComponent(id)}`, { verify: "1" }));
     },
     onError: (e: Error) => {
       if (e instanceof ApiError && e.code === "duplicate") error = t("websites.addErrors.duplicate");

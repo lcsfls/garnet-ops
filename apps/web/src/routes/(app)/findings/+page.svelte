@@ -53,11 +53,14 @@
     queryKey: ["findings", { ...apiSearch, id: undefined, ai: undefined }],
     queryFn: () => api<Page<FindingRow>>(`/findings${toQuery(apiSearch, ["id", "ai"])}`),
     placeholderData: keepPreviousData,
+    // Scheduled scans open and resolve findings while the page is open.
+    refetchInterval: 60_000,
   }));
   // Counts per state for the tabs, under every other filter.
   const counts = createQuery(() => ({
     ...findingCountsQuery(toQuery(apiSearch, ["id", "ai", "cursor", "pageSize", "state"])),
     placeholderData: keepPreviousData,
+    refetchInterval: 60_000,
   }));
   const repositories = createQuery(() => ({
     queryKey: ["repositories", { pageSize: 100 }],

@@ -824,6 +824,11 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
         "d-failed.example.com",
       ]);
       expect(await items("?status=unverified")).toEqual(["b-lost.example.com", "d-failed.example.com"]);
+      // The navigation counts the same three, with the worst open severity among them.
+      expect((await call("GET", "/api/v1/exposure/attention", { org })).json).toEqual({
+        count: 3,
+        worst: "high",
+      });
       expect(await items("?status=stage2")).toEqual(["c-clean.example.com"]);
       expect(await items("?sort=high&dir=desc")).toEqual([
         "a-critical.example.com",

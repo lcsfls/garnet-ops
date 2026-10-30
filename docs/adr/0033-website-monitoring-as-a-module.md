@@ -24,7 +24,7 @@ default, because once it is on the installation connects to public hosts that an
      show no location.
    - **New queue names** (`websites.verify`, `websites.run`, `websites.tick`). The `exposure.*` queues of 0.0.3 stay on the list the
      worker removes on start (ADR 0025), so nothing left in an old queue runs unasked.
-   - **The interface is rebuilt in Svelte** (ADR 0027) under **Monitoring → Websites** (`/websites`); `/exposure` links of 0.0.3 lead
+   - **The interface is rebuilt in Svelte** (ADR 0027) under **Infrastructure → Websites** (named Monitoring until 0.0.12) (`/websites`); `/exposure` links of 0.0.3 lead
      there. The API keeps its 0.0.3 paths (`/api/v1/exposure/...`) and shapes, minus the location fields.
 2. **A module switch per organisation** (`exposure_settings.enabled`, off by default, migration `0030`). Owners and admins switch it
    under **Settings → Modules** (`PUT /api/v1/organization/modules/websites`), audited as `organization.module_enabled` and
@@ -37,6 +37,24 @@ default, because once it is on the installation connects to public hosts that an
    fresh proof (48 hours, ADR 0023) and a new acknowledgement per website.
 5. **Proof of control** stays as in ADR 0023: a TXT record `_garnetops-challenge.<name>` with `garnetops-verify=<code>`, or the file
    `/.well-known/garnetops-verify.txt`, checked daily and before every stage 2 run; a definite loss stops stage 2 at once.
+
+## Amendment (after 0.0.12): the modules can be found, and the proof is asked at the source
+
+- **Owners and admins see a module's menu entry while it is off.** Hidden entries meant that nobody found the features. The entries
+  sit under **Infrastructure** (Agents, Websites); while a module is off its page says what it does and offers the switch (the same
+  `PUT /api/v1/organization/modules/{name}`, audited as before). Other members still see an entry only while the module is on.
+  Nothing else changes while a module is off: no connection, no proof check, 409 `module-off`.
+- **The menu counts what needs a look** (`GET /api/v1/exposure/attention`, `GET /api/v1/hosts/attention`): the websites of the
+  "attention" filter, the hosts that stopped reporting or run something with an open critical or high vulnerability, coloured by the
+  worst severity. A "+" next to each entry opens its add dialog.
+- **Adding a website opens its proof.** The new website's page opens with the verification dialog, so the TXT record is the next step.
+- **The TXT record is also asked of the domain's own name servers.** The first check runs right after adding, before the record can
+  exist; recursive resolvers then keep that "not there" for the zone's negative TTL, and resolvers with an internal view of the own
+  domain never see the public record. The worker therefore finds the zone's name servers (NS of the name or its nearest parent),
+  resolves them under the address policy (public addresses only, so no internal server is ever asked), and sends each at most one TXT
+  query for `_garnetops-challenge.<name>`, at most three servers. The answer is merged with the system resolver's: either one finding
+  the record verifies, so networks that block outgoing DNS behave as before. No new data leaves: the challenge name was already asked
+  through the resolver.
 
 ## Threat model
 

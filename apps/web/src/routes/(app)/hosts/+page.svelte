@@ -15,8 +15,11 @@
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
   import { rowClick } from "#lib/row-link.ts";
+  import { hostsSearch } from "#lib/search.ts";
   import { toast } from "#lib/toast.svelte.ts";
+  import { parseSearch, href as urlOf } from "#lib/url.ts";
   import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import type { PageData } from "./$types";
 
   /** Hosts and containers (ADR 0034): the hosts that run the agent, with what their containers carry. */
@@ -25,7 +28,9 @@
   const on = $derived(me.organization.modules?.hosts === true);
   const canEdit = $derived(isAdmin(me));
   const queryClient = useQueryClient();
-  let adding = $state(false);
+  const adding = $derived(canEdit && parseSearch(hostsSearch, page.url).add === "1");
+  const setAdding = (open: boolean) =>
+    void goto(urlOf(page.url.pathname, { add: open ? "1" : undefined }), { replace: !open, reset: false });
   const kernelAffected = (host: HostRow) => host.kernel.open.total > 0;
 
   const hosts = createQuery(() => ({
@@ -50,7 +55,7 @@
 <PageHeader icon={Server} title={t("hosts.title")} description={t("hosts.description")}>
   {#snippet actions()}
     {#if on && canEdit}
-      <Button onclick={() => (adding = true)}><Plus aria-hidden="true" class="size-4" />{t("hosts.add")}</Button>
+      <Button onclick={() => setAdding(true)}><Plus aria-hidden="true" class="size-4" />{t("hosts.add")}</Button>
     {/if}
   {/snippet}
 </PageHeader>
@@ -161,5 +166,5 @@
     {/if}
   </Card>
 
-  {#if adding}<AddHostDialog onClose={() => (adding = false)} />{/if}
+  {#if adding}<AddHostDialog onClose={() => setAdding(false)} />{/if}
 {/if}

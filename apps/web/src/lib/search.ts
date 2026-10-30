@@ -262,6 +262,9 @@ export const websiteSearch = z.object({
 });
 export type WebsiteSearch = z.infer<typeof websiteSearch>;
 
+/** The list of agents (ADR 0034); `add` opens the "Add agent" dialog, as the "+" in the navigation does. */
+export const hostsSearch = z.object({ add: flag });
+
 export const WEBSITE_TABS = ["findings", "dns", "tls", "http", "ports", "history"] as const;
 export type WebsiteTab = (typeof WEBSITE_TABS)[number];
 

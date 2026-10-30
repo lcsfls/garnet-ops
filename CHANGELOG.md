@@ -8,6 +8,28 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- The menu counts what needs a look under **Infrastructure**: hosts that stopped reporting or run an image or kernel with an open
+  critical or high vulnerability, and websites of the **Needs attention** filter, coloured by the worst severity. A **+** next to
+  **Agents** and **Websites** opens their add dialogs.
+- API: `GET /api/v1/hosts/attention` and `GET /api/v1/exposure/attention`.
+
+### Changed
+
+- The menu group **Monitoring** is now **Infrastructure**, and **Hosts** is now **Agents**. Owners and admins see both entries while
+  their module is off; the page says what the module does and switches it on directly
+  ([ADR 0033 amendment](docs/adr/0033-website-monitoring-as-a-module.md)).
+- Adding a website opens its page with the verification dialog, so the TXT record to set up is shown at once.
+
+### Fixed
+
+- The TXT record of a website's proof was reported as "not found" for hours after it was published when a resolver still held the
+  answer of the first check, or when the installation's resolver answers for its own domain internally. The worker now also asks
+  the domain's own name servers (public addresses only).
+- Findings, counts and histories reload when a scan finishes on the repository pages; the findings list refreshes every minute.
+- Checking a website's proof more than twelve times an hour now says so instead of "That did not work".
+
 ## [0.0.12] - 2026-10-30
 <!-- title: Hosts and containers, website monitoring and pull requests -->
 
