@@ -34,6 +34,26 @@ export const SEVERITY_DOT: Record<Severity, string> = {
   unknown: "bg-muted-foreground/50",
 };
 
+/** Text colour of a severity, for its icon next to a title. */
+export const SEVERITY_TEXT: Record<Severity, string> = {
+  critical: "text-destructive-text",
+  high: "text-high-text",
+  medium: "text-warning-text",
+  low: "text-muted-foreground",
+  negligible: "text-muted-foreground",
+  unknown: "text-muted-foreground",
+};
+
+/** A strip on the leading edge of a row that has a problem; low stays grey (AGENTS.md rule 6). */
+export const SEVERITY_EDGE: Record<Severity, string> = {
+  critical: "border-l-destructive",
+  high: "border-l-high",
+  medium: "border-l-warning",
+  low: "border-l-muted-foreground/45",
+  negligible: "border-l-muted-foreground/45",
+  unknown: "border-l-muted-foreground/45",
+};
+
 /** Scan state is neutral or informational: a finished scan is not proof of anything, so never green. */
 export function scanStateTone(state: ScanState): BadgeTone {
   return state === "failed" ? "critical" : state === "succeeded" ? "neutral" : "info";

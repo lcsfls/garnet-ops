@@ -1313,6 +1313,8 @@ export const de: Messages = {
     noAddress: "Der Name hat keine öffentliche Adresse.",
     lookupFailed: "Die Abfrage ist fehlgeschlagen; die Regeln, die sie brauchen, wurden nicht beurteilt.",
     stage1Failed: "Die letzte Prüfung ist fehlgeschlagen: {reason}",
+    tabNeedLook: "{count, plural, one {# braucht einen Blick} other {# brauchen einen Blick}}",
+    tabOpen: "{count} offen",
     tabsLabel: "Abschnitte",
     tab: {
       findings: "Befunde",

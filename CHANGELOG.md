@@ -8,6 +8,20 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Changed
+
+- Website page: the sections are tabs at every screen width, the report first and the findings beside it on wide screens,
+  instead of every section at once on very wide screens. Each tab shows the worst severity of its area. Verification and
+  both stages share one compact card.
+- Severities have their own icon everywhere (critical a flame, high a triangle, medium a circle with a mark, low an "i"),
+  so they are told apart without colour. In the website report and findings, what needs a look comes first, worst first,
+  with a strip in its severity's colour; areas without problems and areas not checked have their own icons.
+
+### Accessibility
+
+- The website sections are a proper tab list (WAI-ARIA tabs): one tab stop, arrow keys, Home and End; each tab's name says
+  the severity or the count it shows ("Ports, Critical", "Report, 4 need a look").
+
 ## [0.0.15] - 2026-10-31
 <!-- title: Our own vulnerability database, and a hint when an update is ready -->
 

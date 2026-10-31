@@ -7,7 +7,7 @@
   import ModuleOff from "#lib/components/ModuleOff.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
-  import Segmented from "#lib/components/Segmented.svelte";
+  import Tabs from "#lib/components/Tabs.svelte";
   import Alert from "#lib/components/ui/Alert.svelte";
   import Button from "#lib/components/ui/Button.svelte";
   import Checkbox from "#lib/components/ui/Checkbox.svelte";
@@ -37,15 +37,16 @@
     websiteDetailSearch,
   } from "#lib/search.ts";
   import { href, parseSearch } from "#lib/url.ts";
-  import { type ExposureDetail, errorKey, isBusy, verificationKey } from "#lib/websites.ts";
+  import { websiteReport } from "#lib/website-report.ts";
+  import { type ExposureDetail, errorKey, isBusy, SEVERITY_ORDER, verificationKey } from "#lib/websites.ts";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import type { PageData } from "./$types";
 
   /**
-   * One website (ADR 0023): where it stands, what stage 1 and stage 2 saw, and what is wrong. Below the wide step the sections
-   * are tabs and the findings are one of them; from wide on the findings are a pane of their own beside the tab, and from xwide
-   * on the availability, DNS, TLS, HTTP and port details are shown side by side with no tabs. The report comes first in every step.
+   * One website (ADR 0023): where it stands, what stage 1 and stage 2 saw, and what is wrong. One compact card says how it is
+   * verified and checked; below it the sections are tabs at every width, the report first. Below the wide step the findings are
+   * a tab too; from wide on they are a pane of their own beside the tab. Each tab shows the worst severity of its area.
    */
   let { data: pageData }: { data: PageData } = $props();
   const me = $derived(pageData.me);
@@ -92,13 +93,37 @@
   // From the wide step the findings have a pane of their own; the tab then shows one of the others.
   const sideTab: WebsiteTab = $derived(tab === "findings" ? "report" : tab);
   const openTab = (next: WebsiteTab) => {
-    // From xwide on every section is on screen: the report leads to it instead of switching a tab.
-    if (step === "xwide")
-      return document.getElementById(`website-${next}`)?.scrollIntoView({ block: "start" });
     void setSearch({ tab: next === "report" ? undefined : next });
   };
   const findingsState = $derived(search.findings ?? "open");
-  const tabs = $derived(WEBSITE_TABS.filter((x) => step === "base" || x !== "findings"));
+  const report = $derived(data ? websiteReport(data) : []);
+  /** The worst severity of the areas a tab shows, so the tab row says where to look. */
+  const worstOf = (which: WebsiteTab) =>
+    report
+      .flatMap((r) => (r.tab === which && r.state.kind === "problem" ? [r.state.severity] : []))
+      .sort((a, b) => SEVERITY_ORDER.indexOf(a) - SEVERITY_ORDER.indexOf(b))[0] ?? null;
+  const tabs = $derived(
+    WEBSITE_TABS.filter((x) => step === "base" || x !== "findings").map((x) => {
+      const count =
+        x === "report"
+          ? report.filter((r) => r.state.kind === "problem").length
+          : x === "findings"
+            ? (data?.findings.filter((f) => f.state === "open").length ?? 0)
+            : undefined;
+      return {
+        value: x,
+        label: t(`websites.tab.${x}`),
+        severity: x === "report" || x === "findings" ? null : worstOf(x),
+        count,
+        countLabel:
+          count === undefined
+            ? undefined
+            : x === "report"
+              ? t("websites.tabNeedLook", { count })
+              : t("websites.tabOpen", { count }),
+      };
+    }),
+  );
   const verification = $derived(data ? verificationKey(data) : null);
   const errorText = (code: string | null) => {
     const key = errorKey(code);
@@ -245,8 +270,10 @@
       <Alert tone="error">{t("websites.stage1Failed", { reason: errorText(data.stage1.error) })}</Alert>
     {/if}
 
-    <div class="grid gap-4 @2xl:grid-cols-2 @wide:grid-cols-3" data-testid="websites-summary">
-      <Card>
+    <!-- One card, three parts side by side from 2xl on: how it is verified, stage 1, stage 2. -->
+    <div data-testid="websites-summary">
+    <Card class="grid divide-y @2xl:grid-cols-3 @2xl:divide-x @2xl:divide-y-0">
+      <div class="min-w-0">
         <CardHeader title={t("websites.summaryVerification")}>
           {#snippet actions()}
             {#if canEdit}
@@ -271,9 +298,9 @@
             </span>
           </label>
         {/if}
-      </Card>
+      </div>
 
-      <Card>
+      <div class="min-w-0">
         <CardHeader title={t("websites.summaryStage1")} description={t("websites.summaryStage1Text")} />
         <Facts rows={stage1Rows} />
         {#if canEdit}
@@ -286,9 +313,9 @@
             {t("websites.stage1Daily")}
           </label>
         {/if}
-      </Card>
+      </div>
 
-      <Card>
+      <div class="min-w-0">
         <CardHeader title={t("websites.summaryStage2")} description={t("websites.summaryStage2Text")}>
           {#snippet actions()}
             {#if canEdit}
@@ -299,47 +326,37 @@
           {/snippet}
         </CardHeader>
         <Facts rows={stage2Rows} />
-      </Card>
+      </div>
+    </Card>
     </div>
 
-    {#if step !== "xwide"}
-      <Segmented
-        label={t("websites.tabsLabel")}
-        value={step === "base" ? tab : sideTab}
-        options={tabs.map((x) => ({ value: x, label: t(`websites.tab.${x}`) }))}
-        onChange={openTab}
-      />
-    {/if}
-
-    {#if step === "xwide"}
-      <ReportCard detail={data} onTab={openTab} />
-      <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] items-start gap-4">
-        <FindingsCard detail={data} state={findingsState} onState={(findings) => setSearch({ findings })} />
-        <div class="grid gap-4">
-          <div id="website-availability" class="scroll-mt-4"><AvailabilityCard detail={data} {canEdit} /></div>
-          <div id="website-dns" class="scroll-mt-4"><DnsCard detail={data} {canEdit} /></div>
-          <div id="website-tls" class="scroll-mt-4"><TlsCard detail={data} /></div>
-        </div>
-        <div class="grid gap-4">
-          <div id="website-http" class="grid scroll-mt-4 gap-4">
-            <HttpCard detail={data} />
-            <WordPressPluginCard detail={data} {canEdit} email={me.user.email} />
-          </div>
-          <div id="website-ports" class="scroll-mt-4">
-            <PortsCard detail={data} {canEdit} onStage2={() => setSearch({ stage2: "1" })} />
-          </div>
-          <HistoryCard detail={data} />
-        </div>
+    <Tabs
+      label={t("websites.tabsLabel")}
+      idPrefix="website"
+      value={step === "base" ? tab : sideTab}
+      {tabs}
+      onChange={openTab}
+    />
+    {#if step === "base"}
+      <div role="tabpanel" id="website-panel" aria-labelledby={`website-tab-${tab}`}>
+        {#if tab === "findings"}
+          <FindingsCard detail={data} state={findingsState} onState={(findings) => setSearch({ findings })} />
+        {:else}
+          {@render tabBody(tab)}
+        {/if}
       </div>
-    {:else if step === "wide"}
-      <div class="grid grid-cols-[minmax(0,26rem)_minmax(0,1fr)] items-start gap-4">
-        <FindingsCard detail={data} state={findingsState} onState={(findings) => setSearch({ findings })} />
-        {@render tabBody(sideTab)}
-      </div>
-    {:else if tab === "findings"}
-      <FindingsCard detail={data} state={findingsState} onState={(findings) => setSearch({ findings })} />
     {:else}
-      {@render tabBody(tab)}
+      <!-- The section on the left, the findings beside it; xwide gives both more room, not more panes at once. -->
+      <div
+        class={step === "xwide"
+          ? "grid grid-cols-[minmax(0,1fr)_minmax(0,34rem)] items-start gap-4"
+          : "grid grid-cols-[minmax(0,1fr)_minmax(0,26rem)] items-start gap-4"}
+      >
+        <div role="tabpanel" id="website-panel" aria-labelledby={`website-tab-${sideTab}`} class="min-w-0">
+          {@render tabBody(sideTab)}
+        </div>
+        <FindingsCard detail={data} state={findingsState} onState={(findings) => setSearch({ findings })} />
+      </div>
     {/if}
   </div>
 

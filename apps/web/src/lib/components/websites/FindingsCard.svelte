@@ -1,16 +1,21 @@
 <script lang="ts">
+  import { cn } from "../../cn.ts";
   import { formatDateTime, formatRelative } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import { ruleText } from "../../website-rules.ts";
-  import type { ExposureDetail, ExposureFindingRow } from "../../websites.ts";
+  import { type ExposureDetail, type ExposureFindingRow, SEVERITY_ORDER } from "../../websites.ts";
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
   import Segmented from "../Segmented.svelte";
   import Badge from "../ui/Badge.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
+  import { SEVERITY_EDGE } from "../ui/tones.ts";
 
   type State = "open" | "resolved" | "all";
-  /** What looks wrong from the outside, in plain sentences. A rule this version does not know shows as its id. */
+  /**
+   * What looks wrong from the outside, in plain sentences, worst first; each with its severity's word, icon and a strip in its
+   * colour. A rule this version does not know shows as its id.
+   */
   let {
     detail,
     state,
@@ -18,7 +23,16 @@
     class: className = "",
   }: { detail: ExposureDetail; state: State; onState: (state: State) => void; class?: string } = $props();
 
-  const shown = $derived(detail.findings.filter((f) => state === "all" || f.state === state));
+  const weight = (f: ExposureFindingRow) =>
+    (f.state === "open" ? 0 : 10) + SEVERITY_ORDER.indexOf(f.severity);
+  // Stable: findings of the same weight keep the order the API gives them.
+  const shown = $derived(
+    detail.findings
+      .filter((f) => state === "all" || f.state === state)
+      .map((f, i) => ({ f, i }))
+      .sort((a, b) => weight(a.f) - weight(b.f) || a.i - b.i)
+      .map((x) => x.f),
+  );
   const open = $derived(detail.findings.filter((f) => f.state === "open").length);
   const resolved = $derived(detail.findings.filter((f) => f.state === "resolved").length);
 </script>
@@ -49,10 +63,16 @@
     <ul data-testid="websites-findings">
       {#each shown as f (f.id)}
         {@const text = ruleText(f)}
-        <li class="border-t px-5 py-3 first:border-t-0">
+        <li
+          class={cn(
+            "border-t border-l-4 py-3 pr-5 pl-4 first:border-t-0",
+            f.state === "open" ? SEVERITY_EDGE[f.severity] : "border-l-transparent",
+          )}
+          data-severity={f.severity}
+        >
           <div class="flex flex-wrap items-center gap-2">
             <SeverityBadge severity={f.severity} />
-            <b class="font-medium">{text.title}</b>
+            <b class="font-semibold">{text.title}</b>
             {#if f.state === "resolved"}<Badge tone="neutral">{t("websites.findingState.resolvedBadge")}</Badge>{/if}
             <span class="text-sm text-muted-foreground">{t(`websites.stageName.${f.stage}`)}</span>
           </div>

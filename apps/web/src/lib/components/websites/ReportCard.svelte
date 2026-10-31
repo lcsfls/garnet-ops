@@ -1,19 +1,25 @@
 <script lang="ts">
-  import { ChevronRight } from "@lucide/svelte";
+  import { ChevronRight, CircleCheck, CircleDashed } from "@lucide/svelte";
+  import { cn } from "../../cn.ts";
   import { formatDate, formatNumber, formatRelative } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import type { WebsiteTab } from "../../search.ts";
   import { type ReportRow, websiteReport } from "../../website-report.ts";
   import { ruleText } from "../../website-rules.ts";
   import type { ExposureDetail } from "../../websites.ts";
+  import { SEVERITY_ORDER } from "../../websites.ts";
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
   import Badge from "../ui/Badge.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
+  import SeverityIcon from "../ui/SeverityIcon.svelte";
+  import { SEVERITY_EDGE } from "../ui/tones.ts";
 
   /**
    * Everything checked for one website in one list (the report): each area with a plain state and one sentence, problems with the
    * worst finding's title. A row opens the tab with the details. Nothing here is new data; fine is neutral, not green.
+   * What needs a look comes first, worst first, with its severity's icon and a strip in its colour; then what is fine, then what
+   * was not checked. Each state has its own icon, so none of it depends on colour alone.
    */
   let {
     detail,
@@ -21,7 +27,19 @@
     class: className = "",
   }: { detail: ExposureDetail; onTab: (tab: WebsiteTab) => void; class?: string } = $props();
 
-  const rows = $derived(websiteReport(detail));
+  const rank = (row: ReportRow) =>
+    row.state.kind === "problem"
+      ? SEVERITY_ORDER.indexOf(row.state.severity)
+      : row.state.kind === "ok"
+        ? 10
+        : 20;
+  // Stable: rows of the same rank keep the order of the areas.
+  const rows = $derived(
+    websiteReport(detail)
+      .map((row, i) => ({ row, i }))
+      .sort((a, b) => rank(a.row) - rank(b.row) || a.i - b.i)
+      .map((x) => x.row),
+  );
   const problems = $derived(rows.filter((r) => r.state.kind === "problem").length);
 
   function sentence(row: ReportRow): string {
@@ -96,10 +114,21 @@
       <li class="border-b @wide:odd:border-r @xwide:border-r @xwide:[&:nth-child(3n)]:border-r-0">
         <button
           type="button"
-          class="flex w-full items-start gap-3 px-5 py-3 text-left hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+          class={cn(
+            "flex h-full w-full items-start gap-3 border-l-4 px-4 py-3 text-left hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
+            row.state.kind === "problem" ? SEVERITY_EDGE[row.state.severity] : "border-l-transparent",
+          )}
           data-area={row.area}
+          data-state={row.state.kind}
           onclick={() => onTab(row.tab)}
         >
+          {#if row.state.kind === "problem"}
+            <SeverityIcon severity={row.state.severity} colored class="mt-0.5 size-5" />
+          {:else if row.state.kind === "ok"}
+            <CircleCheck aria-hidden="true" class="mt-0.5 size-5 flex-none text-muted-foreground" />
+          {:else}
+            <CircleDashed aria-hidden="true" class="mt-0.5 size-5 flex-none text-muted-foreground/70" />
+          {/if}
           <span class="min-w-0 flex-1">
             <span class="flex flex-wrap items-center gap-2">
               <span class="font-medium">{t(`websites.report.area.${row.area}`)}</span>

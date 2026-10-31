@@ -2499,15 +2499,33 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await report.locator('[data-area="ports"]').click();
     await expect(page).toHaveURL(/tab=ports/);
 
-    // The tab pane (findings have a pane of their own at this width).
-    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "Ports" }).click();
+    // The tab pane (findings have a pane of their own at this width). Each tab names the worst severity of its area, as a
+    // word for screen readers next to the icon; the keyboard moves between the tabs (WAI-ARIA tabs).
+    const sections = page.getByRole("tablist", { name: "Sections" });
+    await expect(sections.getByRole("tab", { name: "Ports, Critical" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "website-tab-ports");
+    await sections.getByRole("tab", { name: "Ports, Critical" }).press("ArrowLeft");
+    await expect(page).toHaveURL(/tab=http/);
+    await expect(sections.getByRole("tab", { name: /^HTTP/ })).toBeFocused();
+    await sections.getByRole("tab", { name: /^HTTP/ }).press("Home");
+    await expect(sections.getByRole("tab", { name: "Report, 4 need a look" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    // What needs a look comes first in the report, worst first; a finding carries a strip in its severity's colour.
+    await expect(report.locator("li").first().locator("button")).toHaveAttribute("data-state", "problem");
+    await expect(report.locator("li").last().locator("button")).not.toHaveAttribute("data-state", "problem");
+    await page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: "Ports" }).click();
     const ports = page.getByTestId("websites-ports");
     await expect(ports.locator("tbody tr")).toHaveCount(5);
     await expect(ports).toContainText("SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u3");
     await expect(ports).toContainText("Docker API (no TLS)");
     await expect(ports).toContainText("MySQL or MariaDB");
     await expect(page.getByText("30 ports checked: 5 open, 25 closed, 0 without an answer.")).toBeVisible();
-    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "DNS" }).click();
+    await page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: "DNS" }).click();
     await expect(page.getByText("v=spf1 mx -all")).toBeVisible();
     await expect(page.getByText("Only the listed senders may send (-all).")).toBeVisible();
     await expect(page.getByText("Forged mail is rejected (p=reject).")).toBeVisible();
@@ -2518,10 +2536,10 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(suggestions.locator("li")).toHaveCount(3);
     await expect(suggestions).toContainText("api.example.com");
     await expect(suggestions).toContainText("Certificate Transparency");
-    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "TLS" }).click();
+    await page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: "TLS" }).click();
     await expect(page.getByText("TLSv1.3 · TLS_AES_256_GCM_SHA384")).toBeVisible();
     await expect(page.getByText("Chains to a certificate authority in the system store.")).toBeVisible();
-    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "HTTP" }).click();
+    await page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: "HTTP" }).click();
     await expect(page.getByTestId("websites-headers")).toContainText("max-age=31536000");
     await expect(page.getByTestId("websites-banners")).toContainText("nginx/1.22.1");
     await expect(page.getByText("never against vulnerability data")).toBeVisible();
@@ -2532,13 +2550,13 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(httpCard).toContainText("Behind the latest of its line");
     await expect(httpCard).toContainText("nginx");
     await expect(httpCard).toContainText("Release line 1.22 gets no fixes since");
-    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "History" }).click();
+    await page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: "History" }).click();
     await expect(page.getByTestId("websites-history").locator("tbody tr")).toHaveCount(3);
     await expect(page.getByTestId("websites-history")).toContainText(
       "The check took too long and was stopped.",
     );
     // Availability is off until an admin switches it on, and can be switched off again.
-    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "Availability" }).click();
+    await page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: "Availability" }).click();
     const availability = page.getByTestId("websites-availability");
     await expect(availability).toContainText("Not checked. Switch it on");
     await availability.getByRole("button", { name: "Check availability" }).click();
@@ -2551,7 +2569,7 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(page.getByTestId("websites-summary")).toContainText("Covered by");
     await page.goto(`/websites/${EXPOSURE.address.id}?tab=dns`);
     await expect(page.getByText("gateway.example.com")).toBeVisible();
-    await page.getByRole("group", { name: "Sections" }).getByRole("button", { name: "TLS" }).click();
+    await page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: "TLS" }).click();
     await expect(page.getByText("Not checked for an address.")).toBeVisible();
     expect(problems).toEqual([]);
   });

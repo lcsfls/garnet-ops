@@ -1269,6 +1269,8 @@ export const en = {
     noAddress: "The name has no public address.",
     lookupFailed: "The lookup failed; the rules that need it were not judged.",
     stage1Failed: "The last look failed: {reason}",
+    tabNeedLook: "{count, plural, one {# needs a look} other {# need a look}}",
+    tabOpen: "{count} open",
     tabsLabel: "Sections",
     tab: {
       findings: "Findings",
