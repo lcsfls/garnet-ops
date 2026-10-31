@@ -142,7 +142,7 @@ or the `LABEL` instruction; GitHub's and Gitea's build actions set it by default
 
 ## Newer images (optional)
 
-**Settings → Modules → Hosts and containers → Check for newer images** (owners and admins, recent sign-in, an acknowledgement). Off by
+**Settings → External services → Checks of public container registries** (owners and admins, recent sign-in, an acknowledgement). Off by
 default, because it sends the names and tags of your running images to their public registries (Docker Hub, GitHub Container
 Registry, Quay and others), without credentials. Once a day per image reference GarnetOps asks:
 
@@ -152,7 +152,7 @@ Registry, Quay and others), without credentials. Once a day per image reference 
 
 Limits: public addresses only, HTTPS on port 443, no redirects except to the registry's token service, at most 300 references per
 organisation and day, one request a second, 4 MiB per answer. Private registries and registries on other ports are not checked.
-If your own resolver is slow, **Public DNS for public names** under Settings → Modules can resolve the registries through
+If your own resolver is slow, **Public DNS for public names** under Settings → External services can resolve the registries through
 Cloudflare, Google or Quad9 next to it ([ADR 0035](adr/0035-public-dns-for-public-names.md)).
 
 ## Roles and the audit log

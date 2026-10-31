@@ -42,6 +42,7 @@ export const RULE_AREA: Record<ExposureRule, ReportArea> = {
   softwareEndOfLife: "software",
   softwareOutdated: "software",
   wordpressOutdated: "software",
+  wordpressVulnerable: "software",
   dnsNoSpf: "mail",
   dnsSpfMultiple: "mail",
   dnsSpfPermissive: "mail",

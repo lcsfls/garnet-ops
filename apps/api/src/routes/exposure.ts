@@ -37,12 +37,14 @@ import {
   uptimeIncidents,
   uptimeStats,
 } from "@garnetops/core/uptime";
-import { WORDPRESS_ORG } from "@garnetops/core/wordpress";
+import { seal } from "@garnetops/core/vault";
+import { WORDFENCE, WORDPRESS_ORG } from "@garnetops/core/wordpress";
 import { schema } from "@garnetops/db";
 import { and, asc, count, desc, eq, getTableColumns, gte, ilike, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
+import { vaultPublicKey } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type Actor, type AppEnv, requireRole } from "../lib/context.ts";
 import { allowTestRanges } from "../lib/exposure-policy.ts";
@@ -457,6 +459,11 @@ const optIn = z.object({
   /** Acknowledges what is sent to the outside service. Needed to switch it on. */
   acknowledged: z.boolean().optional(),
 });
+const wordfenceBody = z.object({
+  key: z.string().trim().regex(WORDFENCE.keyPattern),
+  /** Acknowledges the feed's terms and that the key is sent to Wordfence. */
+  acknowledged: z.boolean().optional(),
+});
 /** Each part is optional (0.0.14); a body names at least one. */
 const settingsBody = z
   .object({ ct: optIn.optional(), wordpressOrg: optIn.optional() })
@@ -635,6 +642,15 @@ export const exposureRoutes = new Hono<AppEnv>()
         dailyBudget: CT_LIMITS.dailyBudget,
         lastError: row?.ctLastError ?? null,
       },
+      wordfence: {
+        configured: Boolean(row?.wordfenceSecretId),
+        setAt: iso(row?.wordfenceSetAt),
+        setBy: await nameOf(row?.wordfenceSetBy),
+        syncedAt: iso(row?.wordfenceSyncedAt),
+        error: row?.wordfenceError ?? null,
+        advisories: row?.wordfenceAdvisories ?? 0,
+        host: WORDFENCE.host,
+      },
       wordpressOrg: {
         enabled: row?.wordpressOrgEnabled ?? false,
         enabledAt: iso(row?.wordpressOrgEnabledAt),
@@ -709,6 +725,95 @@ export const exposureRoutes = new Hono<AppEnv>()
       { provider: CT_PROVIDER.id, url: CT_PROVIDER.urlTemplate },
     );
     return c.json({ ok: true });
+  })
+
+  /**
+   * The organisation's own Wordfence Intelligence key (ADR 0042, part 3). Sealed at once; the API never reads it back. Setting it
+   * sends it to Wordfence with every download, so it needs a recent sign-in and the acknowledgement of the feed's terms.
+   */
+  .put("/settings/wordfence", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    const body = wordfenceBody.parse(await c.req.json());
+    if (body.acknowledged !== true)
+      throw invalid([{ field: "acknowledged", code: "acknowledgement_required" }]);
+    requireRecentSignIn(actor);
+    const s = schema.exposureSettings;
+    const [row] = await db.select().from(s).where(eq(s.organizationId, actor.organizationId)).limit(1);
+    const now = new Date();
+    const id = newId("sec");
+    await db.transaction(async (tx) => {
+      await tx.insert(schema.secret).values({
+        id,
+        organizationId: actor.organizationId,
+        purpose: "wordfence-api-key",
+        sealed: seal(
+          body.key,
+          { organizationId: actor.organizationId, recordId: id, purpose: "wordfence-api-key" },
+          vaultPublicKey,
+        ),
+        vaultKeyId: vaultPublicKey.id,
+        createdBy: actor.userId,
+      });
+      const values = {
+        wordfenceSecretId: id,
+        wordfenceSetBy: actor.userId,
+        wordfenceSetAt: now,
+        wordfenceSyncedAt: null,
+        wordfenceError: null,
+      };
+      await tx
+        .insert(s)
+        .values({ organizationId: actor.organizationId, ...values })
+        .onConflictDoUpdate({ target: s.organizationId, set: { ...values, updatedAt: now } });
+      if (row?.wordfenceSecretId)
+        await tx.delete(schema.secret).where(eq(schema.secret.id, row.wordfenceSecretId));
+    });
+    await audit(
+      actor,
+      row?.wordfenceSecretId ? "exposure.wordfence_key_replaced" : "exposure.wordfence_key_set",
+      { type: "organization", id: actor.organizationId },
+      { host: WORDFENCE.host },
+    );
+    await boss.send(
+      QUEUES.wordfence,
+      { organizationId: actor.organizationId },
+      { singletonKey: actor.organizationId },
+    );
+    return c.json({ ok: true });
+  })
+  .delete("/settings/wordfence", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    const s = schema.exposureSettings;
+    const [row] = await db.select().from(s).where(eq(s.organizationId, actor.organizationId)).limit(1);
+    if (!row?.wordfenceSecretId) return c.body(null, 204);
+    await db.transaction(async (tx) => {
+      await tx
+        .update(s)
+        .set({
+          wordfenceSecretId: null,
+          wordfenceSetBy: null,
+          wordfenceSetAt: null,
+          wordfenceSyncedAt: null,
+          wordfenceError: null,
+          wordfenceAdvisories: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(s.organizationId, actor.organizationId));
+      await tx.delete(schema.secret).where(eq(schema.secret.id, row.wordfenceSecretId as string));
+      // The advisories came with this organisation's key: they go with it.
+      await tx
+        .delete(schema.wordpressAdvisory)
+        .where(eq(schema.wordpressAdvisory.organizationId, actor.organizationId));
+    });
+    await audit(
+      actor,
+      "exposure.wordfence_key_removed",
+      { type: "organization", id: actor.organizationId },
+      {},
+    );
+    return c.body(null, 204);
   })
 
   /* ------------------------------ adding ------------------------------ */

@@ -7,6 +7,7 @@
   import AiSettingsPanel from "#lib/components/settings/AiSettingsPanel.svelte";
   import ConnectionsPanel from "#lib/components/settings/connections/ConnectionsPanel.svelte";
   import DirectoryPanel from "#lib/components/settings/directory/DirectoryPanel.svelte";
+  import ExternalPanel from "#lib/components/settings/external/ExternalPanel.svelte";
   import ModulesPanel from "#lib/components/settings/modules/ModulesPanel.svelte";
   import NotificationsPanel from "#lib/components/settings/NotificationsPanel.svelte";
   import SettingsHelp from "#lib/components/settings/SettingsHelp.svelte";
@@ -25,6 +26,7 @@
     scanning: "settings.sectionScanning",
     accounts: "settings.sectionAccounts",
     modules: "settings.sectionModules",
+    external: "settings.sectionExternal",
     signin: "settings.sectionSignin",
     notifications: "settings.sectionNotifications",
     ai: "ai.sectionName",
@@ -79,6 +81,7 @@
       {#if section === "scanning"}<ScanningSection canEdit={admin} />{/if}
       {#if section === "accounts"}<ConnectionsPanel {me} />{/if}
       {#if section === "modules"}<ModulesPanel {me} />{/if}
+      {#if section === "external"}<ExternalPanel {me} />{/if}
       {#if section === "signin"}<DirectoryPanel {me} />{/if}
       {#if section === "notifications"}<NotificationsPanel {me} />{/if}
       {#if section === "ai"}<AiSettingsPanel {me} />{/if}

@@ -638,6 +638,109 @@ describe.skipIf(!openssl || !adminUrl)(
         Object.assign(web, freshWeb());
       });
 
+      it("downloads the Wordfence feed with the organisation's own key, keeps only its slugs, and finds affected versions (ADR 0042)", async () => {
+        resetZone();
+        const wf = await import("./wordfence.ts");
+        const { sealSecret } = await import("./vault-secrets.ts");
+        const org = await newOrg();
+        const a = await addAsset(org.id, { value: SITE });
+        tidyZone(SITE);
+        Object.assign(web, freshWeb(), {
+          headers: { ...TIDY_HEADERS },
+          body: `<meta name="generator" content="WordPress 6.5.2" />
+            <script src="/wp-content/plugins/contact-form-7/a.js?ver=5.9.3"></script>`,
+        });
+        await passive(a);
+        const key = `wf_${"k".repeat(40)}`;
+        const secretId = await sealSecret(conn.db, org.id, "wordfence-api-key", key);
+        await conn.db
+          .update(schema.exposureSettings)
+          .set({ wordfenceSecretId: secretId })
+          .where(eq(schema.exposureSettings.organizationId, org.id));
+        const range = (to: string) => ({
+          [`* - ${to}`]: { from_version: "*", from_inclusive: true, to_version: to, to_inclusive: true },
+        });
+        const feed = {
+          "11111111-aaaa": {
+            id: "11111111-aaaa",
+            title: "Contact Form 7 <= 5.9.3 - Reflected Cross-Site Scripting",
+            software: [
+              {
+                type: "plugin",
+                slug: "contact-form-7",
+                affected_versions: range("5.9.3"),
+                patched_versions: ["5.9.4"],
+              },
+            ],
+            cvss: { score: 6.1, rating: "Medium" },
+            cve: "CVE-2024-0001",
+            published: "2024-03-01 10:00:00",
+          },
+          "22222222-bbbb": {
+            id: "22222222-bbbb",
+            title: "Contact Form 7 <= 5.0 - old",
+            software: [{ type: "plugin", slug: "contact-form-7", affected_versions: range("5.0") }],
+            cvss: { score: 9.8, rating: "Critical" },
+          },
+          "33333333-cccc": {
+            id: "33333333-cccc",
+            title: "WordPress Core <= 6.5.2 - Stored XSS",
+            software: [{ type: "core", slug: "wordpress", affected_versions: range("6.5.2") }],
+            cvss: { score: 7.2, rating: "High" },
+          },
+          "44444444-dddd": {
+            id: "44444444-dddd",
+            title: "Not on any website",
+            software: [{ type: "plugin", slug: "akismet", affected_versions: range("9.9") }],
+          },
+        };
+        let usedKey = "";
+        const result = await wf.syncWordfence(org.id, {
+          fetch: async (k) => {
+            usedKey = k;
+            return feed;
+          },
+        });
+        expect(usedKey).toBe(key);
+        expect(result).toEqual({ advisories: 3 });
+        const stored = await conn.db
+          .select()
+          .from(schema.wordpressAdvisory)
+          .where(eq(schema.wordpressAdvisory.organizationId, org.id));
+        expect(stored.map((x) => `${x.kind}:${x.slug}:${x.id}`).sort()).toEqual([
+          "core:wordpress:33333333-cccc",
+          "plugin:contact-form-7:11111111-aaaa",
+          "plugin:contact-form-7:22222222-bbbb",
+        ]);
+
+        await passive(a);
+        const vulnerable = (await findings(a.id)).filter((f) => f.rule === "wordpressVulnerable");
+        expect(vulnerable.map((f) => [f.subject, f.severity]).sort()).toEqual([
+          ["core:wordpress:33333333-cccc", "high"],
+          ["plugin:contact-form-7:11111111-aaaa", "medium"],
+        ]);
+        expect(vulnerable.find((f) => f.severity === "medium")?.params).toMatchObject({
+          cve: "CVE-2024-0001",
+          patched: "5.9.4",
+        });
+
+        // A rejected key is stored as a code, and the advisories of the last download stay.
+        const { OutboundError } = await import("./outbound.ts");
+        expect(
+          await wf.syncWordfence(org.id, {
+            fetch: async () => {
+              throw new OutboundError("httpStatus", 401);
+            },
+          }),
+        ).toEqual({ error: "unauthorized" });
+        const [settings] = await conn.db
+          .select()
+          .from(schema.exposureSettings)
+          .where(eq(schema.exposureSettings.organizationId, org.id));
+        expect(settings).toMatchObject({ wordfenceError: "unauthorized", wordfenceAdvisories: 3 });
+        Object.assign(web, freshWeb());
+      });
+
       it("looks at a tidy site and finds nothing wrong; the page body is not stored", async () => {
         resetZone();
         Object.assign(web, freshWeb(), {

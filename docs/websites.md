@@ -103,11 +103,19 @@ without changing the number. The HTTP section of a website lists what was found 
 and plugins the home page's asset addresses name (`/wp-content/plugins/<slug>/…`), with the version the address carries. Plugins
 that load nothing on the home page are not seen, and nothing else of the site is requested.
 
-To judge them, an owner or admin can switch on **Latest versions of WordPress plugins and themes** under Settings → Modules
+To judge them, an owner or admin can switch on **Latest versions of WordPress plugins and themes** under Settings → External services
 (off by default). GarnetOps then asks api.wordpress.org once a day for the latest version of each slug: only the slug is sent, no
 website name, version or organisation. A plugin or theme behind its latest version becomes the finding **WordPress plugin or
 theme behind its latest version** (low: the version is the one an asset address names). Premium and custom plugins that
 wordpress.org does not list are shown as such and not judged.
+
+**Known vulnerabilities from Wordfence** (optional, your own key): an owner or admin can set a Wordfence Intelligence API key
+under Settings → External services (create one in your Wordfence account under Integrations). GarnetOps then downloads the
+Wordfence vulnerability feed once a day with that key, keeps only the advisories for the WordPress versions, plugins and themes
+your websites show, and reports each shown version inside an advisory's affected range as **Known vulnerability in …**, with the
+advisory's CVSS rating, the CVE and the fixed versions. Only the key is sent, nothing about your websites; it is encrypted at once
+and never shown again. Removing the key deletes the downloaded advisories. Use of the feed is governed by the Wordfence
+Intelligence terms, which you accept when setting the key.
 
 ## The report
 
@@ -138,7 +146,7 @@ The checks run from your GarnetOps installation: a site blocked only for its net
 ## A slow local resolver
 
 If your own resolver (a firewall or router) answers slowly, checks run into time-outs and report "DNS failed". Under
-**Settings → Modules → Public DNS for public names** an owner or admin can add Cloudflare (1.1.1.1), Google (8.8.8.8) or Quad9
+**Settings → External services → Public DNS for public names** an owner or admin can add Cloudflare (1.1.1.1), Google (8.8.8.8) or Quad9
 (9.9.9.9) next to your own resolver: each lookup goes to both, the first clear answer counts
 ([ADR 0035](adr/0035-public-dns-for-public-names.md)). It applies only to lookups of public names (website checks, the proof,
 registry checks, Certificate Transparency); forges, directory sign-in, mail and the AI endpoint keep using only your own resolver.
@@ -280,7 +288,7 @@ runs the GarnetOps worker**. If you do not want alerts, allow that address for t
 Public certificate logs list every certificate that was issued. Asking them finds subdomains you may have forgotten. It is **off by
 default**, because it sends the domain names of your verified assets to a public search service (**crt.sh**, operated by Sectigo).
 
-**Settings → Modules → Certificate Transparency → Switch on** (owners and admins, recent sign-in). The dialog shows the exact request,
+**Settings → External services → Certificate Transparency → Switch on** (owners and admins, recent sign-in). The dialog shows the exact request,
 `https://crt.sh/?q=%25.{domain}&output=json&exclude=expired`, and asks you to confirm that you understand what is sent. Limits: only
 domains that proved control themselves, once a day per domain, at most 100 queries a day, one every 10 seconds, answers capped at
 4 MiB. The names it finds are **suggestions** on the asset page under "Names found"; nothing connects to them until you press
@@ -316,7 +324,7 @@ They link to the asset. They carry the asset name, counts and a list of ports, n
 
 The audit log (filter **Websites**) has: asset added and removed, verified, verification lost and restored, verification code
 replaced, stage 2 switched on (with the acknowledgement), off, stopped and run by hand, subdomain coverage changed, Certificate
-Transparency switched on and off, wordpress.org lookup switched on and off, availability check switched on (or its interval
+Transparency switched on and off, wordpress.org lookup switched on and off, Wordfence key set, replaced and removed, availability check switched on (or its interval
 changed) and off.
 
 ## Limits and what is not tested

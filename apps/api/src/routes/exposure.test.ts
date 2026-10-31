@@ -35,10 +35,21 @@ vi.mock("../db.ts", async () => {
         return "job";
       },
     },
-    QUEUES: { exposureVerify: "websites.verify", exposureRun: "websites.run" },
+    QUEUES: {
+      exposureVerify: "websites.verify",
+      exposureRun: "websites.run",
+      wordfence: "websites.wordfence",
+    },
   };
 });
-vi.mock("../env.ts", () => ({ env: { PUBLIC_URL: "https://garnetops.example.test/" }, isProduction: false }));
+vi.mock("../env.ts", async () => {
+  const { generateVaultKeyPair: gen, loadVaultPublicKey: load } = await import("@garnetops/core/vault");
+  return {
+    env: { PUBLIC_URL: "https://garnetops.example.test/" },
+    isProduction: false,
+    vaultPublicKey: load(gen().publicKeyPem),
+  };
+});
 vi.mock("../auth.ts", () => ({ auth: { api: {} } }));
 
 // biome-ignore lint/suspicious/noExplicitAny: test helper for arbitrary response bodies
@@ -789,6 +800,63 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
       ).toBe(200);
       expect(await audits("exposure.wordpress_org_disabled")).toHaveLength(1);
       expect((await call("PUT", "/api/v1/exposure/settings", { body: {} })).status).toBe(422);
+    });
+  });
+
+  describe("Wordfence key (ADR 0042)", () => {
+    const KEY = `wf_${"k".repeat(40)}`;
+    it("is sealed at once, never shown again, needs the acknowledgement and a recent sign-in, and starts a download", async () => {
+      const put = (body: unknown, options: { role?: Role; age?: number } = {}) =>
+        call("PUT", "/api/v1/exposure/settings/wordfence", { ...options, body });
+      expect((await call("GET", "/api/v1/exposure/settings")).json?.wordfence).toMatchObject({
+        configured: false,
+        host: "www.wordfence.com",
+      });
+      expect((await put({ key: KEY })).status).toBe(422);
+      expect((await put({ key: "short", acknowledged: true })).status).toBe(422);
+      expect((await put({ key: KEY, acknowledged: true }, { role: "member" })).status).toBe(403);
+      expect(problemCode(await put({ key: KEY, acknowledged: true }, { age: STALE }))).toBe(
+        "step-up-required",
+      );
+      expect((await put({ key: KEY, acknowledged: true })).status).toBe(200);
+
+      const settings = await call("GET", "/api/v1/exposure/settings");
+      expect(settings.json?.wordfence).toMatchObject({ configured: true, setBy: "Erika", advisories: 0 });
+      expect(settings.text).not.toContain(KEY);
+      const [secret] = await t.db
+        .select()
+        .from(schema.secret)
+        .where(eq(schema.secret.purpose, "wordfence-api-key"));
+      expect(JSON.stringify(secret?.sealed)).not.toContain(KEY);
+      expect(queue.sent.filter((s) => s.name === "websites.wordfence").map((s) => s.data)).toEqual([
+        { organizationId: ORG },
+      ]);
+      expect(await audits("exposure.wordfence_key_set")).toHaveLength(1);
+      expect(JSON.stringify(await audits("exposure.wordfence_key_set"))).not.toContain(KEY);
+
+      // Replacing the key keeps one secret; removing it deletes the secret and the advisories.
+      expect((await put({ key: `${KEY}x`, acknowledged: true })).status).toBe(200);
+      expect(
+        await t.db.select().from(schema.secret).where(eq(schema.secret.purpose, "wordfence-api-key")),
+      ).toHaveLength(1);
+      await t.db.insert(schema.wordpressAdvisory).values({
+        organizationId: ORG,
+        id: "adv-00000001",
+        kind: "plugin",
+        slug: "akismet",
+        title: "x",
+        severity: "high",
+        affected: [{ from: "*", fromInclusive: true, to: "5.0", toInclusive: true }],
+      });
+      expect((await call("DELETE", "/api/v1/exposure/settings/wordfence")).status).toBe(204);
+      expect(
+        await t.db.select().from(schema.secret).where(eq(schema.secret.purpose, "wordfence-api-key")),
+      ).toHaveLength(0);
+      expect(await t.db.select().from(schema.wordpressAdvisory)).toHaveLength(0);
+      expect(await audits("exposure.wordfence_key_removed")).toHaveLength(1);
+      expect(
+        (await call("GET", "/api/v1/exposure/settings", { org: OTHER })).json?.wordfence.configured,
+      ).toBe(false);
     });
   });
 

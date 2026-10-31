@@ -712,6 +712,7 @@ test.describe("signed in, with website monitoring on", () => {
     { path: `/websites/${EXPOSURE.main.id}?verify=1`, heading: EXPOSURE.main.value, name: "website-verify" },
     { path: `/websites/${EXPOSURE.main.id}?stage2=1`, heading: EXPOSURE.main.value, name: "website-stage2" },
     { path: "/settings?section=modules", heading: "Settings", name: "settings-modules" },
+    { path: "/settings?section=external", heading: "Settings", name: "settings-external" },
   ]) {
     test(`${name} fits without horizontal scrolling`, async ({ page }, info) => {
       const problems = watchForProblems(page);

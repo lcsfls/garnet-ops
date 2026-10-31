@@ -15,6 +15,7 @@ import {
   SOFTWARE_NAMES,
   softwareSeverity,
 } from "./software.ts";
+import { affectsVersion, type WordPressAdvisory } from "./wordpress.ts";
 
 /* -------------------------------------------------------------------------- */
 /* Limits                                                                      */
@@ -719,6 +720,7 @@ export const EXPOSURE_RULES = [
   "softwareEndOfLife",
   "softwareOutdated",
   "wordpressOutdated",
+  "wordpressVulnerable",
   "portExposed",
 ] as const;
 export type ExposureRule = (typeof EXPOSURE_RULES)[number];
@@ -801,15 +803,20 @@ export function tlsFindings(tls: TlsSnapshot, now: Date, stage: RunStage): Findi
 }
 
 /** Findings of the HTTP answers, the DNS records and TLS of an asset. See ADR 0023 for the rules and their severities. */
-/**
- * @param wordpressLatest The latest versions on wordpress.org by `plugin:<slug>` or `theme:<slug>` (ADR 0042, opt-in); without it,
- * no WordPress plugin or theme is judged.
- */
+/** What the WordPress checks of ADR 0042 know beyond the snapshot; each is absent while its lookup is off. */
+export interface WordPressKnowledge {
+  /** The latest versions on wordpress.org by `plugin:<slug>` or `theme:<slug>` (part 2). */
+  latest?: ReadonlyMap<string, string>;
+  /** Advisories from the Wordfence Intelligence feed by `plugin:<slug>`, `theme:<slug>` or `core:wordpress` (part 3). */
+  advisories?: ReadonlyMap<string, readonly WordPressAdvisory[]>;
+}
+
 export function evaluatePassive(
   snapshot: PassiveSnapshot,
   now: Date,
-  wordpressLatest?: ReadonlyMap<string, string>,
+  wordpress: WordPressKnowledge = {},
 ): FindingDraft[] {
+  const wordpressLatest = wordpress.latest;
   const out: FindingDraft[] = [];
   const stage: RunStage = "passive";
 
@@ -921,6 +928,31 @@ export function evaluatePassive(
         );
       }
     }
+    // Known vulnerabilities of the versions the site shows, from the Wordfence feed with the organisation's own key.
+    if (wordpress.advisories) {
+      const core = detectSoftware(snapshot.http).find((d) => d.product === "wordpress");
+      const shown = [
+        ...(wp?.plugins ?? []).map((c) => ({ ...c, kind: "plugin" as const })),
+        ...(wp?.themes ?? []).map((c) => ({ ...c, kind: "theme" as const })),
+        ...(core ? [{ kind: "core" as const, slug: "wordpress", version: core.version }] : []),
+      ];
+      for (const c of shown) {
+        if (!c.version) continue;
+        for (const a of wordpress.advisories.get(`${c.kind}:${c.slug}`) ?? []) {
+          if (!affectsVersion(a, c.version)) continue;
+          out.push(
+            finding("wordpressVulnerable", a.severity, stage, `${c.kind}:${c.slug}:${a.id}`, {
+              kind: c.kind,
+              slug: c.slug,
+              version: c.version,
+              title: a.title,
+              cve: a.cve ?? "",
+              patched: a.patched.join(", "),
+            }),
+          );
+        }
+      }
+    }
   }
   return out;
 }
@@ -984,6 +1016,7 @@ const HTTP_RULES: ExposureRule[] = [
   "softwareEndOfLife",
   "softwareOutdated",
   "wordpressOutdated",
+  "wordpressVulnerable",
 ];
 
 /**

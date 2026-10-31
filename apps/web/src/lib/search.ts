@@ -198,6 +198,7 @@ export const SETTINGS_SECTIONS = [
   "scanning",
   "accounts",
   "modules",
+  "external",
   "signin",
   "notifications",
   "ai",

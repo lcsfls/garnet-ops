@@ -38,6 +38,7 @@ import { startSystemReports } from "./system-report.ts";
 import { startUptime } from "./uptime.ts";
 import { startUserNotificationUpkeep, tellAboutScan } from "./user-notify.ts";
 import { startVulnDbUpdates } from "./vulndb.ts";
+import { startWordfence } from "./wordfence.ts";
 import { startWordPressOrg } from "./wordpress-org.ts";
 
 const AI_CONCURRENCY = 4;
@@ -173,6 +174,7 @@ await startExposureScheduler(boss);
 await startHosts(boss);
 await startUptime(boss);
 await startWordPressOrg(boss);
+await startWordfence(boss);
 await startScheduler(boss);
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();

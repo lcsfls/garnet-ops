@@ -74,6 +74,7 @@ import {
 } from "./exposure-net.ts";
 import { lookupFor, publicDnsOf, resolverFor } from "./public-dns.ts";
 import { tellUsers } from "./user-notify.ts";
+import { wordfenceAdvisories } from "./wordfence.ts";
 import { latestVersions, wordpressKeys } from "./wordpress-org.ts";
 
 /** New names: the `exposure.*` queues of 0.0.3 are removed on every start (retired-queues.ts). */
@@ -681,10 +682,10 @@ export async function runPassive(runId: string, deps: ExposureDeps = {}): Promis
     await lookUpCertificateTransparency(asset, settings, deps, now);
 
     // WordPress plugins and themes are judged only where the organisation switched the wordpress.org lookup on (ADR 0042).
-    const wordpressLatest = settings?.wordpressOrgEnabled
-      ? await latestVersions(wordpressKeys(snapshot))
-      : undefined;
-    const drafts = evaluatePassive(snapshot, now, wordpressLatest);
+    const drafts = evaluatePassive(snapshot, now, {
+      ...(settings?.wordpressOrgEnabled ? { latest: await latestVersions(wordpressKeys(snapshot)) } : {}),
+      ...(settings?.wordfenceSecretId ? { advisories: await wordfenceAdvisories(asset.organizationId) } : {}),
+    });
     await syncFindings(asset, "passive", drafts, new Set(unjudgedRules(snapshot)), now);
     const counts = countBySeverity(drafts);
 

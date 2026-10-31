@@ -19,7 +19,14 @@ vi.mock("../db.ts", async () => {
   state.db = t;
   return { db: t.db, pool: t.pool, boss: { send: async () => "job" }, QUEUES: {} };
 });
-vi.mock("../env.ts", () => ({ env: { PUBLIC_URL: "https://garnetops.example.test/" }, isProduction: false }));
+vi.mock("../env.ts", async () => {
+  const { generateVaultKeyPair: gen, loadVaultPublicKey: load } = await import("@garnetops/core/vault");
+  return {
+    env: { PUBLIC_URL: "https://garnetops.example.test/" },
+    isProduction: false,
+    vaultPublicKey: load(gen().publicKeyPem),
+  };
+});
 vi.mock("../auth.ts", () => ({ auth: { api: {} } }));
 
 // biome-ignore lint/suspicious/noExplicitAny: test helper for arbitrary response bodies

@@ -362,6 +362,7 @@ export const secret = pgTable(
         "forge-connection-token",
         "forge-app-secret",
         "forge-sign-in",
+        "wordfence-api-key",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -1506,8 +1507,45 @@ export const exposureSettings = pgTable("exposure_settings", {
   wordpressOrgEnabled: boolean("wordpress_org_enabled").notNull().default(false),
   wordpressOrgEnabledBy: text("wordpress_org_enabled_by").references(() => user.id, { onDelete: "set null" }),
   wordpressOrgEnabledAt: timestamp("wordpress_org_enabled_at", { withTimezone: true }),
+  /**
+   * The organisation's own Wordfence Intelligence API key (ADR 0042, part 3), sealed in the vault (purpose "wordfence-api-key"):
+   * sealed by the API, opened only by the worker. Null while none is set.
+   */
+  wordfenceSecretId: text("wordfence_secret_id"),
+  wordfenceSetBy: text("wordfence_set_by").references(() => user.id, { onDelete: "set null" }),
+  wordfenceSetAt: timestamp("wordfence_set_at", { withTimezone: true }),
+  wordfenceSyncedAt: timestamp("wordfence_synced_at", { withTimezone: true }),
+  /** A code when the last download failed; the advisories of the previous one are kept. */
+  wordfenceError: text("wordfence_error"),
+  wordfenceAdvisories: integer("wordfence_advisories").notNull().default(0),
   updatedAt: updatedAt(),
 });
+
+/**
+ * Advisories of the Wordfence Intelligence feed for the plugins, themes and WordPress versions an organisation's websites show
+ * (ADR 0042, part 3). Downloaded with that organisation's own key and kept for it alone; replaced with every download.
+ */
+export const wordpressAdvisory = pgTable(
+  "wordpress_advisory",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    id: text("id").notNull(),
+    kind: text("kind", { enum: ["plugin", "theme", "core"] }).notNull(),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    cve: text("cve"),
+    cvssScore: real("cvss_score"),
+    severity: text("severity", { enum: ["critical", "high", "medium", "low"] }).notNull(),
+    affected: jsonb("affected")
+      .$type<{ from: string; fromInclusive: boolean; to: string; toInclusive: boolean }[]>()
+      .notNull(),
+    patched: jsonb("patched").$type<string[]>().notNull().default([]),
+    published: text("published"),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.id, t.kind, t.slug] })],
+);
 
 /**
  * What wordpress.org said about a plugin or theme slug (ADR 0042, part 2), for the whole installation: public data, asked only for

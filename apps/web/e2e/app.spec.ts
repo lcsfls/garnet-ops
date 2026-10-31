@@ -2776,7 +2776,7 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
   }) => {
     const problems = watchForProblems(page);
     await signedInAt("now");
-    await page.goto("/settings?section=modules");
+    await page.goto("/settings?section=external");
     const card = page.getByTestId("public-dns");
     await expect(card).toContainText("Only our own resolver");
     await card.getByLabel(/Quad9 \(9\.9\.9\.9\)/).check();
@@ -2799,10 +2799,47 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     expect(problems).toEqual([]);
   });
 
+  test("External services list what may leave the network; a Wordfence key is sealed and never shown again (ADR 0042)", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    await page.goto("/settings?section=external");
+    const overview = page.getByTestId("external-services");
+    for (const service of ["ext-dns", "ext-ct", "ext-wordpress-org", "ext-wordfence"]) {
+      await expect(overview.locator(`[data-service="${service}"]`)).toContainText("Off");
+    }
+    await expect(overview).toContainText("Your own API key, to www.wordfence.com");
+
+    const card = page.getByTestId("wordfence-section");
+    await card.getByRole("button", { name: "Set API key" }).click();
+    const dialog = page.getByRole("dialog", { name: "Wordfence API key" });
+    const key = `wf_e2e_${"k".repeat(40)}`;
+    await dialog.getByLabel("API key").fill(key);
+    const save = dialog.getByRole("button", { name: "Save" });
+    await expect(save).toBeDisabled();
+    await dialog.getByLabel(/I accept the Wordfence Intelligence terms/).check();
+    await save.click();
+    await expect(page.getByText("Key saved. The first download starts now.")).toBeVisible();
+    await expect(overview.locator('[data-service="ext-wordfence"]')).toContainText("On");
+    await expect(card).toContainText("Set by");
+    expect(await page.content()).not.toContain(key);
+    const [stored] = await sql<{ sealed: unknown }>(
+      "select sealed from secret where purpose = 'wordfence-api-key' order by created_at desc limit 1",
+    );
+    expect(JSON.stringify(stored?.sealed)).not.toContain(key);
+
+    await card.getByRole("button", { name: "Remove key" }).click();
+    await expect(page.getByText("Key and downloaded advisories removed.")).toBeVisible();
+    await expect(overview.locator('[data-service="ext-wordfence"]')).toContainText("Off");
+    expect(await sql("select id from secret where purpose = 'wordfence-api-key'")).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
   test("Certificate Transparency is off until an owner confirms what is sent where", async ({ page }) => {
     const problems = watchForProblems(page);
     await signedInAt("now");
-    await page.goto("/settings?section=modules");
+    await page.goto("/settings?section=external");
     await expect(page.getByRole("heading", { name: "Website monitoring", level: 2 })).toBeVisible();
     const section = page.getByTestId("ct-section");
     await expect(section).toContainText("Off");

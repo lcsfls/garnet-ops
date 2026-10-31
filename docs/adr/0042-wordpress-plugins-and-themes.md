@@ -1,6 +1,6 @@
 # ADR 0042: WordPress plugins and themes of websites
 
-- Status: accepted for parts 1 and 2 (2026-10-30); parts 3 and 4 are planned
+- Status: accepted for parts 1 to 3 (2026-10-31); part 4 is planned
 - Date: 2026-10-30
 - Decided by: maintainer (detect from the outside and with an own plugin; versions from wordpress.org and advisories from the
   Wordfence feed only with the customer's opt-in and key)
@@ -28,8 +28,17 @@ Most WordPress sites are attacked through plugins and themes, not WordPress itse
    version: behind wordpress.org's latest is a finding `wordpressOutdated` (low, because the version comes from an asset
    address). A slug wordpress.org does not list (premium or custom) is not judged. Switching the lookup off resolves these
    findings at the next look.
-3. **Part 3 (planned): advisories from the Wordfence Intelligence feed** with the customer's own key; the data's terms do not
-   allow bundling, so nothing is shipped or fetched without a key.
+3. **Part 3: advisories from the Wordfence Intelligence feed** with the organisation's own API key. An owner or admin sets the
+   key under Settings → External services, with a recent sign-in and an acknowledgement of the feed's terms; it is sealed in the
+   vault at once (purpose `wordfence-api-key`), never shown again, and opened only by the worker. Once a day, and right after a
+   key is set, the worker downloads the production feed (`/api/intelligence/v3/vulnerabilities/production`, `Authorization:
+   Bearer <key>`, at most 400 MiB) and keeps only the advisories for the plugins, themes and WordPress versions that
+   organisation's websites show, for that organisation alone; they are replaced with every download and deleted with the key.
+   The daily look then reports each shown version that lies in an advisory's affected range as `wordpressVulnerable`, with the
+   advisory's CVSS rating as its severity, the CVE, the fixed versions and Wordfence Intelligence named as the source. The data's
+   terms do not allow bundling, so nothing is shipped or fetched without a key. The record format was implemented from Wordfence's
+   description of the v3 feed; the build environment could not reach the service, so it is tested with recorded-shape fixtures
+   only. Every field is checked for its shape and cut; records that do not fit are skipped.
 4. **Part 4 (planned): a GarnetOps WordPress plugin** (GPL-2.0-or-later, as WordPress requires, our own code, published
    separately) that reports the exact list of plugins and themes with signed reports, like the host agent.
 
@@ -41,6 +50,9 @@ Most WordPress sites are attacked through plugins and themes, not WordPress itse
 | A page with thousands of asset addresses | at most 256 KiB are read and searched, at most 60 plugins and 5 themes kept |
 | A wrong version from an address | shown as "as the asset address says"; judged only as low |
 | Slugs leave the network | off by default; opt-in with step-up and acknowledgement; only slugs, only to api.wordpress.org, over HTTPS with the outbound address policy |
+| The Wordfence key leaks | sealed at once, never returned by the API, never logged, never in audit data; sent only to www.wordfence.com over HTTPS |
+| A hostile or broken feed | at most 400 MiB read; every id, slug, version, CVE and title checked for its shape and cut; unknown records skipped; titles rendered as text |
+| False positives from asset versions | the version is the one the asset address names, and the finding says so; WordPress's own version comes from its generator tag |
 | A hostile or broken directory answer | at most 256 KiB read; only a `version` of a fixed shape is kept; a failed request keeps the previous answer |
 
 ## Consequences
@@ -50,3 +62,8 @@ Most WordPress sites are attacked through plugins and themes, not WordPress itse
 - Part 2: `wordpress_org_*` columns on `exposure_settings` and the table `wordpress_component` (migration 0038), the worker queue
   `websites.wordpress-org` (hourly), `wordpressOrg` in `GET`/`PUT /api/v1/exposure/settings` (`ct` is now optional there) and in
   `GET /api/v1/exposure/{id}`, the rule `wordpressOutdated`.
+- Part 3: `wordfence_*` columns on `exposure_settings` and the table `wordpress_advisory` (migration 0039), the worker queue
+  `websites.wordfence` (hourly for due organisations, and on demand), `PUT` and `DELETE /api/v1/exposure/settings/wordfence`,
+  `wordfence` in `GET /api/v1/exposure/settings`, the rule `wordpressVulnerable`.
+- Settings: every connection that can leave the network is now listed and switched in one section, **External services** (public
+  DNS, Certificate Transparency, wordpress.org, Wordfence, registry checks); **Modules** keeps the module switches.

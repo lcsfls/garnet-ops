@@ -5,6 +5,7 @@
  * when a plugin names none, so a value equal to the WordPress version is not taken. The page is hostile input: only slugs and
  * version numbers of a fixed shape are kept.
  */
+import { compareVersions } from "./software.ts";
 
 export interface WordPressComponent {
   slug: string;
@@ -119,4 +120,131 @@ export function parseWordPressOrgVersion(body: string): string | null {
   } catch {
     return null;
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Advisories from the Wordfence Intelligence feed (ADR 0042, part 3)          */
+/* -------------------------------------------------------------------------- */
+
+/** The feed, asked once a day with the organisation's own API key. */
+export const WORDFENCE = {
+  host: "www.wordfence.com",
+  path: "/api/intelligence/v3/vulnerabilities/production",
+  timeoutMs: 300_000,
+  /** The production feed is large; a larger answer is refused, not read. */
+  maxBytes: 400 * 1024 * 1024,
+  refreshHours: 24,
+  /** Keys as Wordfence issues them: printable, no spaces. */
+  keyPattern: /^[A-Za-z0-9._~+/=-]{20,200}$/,
+} as const;
+
+export type AdvisoryKind = WordPressKind | "core";
+export type AdvisorySeverity = "critical" | "high" | "medium" | "low";
+
+export interface VersionRange {
+  /** "*" for no lower bound. */
+  from: string;
+  fromInclusive: boolean;
+  to: string;
+  toInclusive: boolean;
+}
+
+export interface WordPressAdvisory {
+  id: string;
+  kind: AdvisoryKind;
+  slug: string;
+  title: string;
+  cve: string | null;
+  cvssScore: number | null;
+  severity: AdvisorySeverity;
+  affected: VersionRange[];
+  patched: string[];
+  published: string | null;
+}
+
+const clean = (value: unknown, max: number) =>
+  typeof value === "string"
+    ? value
+        .replace(/[\p{Cc}\p{Cf}]/gu, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, max)
+    : "";
+const version = (value: unknown) => {
+  const v = clean(value, 30);
+  return v === "*" || VERSION.test(v) ? v : null;
+};
+
+function severityOf(rating: unknown, score: number | null): AdvisorySeverity {
+  const r = typeof rating === "string" ? rating.toLowerCase() : "";
+  if (r === "critical" || r === "high" || r === "medium" || r === "low") return r;
+  if (score === null) return "medium";
+  return score >= 9 ? "critical" : score >= 7 ? "high" : score >= 4 ? "medium" : "low";
+}
+
+/**
+ * The advisories of a feed answer (an object of records by id) for the wanted `kind:slug` keys. The feed is outside data: every
+ * field is checked for its shape and cut; a record that does not fit is skipped, never stored as it came.
+ */
+export function parseWordfenceFeed(feed: unknown, wanted: ReadonlySet<string>): WordPressAdvisory[] {
+  if (!feed || typeof feed !== "object") return [];
+  const out: WordPressAdvisory[] = [];
+  for (const record of Object.values(feed as Record<string, unknown>)) {
+    if (!record || typeof record !== "object") continue;
+    const r = record as Record<string, unknown>;
+    if (r.informational === true) continue;
+    const id = clean(r.id, 64);
+    if (!/^[A-Za-z0-9-]{8,64}$/.test(id) || !Array.isArray(r.software)) continue;
+    const cvss = (r.cvss ?? {}) as Record<string, unknown>;
+    const score = typeof cvss.score === "number" && cvss.score >= 0 && cvss.score <= 10 ? cvss.score : null;
+    const cve = clean(r.cve, 30);
+    for (const s of r.software as Record<string, unknown>[]) {
+      const kind = s?.type;
+      const slug = clean(s?.slug, 64).toLowerCase();
+      if ((kind !== "plugin" && kind !== "theme" && kind !== "core") || !SLUG.test(slug)) continue;
+      if (!wanted.has(`${kind}:${slug}`)) continue;
+      const affected: VersionRange[] = [];
+      for (const range of Object.values(
+        (s.affected_versions ?? {}) as Record<string, Record<string, unknown>>,
+      )) {
+        const from = version(range?.from_version);
+        const to = version(range?.to_version);
+        if (!from || !to) continue;
+        affected.push({
+          from,
+          fromInclusive: range.from_inclusive !== false,
+          to,
+          toInclusive: range.to_inclusive !== false,
+        });
+      }
+      if (affected.length === 0) continue;
+      out.push({
+        id,
+        kind,
+        slug,
+        title: clean(r.title, 300),
+        cve: /^CVE-\d{4}-\d{4,7}$/.test(cve) ? cve : null,
+        cvssScore: score,
+        severity: severityOf(cvss.rating, score),
+        affected: affected.slice(0, 20),
+        patched: (Array.isArray(s.patched_versions) ? s.patched_versions : [])
+          .map(version)
+          .filter((v): v is string => v !== null && v !== "*")
+          .slice(0, 10),
+        published: /^\d{4}-\d{2}-\d{2}/.test(clean(r.published, 30)) ? clean(r.published, 10) : null,
+      });
+    }
+  }
+  return out;
+}
+
+/** Whether a version lies in one of an advisory's ranges. */
+export function affectsVersion(advisory: Pick<WordPressAdvisory, "affected">, v: string): boolean {
+  return advisory.affected.some((r) => {
+    const above =
+      r.from === "*" || (r.fromInclusive ? compareVersions(v, r.from) >= 0 : compareVersions(v, r.from) > 0);
+    const below =
+      r.to === "*" || (r.toInclusive ? compareVersions(v, r.to) <= 0 : compareVersions(v, r.to) < 0);
+    return above && below;
+  });
 }

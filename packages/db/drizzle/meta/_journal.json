@@ -274,6 +274,13 @@
       "when": 1793399150827,
       "tag": "0038_wordpress_org",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793449018620,
+      "tag": "0039_wordfence",
+      "breakpoints": true
     }
   ]
 }

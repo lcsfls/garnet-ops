@@ -36,6 +36,8 @@ export const QUEUES = {
    */
   exposureVerify: "websites.verify",
   exposureRun: "websites.run",
+  /** The Wordfence Intelligence feed (ADR 0042): a download right after an organisation sets its key. */
+  wordfence: "websites.wordfence",
   /** Hosts and containers (ADR 0034): matching an image's packages against the vulnerability database. */
   imageMatch: "hosts.match",
   /** Matching the running kernel of a host as the distribution's package. */

@@ -1125,7 +1125,8 @@ export const en = {
     knownExploited: "Known exploited",
     updatesTitle: "Newer images",
     updatesDescription: "From the public registry, if the registry check is switched on.",
-    updatesOff: "The registry check is off. An owner or admin can switch it on under Settings, Modules.",
+    updatesOff:
+      "The registry check is off. An owner or admin can switch it on under Settings, External services.",
     runningTitle: "Running containers",
     runningDescription: "Where images built from this repository run, as the host agents report.",
     runningEmpty: "No host reports a container built from this repository.",
@@ -1519,6 +1520,10 @@ export const en = {
         title: "WordPress plugin or theme behind its latest version: {slug}",
         text: "The home page loads {slug} {version}; wordpress.org has {latest}. Updates of plugins and themes often fix security problems. The version is the one the asset address names.",
       },
+      wordpressVulnerable: {
+        title: "Known vulnerability in {slug} {version}: {title}",
+        text: "The version the site shows is affected ({cve}). Fixed in: {patched}. Source: Wordfence Intelligence, with your organisation's key. The version of a plugin or theme is the one its asset address names.",
+      },
       portExposed: {
         title: "Reachable from the internet: port {port}",
         text: "{service} ({category}) answers on port {port} of {addresses}. GarnetOps only connected and sent nothing, so it cannot tell whether the service is protected.",
@@ -1703,7 +1708,38 @@ export const en = {
     wpOrgLatest: "latest",
     wpOrgNoteOn: "Compared with wordpress.org once a day.",
     wpOrgNoteOff:
-      "Switch on the wordpress.org lookup (Settings → Modules) to compare them with the latest versions.",
+      "Switch on the wordpress.org lookup (Settings → External services) to compare them with the latest versions.",
+    wordfenceTitle: "WordPress advisories from Wordfence",
+    wordfenceText:
+      "Downloads the Wordfence Intelligence vulnerability feed once a day with your organisation's own API key and checks the WordPress versions, plugins and themes your websites show against it. Affected versions become findings.",
+    wordfenceLeavesTitle: "Your key goes to {host}",
+    wordfenceLeavesText:
+      "Only the key is sent, to download the whole feed; nothing about your websites. The key is encrypted at once and never shown again. Use of the feed is governed by the Wordfence Intelligence terms; create a key in your Wordfence account under Integrations.",
+    wordfenceConfigured: "Key set",
+    wordfenceNotSet: "No key",
+    wordfenceSet: "Set API key",
+    wordfenceReplace: "Replace key",
+    wordfenceRemove: "Remove key",
+    wordfenceAskTitle: "Wordfence API key",
+    wordfenceKey: "API key",
+    wordfenceKeyHint: "Stored encrypted; only the worker uses it.",
+    wordfenceAcknowledge:
+      "I accept the Wordfence Intelligence terms and agree that this key is sent to {host} once a day.",
+    wordfenceInvalid: "Enter the whole key and confirm the terms.",
+    wordfenceSaved: "Key saved. The first download starts now.",
+    wordfenceRemoved: "Key and downloaded advisories removed.",
+    wordfenceSetBy: "Set by {name} on {when}.",
+    wordfenceSynced: "Last download {when}: {count} advisories for your websites.",
+    wordfenceWaiting: "The first download has not finished yet.",
+    wordfenceError: {
+      unauthorized: "Wordfence refused the key. Check it in your Wordfence account and set it again.",
+      rateLimited: "Wordfence asked to wait. The next download is tomorrow.",
+      unreachable: "www.wordfence.com could not be reached. Is outgoing HTTPS allowed?",
+      timeout: "The download took too long and was stopped.",
+      tooLarge: "The feed was larger than GarnetOps reads (400 MB).",
+      invalid: "The answer was not the expected feed.",
+      noKey: "The key could not be opened. Set it again.",
+    },
     bannerNote:
       "GarnetOps judges a version only against the end-of-life data of its release line, never against vulnerability data, and not at all when the header names a distribution: Debian, Red Hat and others fix security problems in older versions without changing the number.",
     portsTitle: "Ports",
@@ -2522,6 +2558,38 @@ export const en = {
     sectionUpdates: "Updates",
     sectionAbout: "About",
     sectionAccounts: "Connected accounts",
+    sectionExternal: "External services",
+    externalTitle: "What leaves your network",
+    externalDescription:
+      "Every service GarnetOps can ask on your organisation's behalf, beyond the systems you connected. All are off until an owner or admin switches them on, and each says exactly what it sends where.",
+    externalOn: "On",
+    externalOff: "Off",
+    externalDns: "Public DNS for public names",
+    externalDnsSends:
+      "The names of websites, registries and the Certificate Transparency service, to the chosen DNS provider.",
+    externalCt: "Certificate Transparency",
+    externalCtSends: "The domain names of verified websites, to crt.sh.",
+    externalWordpressOrg: "WordPress versions from wordpress.org",
+    externalWordpressOrgSends:
+      "The slugs of the plugins and themes your websites load, to api.wordpress.org.",
+    externalWordfence: "WordPress advisories from Wordfence",
+    externalWordfenceSends:
+      "Your own API key, to www.wordfence.com, to download the feed. Nothing about your websites.",
+    externalRegistries: "Checks of public container registries",
+    externalRegistriesSends:
+      "The names and tags of running images from public registries, to those registries.",
+    externalVulnDb: "Vulnerability database updates",
+    externalVulnDbSends:
+      "Downloaded by the installation, or imported by hand when it runs offline. See System status.",
+    externalMoreWithModules:
+      "More services appear here when website monitoring or hosts and containers are switched on (Modules).",
+    modulesExternalHint: "What these modules may send outside your network is switched under",
+    helpExternalOffTitle: "Off by default",
+    helpExternalOffText:
+      "Nothing here is on after installation. Switching a service on needs a recent sign-in and is written to the audit log; switching it off stops it at once.",
+    helpExternalAirGapTitle: "Without internet access",
+    helpExternalAirGapText:
+      "GarnetOps works with all of these off. Checks that need them are then not made, and the pages say so instead of guessing.",
     sectionModules: "Modules",
     modulesTitle: "Modules",
     modulesDescription:
@@ -3147,6 +3215,9 @@ export const en = {
       exposure_ct_enabled: "Certificate Transparency lookups switched on",
       exposure_wordpress_org_enabled: "wordpress.org lookup of plugin and theme versions switched on",
       exposure_wordpress_org_disabled: "wordpress.org lookup of plugin and theme versions switched off",
+      exposure_wordfence_key_set: "Wordfence API key set",
+      exposure_wordfence_key_replaced: "Wordfence API key replaced",
+      exposure_wordfence_key_removed: "Wordfence API key removed",
       exposure_ct_disabled: "Certificate Transparency lookups switched off",
       organization_module_enabled: "Module switched on",
       organization_module_disabled: "Module switched off",

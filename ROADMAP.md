@@ -126,7 +126,7 @@ paginated findings, and every number on the overview leads to its details.
       optional public DNS next to a slow local resolver (ADR 0035); software versions (PHP, nginx, Apache, WordPress and other CMS)
       judged against end-of-life data (ADR 0038); availability every 1 to 60 minutes with outages and slow answers (ADR 0040).
       WordPress themes and plugins from the home page's asset addresses, judged against wordpress.org (opt-in, ADR 0042).
-      Still open: advisories from the Wordfence feed with an own key, a GarnetOps WordPress plugin
+      Advisories from the Wordfence feed with the organisation's own key (ADR 0042). Still open: a GarnetOps WordPress plugin
 - [x] Pull request overview: open pull requests of the monitored repositories with the gate result of their head commit,
       read with the repository's read credential, "Check now" as a CI check would (ADR 0032, `docs/pull-requests.md`,
       0.0.12). Still open: review comments on the pull request

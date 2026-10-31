@@ -60,7 +60,9 @@ export type SecretPurpose =
   /** A forge sign-in application's client secret (ADR 0031): sealed by the API, opened only by the worker. */
   | "forge-app-secret"
   /** What one sign-in needs for a few minutes (device code, code verifier, code); deleted when it ends. */
-  | "forge-sign-in";
+  | "forge-sign-in"
+  /** An organisation's own Wordfence Intelligence API key (ADR 0042): sealed by the API, opened only by the worker. */
+  | "wordfence-api-key";
 
 export interface SecretBinding {
   organizationId: string;

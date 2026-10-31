@@ -1163,7 +1163,7 @@ export const de: Messages = {
     updatesTitle: "Neuere Images",
     updatesDescription: "Aus der öffentlichen Registry, wenn die Registry-Prüfung eingeschaltet ist.",
     updatesOff:
-      "Die Registry-Prüfung ist aus. Ein Owner oder Admin kann sie unter Einstellungen, Module einschalten.",
+      "Die Registry-Prüfung ist aus. Ein Owner oder Admin kann sie unter Einstellungen, Externe Dienste einschalten.",
     runningTitle: "Laufende Container",
     runningDescription:
       "Wo Images laufen, die aus diesem Repository gebaut wurden, wie es die Host-Agents melden.",
@@ -1565,6 +1565,10 @@ export const de: Messages = {
         title: "WordPress-Plugin oder -Theme nicht auf dem neuesten Stand: {slug}",
         text: "Die Startseite lädt {slug} {version}; wordpress.org hat {latest}. Updates von Plugins und Themes beheben oft Sicherheitsprobleme. Die Version ist die, die die Asset-Adresse nennt.",
       },
+      wordpressVulnerable: {
+        title: "Bekannte Schwachstelle in {slug} {version}: {title}",
+        text: "Die Version, die die Website zeigt, ist betroffen ({cve}). Behoben in: {patched}. Quelle: Wordfence Intelligence, mit dem Schlüssel Ihrer Organisation. Die Version eines Plugins oder Themes ist die, die seine Asset-Adresse nennt.",
+      },
       portExposed: {
         title: "Aus dem Internet erreichbar: Port {port}",
         text: "{service} ({category}) antwortet auf Port {port} von {addresses}. GarnetOps hat sich nur verbunden und nichts gesendet. Ob der Dienst geschützt ist, lässt sich daher nicht sagen.",
@@ -1755,7 +1759,39 @@ export const de: Messages = {
     wpOrgLatest: "neueste",
     wpOrgNoteOn: "Einmal am Tag mit wordpress.org verglichen.",
     wpOrgNoteOff:
-      "Schalten Sie die Abfrage bei wordpress.org ein (Einstellungen → Module), um sie mit den neuesten Versionen zu vergleichen.",
+      "Schalten Sie die Abfrage bei wordpress.org ein (Einstellungen → Externe Dienste), um sie mit den neuesten Versionen zu vergleichen.",
+    wordfenceTitle: "WordPress-Sicherheitsmeldungen von Wordfence",
+    wordfenceText:
+      "Lädt einmal am Tag den Schwachstellen-Feed von Wordfence Intelligence mit dem eigenen API-Schlüssel Ihrer Organisation und prüft die WordPress-Versionen, Plugins und Themes Ihrer Websites dagegen. Betroffene Versionen werden zu Befunden.",
+    wordfenceLeavesTitle: "Ihr Schlüssel geht an {host}",
+    wordfenceLeavesText:
+      "Gesendet wird nur der Schlüssel, um den ganzen Feed herunterzuladen; nichts über Ihre Websites. Der Schlüssel wird sofort verschlüsselt und nie wieder angezeigt. Für die Nutzung des Feeds gelten die Bedingungen von Wordfence Intelligence; einen Schlüssel erstellen Sie in Ihrem Wordfence-Konto unter Integrations.",
+    wordfenceConfigured: "Schlüssel gesetzt",
+    wordfenceNotSet: "Kein Schlüssel",
+    wordfenceSet: "API-Schlüssel setzen",
+    wordfenceReplace: "Schlüssel ersetzen",
+    wordfenceRemove: "Schlüssel entfernen",
+    wordfenceAskTitle: "Wordfence-API-Schlüssel",
+    wordfenceKey: "API-Schlüssel",
+    wordfenceKeyHint: "Wird verschlüsselt gespeichert; nur der Worker verwendet ihn.",
+    wordfenceAcknowledge:
+      "Ich akzeptiere die Bedingungen von Wordfence Intelligence und bin einverstanden, dass dieser Schlüssel einmal am Tag an {host} gesendet wird.",
+    wordfenceInvalid: "Geben Sie den ganzen Schlüssel ein und bestätigen Sie die Bedingungen.",
+    wordfenceSaved: "Schlüssel gespeichert. Der erste Download startet jetzt.",
+    wordfenceRemoved: "Schlüssel und heruntergeladene Meldungen entfernt.",
+    wordfenceSetBy: "Gesetzt von {name} am {when}.",
+    wordfenceSynced: "Letzter Download {when}: {count} Meldungen für Ihre Websites.",
+    wordfenceWaiting: "Der erste Download ist noch nicht fertig.",
+    wordfenceError: {
+      unauthorized:
+        "Wordfence hat den Schlüssel abgelehnt. Prüfen Sie ihn in Ihrem Wordfence-Konto und setzen Sie ihn erneut.",
+      rateLimited: "Wordfence hat um eine Pause gebeten. Der nächste Download ist morgen.",
+      unreachable: "www.wordfence.com war nicht erreichbar. Ist ausgehendes HTTPS erlaubt?",
+      timeout: "Der Download hat zu lange gedauert und wurde abgebrochen.",
+      tooLarge: "Der Feed war größer, als GarnetOps liest (400 MB).",
+      invalid: "Die Antwort war nicht der erwartete Feed.",
+      noKey: "Der Schlüssel konnte nicht geöffnet werden. Setzen Sie ihn erneut.",
+    },
     bannerNote:
       "GarnetOps bewertet eine Version nur anhand des Supportendes ihrer Versionslinie, nie anhand von Schwachstellendaten, und gar nicht, wenn der Header eine Distribution nennt: Debian, Red Hat und andere beheben Sicherheitsprobleme in älteren Versionen, ohne die Nummer zu ändern.",
     portsTitle: "Ports",
@@ -2594,6 +2630,38 @@ export const de: Messages = {
     sectionUpdates: "Updates",
     sectionAbout: "Über GarnetOps",
     sectionAccounts: "Verbundene Konten",
+    sectionExternal: "Externe Dienste",
+    externalTitle: "Was Ihr Netzwerk verlässt",
+    externalDescription:
+      "Alle Dienste, die GarnetOps im Namen Ihrer Organisation über die verbundenen Systeme hinaus fragen kann. Alle sind aus, bis ein Owner oder Admin sie einschaltet, und jeder sagt genau, was er wohin sendet.",
+    externalOn: "Ein",
+    externalOff: "Aus",
+    externalDns: "Öffentliches DNS für öffentliche Namen",
+    externalDnsSends:
+      "Die Namen von Websites, Registries und dem Certificate-Transparency-Dienst an den gewählten DNS-Anbieter.",
+    externalCt: "Certificate Transparency",
+    externalCtSends: "Die Domainnamen verifizierter Websites an crt.sh.",
+    externalWordpressOrg: "WordPress-Versionen von wordpress.org",
+    externalWordpressOrgSends:
+      "Die Kurznamen der Plugins und Themes, die Ihre Websites laden, an api.wordpress.org.",
+    externalWordfence: "WordPress-Sicherheitsmeldungen von Wordfence",
+    externalWordfenceSends:
+      "Ihr eigener API-Schlüssel an www.wordfence.com, um den Feed herunterzuladen. Nichts über Ihre Websites.",
+    externalRegistries: "Prüfungen öffentlicher Container-Registries",
+    externalRegistriesSends:
+      "Die Namen und Tags laufender Images aus öffentlichen Registries an diese Registries.",
+    externalVulnDb: "Aktualisierungen der Schwachstellen-Datenbank",
+    externalVulnDbSends:
+      "Von der Installation heruntergeladen oder offline von Hand importiert. Siehe Systemstatus.",
+    externalMoreWithModules:
+      "Weitere Dienste erscheinen hier, wenn Website-Überwachung oder Hosts und Container eingeschaltet sind (Module).",
+    modulesExternalHint: "Was diese Module außerhalb Ihres Netzwerks senden dürfen, schalten Sie unter",
+    helpExternalOffTitle: "Standardmäßig aus",
+    helpExternalOffText:
+      "Nach der Installation ist hier nichts eingeschaltet. Einschalten braucht eine frische Anmeldung und steht im Audit-Log; Ausschalten stoppt den Dienst sofort.",
+    helpExternalAirGapTitle: "Ohne Internetzugang",
+    helpExternalAirGapText:
+      "GarnetOps funktioniert, wenn alle diese Dienste aus sind. Prüfungen, die sie brauchen, finden dann nicht statt, und die Seiten sagen das, statt zu raten.",
     sectionModules: "Module",
     modulesTitle: "Module",
     modulesDescription:
@@ -3234,6 +3302,9 @@ export const de: Messages = {
         "Abfrage der Plugin- und Theme-Versionen bei wordpress.org eingeschaltet",
       exposure_wordpress_org_disabled:
         "Abfrage der Plugin- und Theme-Versionen bei wordpress.org ausgeschaltet",
+      exposure_wordfence_key_set: "Wordfence-API-Schlüssel gesetzt",
+      exposure_wordfence_key_replaced: "Wordfence-API-Schlüssel ersetzt",
+      exposure_wordfence_key_removed: "Wordfence-API-Schlüssel entfernt",
       exposure_ct_disabled: "Certificate-Transparency-Abfragen ausgeschaltet",
       organization_module_enabled: "Modul eingeschaltet",
       organization_module_disabled: "Modul ausgeschaltet",

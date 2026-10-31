@@ -5,11 +5,7 @@
   import Card from "../../Card.svelte";
   import CardHeader from "../../CardHeader.svelte";
   import Alert from "../../ui/Alert.svelte";
-  import CertificateTransparency from "./CertificateTransparency.svelte";
   import ModuleCard from "./ModuleCard.svelte";
-  import PublicDns from "./PublicDns.svelte";
-  import RegistryChecks from "./RegistryChecks.svelte";
-  import WordPressOrg from "./WordPressOrg.svelte";
 
   /**
    * Settings, Modules (ADR 0033): parts of GarnetOps an organisation switches on. Website monitoring (it connects to public hosts an
@@ -31,7 +27,8 @@
   </div>
 </Card>
 
-{#if websites}<CertificateTransparency {me} />{/if}
-{#if websites}<WordPressOrg {me} />{/if}
-{#if hosts}<RegistryChecks {me} />{/if}
-<PublicDns {me} />
+<p class="mt-4 text-sm text-muted-foreground">
+  {t("settings.modulesExternalHint")} <a href="/settings?section=external" class="text-primary-text hover:underline"
+    >{t("settings.sectionExternal")}</a
+  >
+</p>

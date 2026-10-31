@@ -26,7 +26,14 @@ Security-relevant changes are listed under **Security** in every release.
 - **WordPress themes and plugins** of a website, as the home page's asset addresses name them, with their versions, on the
   HTTP tab ([ADR 0042](docs/adr/0042-wordpress-plugins-and-themes.md)). The daily look now reads up to 256 KiB of the home
   page (was 64 KiB) to see them; the page is still never stored.
-- **Latest versions from wordpress.org** (opt-in, Settings → Modules): GarnetOps asks api.wordpress.org once a day for the latest
+- **Known WordPress vulnerabilities from Wordfence** with your own API key (Settings → External services): the Wordfence
+  Intelligence feed is downloaded once a day and the WordPress versions, plugins and themes your websites show are checked against
+  it. The key is encrypted at once and never shown again; only the key is sent.
+- **Settings → External services**: one place that lists everything GarnetOps may send outside your network (public DNS,
+  Certificate Transparency, wordpress.org, Wordfence, registry checks), what each sends where, and its switch. Modules keeps the
+  module switches.
+- API: `PUT` and `DELETE /api/v1/exposure/settings/wordfence`, `wordfence` in `GET /api/v1/exposure/settings`.
+- **Latest versions from wordpress.org** (opt-in, Settings → External services): GarnetOps asks api.wordpress.org once a day for the latest
   version of each plugin and theme slug (only the slug is sent) and reports one that is behind as a low finding.
 - API: `wordpressOrg` in `GET` and `PUT /api/v1/exposure/settings` (`ct` is optional there now) and in
   `GET /api/v1/exposure/{id}`.

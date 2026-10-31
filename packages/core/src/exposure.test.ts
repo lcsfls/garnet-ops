@@ -780,7 +780,7 @@ describe("WordPress plugins and themes against wordpress.org (ADR 0042)", () => 
     });
     const now = new Date("2026-10-30T12:00:00Z");
     const wordpress = (latest?: Map<string, string>) =>
-      evaluatePassive(snapshot, now, latest).filter((f) => f.rule === "wordpressOutdated");
+      evaluatePassive(snapshot, now, latest ? { latest } : {}).filter((f) => f.rule === "wordpressOutdated");
     expect(wordpress()).toEqual([]);
     const found = wordpress(
       new Map([

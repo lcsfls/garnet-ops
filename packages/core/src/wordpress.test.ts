@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseWordPressOrgVersion, wordpressAssets, wordpressOrgPath } from "./wordpress.ts";
+import {
+  affectsVersion,
+  parseWordfenceFeed,
+  parseWordPressOrgVersion,
+  wordpressAssets,
+  wordpressOrgPath,
+} from "./wordpress.ts";
 
 describe("WordPress plugins and themes from asset addresses (ADR 0042)", () => {
   const page = `
@@ -50,5 +56,74 @@ describe("latest versions from wordpress.org (ADR 0042, part 2)", () => {
     expect(parseWordPressOrgVersion('{"name":"x","version":"5.9.8"}')).toBe("5.9.8");
     expect(parseWordPressOrgVersion('{"version":"<b>1</b>"}')).toBeNull();
     expect(parseWordPressOrgVersion("not json")).toBeNull();
+  });
+});
+
+describe("advisories from the Wordfence feed (ADR 0042, part 3)", () => {
+  const wanted = new Set(["plugin:contact-form-7", "core:wordpress"]);
+  it("keeps only wanted slugs and fields of the right shape, and skips what does not fit", () => {
+    const parsed = parseWordfenceFeed(
+      {
+        "a-1111-good": {
+          id: "a-1111-good",
+          title: "  XSS\u0007 in <b>Contact Form 7</b>  ",
+          software: [
+            {
+              type: "plugin",
+              slug: "contact-form-7",
+              affected_versions: {
+                "5.0 - 5.9.3": {
+                  from_version: "5.0",
+                  from_inclusive: true,
+                  to_version: "5.9.3",
+                  to_inclusive: false,
+                },
+                bad: { from_version: "<script>", to_version: "1" },
+              },
+              patched_versions: ["5.9.4", "<x>"],
+            },
+            {
+              type: "plugin",
+              slug: "akismet",
+              affected_versions: { "*": { from_version: "*", to_version: "9" } },
+            },
+          ],
+          cvss: { score: 11, rating: "Severe" },
+          cve: "not-a-cve",
+        },
+        "b-2222-info": {
+          id: "b-2222-info",
+          informational: true,
+          software: [{ type: "core", slug: "wordpress" }],
+        },
+        "../../etc": { id: "../../etc", software: [] },
+        broken: "text",
+      },
+      wanted,
+    );
+    expect(parsed).toEqual([
+      {
+        id: "a-1111-good",
+        kind: "plugin",
+        slug: "contact-form-7",
+        title: "XSS in <b>Contact Form 7</b>",
+        cve: null,
+        cvssScore: null,
+        severity: "medium",
+        affected: [{ from: "5.0", fromInclusive: true, to: "5.9.3", toInclusive: false }],
+        patched: ["5.9.4"],
+        published: null,
+      },
+    ]);
+    expect(parseWordfenceFeed(null, wanted)).toEqual([]);
+  });
+
+  it("matches versions against open and closed ranges", () => {
+    const range = { from: "5.0", fromInclusive: true, to: "5.9.3", toInclusive: false };
+    expect(affectsVersion({ affected: [range] }, "5.0")).toBe(true);
+    expect(affectsVersion({ affected: [range] }, "5.9.2")).toBe(true);
+    expect(affectsVersion({ affected: [range] }, "5.9.3")).toBe(false);
+    expect(affectsVersion({ affected: [range] }, "4.9")).toBe(false);
+    expect(affectsVersion({ affected: [{ ...range, from: "*" }] }, "1.0")).toBe(true);
   });
 });

@@ -162,6 +162,16 @@ export interface ExposureSettings {
     dailyBudget: number;
     lastError: string | null;
   };
+  /** The organisation's own Wordfence Intelligence key (ADR 0042, part 3); the key itself is never returned. */
+  wordfence: {
+    configured: boolean;
+    setAt: string | null;
+    setBy: string | null;
+    syncedAt: string | null;
+    error: string | null;
+    advisories: number;
+    host: string;
+  };
   /** Latest versions of WordPress plugins and themes from wordpress.org (ADR 0042, opt-in). */
   wordpressOrg: { enabled: boolean; enabledAt: string | null; enabledBy: string | null; host: string };
 }
