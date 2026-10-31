@@ -59,8 +59,8 @@ Consequences of leaving things out:
 
 ## What was changed, and why
 
-Source code under `packages/` and `actions/` is unchanged except for the fix listed in the table:
-`diff -r` against upstream shows only that difference (the committed `actions/lib/release-tools.mjs`
+Source code under `packages/` and `actions/` is unchanged except for the fixes listed in the table:
+`diff -r` against upstream shows only those differences (the committed `actions/lib/release-tools.mjs`
 is reproduced by `pnpm bundle`). Changed files (Apache-2.0 section 4(b): the changes are listed
 here, and `NOTICE` and the Dockerfile point to this file):
 
@@ -73,6 +73,7 @@ here, and `NOTICE` and the Dockerfile point to this file):
 | `.dockerignore` | trimmed to the directories that exist here; the build context is `updater/` | |
 | `NOTICE` | three lines saying that this copy is maintained in GarnetOps | Apache-2.0 4(d): notices may be added |
 | `packages/release-tools/src/smoke.ts`, its test, `actions/lib/release-tools.mjs` (rebuilt) | the release smoke test mounts the project's own named volume at the sidecar's shared directory (`sharedVolumeOf`) instead of a volume of its own | with a separate volume the app never saw the sidecar's token, so it did not report its version and the upgrade test failed with `health.version_mismatch` (GarnetOps 0.0.5) |
+| `packages/engine/test/engine-recovery.test.ts` | the test "stops at the next check point on shutdown" lets the health wait sleep until the shutdown wakes it | the fake clock's sleep returns at once, so on some machines the wait ran into its deadline before the shutdown arrived and the run was `failed` instead of `running` (a timing race in the test, not in the engine; seen in CI on 2026-10-30) |
 | `scripts/third-party-notices.ts`, `THIRD_PARTY_NOTICES` | the image name in the text (`ghcr.io/lcsfls/garnetops-updater`); regenerated | the notice names the image that ships |
 
 Changes outside `updater/`: the root `.gitignore` (the pattern `build/` would hide

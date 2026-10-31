@@ -215,6 +215,13 @@ describe("resume after the sidecar restarted (design 5.8)", () => {
 
   it("stops at the next check point on shutdown and leaves the run for the next start", async () => {
     h.appAt("1.1.0", { kind: "ready", afterPolls: 1000, reportsVersion: "1.1.0" });
+    // The fake clock's sleep returns at once, so the health wait could run into its deadline before the shutdown below arrives,
+    // depending on how fast the machine is. Here a wait lasts until the shutdown wakes it, as a real wait would.
+    h.clock.sleep = (_ms: number, signal?: AbortSignal) =>
+      new Promise<void>((resolve) => {
+        if (signal?.aborted) return resolve();
+        signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
     await h.engine.schedule(scheduleRequest("1.1.0"), "api");
     await waitForCall(h.ops, "up");
     await h.engine.shutdown();
