@@ -76,7 +76,7 @@ RUN mkdir -p /opt/scanners \
 # Go cross-compiles, so the build runs on the build machine's own platform and makes both targets.
 # Standard library only: nothing is downloaded (GOTOOLCHAIN=local, no modules).
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS host-agent
-ARG VERSION=0.0.14
+ARG VERSION=0.0.15
 WORKDIR /src
 COPY apps/host-agent/ ./
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-trimpath
@@ -84,7 +84,7 @@ RUN go vet ./... && go test ./...  && for arch in amd64 arm64; do       GOOS=lin
 
 # ---------------------------------------------------------------- app: API and worker
 FROM ${NODE_IMAGE} AS app
-ARG VERSION=0.0.14
+ARG VERSION=0.0.15
 # git (GPL-2.0) and OpenSSH run as separate programs for clones, never linked (AGENTS.md rule 3).
 # npm and corepack are not needed at run time.
 RUN apk add --no-cache git openssh-client \
@@ -118,7 +118,7 @@ CMD ["node", "apps/api/src/index.ts"]
 
 # ---------------------------------------------------------------- web: the edge
 FROM ${CADDY_IMAGE} AS web
-ARG VERSION=0.0.14
+ARG VERSION=0.0.15
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=web-build /src/apps/web/build /srv
 # The Content Security Policy with the hashes of this build (ADR 0027), imported by the Caddyfile.
@@ -146,7 +146,7 @@ RUN rm -rf apps/api apps/worker apps/web packages/db packages/i18n vendor pnpm-l
 
 # ---------------------------------------------------------------- agent: on the customer's hosts
 FROM ${NODE_IMAGE} AS agent
-ARG VERSION=0.0.14
+ARG VERSION=0.0.15
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
  && adduser -D -H -u 10001 garnetops-agent \
@@ -171,7 +171,7 @@ CMD ["node", "apps/agent/src/main.ts", "run"]
 # vunnel (Python, its dependencies pinned with hashes, wheels only: nothing is compiled or run at install) and
 # grype-db (Go binary, pinned SHA-256 per architecture). git fetches some feeds; zstd packs the archive.
 FROM ${PYTHON_IMAGE} AS vulndb
-ARG VERSION=0.0.14
+ARG VERSION=0.0.15
 ARG TARGETARCH
 ARG GRYPE_DB_VERSION=0.54.5
 ARG GRYPE_DB_SHA256_AMD64=ab98cf01d66069f0d820ae355d28fe0a1e127aed46b8d56370f5c049d626e0f8

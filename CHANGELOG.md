@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.15] - 2026-10-31
+<!-- title: Our own vulnerability database, and a hint when an update is ready -->
+
 ### Added
 
 - A dot at Settings in the sidebar, and the new version next to Updates, when the update service's daily check found a
@@ -1260,7 +1263,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.14...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.15...HEAD
+[0.0.15]: https://github.com/lcsfls/garnet-ops/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/lcsfls/garnet-ops/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/lcsfls/garnet-ops/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/lcsfls/garnet-ops/compare/v0.0.11...v0.0.12
