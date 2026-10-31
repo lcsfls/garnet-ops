@@ -364,6 +364,8 @@ export const secret = pgTable(
         "forge-sign-in",
         "wordfence-api-key",
         "wordpress-plugin-token",
+        "vulndb-github-token",
+        "vulndb-nvd-api-key",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -2756,6 +2758,28 @@ export const systemReport = pgTable("system_report", {
   key: text("key").primaryKey(),
   data: jsonb("data").$type<unknown>().notNull(),
   reportedAt: timestamp("reported_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * The two optional keys of the installation's own vulnerability database build (packages/core/src/vulndb-build.ts), one row with
+ * `id` "installation". Both live in the vault: purpose "vulndb-github-token" (sent only to api.github.com) and
+ * "vulndb-nvd-api-key" (sent only to services.nvd.nist.gov), sealed by the API, opened only by the worker, which hands them to
+ * the builder for one build. `secret.organization_id` is required, so each secret row belongs to the organisation of the owner
+ * or admin who set the key (`*_organization_id`). Null while a key is not set.
+ */
+export const vulnDbBuildSettings = pgTable("vulndb_build_settings", {
+  id: text("id").primaryKey(),
+  githubSecretId: text("github_secret_id"),
+  githubOrganizationId: text("github_organization_id").references(() => organization.id, {
+    onDelete: "set null",
+  }),
+  githubSetBy: text("github_set_by").references(() => user.id, { onDelete: "set null" }),
+  githubSetAt: timestamp("github_set_at", { withTimezone: true }),
+  nvdSecretId: text("nvd_secret_id"),
+  nvdOrganizationId: text("nvd_organization_id").references(() => organization.id, { onDelete: "set null" }),
+  nvdSetBy: text("nvd_set_by").references(() => user.id, { onDelete: "set null" }),
+  nvdSetAt: timestamp("nvd_set_at", { withTimezone: true }),
+  updatedAt: updatedAt(),
 });
 
 /* -------------------------------------------------------------------------- */

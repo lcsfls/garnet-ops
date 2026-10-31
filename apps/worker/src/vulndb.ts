@@ -12,12 +12,24 @@ const INTERVAL_MS = VULNDB_UPDATE_INTERVAL_HOURS * 3600 * 1000;
  * once at start and then once a day, with `grype db update` (Anchore's published
  * database, checked by grype against its signed listing). Off by default, so air-gapped
  * installations import the database themselves and nothing phones home unless the
- * operator chose it (AGENTS.md rule 1). Replaced by our own vunnel build later (ROADMAP).
+ * operator chose it (AGENTS.md rule 1). With GARNETOPS_GRYPE_DB_UPDATE=build our own builder makes it instead (ADR 0044).
  *
  * A failed update is logged and scans keep using the database that is there. Every attempt
  * is reported for the System status page (ADR 0024) as a time, a result and a short code.
  */
 export function startVulnDbUpdates(): () => void {
+  if (env.GARNETOPS_GRYPE_DB_UPDATE === "build") {
+    // Loaded only in this mode: the build opens the feed keys from the vault (ADR 0044).
+    let stop: (() => void) | null = null;
+    let stopped = false;
+    void import("./vulndb-build.ts").then((m) => {
+      if (!stopped) stop = m.startVulnDbBuilds();
+    });
+    return () => {
+      stopped = true;
+      stop?.();
+    };
+  }
   if (env.GARNETOPS_GRYPE_DB_UPDATE !== "auto") {
     void reportVulnDbUpdate({ mode: "off", nextAt: null });
     return () => {};

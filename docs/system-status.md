@@ -44,9 +44,9 @@ The worker checks this when it starts, every 15 minutes and whenever a scan cann
 | --- | --- |
 | Built | When the database was built, and how old it is. |
 | Schema version | The database's own schema version. |
-| Source | *Anchore's published database* (automatic updates are on), *imported by hand* (they are off), later *built by GarnetOps*. |
+| Source | *Anchore's published database* (`GARNETOPS_GRYPE_DB_UPDATE=auto`), *built by GarnetOps* (`build`, [vulnerability-database.md](vulnerability-database.md)) or *imported by hand* (`off`). |
 | Last read | When the worker last read the database's metadata (at start, after every update and every 15 minutes). |
-| Last update | The result of the worker's last `grype db update`: *worked* or *failed* with a short reason (the download did not work, took too long, failed its integrity check, could not be stored, grype could not be started). The tool's own output is never kept. |
+| Last update | The result of the worker's last update: *worked* or *failed* with a short reason (the download did not work, took too long, failed its integrity check, could not be stored, grype could not be started; with our own build also: the builder does not answer, could not build, got no data from any feed, or its archive failed the worker's checks). The tool's own output is never kept. |
 | Next update | One day after the last attempt. With `GARNETOPS_GRYPE_DB_UPDATE=off` the page says that automatic updates are off. |
 | Providers | The feeds in the database (NVD, GitHub, a distribution, ...), the date of their data, and the number of advisories per provider. |
 
@@ -121,9 +121,10 @@ updates are done by hand.
 states and short codes only: no secret, no address of an integration and no output of a tool. Fields are added over time and never
 change their meaning (within `/api/v1`). The type is `SystemStatus` in `packages/core/src/system-status-view.ts`.
 
-## For the builder: the report shape
+## The local build: the report shape
 
-The local builder will write one JSON document into `system_report` under the key `vulndb_build`:
+With `GARNETOPS_GRYPE_DB_UPDATE=build` ([ADR 0044](adr/0044-own-vulnerability-database-build.md)) the worker writes the builder's
+result after every build as one JSON document into `system_report` under the key `vulndb_build`:
 
 ```json
 {

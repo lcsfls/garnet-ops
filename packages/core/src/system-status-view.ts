@@ -146,7 +146,7 @@ export interface SystemStatus {
     checkedAt: string | null;
     thresholds: { staleAfterDays: number; outdatedAfterDays: number };
     update: {
-      mode: "auto" | "off" | null;
+      mode: "auto" | "off" | "build" | null;
       lastAttemptAt: string | null;
       lastSuccessAt: string | null;
       lastResult: "ok" | "failed" | null;

@@ -3,6 +3,7 @@
   import { api } from "../../../api.ts";
   import type { HostSettings } from "../../../hosts.ts";
   import { type MessageKey, t } from "../../../i18n.svelte.ts";
+  import { isAdmin } from "../../../nav.ts";
   import type { Me } from "../../../session.ts";
   import type { ExposureSettings } from "../../../websites.ts";
   import Card from "../../Card.svelte";
@@ -11,6 +12,7 @@
   import CertificateTransparency from "./CertificateTransparency.svelte";
   import PublicDns from "./PublicDns.svelte";
   import RegistryChecks from "./RegistryChecks.svelte";
+  import VulnDbBuild from "./VulnDbBuild.svelte";
   import Wordfence from "./Wordfence.svelte";
   import WordPressOrg from "./WordPressOrg.svelte";
 
@@ -22,6 +24,8 @@
   let { me }: { me: Me } = $props();
   const websites = $derived(me.organization.modules?.websites === true);
   const hosts = $derived(me.organization.modules?.hosts === true);
+  // The keys of the own vulnerability database build are an installation matter: only owners and admins see the card.
+  const admin = $derived(isAdmin(me));
 
   const dns = createQuery(() => ({
     queryKey: ["organization", "dns"],
@@ -117,6 +121,16 @@
           <span class="block text-sm text-muted-foreground">{t("settings.externalVulnDbSends")}</span>
         </span>
       </li>
+      <li class="flex flex-wrap items-start gap-x-3 gap-y-1 border-t px-5 py-3" data-service="ext-vulndb-build">
+        <span class="min-w-0 flex-1">
+          {#if admin}
+            <a href="#ext-vulndb-build" class="font-medium hover:underline">{t("settings.externalVulnDbBuild")}</a>
+          {:else}
+            <span class="font-medium">{t("settings.externalVulnDbBuild")}</span>
+          {/if}
+          <span class="block text-sm text-muted-foreground">{t("settings.externalVulnDbBuildSends")}</span>
+        </span>
+      </li>
     </ul>
   </Card>
 
@@ -127,5 +141,6 @@
     <div id="ext-wordfence" class="scroll-mt-4"><Wordfence {me} /></div>
   {/if}
   {#if hosts}<div id="ext-registries" class="scroll-mt-4"><RegistryChecks {me} /></div>{/if}
+  {#if admin}<div id="ext-vulndb-build" class="scroll-mt-4"><VulnDbBuild {me} /></div>{/if}
   {#if !websites || !hosts}<p class="text-sm text-muted-foreground">{t("settings.externalMoreWithModules")}</p>{/if}
 </div>

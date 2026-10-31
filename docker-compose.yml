@@ -8,6 +8,8 @@
 #   init     creates the vault key pair once, then exits
 #   updater  the optional update sidecar (cicd-updater), OPT-IN:
 #              docker compose --profile updater up -d
+#   vulndb-builder  builds the vulnerability database from the public feeds (ADR 0044), OPT-IN:
+#              docker compose --profile vulndb up -d  (with GARNETOPS_GRYPE_DB_UPDATE=build)
 #
 # Install: docs/installation.md. Update: docs/updating.md. Copy .env.example to .env and
 # fill it in; APP_IMAGE and WEB_IMAGE are written by the updater after an update.
@@ -91,8 +93,11 @@ services:
     environment:
       DATABASE_URL: *database-url
       GARNETOPS_VAULT_PRIVATE_KEY_FILE: /vault/private/vault.key.pem
-      # "auto": daily vulnerability database updates from Anchore; "off" for air-gapped hosts.
+      # "auto": daily vulnerability database updates from Anchore; "build": our own builder
+      # (profile vulndb, ADR 0044); "off" for air-gapped hosts.
       GARNETOPS_GRYPE_DB_UPDATE: ${GARNETOPS_GRYPE_DB_UPDATE:-auto}
+      GARNETOPS_VULNDB_BUILDER_SOCKET: /run/garnetops-vulndb/builder.sock
+      GARNETOPS_VULNDB_BUILDS_DIR: /var/lib/garnetops/vulndb-builds
       GARNETOPS_SCAN_CONCURRENCY: ${GARNETOPS_SCAN_CONCURRENCY:-2}
       # Links in notifications point here (ADR 0010).
       PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
@@ -114,6 +119,15 @@ services:
       - type: volume
         source: scanner-socket
         target: /run/garnetops-scanner
+        read_only: true
+      # The database builder's socket and its archives (ADR 0044); unused unless it runs.
+      - type: volume
+        source: vulndb-builder-socket
+        target: /run/garnetops-vulndb
+        read_only: true
+      - type: volume
+        source: vulndb-builds
+        target: /var/lib/garnetops/vulndb-builds
         read_only: true
     # Clones and the vulnerability database need outbound network; nothing listens.
     networks: [internal, egress]
@@ -179,6 +193,40 @@ services:
           memory: ${GARNETOPS_SCANNER_MEMORY:-4g}
           pids: 512
 
+  # Downloads and parses the public vulnerability feeds, which are hostile input, so it gets nothing else:
+  # outbound network only (no route into the stack), no database, no vault key; the worker hands it the
+  # optional keys for one build over its socket and checks the archive before importing it (ADR 0044).
+  vulndb-builder:
+    profiles: ["vulndb"] # opt-in, with GARNETOPS_GRYPE_DB_UPDATE=build
+    image: ${VULNDB_IMAGE:-}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    environment:
+      # "all", or a comma-separated list of vunnel providers (docs/vulnerability-database.md).
+      GARNETOPS_VULNDB_PROVIDERS: ${GARNETOPS_VULNDB_PROVIDERS:-all}
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    volumes:
+      # The downloaded feeds, kept between builds (several GB).
+      - vulndb-builder-data:/var/lib/garnetops-vulndb
+      - vulndb-builds:/builds
+      - vulndb-builder-socket:/run/garnetops-vulndb
+    networks: [egress]
+    healthcheck:
+      test: ["CMD", "python3", "/opt/vulndb/builder.py", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "${GARNETOPS_VULNDB_CPUS:-2}"
+          memory: ${GARNETOPS_VULNDB_MEMORY:-4g}
+          pids: 1024
+
   init:
     <<: *app
     restart: "no"
@@ -238,6 +286,14 @@ volumes:
       o: size=${GARNETOPS_WORK_TMPFS:-4g},uid=1000,gid=1000,mode=0700
   # The scanner's Unix socket, the only way to talk to it.
   scanner-socket:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=1m,uid=1000,gid=1000,mode=0700
+  # The database builder (ADR 0044): its feeds, its archives, and its socket (in memory).
+  vulndb-builder-data:
+  vulndb-builds:
+  vulndb-builder-socket:
     driver_opts:
       type: tmpfs
       device: tmpfs

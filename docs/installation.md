@@ -10,7 +10,9 @@ updates (the worker) and release checks (the optional update service).
 - 2 CPU cores and 4 GB RAM for a few dozen repositories; more for parallel scans
 - A host name your users open, for example `garnetops.example.lan`
 - Outbound HTTPS from the host to your Git servers, and to `grype.anchore.io` if the
-  worker should update the vulnerability database itself (`GARNETOPS_GRYPE_DB_UPDATE=auto`)
+  worker should update the vulnerability database itself (`GARNETOPS_GRYPE_DB_UPDATE=auto`),
+  or to the public vulnerability feeds if GarnetOps should build it
+  ([vulnerability-database.md](vulnerability-database.md), `GARNETOPS_GRYPE_DB_UPDATE=build`)
 - Only if you switch it on in Settings, Sign-in: LDAPS (usually port 636) or LDAP with StartTLS (port 389) from the
   **worker** to your directory servers ([ldap.md](ldap.md)). The browser never talks to the directory.
 
@@ -89,7 +91,8 @@ docker compose exec -e GRYPE_DB_CACHE_DIR=/var/lib/garnetops/vulndb worker \
   /opt/scanners/grype db import /tmp/vulnerability-db.tar.zst
 ```
 
-Our own database build (vunnel) follows on the roadmap.
+To build that archive yourself instead of taking Anchore's, run our builder once on a machine with
+internet access ([vulnerability-database.md](vulnerability-database.md#air-gapped-installations)).
 
 ## What runs
 

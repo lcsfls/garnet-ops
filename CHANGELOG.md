@@ -14,6 +14,26 @@ Security-relevant changes are listed under **Security** in every release.
   newer release. Owners and admins only, who can install it.
 - The banner after an update can be closed; this browser keeps it closed for that update, and the next update's banner
   shows again.
+- **Our own vulnerability database** ([ADR 0044](docs/adr/0044-own-vulnerability-database-build.md),
+  `docs/vulnerability-database.md`): a new, optional builder (`ghcr.io/lcsfls/garnetops-vulndb`, Compose profile `vulndb`)
+  builds the grype database daily from the public feeds with vunnel and grype-db, instead of downloading Anchore's. Switch it
+  on with `GARNETOPS_GRYPE_DB_UPDATE=build`. The worker checks the archive and imports it; a failed build keeps the current
+  database. The System status page shows every provider with its result, records and duration. The same image exports an
+  archive on a connected machine for air-gapped installations.
+- Settings → External services: an optional GitHub token (GitHub Advisory Database) and NVD API key for the own build, sealed
+  and never shown again.
+
+### Changed
+
+- System status: the "Local database build" card says how to switch the build on instead of "planned"; reasons with an
+  underscore (such as "grype could not be started") now show their text instead of the code.
+
+### Security
+
+- The database builder parses the feeds in a container of its own: outbound network only, no database, no vault key, a
+  read-only file system, no capabilities, limits. It receives the two optional keys for one build over a socket only it and
+  the worker share, gives each only to the one feed it is for, and never stores or logs them. The worker accepts only an
+  archive of the announced name, size and SHA-256.
 
 ## [0.0.14] - 2026-10-31
 <!-- title: WordPress plugins and themes, website availability and early warnings -->

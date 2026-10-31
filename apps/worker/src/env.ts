@@ -37,9 +37,14 @@ const schema = z.object({
   GARNETOPS_SCANNER_WORK_DIR: z.string().min(1).optional(),
   /**
    * "auto": the worker updates the vulnerability database at start and daily (needs
-   * outbound HTTPS to Anchore). "off" (default): the operator imports it, e.g. air-gapped.
+   * outbound HTTPS to Anchore). "build": our own builder service builds it daily from the public
+   * feeds (ADR 0044, Compose profile `vulndb`). "off" (default): the operator imports it, e.g. air-gapped.
    */
-  GARNETOPS_GRYPE_DB_UPDATE: z.enum(["auto", "off"]).default("off"),
+  GARNETOPS_GRYPE_DB_UPDATE: z.enum(["auto", "off", "build"]).default("off"),
+  /** Unix socket of the builder service (ADR 0044), on a volume only the builder and the worker mount. */
+  GARNETOPS_VULNDB_BUILDER_SOCKET: z.string().min(1).default("/run/garnetops-vulndb/builder.sock"),
+  /** Where the builder leaves its archive; the worker mounts it read-only. */
+  GARNETOPS_VULNDB_BUILDS_DIR: z.string().min(1).default("/var/lib/garnetops/vulndb-builds"),
   /** The address users open; links in notifications point here (ADR 0010). */
   PUBLIC_URL: z.string().url().optional(),
   /** Upper bound for a cloned repository on disk. */

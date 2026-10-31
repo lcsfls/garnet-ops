@@ -40,6 +40,7 @@ import { systemRoutes } from "./routes/system.ts";
 import { teamRoutes } from "./routes/team.ts";
 import { maintenanceRoutes, updateRoutes } from "./routes/updates.ts";
 import { userNotificationRoutes } from "./routes/user-notifications.ts";
+import { vulnDbBuildRoutes } from "./routes/vulndb-build.ts";
 import { APP_VERSION } from "./version.ts";
 
 const publicOrigin = new URL(env.PUBLIC_URL).origin;
@@ -137,7 +138,8 @@ const v1 = new Hono<AppEnv>()
   .route("/directory", directoryRoutes)
   .route("/notifications", notificationRoutes)
   .route("/maintenance", maintenanceRoutes)
-  .route("/updates", updateRoutes);
+  .route("/updates", updateRoutes)
+  .route("/vulndb-build", vulnDbBuildRoutes);
 
 app.route("/api/v1", v1);
 app.notFound((c) => c.json({ type: "about:blank", title: "Not found", status: 404 }, 404));

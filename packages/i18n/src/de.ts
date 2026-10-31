@@ -557,16 +557,21 @@ export const de: Messages = {
         storage: "Die Datenbank konnte nicht gespeichert werden (Speicherplatz oder Rechte).",
         notStarted: "grype konnte nicht gestartet werden.",
         failed: "Die Aktualisierung ist fehlgeschlagen. Das Worker-Protokoll enthält Einzelheiten.",
+        builderUnreachable: "Der Builder-Dienst antwortet nicht. Läuft das Compose-Profil vulndb?",
+        buildFailed: "Der Builder konnte die Datenbank nicht bauen. Sein Protokoll enthält Einzelheiten.",
+        noData: "Kein Feed hat Daten geliefert, deshalb wurde nichts gebaut.",
+        archiveRejected:
+          "Das Archiv des Builders hat die Prüfungen nicht bestanden und wurde nicht importiert.",
       },
     },
     localBuild: {
       title: "Lokaler Datenbankbau",
       description: "Ein eigener Bau mit vunnel und grype-db statt der Datenbank von Anchore.",
-      notSetUp: "Nicht eingerichtet (geplant)",
+      notSetUp: "Nicht eingeschaltet",
       setUp: "Eingerichtet",
       plannedNote:
-        "GarnetOps baut noch keine eigene Schwachstellendatenbank. Bis dahin nutzt es die Datenbank oben. Der Bau ist geplant und steht in der Roadmap.",
-      roadmap: "Roadmap",
+        "GarnetOps kann die Schwachstellendatenbank selbst aus den öffentlichen Feeds bauen, statt die von Anchore herunterzuladen. Das ist aus, bis der Betreiber es einschaltet.",
+      howTo: "So schalten Sie es ein",
       lastBuild: "Letzter Bau {when}",
       provider: "Anbieter",
       lastRun: "Letzter Lauf",
@@ -2714,6 +2719,52 @@ export const de: Messages = {
     externalVulnDb: "Aktualisierungen der Schwachstellen-Datenbank",
     externalVulnDbSends:
       "Von der Installation heruntergeladen oder offline von Hand importiert. Siehe Systemstatus.",
+    externalVulnDbBuild: "Eigener Bau der Schwachstellen-Datenbank",
+    externalVulnDbBuildSends:
+      "Nur wenn der Betreiber ihn einschaltet: Der Builder lädt die öffentlichen Feeds der Linux-Distributionen, NVD, die GitHub Advisory Database, CISA KEV und EPSS herunter. Über diese Installation wird nichts gesendet, außer den beiden optionalen Schlüsseln, jeder an seinen eigenen Host.",
+    vulnDbBuild: {
+      title: "Eigene Schwachstellen-Datenbank",
+      description:
+        "Zwei optionale Schlüssel, um die Schwachstellen-Datenbank in dieser Installation zu bauen. Sie werden nur verwendet, wenn der Betreiber den eigenen Bau einschaltet: Compose-Profil {profile} und {setting}, wie in der Installationsanleitung beschrieben.",
+      statusHint: "Wie es dem Bau geht, zeigt die Seite",
+      statusLink: "Systemstatus",
+      configured: "Gesetzt",
+      notSet: "Nicht gesetzt",
+      setBy: "Gesetzt von {name} am {when}.",
+      setAt: "Gesetzt am {when}.",
+      keyHint:
+        "Wird verschlüsselt gespeichert und nie wieder angezeigt. Nur der Worker verwendet ihn und gibt ihn für einen Bau an den Builder weiter.",
+      github: {
+        title: "GitHub-Token",
+        text: "Ein Token eines beliebigen GitHub-Kontos, ohne Berechtigungen. Damit liest der Bau die GitHub Advisory Database.",
+        sends: "Wird nur an {host} gesendet.",
+        set: "Token setzen",
+        replace: "Token ersetzen",
+        remove: "Token entfernen",
+        field: "Token",
+        acknowledge:
+          "Ich bin einverstanden, dass dieses Token an {host} gesendet wird, um die GitHub Advisory Database zu lesen, wann immer die Schwachstellen-Datenbank gebaut wird.",
+        invalid:
+          "Geben Sie ein ganzes GitHub-Token ein (ghp_… oder github_pat_…) und bestätigen Sie, wohin es gesendet wird.",
+        saved: "Token gespeichert. Der nächste Bau verwendet es.",
+        removed: "Token entfernt.",
+      },
+      nvd: {
+        title: "NVD-API-Schlüssel",
+        text: "Ein Schlüssel für die National Vulnerability Database. Ohne ihn beantwortet NVD nur wenige Anfragen auf einmal, und der erste Bau dauert viele Stunden.",
+        sends: "Wird nur an {host} gesendet.",
+        set: "API-Schlüssel setzen",
+        replace: "API-Schlüssel ersetzen",
+        remove: "API-Schlüssel entfernen",
+        field: "API-Schlüssel",
+        acknowledge:
+          "Ich bin einverstanden, dass dieser Schlüssel an {host} gesendet wird, wann immer die Schwachstellen-Datenbank gebaut wird.",
+        invalid:
+          "Geben Sie den ganzen NVD-API-Schlüssel so ein, wie NVD ihn geschickt hat, und bestätigen Sie, wohin er gesendet wird.",
+        saved: "API-Schlüssel gespeichert. Der nächste Bau verwendet ihn.",
+        removed: "API-Schlüssel entfernt.",
+      },
+    },
     externalMoreWithModules:
       "Weitere Dienste erscheinen hier, wenn Website-Überwachung oder Hosts und Container eingeschaltet sind (Module).",
     modulesExternalHint: "Was diese Module außerhalb Ihres Netzwerks senden dürfen, schalten Sie unter",
@@ -3371,6 +3422,12 @@ export const de: Messages = {
       exposure_wordfence_key_set: "Wordfence-API-Schlüssel gesetzt",
       exposure_wordfence_key_replaced: "Wordfence-API-Schlüssel ersetzt",
       exposure_wordfence_key_removed: "Wordfence-API-Schlüssel entfernt",
+      vulndb_github_token_set: "GitHub-Token für die eigene Schwachstellen-Datenbank gesetzt",
+      vulndb_github_token_replaced: "GitHub-Token für die eigene Schwachstellen-Datenbank ersetzt",
+      vulndb_github_token_removed: "GitHub-Token für die eigene Schwachstellen-Datenbank entfernt",
+      vulndb_nvd_key_set: "NVD-API-Schlüssel für die eigene Schwachstellen-Datenbank gesetzt",
+      vulndb_nvd_key_replaced: "NVD-API-Schlüssel für die eigene Schwachstellen-Datenbank ersetzt",
+      vulndb_nvd_key_removed: "NVD-API-Schlüssel für die eigene Schwachstellen-Datenbank entfernt",
       exposure_ct_disabled: "Certificate-Transparency-Abfragen ausgeschaltet",
       organization_module_enabled: "Modul eingeschaltet",
       organization_module_disabled: "Modul ausgeschaltet",

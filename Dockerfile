@@ -9,6 +9,8 @@
 #                  the update sidecar's maintenance page while the API is down
 #   --target agent the host agent (ADR 0034): the read-only Docker proxy and the reporter,
 #                  with syft; it runs on the customer's hosts, not in this stack
+#   --target vulndb the vulnerability database builder (ADR 0044): vunnel and grype-db,
+#                  opt-in in the stack (Compose profile vulndb) or once on a connected machine
 #
 # The app image also carries the systemd host agent (ADR 0037, Go, apps/host-agent) for
 # linux/amd64 and linux/arm64, which the API hands out to hosts without Docker.
@@ -19,6 +21,7 @@
 ARG NODE_IMAGE=node:24.22.1-alpine3.24@sha256:6a1c190e17215d844926b0677f4bf87273ff7d5e54db06d3b5b5863ab0b09a3d
 ARG CADDY_IMAGE=caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
 ARG GO_IMAGE=golang:1.24.7-alpine3.22@sha256:fc2cff6625f3c1c92e6c85938ac5bd09034ad0d4bc2dfb08278020b68540dbb5
+ARG PYTHON_IMAGE=python:3.13.18-slim-trixie@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915fd88ded1d86bb
 
 # ---------------------------------------------------------------- dependencies
 FROM ${NODE_IMAGE} AS deps
@@ -101,7 +104,9 @@ ENV NODE_ENV=production \
     GARNETOPS_SYFT_BIN=/opt/scanners/syft \
     GARNETOPS_GRYPE_DB_DIR=/var/lib/garnetops/vulndb \
     GARNETOPS_WORK_DIR=/tmp/garnetops-work
-RUN mkdir -p /var/lib/garnetops/vulndb /vault && chown node:node /var/lib/garnetops/vulndb /vault
+# vulndb-builds: the builder's archives (ADR 0044); owned by uid 1000 whichever service creates the volume first.
+RUN mkdir -p /var/lib/garnetops/vulndb /var/lib/garnetops/vulndb-builds /vault \
+ && chown node:node /var/lib/garnetops/vulndb /var/lib/garnetops/vulndb-builds /vault
 LABEL org.opencontainers.image.title="GarnetOps" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.source="https://github.com/lcsfls/garnet-ops" \
@@ -161,3 +166,48 @@ LABEL org.opencontainers.image.title="GarnetOps agent" \
 # The reporter runs as this user; the proxy service runs as root without capabilities to open the Docker socket.
 USER 10001:10001
 CMD ["node", "apps/agent/src/main.ts", "run"]
+
+# ---------------------------------------------------------------- vulndb: the database builder (ADR 0044)
+# vunnel (Python, its dependencies pinned with hashes, wheels only: nothing is compiled or run at install) and
+# grype-db (Go binary, pinned SHA-256 per architecture). git fetches some feeds; zstd packs the archive.
+FROM ${PYTHON_IMAGE} AS vulndb
+ARG VERSION=0.0.14
+ARG TARGETARCH
+ARG GRYPE_DB_VERSION=0.54.5
+ARG GRYPE_DB_SHA256_AMD64=ab98cf01d66069f0d820ae355d28fe0a1e127aed46b8d56370f5c049d626e0f8
+ARG GRYPE_DB_SHA256_ARM64=e31e74d1f13fec87bae829c2cfdae3d529729c7566e560a034ecc082bfb5899f
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git zstd ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY apps/vulndb-builder/requirements.txt /opt/vulndb/requirements.txt
+RUN pip install --no-cache-dir --no-compile --require-hashes --only-binary=:all: -r /opt/vulndb/requirements.txt \
+ && pip uninstall -y pip
+RUN python3 - <<'PY'
+import hashlib, io, os, tarfile, urllib.request
+arch = os.environ["TARGETARCH"]
+version = os.environ["GRYPE_DB_VERSION"]
+expected = os.environ[f"GRYPE_DB_SHA256_{arch.upper()}"]
+url = f"https://github.com/anchore/grype-db/releases/download/v{version}/grype-db_{version}_linux_{arch}.tar.gz"
+data = urllib.request.urlopen(url, timeout=120).read()
+if hashlib.sha256(data).hexdigest() != expected:
+    raise SystemExit(f"grype-db {version} {arch}: checksum mismatch")
+with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+    tar.extractall("/opt/grype-db", members=[m for m in tar.getmembers() if m.name in ("grype-db", "LICENSE")], filter="data")
+os.chmod("/opt/grype-db/grype-db", 0o755)
+PY
+COPY apps/vulndb-builder/builder.py /opt/vulndb/builder.py
+COPY LICENSE LICENSING.md TRADEMARKS.md /opt/vulndb/
+RUN useradd --uid 1000 --no-create-home --home-dir /var/lib/garnetops-vulndb garnetops \
+ && mkdir -p /var/lib/garnetops-vulndb /builds /run/garnetops-vulndb \
+ && chown 1000:1000 /var/lib/garnetops-vulndb /builds /run/garnetops-vulndb
+ENV APP_VERSION=${VERSION} \
+    GARNETOPS_GRYPE_DB_BIN=/opt/grype-db/grype-db \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+LABEL org.opencontainers.image.title="GarnetOps vulnerability database builder" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.source="https://github.com/lcsfls/garnet-ops" \
+      org.opencontainers.image.version="${VERSION}"
+USER 1000:1000
+ENTRYPOINT ["python3", "/opt/vulndb/builder.py"]
+CMD ["serve"]

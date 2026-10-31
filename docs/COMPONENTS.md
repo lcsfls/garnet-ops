@@ -15,7 +15,7 @@ required by `AGENTS.md` (rule 3).
   file of that exact version. Until then the status says `to verify`.
 - Removed components are not deleted; they move to [Rejected or removed](#rejected-or-removed)
   with the reason, so the history stays traceable.
-- Last reviewed: 2026-10-28.
+- Last reviewed: 2026-10-31.
 
 **Status values**
 
@@ -119,6 +119,8 @@ software of their base system under its own licenses; nothing of it is linked in
 | GarnetOps updater image (cicd-updater, maintained in `updater/`) | sidecar 1.0.0; image tag = release version | Apache-2.0 | to verify | https://github.com/lcsfls/garnet-ops/tree/main/updater (origin: https://github.com/restow-backup/cicd-updater, commit b2dd4ef) | Optional update service (profile `updater`), ghcr.io/lcsfls/garnetops-updater | Built, smoke-tested, signed (keyless) and listed in `release.json` by our release workflow (ADR 0026); the operator pins a verified digest in `CICD_UPDATER_IMAGE`. Its components are in [the update sidecar](#in-use-today-update-sidecar-updater) |
 | GitHub Actions in `updater/actions` (build, smoke, publish, release-json) | commit b2dd4ef | Apache-2.0 | verified | https://github.com/restow-backup/cicd-updater/tree/main/actions | Release workflow: build, smoke, sign (keyless), release.json | In this repository, no longer referenced externally; CI only. They use docker/setup-buildx-action v4.4.1, docker/setup-qemu-action v4.4.0, docker/login-action v4.6.0, docker/build-push-action v7.4.0 (Apache-2.0), sigstore/cosign-installer v4.1.2 (Apache-2.0), anchore/sbom-action/download-syft v0.24.2 (Apache-2.0), all pinned by commit SHA |
 | actions/checkout, actions/setup-node, actions/upload-artifact, actions/download-artifact | v7.0.1, v6.5.0, v7.0.1, v8.0.1 | MIT | to verify | https://github.com/actions | CI and release workflows | Pinned by commit SHA |
+| python (official image, Debian slim) | 3.13.18-slim-trixie | PSF-2.0 (Python; permissive and OSI-approved, accepted by the maintainer on 2026-10-31); Debian packages under their own licenses | to verify | https://hub.docker.com/_/python | Base of the database builder image (ADR 0044), opt-in | Digest `sha256:2d44738e…`; pip removed after installing the pinned wheels |
+| Debian packages git, zstd, ca-certificates | from Debian trixie | GPL-2.0 (git), BSD-3-Clause or GPL-2.0 (zstd), MPL-2.0 (ca-certificates) | to verify | https://packages.debian.org | Database builder: some feeds are git repositories; zstd packs the archive | Separate programs, never linked (rule 3) |
 | gitleaks (image) | 8.30.1 | MIT | to verify | https://github.com/gitleaks/gitleaks | Secret scan of every change in CI | Digest `sha256:c00b6bd0…`; CI only |
 
 ## In use today (update sidecar, `updater/`)
@@ -153,6 +155,65 @@ MIT, Apache-2.0, BSD-3-Clause, ISC, MIT OR Apache-2.0, and MPL-2.0 for lightning
 dev dependency of vite, unmodified, not shipped; the application's lockfile has it too). Nothing
 is outside the allowed list.
 
+## In use today (vulnerability database builder, `apps/vulndb-builder/`)
+
+The opt-in builder image `ghcr.io/lcsfls/garnetops-vulndb` (Dockerfile target `vulndb`, [ADR 0044](adr/0044-own-vulnerability-database-build.md)).
+Our own code there is the Python standard library only; vunnel and grype-db run as separate programs. The Python packages are pinned
+with hashes in `apps/vulndb-builder/requirements.txt` and installed from wheels only.
+
+| Component | Version | License | Check | Source | Use | Notes |
+|---|---|---|---|---|---|---|
+| vunnel | 0.66.0 | Apache-2.0 | verified (LICENSE in the wheel read) | https://github.com/anchore/vunnel | Downloads and normalises the vulnerability feeds | Run as a separate program per feed, with only that feed's key in its environment |
+| grype-db | 0.54.5 | Apache-2.0 | verified (LICENSE in the release archive read) | https://github.com/anchore/grype-db | Builds and packages the grype database (schema v6) from vunnel's workspaces | Release binary with pinned SHA-256 per architecture; LICENSE kept in `/opt/grype-db` |
+
+Dependencies of vunnel (licence as declared in the installed package metadata; `cvss`, `defusedxml` and `typing_extensions` checked
+against their license files):
+
+| Package | Version | License | Check | Source | Notes |
+|---|---|---|---|---|---|
+| attrs | 26.1.0 | MIT | metadata read | https://www.attrs.org/en/stable/changelog.html |  |
+| certifi | 2026.10.23 | Mozilla Public License 2.0 (MPL 2.0) | metadata read | https://github.com/certifi/python-certifi | MPL-2.0, unmodified |
+| charset-normalizer | 3.5.2 | MIT | metadata read | https://github.com/jawah/charset_normalizer/blob/master/CHANGELOG.md |  |
+| click | 8.5.0 | BSD-3-Clause | metadata read | https://github.com/pallets/click/ |  |
+| colorlog | 6.12.0 | MIT License | metadata read | https://github.com/borntyping/python-colorlog |  |
+| cvss | 3.6 | GNU Lesser General Public License v3 or later (LGPLv3+) | metadata read | https://github.com/RedHatProductSecurity/cvss | LGPL-3.0-or-later, allowed with conditions and accepted by the maintainer on 2026-10-31: unmodified, used only inside vunnel, which we run as a separate program; never imported by our code |
+| defusedxml | 0.7.1 | Python Software Foundation License | metadata read | https://github.com/tiran/defusedxml | PSF-2.0: permissive, OSI-approved, accepted by the maintainer on 2026-10-31 |
+| idna | 3.20 | BSD-3-Clause | metadata read | https://github.com/kjd/idna |  |
+| ijson | 3.6.0 | BSD-3-Clause AND ISC | metadata read | https://github.com/ICRAR/ijson |  |
+| importlib_metadata | 9.1.0 | Apache-2.0 | metadata read | https://github.com/python/importlib_metadata |  |
+| iniconfig | 2.3.1 | MIT | metadata read | https://github.com/pytest-dev/iniconfig | Via pytest |
+| iso8601 | 2.1.0 | MIT License | metadata read | https://github.com/micktwomey/pyiso8601 |  |
+| Jinja2 | 3.1.6 | BSD License | metadata read | https://github.com/pallets/jinja/ |  |
+| jsonschema | 4.26.0 | MIT | metadata read | https://github.com/python-jsonschema/jsonschema |  |
+| jsonschema-specifications | 2025.9.1 | MIT | metadata read | https://github.com/python-jsonschema/jsonschema-specifications |  |
+| lxml | 6.1.3 | BSD-3-Clause | metadata read | https://lxml.de/ |  |
+| MarkupSafe | 3.0.4 | BSD-3-Clause | metadata read | https://github.com/pallets/markupsafe/ |  |
+| mashumaro | 3.23 | Apache-2.0 | metadata read | https://mashumaro.io |  |
+| mergedeep | 1.3.4 | MIT License | metadata read | https://github.com/clarketm/mergedeep |  |
+| oras | 0.2.43 | Apache Software License | metadata read | https://github.com/oras-project/oras-py |  |
+| orjson | 3.13.0 | MPL-2.0 AND (Apache-2.0 OR MIT) | metadata read | https://github.com/ijl/orjson | MPL-2.0 parts, unmodified |
+| packageurl-python | 0.17.6 | MIT License | metadata read | https://github.com/package-url/packageurl-python |  |
+| packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | metadata read | https://github.com/pypa/packaging |  |
+| pluggy | 1.7.0 | MIT License | metadata read | https://github.com/pytest-dev/pluggy | Via pytest |
+| Pygments | 2.21.0 | BSD-2-Clause | metadata read | https://pygments.org |  |
+| pytest | 9.2.0 | MIT | metadata read | https://docs.pytest.org/en/latest/ | Pulled in by vunnel itself, unused at run time |
+| pytest-snapshot | 0.9.0 | MIT License | metadata read | https://github.com/joseph-roitman/pytest-snapshot | Pulled in by vunnel itself, unused at run time |
+| python-dateutil | 2.9.0.post0 | Apache Software License; BSD License | metadata read | https://github.com/dateutil/dateutil |  |
+| PyYAML | 6.0.3 | MIT License | metadata read | https://pyyaml.org/ |  |
+| referencing | 0.37.0 | MIT | metadata read | https://github.com/python-jsonschema/referencing |  |
+| requests | 2.34.2 | Apache Software License | metadata read | https://github.com/psf/requests |  |
+| rpds-py | 2026.9.1 | MIT | metadata read | https://github.com/crate-py/rpds |  |
+| ruff | 0.17.3 | MIT | metadata read | https://docs.astral.sh/ruff | Pulled in by vunnel itself, unused at run time |
+| six | 1.17.0 | MIT License | metadata read | https://github.com/benjaminp/six |  |
+| SQLAlchemy | 2.1.6 | MIT | metadata read | https://www.sqlalchemy.org |  |
+| toposort | 1.10 | Apache Software License | metadata read | https://gitlab.com/ericvsmith/toposort |  |
+| typing_extensions | 4.16.0 | PSF-2.0 | metadata read | https://github.com/python/typing_extensions | PSF-2.0: permissive, OSI-approved, accepted by the maintainer on 2026-10-31 |
+| urllib3 | 2.8.0 | MIT | metadata read | https://github.com/urllib3/urllib3/blob/main/CHANGES.rst |  |
+| xsdata | 26.10 | MIT | metadata read | https://github.com/tefra/xsdata |  |
+| xxhash | 4.0.2 | BSD-2-Clause | metadata read | https://github.com/ifduyue/python-xxhash |  |
+| zipp | 4.1.2 | MIT | metadata read | https://github.com/jaraco/zipp |  |
+| zstandard | 0.25.0 | BSD-3-Clause | metadata read | https://github.com/indygreg/python-zstandard |  |
+
 ## In use today (optional external services)
 
 Services the product can call only after an owner or admin switches them on; nothing is bundled.
@@ -167,18 +228,16 @@ Services the product can call only after an owner or admin switches them on; not
 
 | Component | Version | License | Check | Source | Status | Use | Notes |
 |---|---|---|---|---|---|---|---|
-| vunnel | latest stable at start | Apache-2.0 | to verify | https://github.com/anchore/vunnel | planned | Fetches and normalizes vulnerability feeds | Runs on schedule; offline import for air-gap. The System status page shows it as "not set up (planned)" until a builder reports (ADR 0024) |
-| grype-db | latest stable at start | Apache-2.0 | to verify | https://github.com/anchore/grype-db | planned | Builds the local grype database from vunnel output | We build our own DB instead of downloading Anchore's |
 | syft | latest stable at start | Apache-2.0 | to verify | https://github.com/anchore/syft | planned | SBOM generation for customer repos and our releases | |
 | Trivy | latest stable at start | Apache-2.0 | to verify | https://github.com/aquasecurity/trivy | candidate | IaC misconfiguration and secret scanning | Check licenses of bundled policy/check repositories separately |
 | gitleaks | 8.30.1 in CI | MIT | to verify | https://github.com/gitleaks/gitleaks | candidate | Secret scanning in the product | In use in our own CI (see container images and CI) |
 | Opengrep | latest stable at start | LGPL-2.1 | to verify | https://github.com/opengrep/opengrep | candidate | SAST engine | Invoke as separate binary only. Needs a rule set with a resale-compatible license |
 | CVEfixes | latest release | Code and data licenses differ | to verify | https://github.com/secureIT-project/CVEfixes | candidate | Historical fix examples for AI remediation | Read both licenses before use; attribution in About screen |
-| NVD data | API 2.0 | US government work; NVD terms of use | to verify | https://nvd.nist.gov/developers | planned | Vulnerability data via vunnel | Terms require a notice that the product is not endorsed by NVD |
-| GitHub Advisory Database | n/a | CC BY 4.0 | to verify | https://github.com/github/advisory-database | planned | Vulnerability data via vunnel | Attribution required |
+| NVD data | API 2.0 | US government work; NVD terms of use | to verify | https://nvd.nist.gov/developers | integration | Vulnerability data via vunnel in the customer's own builder (ADR 0044) | Terms require a notice that the product is not endorsed by NVD. Never bundled by us |
+| GitHub Advisory Database | n/a | CC BY 4.0 | to verify | https://github.com/github/advisory-database | integration | Vulnerability data via vunnel in the customer's own builder (ADR 0044) | Attribution required. Read with the customer's own token; never bundled by us |
 | OSV data | n/a | Varies per source | to verify | https://osv.dev | planned | Vulnerability data via vunnel | Check each ecosystem source |
-| CISA KEV | n/a | US government work | to verify | https://www.cisa.gov/known-exploited-vulnerabilities-catalog | planned | Known exploited flag for gate rules | |
-| Distribution feeds (Debian, Alpine, Ubuntu, RHEL …) | n/a | Varies per distribution | to verify | via vunnel providers | planned | OS package vulnerability data | One row per provider once enabled |
+| CISA KEV | n/a | US government work | to verify | https://www.cisa.gov/known-exploited-vulnerabilities-catalog | integration | Known exploited flag, via vunnel in the customer's own builder (ADR 0044) | Never bundled by us |
+| Distribution feeds (Debian, Alpine, Ubuntu, RHEL …) and EPSS | n/a | Varies per source | to verify | via vunnel providers (`vunnel list`) | integration | OS package vulnerability data and exploit scores, via vunnel in the customer's own builder (ADR 0044) | Downloaded by the customer's builder for their own use; each feed's terms apply to the operator; never bundled or redistributed by us. The operator can restrict the list (`GARNETOPS_VULNDB_PROVIDERS`) |
 
 ## Planned: container image update checks
 

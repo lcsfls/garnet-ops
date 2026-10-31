@@ -5,7 +5,7 @@
   import { t } from "../../i18n.svelte.ts";
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
-  import { ROADMAP_URL } from "./links.ts";
+  import { VULNDB_BUILD_DOCS } from "./links.ts";
   import StatusBadge from "./StatusBadge.svelte";
   import When from "./When.svelte";
 
@@ -26,11 +26,11 @@
     <p class="px-5 pb-4 text-sm text-muted-foreground">
       {t("systemStatus.localBuild.plannedNote")}
       <a
-        href={ROADMAP_URL}
+        href={VULNDB_BUILD_DOCS}
         target="_blank"
         rel="noopener noreferrer"
         class="text-primary-text underline-offset-4 hover:underline"
-        >{t("systemStatus.localBuild.roadmap")}<ExternalLink aria-hidden="true" class="ml-1 inline size-3.5" /></a
+        >{t("systemStatus.localBuild.howTo")}<ExternalLink aria-hidden="true" class="ml-1 inline size-3.5" /></a
       >
     </p>
   {:else}

@@ -133,9 +133,10 @@ paginated findings, and every number on the overview leads to its details.
 - [x] Pull request overview: open pull requests of the monitored repositories with the gate result of their head commit,
       read with the repository's read credential, "Check now" as a CI check would (ADR 0032, `docs/pull-requests.md`,
       0.0.12). Still open: review comments on the pull request
-- [ ] Local vulnerability database: vunnel + grype-db build job, offline import. Planned and shown as such on the
-      System status page, whose report shape (per provider: last run, result, records, duration) the builder will fill
-      (ADR 0024)
+- [x] Local vulnerability database: our own builder (vunnel + grype-db) as an opt-in Compose service, built daily from
+      the public feeds and imported after checks, every provider on the System status page; the same image exports an
+      archive for air-gapped installations; optional GitHub token and NVD key in Settings (ADR 0044,
+      `docs/vulnerability-database.md`). Still open: archive upload in the web UI, the builder in in-app updates
 - [x] System status page (Admin): scanner versions against the pinned ones, vulnerability database age and update with
       limits (amber after 3 days, vermilion after 7), the directory, AI endpoint and notification channels (last success and
       blocker), worker heartbeat, queues, nightly scan, database and app version; read-only (ADR 0024, `docs/system-status.md`). Still

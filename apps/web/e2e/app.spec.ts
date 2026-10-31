@@ -1618,8 +1618,11 @@ test.describe("System status", () => {
 
     // The local build is planned, not set up.
     const build = page.getByTestId("system-local-build");
-    await expect(build.getByTestId("local-build-state")).toHaveText("Not set up (planned)");
-    await expect(build.getByRole("link", { name: "Roadmap" })).toHaveAttribute("href", /ROADMAP\.md$/);
+    await expect(build.getByTestId("local-build-state")).toHaveText("Not switched on");
+    await expect(build.getByRole("link", { name: "How to switch it on" })).toHaveAttribute(
+      "href",
+      /docs\/vulnerability-database\.md$/,
+    );
 
     // Integrations: only those that remain, none of them set up on this installation.
     await expect(page.getByTestId("integration-directory")).toContainText("Not configured");
@@ -1780,7 +1783,7 @@ test.describe("System status", () => {
     await expect(page.getByTestId("system-vulndb")).toContainText("Der Download hat nicht funktioniert");
     await expect(page.getByTestId("scanner-syft")).toContainText("Weicht von der festgelegten ab");
     await expect(page.getByTestId("scanner-isolation")).toContainText("Isoliert");
-    await expect(page.getByTestId("local-build-state")).toHaveText("Nicht eingerichtet (geplant)");
+    await expect(page.getByTestId("local-build-state")).toHaveText("Nicht eingeschaltet");
     await expect(page.getByTestId("worker-heartbeat")).toContainText("Läuft");
     await expect(page.getByTestId("integration-directory")).toContainText("Nicht eingerichtet");
   });
@@ -2872,6 +2875,78 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(page.getByText("Key and downloaded advisories removed.")).toBeVisible();
     await expect(overview.locator('[data-service="ext-wordfence"]')).toContainText("Off");
     expect(await sql("select id from secret where purpose = 'wordfence-api-key'")).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  test("the own vulnerability database build takes a GitHub token and an NVD key, sealed and never shown again", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    await page.goto("/settings?section=external");
+    const overview = page.getByTestId("external-services");
+    await expect(overview.locator('[data-service="ext-vulndb-build"]')).toContainText(
+      "the builder downloads the public feeds of the Linux distributions, NVD, the GitHub Advisory Database, CISA KEV and EPSS",
+    );
+    const section = page.getByTestId("vulndb-build-section");
+    await expect(page.getByRole("heading", { name: "Own vulnerability database" })).toBeVisible();
+    await expect(page.locator("#ext-vulndb-build")).toContainText("GARNETOPS_GRYPE_DB_UPDATE=build");
+    const github = section.getByTestId("vulndb-build-github");
+    const nvd = section.getByTestId("vulndb-build-nvd");
+    await expect(github).toContainText("Not set");
+    await expect(nvd).toContainText("Not set");
+
+    // Built at run time, so no scanner mistakes them for real tokens.
+    const token = `ghp_${"E2e".repeat(12)}`;
+    const key = ["0f1e2d3c", "4b5a", "6978", "8796", "a5b4c3d2e1f0"].join("-");
+
+    await github.getByRole("button", { name: "Set token" }).click();
+    let dialog = page.getByRole("dialog", { name: "GitHub token" });
+    await dialog.getByLabel("Token", { exact: true }).fill("not-a-token");
+    const save = dialog.getByRole("button", { name: "Save" });
+    await expect(save).toBeDisabled();
+    await dialog.getByLabel(/I agree that this token is sent to api\.github\.com/).check();
+    await save.click();
+    await expect(dialog).toContainText("Enter a whole GitHub token");
+    await dialog.getByLabel("Token", { exact: true }).fill(token);
+    await save.click();
+    await expect(page.getByText("Token saved. The next build uses it.")).toBeVisible();
+    await expect(github).toContainText("Set by");
+    await expect(github.getByRole("button", { name: "Replace token" })).toBeVisible();
+
+    await nvd.getByRole("button", { name: "Set API key" }).click();
+    dialog = page.getByRole("dialog", { name: "NVD API key" });
+    await dialog.getByLabel("API key", { exact: true }).fill(key);
+    await dialog.getByLabel(/I agree that this key is sent to services\.nvd\.nist\.gov/).check();
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText("API key saved. The next build uses it.")).toBeVisible();
+    await expect(nvd).toContainText("Set by");
+
+    const html = await page.content();
+    expect(html).not.toContain(token);
+    expect(html).not.toContain(key);
+    const stored = await sql<{ purpose: string; sealed: unknown }>(
+      "select purpose, sealed from secret where purpose in ('vulndb-github-token', 'vulndb-nvd-api-key') order by purpose",
+    );
+    expect(stored.map((s) => s.purpose)).toEqual(["vulndb-github-token", "vulndb-nvd-api-key"]);
+    expect(JSON.stringify(stored)).not.toContain(token);
+    expect(JSON.stringify(stored)).not.toContain(key);
+    const audited = await sql<{ action: string }>(
+      "select action from audit_log where action like 'vulndb.%' order by id",
+    );
+    expect(audited.map((a) => a.action)).toEqual(["vulndb.github_token_set", "vulndb.nvd_key_set"]);
+
+    // Removing one key leaves the other.
+    await github.getByRole("button", { name: "Remove token" }).click();
+    await expect(page.getByText("Token removed.")).toBeVisible();
+    await expect(github).toContainText("Not set");
+    await expect(nvd).toContainText("Set by");
+    expect(await sql("select id from secret where purpose = 'vulndb-github-token'")).toEqual([]);
+    expect(await sql("select id from secret where purpose = 'vulndb-nvd-api-key'")).toHaveLength(1);
+
+    await nvd.getByRole("button", { name: "Remove API key" }).click();
+    await expect(page.getByText("API key removed.")).toBeVisible();
+    expect(await sql("select id from secret where purpose like 'vulndb-%'")).toEqual([]);
     expect(problems).toEqual([]);
   });
 

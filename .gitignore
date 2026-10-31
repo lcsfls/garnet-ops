@@ -47,3 +47,7 @@ certs/
 
 # SvelteKit (apps/web); its build/ output is covered by build/ above
 .svelte-kit/
+
+# Python bytecode (apps/vulndb-builder)
+__pycache__/
+*.pyc

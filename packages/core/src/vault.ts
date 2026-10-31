@@ -64,7 +64,17 @@ export type SecretPurpose =
   /** An organisation's own Wordfence Intelligence API key (ADR 0042): sealed by the API, opened only by the worker. */
   | "wordfence-api-key"
   /** The token a website's GarnetOps WordPress plugin checks (ADR 0042, part 4): sealed by the API, opened only by the worker. */
-  | "wordpress-plugin-token";
+  | "wordpress-plugin-token"
+  /**
+   * The installation's GitHub token for the own vulnerability database build (GitHub Advisory Database): sealed by the API,
+   * opened only by the worker, which hands it to the builder for one build.
+   */
+  | "vulndb-github-token"
+  /**
+   * The installation's NVD API key for the own vulnerability database build: sealed by the API, opened only by the worker,
+   * which hands it to the builder for one build.
+   */
+  | "vulndb-nvd-api-key";
 
 export interface SecretBinding {
   organizationId: string;

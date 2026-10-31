@@ -54,6 +54,10 @@ jobs:
           for f in $(find integrations/wordpress -name '*.php'); do php -l "$f"; done
           php integrations/wordpress/tests/run.php
 
+      - name: "Database builder (Python): tests"
+        # Standard library only; stand-ins replace vunnel and grype-db (ADR 0044).
+        run: cd apps/vulndb-builder && python3 -m unittest -v
+
       - name: Web build
         run: corepack pnpm --filter @garnetops/web build
 

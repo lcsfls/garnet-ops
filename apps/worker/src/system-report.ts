@@ -239,7 +239,8 @@ let countCache: { key: string; counts: Map<string, number> | null } | null = nul
 export async function probeVulnDb(): Promise<void> {
   await quietly("vulndb", async () => {
     const checkedAt = new Date().toISOString();
-    const source = env.GARNETOPS_GRYPE_DB_UPDATE === "auto" ? "anchore" : "manual";
+    const mode = env.GARNETOPS_GRYPE_DB_UPDATE;
+    const source = mode === "auto" ? "anchore" : mode === "build" ? "local-build" : "manual";
     const base = { checkedAt, source } as const;
     const options = { env: toolEnv(env.GARNETOPS_WORK_DIR), timeoutMs: DB_TOOL_TIMEOUT_MS };
 
@@ -309,7 +310,7 @@ export async function probeVulnDb(): Promise<void> {
  * reading, merging and writing needs no lock.
  */
 export async function reportVulnDbUpdate(
-  patch: Partial<VulnDbUpdateReport> & { mode: "auto" | "off" },
+  patch: Partial<VulnDbUpdateReport> & { mode: VulnDbUpdateReport["mode"] },
 ): Promise<void> {
   await quietly("vulndb update", async () => {
     const previous = vulnDbUpdateReportSchema.safeParse(await readReport("vulndb_update"));

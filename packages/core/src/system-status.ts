@@ -379,13 +379,24 @@ export const VULNDB_UPDATE_REASONS = [
   "storage",
   "not_started",
   "failed",
+  // Our own build (ADR 0044): the builder service did not answer, built nothing usable, or its archive was refused.
+  "builder_unreachable",
+  "build_failed",
+  "no_data",
+  "archive_rejected",
 ] as const;
 export type VulnDbUpdateReason = (typeof VULNDB_UPDATE_REASONS)[number];
 
-/** `vulndb_update`: the worker's automatic update (Anchore's published database). */
+export const VULNDB_UPDATE_MODES = ["auto", "off", "build"] as const;
+export type VulnDbUpdateMode = (typeof VULNDB_UPDATE_MODES)[number];
+
+/** `vulndb_update`: the worker's automatic update (Anchore's published database, or our own build). */
 export const vulnDbUpdateReportSchema = z.object({
-  /** `auto`: the worker updates daily. `off`: the operator imports the database. */
-  mode: z.enum(["auto", "off"]),
+  /**
+   * `auto`: the worker downloads Anchore's database daily. `build`: our own builder builds it daily (ADR 0044).
+   * `off`: the operator imports the database.
+   */
+  mode: z.enum(VULNDB_UPDATE_MODES),
   lastAttemptAt: isoTime.nullable(),
   lastSuccessAt: isoTime.nullable(),
   lastResult: z.enum(["ok", "failed"]).nullable(),
@@ -411,8 +422,8 @@ export function vulnDbUpdateReason(error: { message?: string; stderr?: string } 
 }
 
 /**
- * `vulndb_build`: the future local build (vunnel and grype-db, ROADMAP). Until a builder writes
- * this report the page says "not set up". The builder reports per provider (the feeds vunnel
+ * `vulndb_build`: our own build (vunnel and grype-db, ADR 0044), written by the worker from the builder's
+ * answer. Until then the page says "not set up". The builder reports per provider (the feeds vunnel
  * pulls) and may add fields later: readers ignore what they do not know, and `v` is the version
  * of this shape. Nothing is stored that the page does not show: no feed URLs, no tokens, no output.
  */
