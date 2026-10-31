@@ -229,10 +229,7 @@ describe.skipIf(!adminUrl || !posix)("a build", () => {
     (await t.db.select().from(schema.systemReport).where(eq(schema.systemReport.key, key)))[0]?.data;
 
   it("hands over the keys, checks the archive, imports it and reports each provider", async () => {
-    const [org] = await t.db
-      .insert(schema.organization)
-      .values({ id: "org-1", name: "Example" })
-      .returning();
+    const [org] = await t.db.insert(schema.organization).values({ id: "org-1", name: "Example" }).returning();
     await t.db.insert(schema.vulnDbBuildSettings).values({
       id: "installation",
       githubSecretId: "s1",
