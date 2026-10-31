@@ -465,8 +465,13 @@ export interface HttpSnapshot {
   headers: Record<string, string>;
   /** The `<meta name="generator">` values of the final page (ADR 0038), at most three; absent in snapshots before 0.0.13. */
   generators?: string[];
-  /** WordPress plugins and themes the home page's asset addresses name (ADR 0042); absent when none, and before 0.0.14. */
+  /**
+   * WordPress plugins and themes (ADR 0042): what the home page's asset addresses name, or the exact list of the GarnetOps plugin
+   * when it answered (`source: "plugin"`). Absent when none, and before 0.0.14.
+   */
   wordpress?: import("./wordpress.ts").WordPressAssets;
+  /** The WordPress and PHP versions the GarnetOps plugin reported (ADR 0042, part 4). */
+  reported?: { wordpress: string | null; php: string | null };
   error: "refused" | "timeout" | "tls" | "address" | "protocol" | "tooLarge" | null;
 }
 
@@ -559,6 +564,11 @@ export interface PassiveSnapshot {
   tls: TlsSnapshot[];
   http: HttpSnapshot | null;
   plain: PlainHttpSnapshot | null;
+  /**
+   * The read of the GarnetOps WordPress plugin (ADR 0042, part 4), when a token is set: its version, or why it could not be read
+   * (`unauthorized`, `notInstalled`, `status`, `invalid`, `refused`, `timeout`, `tls`, `protocol`, `notVerified`).
+   */
+  wordpressPlugin?: { error: string | null; pluginVersion: string | null };
   /** Whether the name has no address at all. */
   resolves: boolean;
   /** Whether port 443 accepted a connection on any looked-at address. */
@@ -908,7 +918,6 @@ export function evaluatePassive(
         );
       }
     }
-    // A version from an asset address is a hint, not a statement of the site: low (ADR 0042).
     const wp = snapshot.http.wordpress;
     if (wp && wordpressLatest) {
       const all = [
@@ -918,8 +927,10 @@ export function evaluatePassive(
       for (const c of all) {
         const latest = wordpressLatest.get(`${c.kind}:${c.slug}`);
         if (!c.version || !latest || compareVersions(c.version, latest) >= 0) continue;
+        // A version from an asset address is a hint (low); the plugin's list is exact (medium while active).
+        const severity = wp.source === "plugin" && c.active ? "medium" : "low";
         out.push(
-          finding("wordpressOutdated", "low", stage, `${c.kind}:${c.slug}`, {
+          finding("wordpressOutdated", severity, stage, `${c.kind}:${c.slug}`, {
             kind: c.kind,
             slug: c.slug,
             version: c.version,

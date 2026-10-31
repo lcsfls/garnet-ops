@@ -122,6 +122,8 @@ export interface ExposureDetail extends WebsiteAsset {
   suggestions: { id: string; name: string; source: "ct" | "dns" }[];
   /** What the site names about its software, judged against the end-of-life data (ADR 0038). */
   software: (import("@garnetops/core/software").SoftwareJudgement & { name: string })[];
+  /** The GarnetOps WordPress plugin (ADR 0042, part 4); how its last read went is in `passive.wordpressPlugin`. */
+  wordpressPlugin: { connected: boolean; connectedAt: string | null };
   /** wordpress.org's answers for the site's plugins and themes; null while the lookup is off (ADR 0042). */
   wordpressOrg:
     | { kind: "plugin" | "theme"; slug: string; listed: boolean; latest: string | null; checkedAt: string }[]

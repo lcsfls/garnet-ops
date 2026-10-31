@@ -1,6 +1,6 @@
 # ADR 0042: WordPress plugins and themes of websites
 
-- Status: accepted for parts 1 to 3 (2026-10-31); part 4 is planned
+- Status: accepted (parts 1 to 3 on 2026-10-31, part 4 on 2026-10-31)
 - Date: 2026-10-30
 - Decided by: maintainer (detect from the outside and with an own plugin; versions from wordpress.org and advisories from the
   Wordfence feed only with the customer's opt-in and key)
@@ -39,8 +39,22 @@ Most WordPress sites are attacked through plugins and themes, not WordPress itse
    terms do not allow bundling, so nothing is shipped or fetched without a key. The record format was implemented from Wordfence's
    description of the v3 feed; the build environment could not reach the service, so it is tested with recorded-shape fixtures
    only. Every field is checked for its shape and cut; records that do not fit are skipped.
-4. **Part 4 (planned): a GarnetOps WordPress plugin** (GPL-2.0-or-later, as WordPress requires, our own code, published
-   separately) that reports the exact list of plugins and themes with signed reports, like the host agent.
+4. **Part 4: the GarnetOps WordPress plugin** (`integrations/wordpress/garnetops/`, GPL-2.0-or-later as WordPress requires, our
+   own code, a separate program; the installation serves it as a zip at `GET /api/v1/exposure/wordpress-plugin.zip`). It is
+   **read by GarnetOps**, not sending: GarnetOps usually runs inside the customer's network and websites run outside, so a pull
+   needs no inbound access to GarnetOps. The plugin adds one REST endpoint (`/?rest_route=/garnetops/v1/inventory`, which
+   works with and without pretty permalinks) that answers only over HTTPS and only with the token GarnetOps generated for that
+   website; it stores only the token's SHA-256 and compares in constant time. Wrong tokens are slowed down (429 after 20 in ten
+   minutes), the right one never is, so nobody can lock GarnetOps out. It answers with versions only: WordPress, PHP, and every
+   installed plugin and theme with its version and whether it is active; no users, content, settings or paths. The token also
+   goes in `X-GarnetOps-Token`, because some Apache and CGI setups drop `Authorization`.
+
+   An owner or admin connects a website whose control is proved, with a recent sign-in; the token is shown once, sealed in the
+   vault (purpose `wordpress-plugin-token`) and opened only by the worker. At the daily look the worker reads the endpoint over
+   verified HTTPS at the same checked address as the home page, without redirects, at most 512 KiB, and only while the website
+   is verified. The plugin's exact list then replaces the guess from asset addresses (`source: "plugin"`), WordPress and PHP
+   are judged from the reported versions, and a plugin or theme behind its latest version is medium while active (exact) and
+   low otherwise. How the read went (`unauthorized`, `notInstalled`, `notVerified`, ...) is shown on the website.
 
 ## Threat model
 
@@ -53,6 +67,10 @@ Most WordPress sites are attacked through plugins and themes, not WordPress itse
 | The Wordfence key leaks | sealed at once, never returned by the API, never logged, never in audit data; sent only to www.wordfence.com over HTTPS |
 | A hostile or broken feed | at most 400 MiB read; every id, slug, version, CVE and title checked for its shape and cut; unknown records skipped; titles rendered as text |
 | False positives from asset versions | the version is the one the asset address names, and the finding says so; WordPress's own version comes from its generator tag |
+| The plugin token reaches the wrong site | sent only to a name whose control is proved, over HTTPS with the certificate verified, to the checked public address, without redirects; never stored in snapshots, logs or audit data |
+| The plugin endpoint is guessed or abused | 256-bit token, only its SHA-256 stored on the site, constant-time comparison, HTTPS only; wrong tokens slowed down, the right one never locked out |
+| The plugin leaks what it should not | it answers with versions only; no users, content, settings or paths; it never sends anything by itself |
+| A hostile site answers the plugin's address | the answer must have the plugin's format and version; slugs and versions are checked for their shape, at most 500 plugins and 50 themes |
 | A hostile or broken directory answer | at most 256 KiB read; only a `version` of a fixed shape is kept; a failed request keeps the previous answer |
 
 ## Consequences
@@ -65,5 +83,9 @@ Most WordPress sites are attacked through plugins and themes, not WordPress itse
 - Part 3: `wordfence_*` columns on `exposure_settings` and the table `wordpress_advisory` (migration 0039), the worker queue
   `websites.wordfence` (hourly for due organisations, and on demand), `PUT` and `DELETE /api/v1/exposure/settings/wordfence`,
   `wordfence` in `GET /api/v1/exposure/settings`, the rule `wordpressVulnerable`.
+- Part 4: `wordpress_token_*` columns on `exposure_asset` (migration 0041), `POST` and `DELETE /api/v1/exposure/{id}/wordpress-plugin`,
+  `GET /api/v1/exposure/wordpress-plugin.zip`, `wordpressPlugin` on a website and in its snapshot, `reported` versions in the HTTP
+  snapshot, the plugin under `integrations/wordpress/` with PHP tests in CI, and the plugin files in the image
+  (`/opt/garnetops/wordpress-plugin`, `WORDPRESS_PLUGIN_DIR`).
 - Settings: every connection that can leave the network is now listed and switched in one section, **External services** (public
   DNS, Certificate Transparency, wordpress.org, Wordfence, registry checks); **Modules** keeps the module switches.

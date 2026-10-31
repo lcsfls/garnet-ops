@@ -83,6 +83,8 @@ describe.skipIf(!openssl || !adminUrl)(
       proofStatus: number;
       hostsSeen: string[];
       requests: string[];
+      /** The token the fake GarnetOps WordPress plugin accepts; null: the plugin is not installed. */
+      wpToken: string | null;
     }
     const web: WebState = freshWeb();
     function freshWeb(): WebState {
@@ -95,6 +97,7 @@ describe.skipIf(!openssl || !adminUrl)(
         proofStatus: 200,
         hostsSeen: [],
         requests: [],
+        wpToken: null,
       };
     }
     const plainState = { redirect: true, requests: 0 };
@@ -108,6 +111,24 @@ describe.skipIf(!openssl || !adminUrl)(
     function handle(req: IncomingMessage, res: ServerResponse) {
       web.hostsSeen.push(String(req.headers.host));
       web.requests.push(`${req.method} ${req.url}`);
+      if (req.url === "/?rest_route=/garnetops/v1/inventory") {
+        if (web.wpToken === null) return void res.writeHead(404).end("{}");
+        if (req.headers.authorization !== `Bearer ${web.wpToken}`) return void res.writeHead(401).end("{}");
+        return void res.writeHead(200, { "content-type": "application/json" }).end(
+          JSON.stringify({
+            schema: 1,
+            plugin: "garnetops",
+            pluginVersion: "1.0.0",
+            wordpress: "6.5.2",
+            php: "8.2.12",
+            plugins: [
+              { slug: "contact-form-7", version: "5.9.3", active: true },
+              { slug: "hidden-plugin", version: "2.0.0", active: false },
+            ],
+            themes: [{ slug: "astra", version: "4.6.0", active: true }],
+          }),
+        );
+      }
       if (req.url === "/.well-known/garnetops-verify.txt") {
         if (web.proof === null) return void res.writeHead(404).end("not found");
         if (web.proofStatus >= 300 && web.proofStatus < 400)
@@ -738,6 +759,64 @@ describe.skipIf(!openssl || !adminUrl)(
           .from(schema.exposureSettings)
           .where(eq(schema.exposureSettings.organizationId, org.id));
         expect(settings).toMatchObject({ wordfenceError: "unauthorized", wordfenceAdvisories: 3 });
+        Object.assign(web, freshWeb());
+      });
+
+      it("reads the GarnetOps WordPress plugin with the site's token, only for a verified site (ADR 0042, part 4)", async () => {
+        resetZone();
+        const { sealSecret } = await import("./vault-secrets.ts");
+        const org = await newOrg();
+        tidyZone(SITE);
+        const token = "t".repeat(43);
+        Object.assign(web, freshWeb(), { headers: { ...TIDY_HEADERS }, wpToken: token });
+        const inventoryCalls = () => web.requests.filter((r) => r.includes("rest_route=/garnetops")).length;
+
+        // Not verified: the token is never sent.
+        const a = await addAsset(org.id, { value: SITE });
+        const secretId = await sealSecret(conn.db, org.id, "wordpress-plugin-token", token);
+        await conn.db
+          .update(schema.exposureAsset)
+          .set({ wordpressTokenSecretId: secretId })
+          .where(eq(schema.exposureAsset.id, a.id));
+        await passive(a);
+        expect(inventoryCalls()).toBe(0);
+        expect(((await asset(a.id)).passive as PassiveSnapshot).wordpressPlugin).toEqual({
+          error: "notVerified",
+          pluginVersion: null,
+        });
+
+        // Verified: read, and its exact list replaces the guess from asset addresses.
+        await conn.db
+          .update(schema.exposureAsset)
+          .set({
+            verifyState: "verified",
+            verifyMethod: "dns",
+            verifiedAt: new Date(),
+            verifyCheckedAt: new Date(),
+          })
+          .where(eq(schema.exposureAsset.id, a.id));
+        await passive(a);
+        expect(inventoryCalls()).toBe(1);
+        const snapshot = (await asset(a.id)).passive as PassiveSnapshot;
+        expect(snapshot.wordpressPlugin).toEqual({ error: null, pluginVersion: "1.0.0" });
+        expect(snapshot.http?.wordpress).toMatchObject({
+          source: "plugin",
+          plugins: [
+            { slug: "contact-form-7", version: "5.9.3", active: true },
+            { slug: "hidden-plugin", version: "2.0.0", active: false },
+          ],
+        });
+        expect(snapshot.http?.reported).toEqual({ wordpress: "6.5.2", php: "8.2.12" });
+        // The token never ends up in the stored snapshot.
+        expect(JSON.stringify(snapshot)).not.toContain(token);
+
+        // A token the plugin does not know is reported as such.
+        web.wpToken = "u".repeat(43);
+        await passive(a);
+        expect(((await asset(a.id)).passive as PassiveSnapshot).wordpressPlugin?.error).toBe("unauthorized");
+        web.wpToken = null;
+        await passive(a);
+        expect(((await asset(a.id)).passive as PassiveSnapshot).wordpressPlugin?.error).toBe("notInstalled");
         Object.assign(web, freshWeb());
       });
 

@@ -45,7 +45,7 @@ vi.mock("../db.ts", async () => {
 vi.mock("../env.ts", async () => {
   const { generateVaultKeyPair: gen, loadVaultPublicKey: load } = await import("@garnetops/core/vault");
   return {
-    env: { PUBLIC_URL: "https://garnetops.example.test/" },
+    env: { PUBLIC_URL: "https://garnetops.example.test/", WORDPRESS_PLUGIN_DIR: "/nonexistent" },
     isProduction: false,
     vaultPublicKey: load(gen().publicKeyPem),
   };
@@ -800,6 +800,57 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
       ).toBe(200);
       expect(await audits("exposure.wordpress_org_disabled")).toHaveLength(1);
       expect((await call("PUT", "/api/v1/exposure/settings", { body: {} })).status).toBe(422);
+    });
+  });
+
+  describe("WordPress plugin token (ADR 0042, part 4)", () => {
+    it("is only for a verified name, shown once and sealed, with a recent sign-in; replaced and removed with its secret", async () => {
+      const unverified = await addAsset();
+      expect((await call("POST", `/api/v1/exposure/${unverified}/wordpress-plugin`)).status).toBe(409);
+      const id = await verified();
+      expect((await call("POST", `/api/v1/exposure/${id}/wordpress-plugin`, { role: "member" })).status).toBe(
+        403,
+      );
+      expect(problemCode(await call("POST", `/api/v1/exposure/${id}/wordpress-plugin`, { age: STALE }))).toBe(
+        "step-up-required",
+      );
+      const first = await call("POST", `/api/v1/exposure/${id}/wordpress-plugin`);
+      expect(first.status).toBe(201);
+      const token = first.json?.token as string;
+      expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      const secrets = () =>
+        t.db.select().from(schema.secret).where(eq(schema.secret.purpose, "wordpress-plugin-token"));
+      expect(JSON.stringify(await secrets())).not.toContain(token);
+      const detail = await call("GET", `/api/v1/exposure/${id}`);
+      expect(detail.json?.wordpressPlugin).toMatchObject({ connected: true });
+      expect(detail.text).not.toContain(token);
+      expect(await audits("exposure.wordpress_token_created")).toHaveLength(1);
+
+      const second = await call("POST", `/api/v1/exposure/${id}/wordpress-plugin`);
+      expect(second.json?.token).not.toBe(token);
+      expect(await secrets()).toHaveLength(1);
+      expect(await audits("exposure.wordpress_token_replaced")).toHaveLength(1);
+
+      expect((await call("DELETE", `/api/v1/exposure/${id}/wordpress-plugin`)).status).toBe(204);
+      expect(await secrets()).toHaveLength(0);
+      expect((await call("GET", `/api/v1/exposure/${id}`)).json?.wordpressPlugin).toMatchObject({
+        connected: false,
+      });
+      // Another organisation cannot touch it.
+      expect((await call("POST", `/api/v1/exposure/${id}/wordpress-plugin`, { org: OTHER })).status).toBe(
+        404,
+      );
+    });
+
+    it("serves the plugin as a zip to every member", async () => {
+      const res = await app.request("/api/v1/exposure/wordpress-plugin.zip", {
+        headers: { "x-role": "viewer", "x-org": ORG, "x-age": "0" },
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("application/zip");
+      expect(res.headers.get("content-disposition")).toMatch(/garnetops-wordpress-\d+\.\d+\.\d+\.zip/);
+      const body = Buffer.from(await res.arrayBuffer());
+      expect(body.subarray(0, 4).toString("hex")).toBe("504b0304");
     });
   });
 

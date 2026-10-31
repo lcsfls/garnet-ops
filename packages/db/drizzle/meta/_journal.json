@@ -288,6 +288,13 @@
       "when": 1793453734621,
       "tag": "0040_repository_inactive",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793456403035,
+      "tag": "0041_wordpress_plugin_token",
+      "breakpoints": true
     }
   ]
 }

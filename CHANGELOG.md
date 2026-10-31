@@ -33,6 +33,10 @@ Security-relevant changes are listed under **Security** in every release.
 - **WordPress themes and plugins** of a website, as the home page's asset addresses name them, with their versions, on the
   HTTP tab ([ADR 0042](docs/adr/0042-wordpress-plugins-and-themes.md)). The daily look now reads up to 256 KiB of the home
   page (was 64 KiB) to see them; the page is still never stored.
+- **GarnetOps WordPress plugin** (GPL-2.0-or-later, served by your installation): connect it on a verified website and
+  GarnetOps reads the exact WordPress, PHP, plugin and theme versions at its daily look, including plugins that load nothing on
+  the home page. Read-only, over HTTPS, with a token only for that site that is shown once; the plugin keeps only its fingerprint.
+- API: `POST` and `DELETE /api/v1/exposure/{id}/wordpress-plugin`, `GET /api/v1/exposure/wordpress-plugin.zip`.
 - **Known WordPress vulnerabilities from Wordfence** with your own API key (Settings → External services): the Wordfence
   Intelligence feed is downloaded once a day and the WordPress versions, plugins and themes your websites show are checked against
   it. The key is encrypted at once and never shown again; only the key is sent.

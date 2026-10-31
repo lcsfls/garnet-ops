@@ -62,6 +62,7 @@ import {
   fetchHomepage,
   fetchPlain,
   fetchProofFile,
+  fetchWordPressInventory,
   type NetEnv,
   pacedRun,
   portResult,
@@ -74,6 +75,7 @@ import {
 } from "./exposure-net.ts";
 import { lookupFor, publicDnsOf, resolverFor } from "./public-dns.ts";
 import { tellUsers } from "./user-notify.ts";
+import { openSecretText } from "./vault-secrets.ts";
 import { wordfenceAdvisories } from "./wordfence.ts";
 import { latestVersions, wordpressKeys } from "./wordpress-org.ts";
 
@@ -651,6 +653,33 @@ export async function runPassive(runId: string, deps: ExposureDeps = {}): Promis
 
     const ptr = isAddress && addresses.length > 0 ? await readPtr(env, addresses) : [];
 
+    // The GarnetOps WordPress plugin (ADR 0042, part 4): read only for a name whose control is proved, over verified HTTPS, with
+    // the token sealed for this asset. Its exact list replaces what the asset addresses suggested.
+    let wordpressPlugin: PassiveSnapshot["wordpressPlugin"];
+    if (asset.wordpressTokenSecretId && !isAddress) {
+      const token = await openSecretText(
+        asset.wordpressTokenSecretId,
+        asset.organizationId,
+        "wordpress-plugin-token",
+      );
+      const address = http?.address ?? addresses[0];
+      if (!verifiedHosts(all).has(asset.value))
+        wordpressPlugin = { error: "notVerified", pluginVersion: null };
+      else if (!token) wordpressPlugin = { error: "unauthorized", pluginVersion: null };
+      else if (!address || !httpsOpen) wordpressPlugin = { error: "refused", pluginVersion: null };
+      else {
+        const read = await fetchWordPressInventory(env, target, address, token);
+        if ("error" in read) wordpressPlugin = { error: read.error, pluginVersion: null };
+        else {
+          wordpressPlugin = { error: null, pluginVersion: read.inventory.pluginVersion };
+          if (http) {
+            http.wordpress = read.inventory.assets;
+            http.reported = { wordpress: read.inventory.wordpress, php: read.inventory.php };
+          }
+        }
+      }
+    }
+
     const snapshot: PassiveSnapshot = {
       version: 1,
       takenAt: now.toISOString(),
@@ -663,6 +692,7 @@ export async function runPassive(runId: string, deps: ExposureDeps = {}): Promis
       tls,
       http,
       plain,
+      ...(wordpressPlugin ? { wordpressPlugin } : {}),
       resolves: resolved.a.length + resolved.aaaa.length > 0 || (isAddress && addresses.length > 0),
       httpsOpen,
     };

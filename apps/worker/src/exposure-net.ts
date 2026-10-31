@@ -48,7 +48,12 @@ import {
 } from "@garnetops/core/exposure";
 import { addressAllowed } from "@garnetops/core/exposure-assets";
 import { metaGenerators } from "@garnetops/core/software";
-import { wordpressAssets } from "@garnetops/core/wordpress";
+import {
+  parseWordPressInventory,
+  WORDPRESS_PLUGIN,
+  type WordPressInventory,
+  wordpressAssets,
+} from "@garnetops/core/wordpress";
 
 /* -------------------------------------------------------------------------- */
 /* Environment                                                                 */
@@ -496,6 +501,8 @@ export interface HttpGetOptions {
   timeoutMs?: number;
   /** How many bytes of the body are read before the connection is closed. */
   maxBody: number;
+  /** Extra request headers (the WordPress plugin's token, ADR 0042). */
+  headers?: Record<string, string>;
 }
 
 export type HttpGetResult =
@@ -539,6 +546,7 @@ export function httpGet(options: HttpGetOptions): Promise<HttpGetResult> {
         "user-agent": "GarnetOps-Exposure-Check/1",
         accept: "text/html,text/plain;q=0.9,*/*;q=0.5",
         connection: "close",
+        ...options.headers,
       },
     };
     const req =
@@ -941,3 +949,38 @@ export const portResult = (address: string, spec: PortSpec, probe: PortProbe): P
   banner: probe.banner,
   tls: probe.tls,
 });
+
+/**
+ * Reads the inventory of the GarnetOps WordPress plugin (ADR 0042, part 4): one GET over verified HTTPS to the same checked
+ * address as the home page, with the site's token, no redirects. Returns the inventory, or why it could not be read.
+ */
+export async function fetchWordPressInventory(
+  env: NetEnv,
+  target: { name: string },
+  address: string,
+  token: string,
+): Promise<{ inventory: WordPressInventory } | { error: string }> {
+  const result = await httpGet({
+    scheme: "https",
+    address,
+    port: env.httpsPort ?? 443,
+    host: target.name,
+    path: WORDPRESS_PLUGIN.path,
+    verify: true,
+    ca: env.ca,
+    maxBody: WORDPRESS_PLUGIN.maxBytes + 1,
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${token}`,
+      "x-garnetops-token": token,
+    },
+  });
+  if (!result.ok) return { error: result.error };
+  if (result.status === 401 || result.status === 403 || result.status === 429)
+    return { error: "unauthorized" };
+  if (result.status === 404) return { error: "notInstalled" };
+  if (result.status !== 200) return { error: "status" };
+  if (result.truncated) return { error: "invalid" };
+  const inventory = parseWordPressInventory(result.body.toString("utf8"));
+  return inventory ? { inventory } : { error: "invalid" };
+}

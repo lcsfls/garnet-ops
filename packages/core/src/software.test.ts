@@ -146,3 +146,20 @@ describe("what ends soon (ADR 0041)", () => {
     expect(judgeDistribution("<script>debian 12", NOW, data).reported).toBe("scriptdebian 12");
   });
 });
+
+describe("versions the GarnetOps WordPress plugin reports (ADR 0042, part 4)", () => {
+  it("win over headers and tags and count as exact", () => {
+    const found = detectSoftware({
+      headers: { "x-powered-by": "PHP/7.4.33" },
+      generators: ["WordPress 6.4.1"],
+      reported: { wordpress: "6.5.2", php: "8.2.12" },
+    });
+    expect(found).toEqual(
+      expect.arrayContaining([
+        { product: "wordpress", version: "6.5.2", source: "plugin" },
+        { product: "php", version: "8.2.12", source: "plugin" },
+      ]),
+    );
+    expect(found).toHaveLength(2);
+  });
+});

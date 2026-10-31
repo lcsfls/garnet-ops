@@ -363,6 +363,7 @@ export const secret = pgTable(
         "forge-app-secret",
         "forge-sign-in",
         "wordfence-api-key",
+        "wordpress-plugin-token",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -1638,6 +1639,13 @@ export const exposureAsset = pgTable(
     uptimeSince: timestamp("uptime_since", { withTimezone: true }),
     uptimeFailures: integer("uptime_failures").notNull().default(0),
     uptimeCheckedAt: timestamp("uptime_checked_at", { withTimezone: true }),
+    /**
+     * The token the GarnetOps WordPress plugin on this site checks (ADR 0042, part 4), sealed in the vault (purpose
+     * "wordpress-plugin-token"); the daily look sends it to read the plugin's inventory. Null while not connected.
+     */
+    wordpressTokenSecretId: text("wordpress_token_secret_id"),
+    wordpressTokenSetAt: timestamp("wordpress_token_set_at", { withTimezone: true }),
+    wordpressTokenSetBy: text("wordpress_token_set_by").references(() => user.id, { onDelete: "set null" }),
 
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: createdAt(),

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   affectsVersion,
   parseWordfenceFeed,
+  parseWordPressInventory,
   parseWordPressOrgVersion,
   wordpressAssets,
   wordpressOrgPath,
@@ -125,5 +126,50 @@ describe("advisories from the Wordfence feed (ADR 0042, part 3)", () => {
     expect(affectsVersion({ affected: [range] }, "5.9.3")).toBe(false);
     expect(affectsVersion({ affected: [range] }, "4.9")).toBe(false);
     expect(affectsVersion({ affected: [{ ...range, from: "*" }] }, "1.0")).toBe(true);
+  });
+});
+
+describe("the GarnetOps WordPress plugin's inventory (ADR 0042, part 4)", () => {
+  const answer = (over: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      schema: 1,
+      plugin: "garnetops",
+      pluginVersion: "1.0.0",
+      wordpress: "6.5.2",
+      php: "8.2.12",
+      plugins: [
+        { slug: "Contact-Form-7", version: "5.9.3", active: true },
+        { slug: "../etc", version: "1.0", active: true },
+        { slug: "akismet", version: "<b>", active: false },
+      ],
+      themes: [{ slug: "astra", version: "4.6.0", active: true }],
+      ...over,
+    });
+
+  it("keeps slugs and versions of the right shape, with their state, and names its source", () => {
+    expect(parseWordPressInventory(answer())).toEqual({
+      pluginVersion: "1.0.0",
+      wordpress: "6.5.2",
+      php: "8.2.12",
+      assets: {
+        source: "plugin",
+        plugins: [
+          { slug: "akismet", version: null, active: false },
+          { slug: "contact-form-7", version: "5.9.3", active: true },
+        ],
+        themes: [{ slug: "astra", version: "4.6.0", active: true }],
+      },
+    });
+  });
+
+  it("refuses an answer in another format, from something else, or with too much in it", () => {
+    expect(parseWordPressInventory("<html>login</html>")).toBeNull();
+    expect(parseWordPressInventory(answer({ schema: 2 }))).toBeNull();
+    expect(parseWordPressInventory(answer({ plugin: "other" }))).toBeNull();
+    expect(
+      parseWordPressInventory(
+        answer({ plugins: Array.from({ length: 501 }, (_, i) => ({ slug: `p${i}`, version: "1" })) }),
+      ),
+    ).toBeNull();
   });
 });

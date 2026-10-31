@@ -90,6 +90,8 @@ RUN apk add --no-cache git openssh-client \
 COPY --from=prod /src /app
 COPY --from=scanners /opt/scanners /opt/scanners
 COPY --from=host-agent /out /opt/garnetops/agent
+# The GarnetOps WordPress plugin (ADR 0042), GPL-2.0-or-later, our own code: served as a zip, never run here.
+COPY integrations/wordpress/garnetops /opt/garnetops/wordpress-plugin
 WORKDIR /app
 ENV NODE_ENV=production \
     APP_VERSION=${VERSION} \

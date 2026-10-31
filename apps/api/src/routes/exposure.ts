@@ -6,6 +6,7 @@
  * written to the audit log. The API never connects to an asset itself: every look is a job for the worker.
  */
 
+import { randomBytes } from "node:crypto";
 import { newId } from "@garnetops/core";
 import {
   ACTIVE_LIMITS,
@@ -44,7 +45,7 @@ import { and, asc, count, desc, eq, getTableColumns, gte, ilike, inArray, sql } 
 import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
-import { vaultPublicKey } from "../env.ts";
+import { env, vaultPublicKey } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type Actor, type AppEnv, requireRole } from "../lib/context.ts";
 import { allowTestRanges } from "../lib/exposure-policy.ts";
@@ -62,6 +63,7 @@ import {
 import { notFound, ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
 import { requireRecentSignIn } from "../lib/step-up.ts";
+import { wordpressPluginZip } from "../lib/wordpress-plugin.ts";
 
 const a = schema.exposureAsset;
 type AssetRow = typeof a.$inferSelect;
@@ -546,6 +548,17 @@ export function softwareOf(passive: unknown) {
 
 export const exposureRoutes = new Hono<AppEnv>()
   .use("*", requireModule("websites"))
+  /** The GarnetOps WordPress plugin (ADR 0042, part 4), served by the installation itself. */
+  .get("/wordpress-plugin.zip", async (c) => {
+    const plugin = await wordpressPluginZip(env.WORDPRESS_PLUGIN_DIR);
+    if (!plugin) throw notFound("WordPress plugin");
+    return c.body(new Uint8Array(plugin.zip), 200, {
+      "content-type": "application/zip",
+      "content-disposition": `attachment; filename="garnetops-wordpress-${plugin.version}.zip"`,
+      "x-content-sha256": plugin.sha256,
+      "cache-control": "no-store",
+    });
+  })
   /* ------------------------------ lists ------------------------------ */
   .get("/", async (c) => {
     const actor = c.get("actor");
@@ -959,6 +972,11 @@ export const exposureRoutes = new Hono<AppEnv>()
       active: row.active ?? null,
       /** What the site names about its software, judged against the committed end-of-life data (ADR 0038). */
       software: softwareOf(row.passive),
+      /** The GarnetOps WordPress plugin (ADR 0042, part 4): whether a token is set, and how the last read went (in `passive`). */
+      wordpressPlugin: {
+        connected: row.wordpressTokenSecretId !== null,
+        connectedAt: iso(row.wordpressTokenSetAt),
+      },
       /** wordpress.org's answers for the site's plugins and themes; null while the lookup is off (ADR 0042). */
       wordpressOrg: await wordpressOrgOf(actor.organizationId, row.passive),
       availability: await uptimeOf(row.id),
@@ -1054,6 +1072,85 @@ export const exposureRoutes = new Hono<AppEnv>()
     await rateLimit(`exposure-verify:${row.id}`, 12, 60 * 60_000);
     await queueVerify(row.id);
     return c.json({ queued: true }, 202);
+  })
+  /**
+   * The GarnetOps WordPress plugin (ADR 0042, part 4): a new token for this website, shown once and sealed at once; the plugin on
+   * the site keeps only its SHA-256. Only for a name whose control is proved, with a recent sign-in. A new token replaces the old.
+   */
+  .post("/:id/wordpress-plugin", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    requireRecentSignIn(actor);
+    const row = await ownAsset(actor.organizationId, c.req.param("id"));
+    if (row.kind !== "domain") throw invalid([{ field: "id", code: "domain_required" }]);
+    const effective = effectiveVerification(verifiable(row), await orgVerifiables(actor.organizationId));
+    if (!effective.verified) {
+      throw new ProblemError(
+        409,
+        "not-verified",
+        "Prove control of the website before connecting the plugin",
+      );
+    }
+    const token = randomBytes(32).toString("base64url");
+    const id = newId("sec");
+    await db.transaction(async (tx) => {
+      await tx.insert(schema.secret).values({
+        id,
+        organizationId: actor.organizationId,
+        purpose: "wordpress-plugin-token",
+        sealed: seal(
+          token,
+          { organizationId: actor.organizationId, recordId: id, purpose: "wordpress-plugin-token" },
+          vaultPublicKey,
+        ),
+        vaultKeyId: vaultPublicKey.id,
+        createdBy: actor.userId,
+      });
+      await tx
+        .update(a)
+        .set({
+          wordpressTokenSecretId: id,
+          wordpressTokenSetAt: new Date(),
+          wordpressTokenSetBy: actor.userId,
+          updatedAt: new Date(),
+        })
+        .where(eq(a.id, row.id));
+      if (row.wordpressTokenSecretId)
+        await tx.delete(schema.secret).where(eq(schema.secret.id, row.wordpressTokenSecretId));
+    });
+    await audit(
+      actor,
+      row.wordpressTokenSecretId ? "exposure.wordpress_token_replaced" : "exposure.wordpress_token_created",
+      { type: "exposure_asset", id: row.id },
+      { value: row.value },
+    );
+    c.header("cache-control", "no-store");
+    return c.json({ token }, 201);
+  })
+  .delete("/:id/wordpress-plugin", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    const row = await ownAsset(actor.organizationId, c.req.param("id"));
+    if (!row.wordpressTokenSecretId) return c.body(null, 204);
+    await db.transaction(async (tx) => {
+      await tx
+        .update(a)
+        .set({
+          wordpressTokenSecretId: null,
+          wordpressTokenSetAt: null,
+          wordpressTokenSetBy: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(a.id, row.id));
+      await tx.delete(schema.secret).where(eq(schema.secret.id, row.wordpressTokenSecretId as string));
+    });
+    await audit(
+      actor,
+      "exposure.wordpress_token_removed",
+      { type: "exposure_asset", id: row.id },
+      { value: row.value },
+    );
+    return c.body(null, 204);
   })
   .post("/:id/verify/rotate", async (c) => {
     // A new token voids the old proof: the asset is unverified again and stage 2 stops.

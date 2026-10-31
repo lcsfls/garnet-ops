@@ -2875,6 +2875,30 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     expect(problems).toEqual([]);
   });
 
+  test("the WordPress plugin is connected with a token shown once, and served by the installation (ADR 0042)", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    await page.goto(`/websites/${EXPOSURE.main.id}?tab=http`);
+    const card = page.getByTestId("websites-wordpress-plugin");
+    const download = await page.request.get("/api/v1/exposure/wordpress-plugin.zip");
+    expect(download.status()).toBe(200);
+    expect(download.headers()["content-type"]).toBe("application/zip");
+    await card.getByRole("button", { name: "Connect the plugin" }).click();
+    const dialog = page.getByRole("dialog", { name: "Connect the WordPress plugin" });
+    const token = (await dialog.getByTestId("websites-wordpress-token").innerText()).trim();
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    await dialog.getByRole("button", { name: "Done" }).click();
+    await expect(card).toContainText("Connected on");
+    await expect(card).toContainText("Not read yet");
+    expect(await page.content()).not.toContain(token);
+    await card.getByRole("button", { name: "Disconnect" }).click();
+    await expect(page.getByText("Plugin disconnected. GarnetOps no longer reads it.")).toBeVisible();
+    expect(await sql("select id from secret where purpose = 'wordpress-plugin-token'")).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
   test("Certificate Transparency is off until an owner confirms what is sent where", async ({ page }) => {
     const problems = watchForProblems(page);
     await signedInAt("now");

@@ -11,11 +11,15 @@ export interface WordPressComponent {
   slug: string;
   /** As the asset addresses say it; null when they name none, or only the WordPress version. */
   version: string | null;
+  /** Only from the GarnetOps plugin (part 4): whether it is switched on. */
+  active?: boolean;
 }
 
 export interface WordPressAssets {
   plugins: WordPressComponent[];
   themes: WordPressComponent[];
+  /** Where the list comes from: the home page's asset addresses (absent before part 4), or the GarnetOps plugin's exact list. */
+  source?: "assets" | "plugin";
 }
 
 /** At most this many of each are kept. */
@@ -247,4 +251,64 @@ export function affectsVersion(advisory: Pick<WordPressAdvisory, "affected">, v:
       r.to === "*" || (r.toInclusive ? compareVersions(v, r.to) <= 0 : compareVersions(v, r.to) < 0);
     return above && below;
   });
+}
+
+/* -------------------------------------------------------------------------- */
+/* The GarnetOps WordPress plugin (ADR 0042, part 4)                           */
+/* -------------------------------------------------------------------------- */
+
+/** Where GarnetOps reads the plugin's inventory; works with and without pretty permalinks. */
+export const WORDPRESS_PLUGIN = {
+  path: "/?rest_route=/garnetops/v1/inventory",
+  maxBytes: 512 * 1024,
+  /** The plugin's answer format GarnetOps knows. */
+  schema: 1,
+  limits: { plugins: 500, themes: 50 },
+} as const;
+
+export interface WordPressInventory {
+  pluginVersion: string;
+  wordpress: string | null;
+  php: string | null;
+  assets: WordPressAssets;
+}
+
+/**
+ * The plugin's answer, checked field by field: the site is outside data, so only slugs and versions of a fixed shape are kept, and
+ * an answer in another format or with too much in it is refused (null).
+ */
+export function parseWordPressInventory(body: string): WordPressInventory | null {
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(body) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  if (
+    !data ||
+    typeof data !== "object" ||
+    data.schema !== WORDPRESS_PLUGIN.schema ||
+    data.plugin !== "garnetops"
+  )
+    return null;
+  const v = (value: unknown) => (typeof value === "string" && VERSION.test(value) ? value : null);
+  const list = (value: unknown, max: number): WordPressComponent[] | null => {
+    if (!Array.isArray(value) || value.length > max) return null;
+    const out: WordPressComponent[] = [];
+    for (const item of value as Record<string, unknown>[]) {
+      const slug = typeof item?.slug === "string" ? item.slug.toLowerCase() : "";
+      if (!SLUG.test(slug)) continue;
+      out.push({ slug, version: v(item.version), active: item.active === true });
+    }
+    return out.sort((a, b) => a.slug.localeCompare(b.slug));
+  };
+  const plugins = list(data.plugins, WORDPRESS_PLUGIN.limits.plugins);
+  const themes = list(data.themes, WORDPRESS_PLUGIN.limits.themes);
+  if (!plugins || !themes) return null;
+  return {
+    pluginVersion: v(data.pluginVersion) ?? "unknown",
+    wordpress: v(data.wordpress),
+    php: v(data.php),
+    assets: { plugins, themes, source: "plugin" },
+  };
 }

@@ -109,6 +109,16 @@ website name, version or organisation. A plugin or theme behind its latest versi
 theme behind its latest version** (low: the version is the one an asset address names). Premium and custom plugins that
 wordpress.org does not list are shown as such and not judged.
 
+**The GarnetOps WordPress plugin** (optional, exact): on the HTTP tab of a verified website, an owner or admin chooses
+**Connect the plugin** (recent sign-in). Download the plugin there (the installation serves it), install and activate it in
+WordPress, and paste the token shown once under **Settings → GarnetOps** in WordPress. At its daily look GarnetOps then reads
+the exact WordPress, PHP, plugin and theme versions from the plugin, including plugins that load nothing on the home page and
+inactive ones. The plugin is read-only and answers only over HTTPS and only with that token; it stores only the token's
+fingerprint and never sends anything by itself. GarnetOps sends the token only to the verified website over HTTPS with a
+verified certificate. The card shows how the last read went; **New token** replaces the token, **Disconnect** removes it. The
+site must allow GarnetOps's requests to `/?rest_route=/garnetops/v1/inventory` (a firewall or security plugin that blocks the
+REST API blocks it too).
+
 **Known vulnerabilities from Wordfence** (optional, your own key): an owner or admin can set a Wordfence Intelligence API key
 under Settings → External services (create one in your Wordfence account under Integrations). GarnetOps then downloads the
 Wordfence vulnerability feed once a day with that key, keeps only the advisories for the WordPress versions, plugins and themes
@@ -324,7 +334,8 @@ They link to the asset. They carry the asset name, counts and a list of ports, n
 
 The audit log (filter **Websites**) has: asset added and removed, verified, verification lost and restored, verification code
 replaced, stage 2 switched on (with the acknowledgement), off, stopped and run by hand, subdomain coverage changed, Certificate
-Transparency switched on and off, wordpress.org lookup switched on and off, Wordfence key set, replaced and removed, availability check switched on (or its interval
+Transparency switched on and off, wordpress.org lookup switched on and off, Wordfence key set, replaced and removed,
+WordPress plugin connected, token replaced and disconnected, availability check switched on (or its interval
 changed) and off.
 
 ## Limits and what is not tested

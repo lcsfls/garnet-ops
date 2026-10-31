@@ -62,7 +62,9 @@ export type SecretPurpose =
   /** What one sign-in needs for a few minutes (device code, code verifier, code); deleted when it ends. */
   | "forge-sign-in"
   /** An organisation's own Wordfence Intelligence API key (ADR 0042): sealed by the API, opened only by the worker. */
-  | "wordfence-api-key";
+  | "wordfence-api-key"
+  /** The token a website's GarnetOps WordPress plugin checks (ADR 0042, part 4): sealed by the API, opened only by the worker. */
+  | "wordpress-plugin-token";
 
 export interface SecretBinding {
   organizationId: string;

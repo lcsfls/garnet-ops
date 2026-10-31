@@ -27,6 +27,8 @@ const schema = z.object({
   UPDATER_TOKEN_FILE: z.string().min(1).default("/run/cicd-updater/token"),
   /** The built systemd host agents (ADR 0037), served to hosts for installation: garnetops-agent-linux-{amd64,arm64}. */
   AGENT_BINARIES_DIR: z.string().min(1).default("/opt/garnetops/agent"),
+  /** The GarnetOps WordPress plugin (ADR 0042, part 4), served as a zip; a development checkout falls back to the repository's. */
+  WORDPRESS_PLUGIN_DIR: z.string().min(1).default("/opt/garnetops/wordpress-plugin"),
 });
 
 const parsed = schema.safeParse(process.env);

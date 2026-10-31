@@ -1738,6 +1738,9 @@ export const de: Messages = {
     wordpressTitle: "WordPress-Themes und -Plugins",
     wordpressNote:
       "So, wie die Asset-Adressen der Startseite sie nennen. Plugins, die auf der Startseite nichts laden, sind nicht sichtbar; eine Version ist die, die die Asset-Adresse nennt.",
+    wordpressNotePlugin:
+      "So, wie das GarnetOps-Plugin auf der Website sie meldet: jedes installierte Theme und Plugin mit seiner genauen Version.",
+    wordpressInactive: "inaktiv",
     wordpressKind: { theme: "Theme", plugin: "Plugin" },
     wordpressNoVersion: "keine Version genannt",
     wpOrgTitle: "Neueste Versionen von WordPress-Plugins und -Themes",
@@ -1791,6 +1794,43 @@ export const de: Messages = {
       tooLarge: "Der Feed war größer, als GarnetOps liest (400 MB).",
       invalid: "Die Antwort war nicht der erwartete Feed.",
       noKey: "Der Schlüssel konnte nicht geöffnet werden. Setzen Sie ihn erneut.",
+    },
+    wpPlugin: {
+      title: "GarnetOps-WordPress-Plugin",
+      description:
+        "Mit dem Plugin liest GarnetOps bei der täglichen Prüfung die genauen Versionen von WordPress, PHP, Plugins und Themes, auch von Plugins, die auf der Startseite nichts laden. Nur lesend, über HTTPS, mit einem Token nur für diese Website.",
+      connected: "Verbunden",
+      connectedAt: "Verbunden am {when}.",
+      waiting: "Noch nicht gelesen: Die nächste tägliche Prüfung liest es, oder Jetzt prüfen.",
+      read: "Gelesen bei der Prüfung vom {when}, Plugin-Version {version}.",
+      verifyFirst:
+        "Weisen Sie zuerst die Kontrolle über diese Website nach; der Token wird nur an eine verifizierte Website gesendet.",
+      download: "Plugin herunterladen (zip)",
+      connect: "Plugin verbinden",
+      newToken: "Neuer Token",
+      disconnect: "Trennen",
+      disconnected: "Plugin getrennt. GarnetOps liest es nicht mehr.",
+      tokenTitle: "WordPress-Plugin verbinden",
+      tokenDescription: "Drei Schritte auf Ihrer WordPress-Website.",
+      stepDownload: "Laden Sie das Plugin herunter (zip).",
+      stepInstall: "In WordPress: Plugins → Neues Plugin hinzufügen → Plugin hochladen, dann aktivieren.",
+      stepPaste: "In WordPress: Einstellungen → GarnetOps, diesen Token einfügen und speichern.",
+      token: "Token für diese Website",
+      tokenOnce:
+        "Der Token wird nur jetzt angezeigt. Geht er verloren, erstellen Sie einen neuen; der alte funktioniert dann nicht mehr.",
+      done: "Fertig",
+      error: {
+        unauthorized:
+          "Das Plugin hat den Token abgelehnt. Fügen Sie den aktuellen Token in WordPress unter Einstellungen → GarnetOps ein.",
+        notInstalled: "Das Plugin hat nicht geantwortet. Ist es installiert und aktiviert?",
+        status: "Die Website hat unter der Adresse des Plugins mit einem Fehler geantwortet.",
+        invalid: "Die Antwort war nicht das, was das Plugin sendet.",
+        refused: "Die Website hat keine Verbindung über HTTPS angenommen.",
+        timeout: "Die Website hat nicht rechtzeitig geantwortet.",
+        tls: "Das Zertifikat der Website konnte nicht geprüft werden, daher wurde der Token nicht gesendet.",
+        protocol: "Die Antwort war kein gültiges HTTP.",
+        notVerified: "Die Website ist gerade nicht verifiziert, daher wurde der Token nicht gesendet.",
+      },
     },
     bannerNote:
       "GarnetOps bewertet eine Version nur anhand des Supportendes ihrer Versionslinie, nie anhand von Schwachstellendaten, und gar nicht, wenn der Header eine Distribution nennt: Debian, Red Hat und andere beheben Sicherheitsprobleme in älteren Versionen, ohne die Nummer zu ändern.",
@@ -3323,6 +3363,9 @@ export const de: Messages = {
         "Abfrage der Plugin- und Theme-Versionen bei wordpress.org eingeschaltet",
       exposure_wordpress_org_disabled:
         "Abfrage der Plugin- und Theme-Versionen bei wordpress.org ausgeschaltet",
+      exposure_wordpress_token_created: "WordPress-Plugin verbunden",
+      exposure_wordpress_token_replaced: "Token des WordPress-Plugins ersetzt",
+      exposure_wordpress_token_removed: "WordPress-Plugin getrennt",
       exposure_wordfence_key_set: "Wordfence-API-Schlüssel gesetzt",
       exposure_wordfence_key_replaced: "Wordfence-API-Schlüssel ersetzt",
       exposure_wordfence_key_removed: "Wordfence-API-Schlüssel entfernt",

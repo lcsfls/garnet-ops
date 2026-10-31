@@ -25,6 +25,7 @@
   import TlsCard from "#lib/components/websites/TlsCard.svelte";
   import VerificationBadge from "#lib/components/websites/VerificationBadge.svelte";
   import VerifyDialog from "#lib/components/websites/VerifyDialog.svelte";
+  import WordPressPluginCard from "#lib/components/websites/WordPressPluginCard.svelte";
   import { formatDateTime, formatRelative } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { layoutStep } from "#lib/layout-step.svelte.ts";
@@ -207,7 +208,11 @@
     {#if which === "report"}<ReportCard detail={data} onTab={openTab} />
     {:else if which === "availability"}<AvailabilityCard detail={data} {canEdit} />
     {:else if which === "tls"}<TlsCard detail={data} />
-    {:else if which === "http"}<HttpCard detail={data} />
+    {:else if which === "http"}
+      <div class="grid gap-4">
+        <HttpCard detail={data} />
+        <WordPressPluginCard detail={data} {canEdit} email={me.user.email} />
+      </div>
     {:else if which === "ports"}<PortsCard detail={data} {canEdit} onStage2={() => setSearch({ stage2: "1" })} />
     {:else if which === "history"}<HistoryCard detail={data} />
     {:else}<DnsCard detail={data} {canEdit} />{/if}
@@ -316,7 +321,10 @@
           <div id="website-tls" class="scroll-mt-4"><TlsCard detail={data} /></div>
         </div>
         <div class="grid gap-4">
-          <div id="website-http" class="scroll-mt-4"><HttpCard detail={data} /></div>
+          <div id="website-http" class="grid scroll-mt-4 gap-4">
+            <HttpCard detail={data} />
+            <WordPressPluginCard detail={data} {canEdit} email={me.user.email} />
+          </div>
           <div id="website-ports" class="scroll-mt-4">
             <PortsCard detail={data} {canEdit} onStage2={() => setSearch({ stage2: "1" })} />
           </div>

@@ -33,7 +33,8 @@ export const SOFTWARE_NAMES: Record<SoftwareProduct, string> = {
 export interface DetectedSoftware {
   product: SoftwareProduct;
   version: string;
-  source: "server" | "x-powered-by" | "generator";
+  /** "plugin": reported by the GarnetOps WordPress plugin (ADR 0042), exact like a generator tag. */
+  source: "server" | "x-powered-by" | "generator" | "plugin";
   /**
    * A header that says the build comes from a distribution ("Apache/2.4.57 (Debian)", "PHP/8.1.2-1ubuntu2.14"). Distributions fix
    * security problems without changing the version, so such a version is shown but not judged.
@@ -47,7 +48,11 @@ const DISTRIBUTION_NAME =
 const DISTRIBUTION_SUFFIX = /^[-~+.]\S*?(?:deb|ubuntu|el\d|fc\d|suse|amzn)/i;
 
 const VERSION = String.raw`(\d+(?:\.\d+){0,3})`;
-const PATTERNS: { source: DetectedSoftware["source"]; product: SoftwareProduct; re: RegExp }[] = [
+const PATTERNS: {
+  source: Exclude<DetectedSoftware["source"], "plugin">;
+  product: SoftwareProduct;
+  re: RegExp;
+}[] = [
   { source: "server", product: "nginx", re: new RegExp(String.raw`\bnginx/${VERSION}`, "i") },
   { source: "server", product: "apache-http-server", re: new RegExp(String.raw`\bApache/${VERSION}`) },
   { source: "x-powered-by", product: "php", re: new RegExp(String.raw`\bPHP/${VERSION}`, "i") },
@@ -84,16 +89,22 @@ export function metaGenerators(html: string): string[] {
 export function detectSoftware(input: {
   headers?: Record<string, string>;
   generators?: string[];
+  /** Exact versions the GarnetOps WordPress plugin reported (ADR 0042, part 4); they win over headers and tags. */
+  reported?: { wordpress?: string | null; php?: string | null };
 }): DetectedSoftware[] {
+  const reported: DetectedSoftware[] = [];
+  if (input.reported?.wordpress)
+    reported.push({ product: "wordpress", version: input.reported.wordpress, source: "plugin" });
+  if (input.reported?.php) reported.push({ product: "php", version: input.reported.php, source: "plugin" });
   // Stored snapshots of older versions may lack fields: whatever is missing is simply not looked at.
   const headers = input.headers ?? {};
   const asText = (v: unknown) => (typeof v === "string" && v ? [v] : []);
-  const texts: Record<DetectedSoftware["source"], string[]> = {
+  const texts: Record<Exclude<DetectedSoftware["source"], "plugin">, string[]> = {
     server: asText(headers.server),
     "x-powered-by": asText(headers["x-powered-by"]),
     generator: Array.isArray(input.generators) ? input.generators.filter((g) => typeof g === "string") : [],
   };
-  const found = new Map<SoftwareProduct, DetectedSoftware>();
+  const found = new Map<SoftwareProduct, DetectedSoftware>(reported.map((r) => [r.product, r]));
   for (const { source, product, re } of PATTERNS) {
     if (found.has(product)) continue;
     for (const text of texts[source]) {
@@ -154,7 +165,7 @@ function cycleOf(cycles: EolCycle[], version: string): EolCycle | null {
  * was patched without a new number, so it counts one step lower.
  */
 export function softwareSeverity(j: SoftwareJudgement): "high" | "medium" | "low" | null {
-  const exact = j.source === "generator";
+  const exact = j.source === "generator" || j.source === "plugin";
   if (j.status === "endOfLife") return exact ? "high" : "medium";
   if (j.status === "outdated") return exact ? "medium" : "low";
   return null;
