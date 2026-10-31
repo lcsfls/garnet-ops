@@ -1,5 +1,6 @@
 import type { MaintenanceView } from "@restow-backup/cicd-updater/maintenance";
 import type { PublicStatus, ReleasesView, StateView } from "@restow-backup/cicd-updater/protocol";
+import { isNewer } from "@restow-backup/cicd-updater/semver";
 import { api } from "./api.ts";
 
 /**
@@ -28,6 +29,17 @@ export const updatesApi = {
 };
 
 /**
+ * The update state for owners and admins, shared by Settings → Updates and the dot at Settings in the sidebar. The
+ * sidecar checks for releases once a day, so the sidebar asks every ten minutes; the panel asks more often itself.
+ */
+export const updatesStatusQuery = {
+  queryKey: ["updates"],
+  queryFn: updatesApi.status,
+  retry: false,
+  refetchInterval: 10 * 60_000,
+} as const;
+
+/**
  * Tells the banner that this browser just changed the update state (scheduled, cancelled,
  * acknowledged), so it asks again at once instead of at its next poll.
  */
@@ -46,4 +58,34 @@ export async function fetchPublicStatus(): Promise<PublicStatus | null> {
   const response = await fetch("/public/v1/status", { cache: "no-store" });
   if (!response.ok || !response.headers.get("content-type")?.includes("json")) return null;
   return (await response.json()) as PublicStatus;
+}
+
+/**
+ * The newer release the sidecar's daily check found, for the dot at Settings: null without a sidecar, without a newer
+ * release, or while an update is already scheduled or running (the banner shows that one).
+ */
+export function availableUpdate(state: StateView | null | undefined): string | null {
+  const latest = state?.updater.latestAvailable;
+  const running = state?.running.version;
+  if (!state || !latest || !running || state.phase === "scheduled" || state.phase === "running") return null;
+  return isNewer(running, latest) === true ? latest : null;
+}
+
+/** The finished update whose banner this browser closed; the banner of a later update shows again. */
+const DISMISSED_KEY = "garnetops.updateBanner.dismissed";
+
+export function dismissedUpdateRun(): string | null {
+  try {
+    return localStorage.getItem(DISMISSED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function dismissUpdateRun(runId: string): void {
+  try {
+    localStorage.setItem(DISMISSED_KEY, runId);
+  } catch {
+    // Not kept: the banner stays closed for this page view only.
+  }
 }

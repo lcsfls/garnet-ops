@@ -45,7 +45,9 @@ repository (`updater/`, ADR 0026; it started as
 as `ghcr.io/lcsfls/garnetops-updater`, signed like the other images. With it, owners and admins
 update from **Settings → Updates**:
 
-1. GarnetOps shows the running version and the newest release it may install, with a
+1. When the service's daily check finds a newer release, owners and admins see a dot at
+   **Settings** in the sidebar and the new version next to **Updates**.
+   GarnetOps shows the running version and the newest release it may install, with a
    link to its release notes. Releases the service refuses are listed with the reason.
 2. Choose when it starts (now, or in 1 minute to 1 hour) and press **Schedule update**.
    GarnetOps asks for your password and a code first if your sign-in is older than ten
@@ -55,7 +57,9 @@ update from **Settings → Updates**:
    database, stops API and worker, starts the new version, waits until it reports the
    new version and runs a check through the web edge. During the few minutes the API is
    down, the web address shows a maintenance page that comes back by itself.
-5. The page reloads once with the new version. **Acknowledge** clears the result.
+5. The page reloads once with the new version. Anyone can close the result banner for
+   themselves; the banner of the next update shows again. **Acknowledge** clears the
+   result for everyone.
 
 Every step is written to the audit log (filter **Updates**), with who asked for it.
 

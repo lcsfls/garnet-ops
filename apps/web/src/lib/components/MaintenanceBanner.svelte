@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { CircleCheck, CircleX, Clock, LoaderCircle } from "@lucide/svelte";
+  import { CircleCheck, CircleX, Clock, LoaderCircle, X } from "@lucide/svelte";
   import {
     formatCountdown,
     type MaintenanceSnapshot,
@@ -8,13 +8,20 @@
   } from "@restow-backup/cicd-updater/maintenance";
   import { formatMessage, interpolate, messagesFor } from "@restow-backup/cicd-updater/messages";
   import { cn } from "../cn.ts";
-  import { language } from "../i18n.svelte.ts";
-  import { fetchMaintenance, fetchPublicStatus, maintenanceChanged } from "../updates.ts";
+  import { language, t } from "../i18n.svelte.ts";
+  import {
+    dismissedUpdateRun,
+    dismissUpdateRun,
+    fetchMaintenance,
+    fetchPublicStatus,
+    maintenanceChanged,
+  } from "../updates.ts";
 
   /**
    * The update banner every signed-in user sees (ADR 0007): a countdown while an update is scheduled, progress while it
    * runs, the result when it ended. Nothing while idle or when the installation has no update sidecar. After a
-   * successful update the page reloads once, so everyone gets the new web app.
+   * successful update the page reloads once, so everyone gets the new web app. A finished update (succeeded or failed)
+   * can be closed; the browser remembers that run, so the banner of the next update shows again.
    *
    * Texts of phases, steps and results come from the cicd-updater catalogs (English, German) in the UI language. Only
    * the phase line is a live region; the ticking countdown sits outside it, so screen readers do not announce every
@@ -58,12 +65,20 @@
           ? messages.ui.updateFailed
           : messages.ui.updateSucceeded,
   );
+  const finished = $derived(phase === "succeeded" || phase === "failed");
+  let dismissed = $state(dismissedUpdateRun());
+  const hidden = $derived(finished && view?.runId != null && view.runId === dismissed);
+  function dismiss() {
+    if (!view?.runId) return;
+    dismissUpdateRun(view.runId);
+    dismissed = view.runId;
+  }
   const detail = $derived(
     view ? (view.outcome ? messages.outcomes[view.outcome] : formatMessage(messages, view.message)) : "",
   );
 </script>
 
-{#if view && phase !== "idle"}
+{#if view && phase !== "idle" && !hidden}
   <div
     data-state={phase}
     class={cn(
@@ -103,6 +118,18 @@
           {interpolate(messages.ui.progress, { progress: view.progress })}
         </span>
       </div>
+    {/if}
+    {#if finished && view.runId}
+      <button
+        type="button"
+        data-testid="maintenance-dismiss"
+        aria-label={t("shell.dismissUpdateBanner")}
+        title={t("shell.dismissUpdateBanner")}
+        onclick={dismiss}
+        class="-m-1 ml-auto grid size-8 flex-none place-items-center rounded-md hover:bg-accent"
+      >
+        <X aria-hidden="true" class="size-4" />
+      </button>
     {/if}
   </div>
 {/if}

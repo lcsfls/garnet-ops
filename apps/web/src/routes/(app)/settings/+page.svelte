@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Settings } from "@lucide/svelte";
+  import { createQuery } from "@tanstack/svelte-query";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import SectionNav from "#lib/components/SectionNav.svelte";
   import { sectionLinkClass } from "#lib/components/section-nav.ts";
@@ -13,9 +14,11 @@
   import SettingsHelp from "#lib/components/settings/SettingsHelp.svelte";
   import ScanningSection from "#lib/components/settings/scanning/ScanningSection.svelte";
   import UpdatesPanel from "#lib/components/settings/UpdatesPanel.svelte";
+  import Badge from "#lib/components/ui/Badge.svelte";
   import { type MessageKey, t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
   import { SETTINGS_SECTIONS, type SettingsSection, settingsSearch } from "#lib/search.ts";
+  import { availableUpdate, updatesStatusQuery } from "#lib/updates.ts";
   import { href, parseSearch } from "#lib/url.ts";
   import { page } from "$app/state";
   import type { PageData } from "./$types";
@@ -52,6 +55,9 @@
         ((s !== "updates" && s !== "notifications" && s !== "ai") || admin),
     ),
   );
+  // The release the updater's daily check found, as a chip at Updates (the sidebar shows a dot at Settings).
+  const updates = createQuery(() => ({ ...updatesStatusQuery, enabled: admin }));
+  const newVersion = $derived(admin ? availableUpdate(updates.data?.state) : null);
   const search = $derived(parseSearch(settingsSearch, page.url));
   const section: SettingsSection = $derived(
     search.section && sections.includes(search.section) ? search.section : "scanning",
@@ -72,6 +78,11 @@
             class={sectionLinkClass(s === section)}
           >
             {t(SECTION_LABELS[s])}
+            {#if s === "updates" && newVersion !== null}
+              <span class="ml-auto" data-testid="settings-update-chip" title={t("shell.updateAvailableBadge", { version: newVersion })}>
+                <Badge tone="info">{newVersion}</Badge>
+              </span>
+            {/if}
           </a>
         </li>
       {/each}

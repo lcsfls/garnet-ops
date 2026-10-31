@@ -426,6 +426,8 @@ export const de: Messages = {
     searchKindWebsite: "Website",
     searchKindVulnerability: "Schwachstelle",
     searchKindPackage: "Paket ({type})",
+    dismissUpdateBanner: "Diese Meldung schließen",
+    updateAvailableBadge: "Update auf {version} verfügbar",
     alpha: "Alpha",
     alphaHint:
       "Frühe Version: Funktionen und Ansichten können sich noch ändern. Ihre Daten bleiben bei Updates erhalten.",

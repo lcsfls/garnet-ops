@@ -8,6 +8,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- A dot at Settings in the sidebar, and the new version next to Updates, when the update service's daily check found a
+  newer release. Owners and admins only, who can install it.
+- The banner after an update can be closed; this browser keeps it closed for that update, and the next update's banner
+  shows again.
+
 ## [0.0.14] - 2026-10-31
 <!-- title: WordPress plugins and themes, website availability and early warnings -->
 

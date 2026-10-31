@@ -11,6 +11,7 @@
   import type { Me } from "../session.ts";
   import { findingCountsQuery, systemQuery } from "../shell.ts";
   import { resolvedTheme, setTheme } from "../theme.svelte.ts";
+  import { availableUpdate, updatesStatusQuery } from "../updates.ts";
   import { displayVersion } from "../version.ts";
   import CommandSearch from "./CommandSearch.svelte";
   import MaintenanceBanner from "./MaintenanceBanner.svelte";
@@ -51,6 +52,9 @@
     enabled: moduleOn(me, "websites"),
     refetchInterval: 60_000,
   }));
+  // A newer release found by the updater's daily check: a dot at Settings, for those who can install it.
+  const updates = createQuery(() => ({ ...updatesStatusQuery, enabled: isAdmin(me) }));
+  const newVersion = $derived(isAdmin(me) ? availableUpdate(updates.data?.state) : null);
   function badgeOf(item: NavItem): { count: number; tone: BadgeTone; label: string } | null {
     if (item.to === "/findings")
       return criticalOpen > 0
@@ -120,12 +124,19 @@
             {#each group.items as item (item.to)}
               {@const badge = badgeOf(item)}
               {@const active = isActive(item.to)}
+              {@const updateDot = item.to === "/settings" && newVersion !== null}
               {@const add = !collapsed && item.add && isAdmin(me) && item.module && moduleOn(me, item.module) ? item.add : null}
               <li class="flex items-center gap-0.5">
                 <a
                   href={item.to}
                   title={collapsed ? t(item.label) : undefined}
-                  aria-label={badge !== null ? `${t(item.label)}, ${badge.label}` : collapsed ? t(item.label) : undefined}
+                  aria-label={badge !== null
+                    ? `${t(item.label)}, ${badge.label}`
+                    : updateDot
+                      ? `${t(item.label)}, ${t("shell.updateAvailableBadge", { version: newVersion ?? "" })}`
+                      : collapsed
+                        ? t(item.label)
+                        : undefined}
                   aria-current={active ? "page" : undefined}
                   class={cn(
                     "flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md hover:bg-sidebar-hover",
@@ -147,6 +158,13 @@
                     >
                       {formatNumber(badge.count)}
                     </span>
+                  {:else if updateDot}
+                    <span
+                      aria-hidden="true"
+                      data-testid="nav-update-dot"
+                      title={t("shell.updateAvailableBadge", { version: newVersion ?? "" })}
+                      class={cn("size-2 flex-none rounded-full bg-info", collapsed ? "absolute top-1.5 right-1.5" : "ml-auto")}
+                    ></span>
                   {/if}
                 </a>
                 {#if add}

@@ -55,6 +55,18 @@ test.beforeAll(async () => {
   await fake("/__test/reset");
 });
 
+test("a newer release from the daily check shows a dot at Settings and a chip at Updates", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  await page.goto("/");
+  await expect(page.getByTestId("nav-update-dot")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Settings, Update to 1.1.0 available" })).toBeVisible();
+  await page.goto("/settings");
+  await expect(page.getByTestId("settings-update-chip")).toHaveText("1.1.0");
+  expect(problems).toEqual([]);
+});
+
 test("scheduling needs a fresh sign-in, shows a banner to everyone and can be cancelled", async ({
   page,
 }) => {
@@ -119,7 +131,14 @@ test("a running update shows its progress, a finished one its result", async ({ 
   await expect(banner(page)).toContainText("The update finished.");
   // The page reloads once, then shows the result until an admin acknowledges it.
   await page.waitForEvent("load", { timeout: 15_000 });
+  // The new version runs: no dot any more. The result can be closed, and stays closed after a reload.
+  await expect(banner(page)).toHaveAttribute("data-state", "succeeded");
+  await expect(page.getByTestId("nav-update-dot")).toHaveCount(0);
+  await page.getByRole("button", { name: "Close this message" }).click();
+  await expect(page.locator("main [data-state]")).toHaveCount(0);
+  await page.reload();
   await expect(page.getByRole("button", { name: "Acknowledge" })).toBeVisible();
+  await expect(page.locator("main [data-state]")).toHaveCount(0);
   await page.getByRole("button", { name: "Acknowledge" }).click();
   await expect(page.getByText("The result was acknowledged.")).toBeVisible();
   await expect(page.locator("main [data-state]")).toHaveCount(0);

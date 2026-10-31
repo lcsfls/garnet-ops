@@ -409,6 +409,8 @@ export const en = {
     searchKindWebsite: "Website",
     searchKindVulnerability: "Vulnerability",
     searchKindPackage: "Package ({type})",
+    dismissUpdateBanner: "Close this message",
+    updateAvailableBadge: "Update to {version} available",
     alpha: "Alpha",
     alphaHint: "Early version: features and screens can still change. Your data stays when you update.",
   },
