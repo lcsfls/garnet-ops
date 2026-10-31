@@ -1,5 +1,5 @@
 import { endsSoon, judgeDistribution } from "@garnetops/core/software";
-import { schema, visibleRepository } from "@garnetops/db";
+import { activeRepository, schema, visibleRepository } from "@garnetops/db";
 import { and, desc, eq, gte, isNotNull, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -40,6 +40,8 @@ export const earlyWarningRoutes = new Hono<AppEnv>()
     const where = and(
       eq(w.organizationId, actor.organizationId),
       visibleRepository(w.repositoryId, actor),
+      // Repositories set aside are left out, unless one is asked for (ADR 0043).
+      input.repositoryId ? undefined : activeRepository(w.repositoryId),
       input.state === "open"
         ? eq(w.state, "open")
         : and(ne(w.state, "open"), gte(w.closedAt, sql`now() - make_interval(days => ${CLOSED_DAYS})`)),
@@ -87,6 +89,7 @@ export const earlyWarningRoutes = new Hono<AppEnv>()
         and(
           eq(w.organizationId, actor.organizationId),
           visibleRepository(w.repositoryId, actor),
+          activeRepository(w.repositoryId),
           ne(w.state, "open"),
           gte(w.closedAt, sql`now() - make_interval(days => ${CLOSED_DAYS})`),
         ),
@@ -104,6 +107,7 @@ export const earlyWarningRoutes = new Hono<AppEnv>()
         and(
           eq(schema.repository.organizationId, actor.organizationId),
           visibleRepository(p.repositoryId, actor),
+          activeRepository(p.repositoryId),
           sql`${p.purl} is not null`,
         ),
       );

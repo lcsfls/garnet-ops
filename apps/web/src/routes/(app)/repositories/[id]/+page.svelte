@@ -8,6 +8,7 @@
   import RunningCard from "#lib/components/hosts/RunningCard.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
+  import ActivityCard from "#lib/components/repositories/ActivityCard.svelte";
   import GradeSummary from "#lib/components/repositories/GradeSummary.svelte";
   import PatchHistory from "#lib/components/repositories/PatchHistory.svelte";
   import RepositoryFacts from "#lib/components/repositories/RepositoryFacts.svelte";
@@ -109,6 +110,7 @@
     {#if scan.isError}
       <p role="alert" class="text-sm text-destructive-text">{t("errors.actionFailed")}</p>
     {/if}
+    <ActivityCard repo={data} {me} />
     <SharingCard repo={data} {me} />
     <div class="grid gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <RepositoryFacts repo={data} />

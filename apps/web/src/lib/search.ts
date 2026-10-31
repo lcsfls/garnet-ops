@@ -118,6 +118,8 @@ export type FixSearch = z.infer<typeof fixSearch>;
 
 export const repositorySearch = z.object({
   status: z.enum(["all", "blocked", "attention", "clean"]).optional().catch(undefined),
+  /** Repositories set aside (ADR 0043) instead of the active ones. */
+  activity: z.enum(["inactive", "all"]).optional().catch(undefined),
   grade,
   q: text(100),
   cursor: text(512),

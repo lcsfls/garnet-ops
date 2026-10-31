@@ -1,5 +1,5 @@
-import { schema, visibleRepository } from "@garnetops/db";
-import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { activeRepository, schema, visibleRepository } from "@garnetops/db";
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
@@ -71,7 +71,8 @@ export const pullRequestRoutes = new Hono<AppEnv>()
         and(
           eq(pr.organizationId, actor.organizationId),
           visibleRepository(pr.repositoryId, actor),
-          input.repositoryId ? eq(pr.repositoryId, input.repositoryId) : undefined,
+          // Repositories set aside are left out, unless one is asked for (ADR 0043).
+          input.repositoryId ? eq(pr.repositoryId, input.repositoryId) : activeRepository(pr.repositoryId),
           like ? or(ilike(pr.title, like), ilike(r.name, like), ilike(pr.headRef, like)) : undefined,
         ),
       )
@@ -98,7 +99,9 @@ export const pullRequestRoutes = new Hono<AppEnv>()
         open: sql<number>`(select count(*)::int from pull_request p where p.repository_id = "repository"."id")`,
       })
       .from(r)
-      .where(and(eq(r.organizationId, actor.organizationId), visibleRepository(r.id, actor)))
+      .where(
+        and(eq(r.organizationId, actor.organizationId), visibleRepository(r.id, actor), isNull(r.inactiveAt)),
+      )
       .orderBy(r.name);
     return c.json(rows);
   })
@@ -110,7 +113,9 @@ export const pullRequestRoutes = new Hono<AppEnv>()
     const repos = await db
       .select({ id: r.id })
       .from(r)
-      .where(and(eq(r.organizationId, actor.organizationId), visibleRepository(r.id, actor)));
+      .where(
+        and(eq(r.organizationId, actor.organizationId), visibleRepository(r.id, actor), isNull(r.inactiveAt)),
+      );
     if (repos.length > 0) {
       await boss.send(
         QUEUES.pullRequestRefresh,

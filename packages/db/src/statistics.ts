@@ -1,7 +1,7 @@
 import { type SQL, sql } from "drizzle-orm";
 import type { Database } from "./index.ts";
 import { isTimeZone } from "./trend.ts";
-import { visibleRepository } from "./visibility.ts";
+import { activeRepository, visibleRepository } from "./visibility.ts";
 
 /** The time ranges the statistics page offers, in calendar days. */
 export const STATISTICS_RANGES = [30, 90, 365] as const;
@@ -69,7 +69,9 @@ export async function organizationStatistics(
   const asOf = input.asOf ?? new Date();
   const tz = input.timeZone;
   const org = input.organizationId;
-  const seen = (column: SQL) => visibleRepository(column, { organizationId: org, userId: input.userId });
+  // Repositories set aside are left out of the statistics (ADR 0043).
+  const seen = (column: SQL) =>
+    sql`(${visibleRepository(column, { organizationId: org, userId: input.userId })} and ${activeRepository(column)})`;
   const local = (column: SQL) => sql`(${column} at time zone ${tz})::date`;
 
   const bounds = sql`

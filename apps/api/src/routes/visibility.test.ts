@@ -478,4 +478,62 @@ describe.skipIf(!adminUrl)("private repositories and personal connections", () =
       await t.db.select().from(schema.secret).where(eq(schema.secret.purpose, "forge-connection-token")),
     ).toEqual([]);
   });
+  it("leaves a repository set aside out of every organisation-wide view, keeps it reachable, and takes it back (ADR 0043)", async () => {
+    // Only admins set a shared repository aside; a member may for their own private one.
+    expect(
+      (await call("PUT", "/api/v1/repositories/repo_shared/activity", SAM, { active: false })).status,
+    ).toBe(403);
+    const set = await call("PUT", "/api/v1/repositories/repo_shared/activity", KIM, {
+      active: false,
+      reason: "replaced by\u0007 the new portal",
+    });
+    expect(set.status).toBe(200);
+    expect(set.json?.inactive).toMatchObject({ reason: "replaced by the new portal" });
+    const [audited] = await t.db
+      .select()
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.action, "repository.deactivated"));
+    expect(audited?.targetId).toBe("repo_shared");
+
+    // Gone from the views over the whole organisation ...
+    const text = await everything(SAM);
+    for (const gone of ["fnd_repo_shared", "pkg_repo_shared", "ew_repo_shared", "pr_repo_shared"]) {
+      expect(text).not.toContain(gone);
+    }
+    expect((await call("GET", "/api/v1/repositories", SAM)).json?.items).toEqual([]);
+    expect((await call("GET", "/api/v1/repositories/counts", SAM)).json).toMatchObject({
+      all: 0,
+      inactive: 1,
+    });
+    expect((await call("GET", "/api/v1/findings/counts", SAM)).json?.open).not.toMatchObject({ critical: 1 });
+    // ... but listed on its own, and everything about it is still there.
+    const inactive = await call("GET", "/api/v1/repositories?activity=inactive", SAM);
+    expect(inactive.json?.items.map((x: Json) => [x.id, x.inactive?.reason])).toEqual([
+      ["repo_shared", "replaced by the new portal"],
+    ]);
+    expect((await call("GET", "/api/v1/repositories/repo_shared", SAM)).json?.inactive).not.toBeNull();
+    expect(
+      (await call("GET", "/api/v1/findings?state=all&repositoryId=repo_shared", SAM)).json?.items.map(
+        (x: Json) => x.id,
+      ),
+    ).toEqual(["fnd_repo_shared"]);
+    // "Scan all" passes it by.
+    holder.sent.length = 0;
+    await call("POST", "/api/v1/repositories/scan-all", KIM);
+    expect(JSON.stringify(holder.sent)).not.toContain("repo_shared");
+
+    // Taken back into use, it is everywhere again.
+    expect(
+      (await call("PUT", "/api/v1/repositories/repo_shared/activity", KIM, { active: true })).status,
+    ).toBe(200);
+    expect(await everything(SAM)).toContain("fnd_repo_shared");
+    expect((await call("GET", "/api/v1/repositories/repo_shared", SAM)).json?.inactive).toBeNull();
+    // The owner of a private repository sets it aside without an admin.
+    expect(
+      (await call("PUT", "/api/v1/repositories/repo_private/activity", ALEX, { active: false })).status,
+    ).toBe(200);
+    expect(
+      (await call("PUT", "/api/v1/repositories/repo_private/activity", ALEX, { active: true })).status,
+    ).toBe(200);
+  });
 });

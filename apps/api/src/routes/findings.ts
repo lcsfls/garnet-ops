@@ -1,6 +1,13 @@
 import { FINDING_STATES, SEVERITIES } from "@garnetops/core";
 import { pageSizeSchema } from "@garnetops/core/pagination";
-import { isTimeZone, repositoryVisibleTo, schema, type Viewer, visibleRepository } from "@garnetops/db";
+import {
+  activeRepository,
+  isTimeZone,
+  repositoryVisibleTo,
+  schema,
+  type Viewer,
+  visibleRepository,
+} from "@garnetops/db";
 import { LANGUAGES, resources } from "@garnetops/i18n";
 import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -150,6 +157,8 @@ export function findingWhere(viewer: Viewer, input: z.infer<typeof findingFilter
   return and(
     eq(f.organizationId, viewer.organizationId),
     visibleRepository(f.repositoryId, viewer),
+    // Over the whole organisation, repositories set aside are left out; one repository or scan shows them (ADR 0043).
+    input.repositoryId || input.scanId ? undefined : activeRepository(f.repositoryId),
     input.state === "all" ? undefined : eq(f.state, input.state),
     input.severity.length ? inArray(f.severity, input.severity) : undefined,
     input.repositoryId ? eq(f.repositoryId, input.repositoryId) : undefined,

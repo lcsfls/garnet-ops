@@ -92,6 +92,8 @@ export interface RepositoryRow extends GradeFields {
   mine: boolean;
   /** Private, and its owner asked owners and admins to share it. */
   shareRequested: boolean;
+  /** Set aside (ADR 0043): since when and why; null while active. */
+  inactive: { since: string; reason: string | null } | null;
   /** OpenSSH public key of the generated deploy key, for SSH repositories. */
   deployPublicKey: string | null;
   /** Host keys pinned on the first SSH contact, with the fingerprints ssh shows. */

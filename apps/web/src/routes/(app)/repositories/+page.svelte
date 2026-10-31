@@ -59,7 +59,9 @@
   const counts = createQuery(() => ({
     queryKey: ["repository-counts", search.q ?? ""],
     queryFn: () =>
-      api<Record<(typeof STATUSES)[number], number>>(`/repositories/counts${toQuery({ q: search.q })}`),
+      api<Record<(typeof STATUSES)[number] | "inactive", number>>(
+        `/repositories/counts${toQuery({ q: search.q })}`,
+      ),
     placeholderData: keepPreviousData,
   }));
 
@@ -116,6 +118,17 @@
     onChange={(status) => setSearch({ status: status === "all" ? undefined : status })}
   />
   <GradeFilter value={search.grade} counts={grades.data} onChange={(grade) => setSearch({ grade })} />
+  {#if search.activity || (counts.data?.inactive ?? 0) > 0}
+    <Segmented
+      label={t("repositories.activityFilter")}
+      value={search.activity ?? "active"}
+      options={[
+        { value: "active", label: t("repositories.activityActive") },
+        { value: "inactive", label: t("repositories.activityInactive"), count: counts.data?.inactive ?? null },
+      ]}
+      onChange={(activity) => setSearch({ activity: activity === "active" ? undefined : "inactive" })}
+    />
+  {/if}
   <SearchInput
     class="ml-auto"
     label={t("repositories.search")}

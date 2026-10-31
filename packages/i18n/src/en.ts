@@ -2000,6 +2000,8 @@ export const en = {
     activityBy: "by {name}",
     activity: {
       repository_created: "Repository added: {subject}",
+      repository_deactivated: "Repository set aside: {subject}",
+      repository_reactivated: "Repository back in use: {subject}",
       repository_deleted: "Repository removed: {subject}",
       finding_accepted: "Risk accepted: {subject}",
       finding_reopened: "Finding reopened: {subject}",
@@ -2060,6 +2062,10 @@ export const en = {
     detailStale: "From the last successful run",
   },
   repositories: {
+    inactiveBadge: "Inactive",
+    activityFilter: "Active or set aside",
+    activityActive: "Active",
+    activityInactive: "Inactive",
     title: "Repositories",
     description: "Repositories GarnetOps scans for vulnerable dependencies.",
     nightly: "Every repository is scanned each night at {time} ({zone}).",
@@ -2157,6 +2163,19 @@ export const en = {
     bulkSkipped: "Already connected, skipped:",
   },
   repository: {
+    activity: {
+      deactivate: "Set aside as inactive",
+      reactivate: "Take back into use",
+      askTitle: "Set {name} aside?",
+      meaning:
+        "An inactive repository is not scanned at night, its pull requests are not read and it gets no early warnings. It is left out of the overview, findings, packages and statistics. Its findings and history are kept, a scan by hand and its quality gate still work, and it can be taken back into use at any time.",
+      reasonLabel: "Why (optional)",
+      reasonHint: 'A short note for your team, such as "archived, replaced by the new portal".',
+      since: "Inactive since {when}",
+      reason: "Reason: {reason}",
+      deactivated: "Repository set aside.",
+      reactivated: "Repository back in use.",
+    },
     back: "All repositories",
     openOf: "{severity} open",
     facts: "Repository",
@@ -3194,6 +3213,8 @@ export const en = {
       setup_completed: "First-run setup completed",
       repository_created: "Repository added",
       repository_deleted: "Repository removed",
+      repository_deactivated: "Repository set aside as inactive",
+      repository_reactivated: "Repository taken back into use",
       repository_shared: "Repository shared with the organisation",
       repository_share_requested: "Sharing a repository requested",
       repository_share_declined: "Sharing a repository declined",

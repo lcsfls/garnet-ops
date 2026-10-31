@@ -2060,6 +2060,8 @@ export const de: Messages = {
     activityBy: "von {name}",
     activity: {
       repository_created: "Repository hinzugefügt: {subject}",
+      repository_deactivated: "Repository beiseitegelegt: {subject}",
+      repository_reactivated: "Repository wieder in Gebrauch: {subject}",
       repository_deleted: "Repository entfernt: {subject}",
       finding_accepted: "Risiko akzeptiert: {subject}",
       finding_reopened: "Finding wieder geöffnet: {subject}",
@@ -2122,6 +2124,10 @@ export const de: Messages = {
     detailStale: "Vom letzten erfolgreichen Lauf",
   },
   repositories: {
+    inactiveBadge: "Inaktiv",
+    activityFilter: "Aktiv oder beiseitegelegt",
+    activityActive: "Aktiv",
+    activityInactive: "Inaktiv",
     title: "Repositories",
     description: "Repositories, die GarnetOps auf verwundbare Abhängigkeiten prüft.",
     nightly: "Jedes Repository wird jede Nacht um {time} ({zone}) gescannt.",
@@ -2221,6 +2227,19 @@ export const de: Messages = {
     bulkSkipped: "Bereits verbunden, übersprungen:",
   },
   repository: {
+    activity: {
+      deactivate: "Als inaktiv beiseitelegen",
+      reactivate: "Wieder in Gebrauch nehmen",
+      askTitle: "{name} beiseitelegen?",
+      meaning:
+        "Ein inaktives Repository wird nachts nicht gescannt, seine Pull Requests werden nicht gelesen und es bekommt keine Frühwarnungen. In Übersicht, Befunden, Paketen und Statistik zählt es nicht mit. Befunde und Verlauf bleiben erhalten, ein Scan von Hand und sein Quality Gate funktionieren weiter, und es lässt sich jederzeit wieder in Gebrauch nehmen.",
+      reasonLabel: "Warum (optional)",
+      reasonHint: "Eine kurze Notiz für Ihr Team, etwa „archiviert, ersetzt durch das neue Portal“.",
+      since: "Inaktiv seit {when}",
+      reason: "Grund: {reason}",
+      deactivated: "Repository beiseitegelegt.",
+      reactivated: "Repository wieder in Gebrauch.",
+    },
     back: "Alle Repositories",
     openOf: "{severity} offen",
     facts: "Repository",
@@ -3279,6 +3298,8 @@ export const de: Messages = {
       setup_completed: "Ersteinrichtung abgeschlossen",
       repository_created: "Repository hinzugefügt",
       repository_deleted: "Repository entfernt",
+      repository_deactivated: "Repository als inaktiv beiseitegelegt",
+      repository_reactivated: "Repository wieder in Gebrauch genommen",
       repository_shared: "Repository mit der Organisation geteilt",
       repository_share_requested: "Teilen eines Repositorys beantragt",
       repository_share_declined: "Teilen eines Repositorys abgelehnt",

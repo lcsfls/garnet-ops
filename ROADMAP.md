@@ -115,6 +115,8 @@ paginated findings, and every number on the overview leads to its details.
 - [x] Per-user forge connections with a personal read token, repository picker, private
       repositories until shared (ADR 0030, 0.0.11); sign-in with a GitHub App (device flow) or a
       Gitea/Forgejo OAuth2 application with PKCE instead of a pasted token (ADR 0031, 0.0.12)
+- [x] Inactive repositories: set aside what is not used or maintained, out of nightly scans, early warnings and the
+      organisation's views, history kept (ADR 0043)
 - [x] Hosts and containers with a host agent, a module off by default (ADR 0034, `docs/hosts.md`, 0.0.12): running containers,
       the packages and vulnerabilities of their images, the link to the repository they were built from, optional check for newer
       images in public registries. Hosts without Docker: a small Go agent as a systemd service reports the host's kernel and

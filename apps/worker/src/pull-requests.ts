@@ -12,7 +12,7 @@ import {
   pullRequestUrl,
 } from "@garnetops/core/fix-prs";
 import { schema } from "@garnetops/db";
-import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import { db } from "./db.ts";
 import { ForgeError, type ForgeTarget, listOpenPullRequests } from "./forge.ts";
@@ -150,6 +150,8 @@ export async function refreshPullRequests(
       and(
         options.organizationId ? eq(schema.repository.organizationId, options.organizationId) : undefined,
         options.repositoryIds?.length ? inArray(schema.repository.id, options.repositoryIds) : undefined,
+        // Inactive repositories are set aside (ADR 0043): their pull requests are not read.
+        isNull(schema.repository.inactiveAt),
       ),
     );
   for (const repo of repos) await refreshRepositoryPullRequests(repo);

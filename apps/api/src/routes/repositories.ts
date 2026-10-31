@@ -11,7 +11,7 @@ import {
   schema,
   type Viewer,
 } from "@garnetops/db";
-import { and, count, desc, eq, getTableColumns, ilike, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, ilike, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
@@ -94,6 +94,8 @@ const listQuery = z.object({
       }
       return parsed;
     }),
+  /** Active repositories (the default), the ones set aside (ADR 0043), or both. */
+  activity: z.enum(["active", "inactive", "all"]).default("active"),
   /** Without a sort the list is by name. */
   sort: z.enum(["name", "grade", "critical", "high", "medium", "lastScan"]).optional(),
   dir: z.enum(["asc", "desc"]).optional(),
@@ -150,6 +152,25 @@ const bulkBody = z.object({
     z.object({ kind: z.literal("none") }),
     z.object({ kind: z.literal("https-token"), token: z.string().min(8).max(500) }),
   ]),
+});
+
+/** Set aside or not (ADR 0043). */
+const activityFilter = (activity: "active" | "inactive" | "all") =>
+  activity === "active"
+    ? isNull(r.inactiveAt)
+    : activity === "inactive"
+      ? isNotNull(r.inactiveAt)
+      : undefined;
+
+/** Since when and why a repository is set aside; null while it is active. */
+function activityOf(row: RepoRow) {
+  return row.inactiveAt ? { since: row.inactiveAt, reason: row.inactiveReason } : null;
+}
+
+const activityBody = z.object({
+  active: z.boolean(),
+  /** Why it is set aside, as a short plain note. */
+  reason: z.string().trim().max(200).optional(),
 });
 
 /** Who sees the repository (ADR 0030), as the caller may know it. */
@@ -282,6 +303,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
     const input = listQuery.parse(c.req.query());
     const filters = and(
       repositoryVisibleTo(actor),
+      activityFilter(input.activity),
       input.q ? ilike(r.name, `%${input.q.replace(/[%_\\]/g, "\\$&")}%`) : undefined,
       statusFilter(input.status),
       input.grade ? gradeFilterSql(gradeRank, input.grade) : undefined,
@@ -344,6 +366,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
         deployPublicKey: row.deployPublicKey,
         sshHostKeys: hostKeys(row),
         ...sharing(row, actor.userId),
+        inactive: activityOf(row),
         lastScanAt: row.lastScanAt,
         lastScan: latestScan.get(row.id) ?? null,
         open: counts.get(row.id) ?? {},
@@ -465,16 +488,21 @@ export const repositoryRoutes = new Hono<AppEnv>()
       repositoryVisibleTo(actor),
       input.q ? ilike(r.name, `%${input.q.replace(/[%_\\]/g, "\\$&")}%`) : undefined,
     );
+    // The statuses count active repositories; the ones set aside are counted on their own (ADR 0043).
     const counts = await Promise.all(
       (["all", "blocked", "attention", "clean"] as const).map(async (status) => {
         const [row] = await db
           .select({ n: count() })
           .from(r)
-          .where(and(where, statusFilter(status)));
+          .where(and(where, isNull(r.inactiveAt), statusFilter(status)));
         return [status, row?.n ?? 0] as const;
       }),
     );
-    return c.json(Object.fromEntries(counts));
+    const [inactive] = await db
+      .select({ n: count() })
+      .from(r)
+      .where(and(where, isNotNull(r.inactiveAt)));
+    return c.json({ ...Object.fromEntries(counts), inactive: inactive?.n ?? 0 });
   })
   /** How many repositories have each grade (ADR 0018), for the grade filter and the overview. */
   .get("/grades", async (c) => {
@@ -482,6 +510,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
     const input = countsQuery.parse(c.req.query());
     const where = and(
       repositoryVisibleTo(actor),
+      isNull(r.inactiveAt),
       input.q ? ilike(r.name, `%${input.q.replace(/[%_\\]/g, "\\$&")}%`) : undefined,
     );
     return c.json(await gradeDistribution(db, gradeRank, sql`${r}`, where ?? sql`true`));
@@ -496,6 +525,8 @@ export const repositoryRoutes = new Hono<AppEnv>()
       .where(
         and(
           repositoryVisibleTo(actor),
+          // "Scan all" means the active ones; a repository set aside is scanned only on its own page (ADR 0043).
+          isNull(r.inactiveAt),
           sql`not exists (select 1 from ${schema.scan} s where s.repository_id = ${r.id} and s.state in ('queued', 'running'))`,
         ),
       );
@@ -543,6 +574,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
       deployPublicKey: row.deployPublicKey,
       sshHostKeys: hostKeys(row),
       ...sharing(row, actor.userId),
+      inactive: activityOf(row),
       createdAt: row.createdAt,
       lastScanAt: row.lastScanAt,
       lastScanId: row.lastScanId,
@@ -652,6 +684,44 @@ export const repositoryRoutes = new Hono<AppEnv>()
       { url: row.url, visibility: row.visibility },
     );
     return c.body(null, 204);
+  })
+  /**
+   * Set a repository aside, or take it back (ADR 0043). Admins for any repository they see, a member for their own private one,
+   * as with removing it. Nothing is deleted; it is audited both ways.
+   */
+  .put("/:id/activity", async (c) => {
+    const actor = c.get("actor");
+    const id = c.req.param("id");
+    const body = activityBody.parse(await c.req.json());
+    const [target] = await db
+      .select()
+      .from(r)
+      .where(and(eq(r.id, id), repositoryVisibleTo(actor)))
+      .limit(1);
+    if (!target) throw notFound("Repository");
+    if (!(target.visibility === "private" && target.ownerUserId === actor.userId))
+      requireRole(actor, "admin");
+    const wasActive = target.inactiveAt === null;
+    if (body.active === wasActive) return c.json({ inactive: activityOf(target) });
+    const now = new Date();
+    const reason = body.active ? null : body.reason?.replace(/[\p{Cc}\p{Cf}]/gu, "") || null;
+    const [row] = await db
+      .update(r)
+      .set({
+        inactiveAt: body.active ? null : now,
+        inactiveBy: body.active ? null : actor.userId,
+        inactiveReason: reason,
+        updatedAt: now,
+      })
+      .where(eq(r.id, id))
+      .returning();
+    await audit(
+      actor,
+      body.active ? "repository.reactivated" : "repository.deactivated",
+      { type: "repository", id },
+      body.active ? { url: target.url } : { url: target.url, reason: reason ?? "" },
+    );
+    return c.json({ inactive: row ? activityOf(row) : null });
   })
   .delete("/:id/ssh-host-keys", async (c) => {
     // Forgetting a pinned host key re-opens trust on first use; only admins may, and it is audited.

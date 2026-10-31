@@ -22,3 +22,10 @@ export const visibleRepository = (column: AnyColumn | SQL, viewer: Viewer): SQL 
 /** On the repository table itself. */
 export const repositoryVisibleTo = (viewer: Viewer): SQL =>
   sql`(${repository.organizationId} = ${viewer.organizationId} and (${repository.visibility} = 'organization' or ${repository.ownerUserId} = ${viewer.userId}))`;
+
+/**
+ * A row whose repository is active (ADR 0043). Views over the whole organisation (overview, findings, packages, statistics,
+ * early warnings, pull requests) leave inactive repositories out; anything about one repository still shows it.
+ */
+export const activeRepository = (column: AnyColumn | SQL): SQL =>
+  sql`${column} in (select ${repository.id} from ${repository} where ${repository.inactiveAt} is null)`;

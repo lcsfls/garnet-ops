@@ -281,6 +281,13 @@
       "when": 1793449018620,
       "tag": "0039_wordfence",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793453734621,
+      "tag": "0040_repository_inactive",
+      "breakpoints": true
     }
   ]
 }

@@ -116,6 +116,7 @@
       <div class="min-w-0">
         <span class="flex flex-wrap items-center gap-2">
           <RepositoryLink id={repo.id} name={repo.name} class="font-medium" />
+          {#if repo.inactive}<Badge tone="neutral">{t("repositories.inactiveBadge")}</Badge>{/if}
           {#if repo.visibility === "private"}
             <Badge tone="neutral">
               <Lock aria-hidden="true" /><span title={t("connections.privateHint")}>{t("connections.private")}</span>

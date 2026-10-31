@@ -465,6 +465,45 @@ test("a repository opens its own page with scan and patch history", async ({ pag
   expect(problems).toEqual([]);
 });
 
+test("a repository can be set aside as inactive and taken back into use (ADR 0043)", async ({ page }) => {
+  const problems = watchForProblems(page);
+  const id = "repo_e2eseeded000000001";
+  await page.goto(`/repositories/${id}`);
+  await page.getByRole("button", { name: "Set aside as inactive" }).click();
+  const dialog = page.getByRole("dialog", { name: "Set seeded-app aside?" });
+  await expect(dialog).toContainText("is not scanned at night");
+  await dialog.getByLabel("Why (optional)").fill("replaced by the new portal");
+  await dialog.getByRole("button", { name: "Set aside as inactive" }).click();
+  await expect(page.getByText("Repository set aside.")).toBeVisible();
+  const banner = page.getByTestId("repository-inactive");
+  await expect(banner).toContainText("Inactive since");
+  await expect(banner).toContainText("Reason: replaced by the new portal");
+
+  // Not in the list of active repositories, but under Inactive, marked as such.
+  await page.goto("/repositories");
+  await expect(page.getByRole("link", { name: "seeded-app" })).toHaveCount(0);
+  await page
+    .getByRole("group", { name: "Active or set aside" })
+    .getByRole("button", { name: /^Inactive/ })
+    .click();
+  await expect(page).toHaveURL(/activity=inactive/);
+  const row = page.getByRole("row", { name: /seeded-app/ });
+  await expect(row).toContainText("Inactive");
+  // Its findings stay out of the organisation's list.
+  await page.goto("/findings");
+  await expect(page.getByText("seeded-app")).toHaveCount(0);
+
+  await page.goto(`/repositories/${id}`);
+  await page.getByRole("button", { name: "Take back into use" }).click();
+  await expect(page.getByText("Repository back in use.")).toBeVisible();
+  await expect(page.getByTestId("repository-inactive")).toHaveCount(0);
+  const [audited] = await sql<{ data: Record<string, unknown> }>(
+    "select data from audit_log where action = 'repository.deactivated' order by id desc limit 1",
+  );
+  expect(audited?.data).toMatchObject({ reason: "replaced by the new portal" });
+  expect(problems).toEqual([]);
+});
+
 test("a finished scan reloads what it changed on the repository page", async ({ page }) => {
   const problems = watchForProblems(page);
   const id = "repo_e2eseeded000000001";

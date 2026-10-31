@@ -1,5 +1,12 @@
-import { isTimeZone, openFindingsTrend, schema, type Viewer, visibleRepository } from "@garnetops/db";
-import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+  activeRepository,
+  isTimeZone,
+  openFindingsTrend,
+  schema,
+  type Viewer,
+  visibleRepository,
+} from "@garnetops/db";
+import { and, count, desc, eq, inArray, isNull, or, type SQL, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
@@ -128,7 +135,8 @@ const query = z.object({
 export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const actor = c.get("actor");
   const { organizationId } = actor;
-  const seen = visibleRepository(f.repositoryId, actor);
+  // The overview counts active repositories only; the ones set aside are left out (ADR 0043).
+  const seen = and(visibleRepository(f.repositoryId, actor), activeRepository(f.repositoryId)) as SQL;
   // Calendar days of the trend are the viewer's days; the browser sends its IANA zone.
   const { tz: timeZone } = query.parse(c.req.query());
 
@@ -189,7 +197,7 @@ export const overviewRoutes = new Hono<AppEnv>().get("/", async (c) => {
           and not exists (
           select 1 from finding x where x.repository_id = r.id and x.state = 'open' and x.severity = 'critical'))::int as attention,
         count(*) filter (where r.last_scan_at is null)::int as never_scanned
-      from repository r where r.organization_id = ${organizationId}
+      from repository r where r.organization_id = ${organizationId} and r.inactive_at is null
         and (r.visibility = 'organization' or r.owner_user_id = ${actor.userId})`),
     db
       .select({

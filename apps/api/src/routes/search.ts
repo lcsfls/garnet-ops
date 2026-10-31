@@ -1,4 +1,4 @@
-import { repositoryVisibleTo, schema, visibleRepository } from "@garnetops/db";
+import { activeRepository, repositoryVisibleTo, schema, visibleRepository } from "@garnetops/db";
 import { and, asc, eq, ilike, min } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -35,6 +35,7 @@ export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
         and(
           eq(f.organizationId, organizationId),
           visibleRepository(f.repositoryId, actor),
+          activeRepository(f.repositoryId),
           ilike(f.vulnerabilityId, pattern),
         ),
       )
@@ -48,6 +49,7 @@ export const searchRoutes = new Hono<AppEnv>().get("/", async (c) => {
         and(
           eq(p.organizationId, organizationId),
           visibleRepository(p.repositoryId, actor),
+          activeRepository(p.repositoryId),
           ilike(p.name, pattern),
         ),
       )

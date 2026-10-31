@@ -1,5 +1,5 @@
 import { newId } from "@garnetops/core";
-import { and, eq, inArray, notExists, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
 import type { Database } from "./index.ts";
 import * as schema from "./schema.ts";
 
@@ -53,6 +53,8 @@ export async function startDueNightlyRuns(db: Database, asOf?: Date): Promise<St
         .where(
           and(
             eq(schema.repository.organizationId, row.organization_id),
+            // Inactive repositories are set aside (ADR 0043): no nightly scan.
+            isNull(schema.repository.inactiveAt),
             notExists(
               tx
                 .select({ one: sql`1` })

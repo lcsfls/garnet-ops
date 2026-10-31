@@ -13,7 +13,7 @@ import { newId } from "@garnetops/core";
 import type { NotifyPayload, SeverityCounts } from "@garnetops/core/notifications";
 import { VULNDB_PROBE_INTERVAL_MINUTES, vulnDbReportSchema } from "@garnetops/core/system-status";
 import { schema } from "@garnetops/db";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import { z } from "zod";
 import { db } from "./db.ts";
@@ -103,7 +103,8 @@ export async function checkEarlyWarnings(boss: Pick<PgBoss, "send"> | null): Pro
     .innerJoin(schema.repository, eq(schema.repository.id, schema.repositoryPackage.repositoryId))
     .innerJoin(schema.organization, eq(schema.organization.id, schema.repository.organizationId))
     .innerJoin(schema.scan, eq(schema.scan.id, schema.repository.lastScanId))
-    .where(isNotNull(schema.repositoryPackage.purl))
+    // Inactive repositories are set aside (ADR 0043): no early warnings for them.
+    .where(and(isNotNull(schema.repositoryPackage.purl), isNull(schema.repository.inactiveAt)))
     .then((list) => list.filter((r): r is InventoryRow => Boolean(r.purl)));
 
   let created: (typeof schema.earlyWarning.$inferSelect)[] = [];

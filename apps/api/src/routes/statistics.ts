@@ -1,4 +1,5 @@
 import {
+  activeRepository,
   isTimeZone,
   organizationStatistics,
   STATISTICS_RANGES,
@@ -54,7 +55,14 @@ export const statisticsRoutes = new Hono<AppEnv>().get("/", async (c) => {
       .select({ id: schema.repository.id, name: schema.repository.name, ...openBySeverity })
       .from(f)
       .innerJoin(schema.repository, eq(schema.repository.id, f.repositoryId))
-      .where(and(eq(f.organizationId, organizationId), visibleRepository(f.repositoryId, actor), counted))
+      .where(
+        and(
+          eq(f.organizationId, organizationId),
+          visibleRepository(f.repositoryId, actor),
+          activeRepository(f.repositoryId),
+          counted,
+        ),
+      )
       .groupBy(schema.repository.id, schema.repository.name)
       .orderBy(...worstFirst, asc(schema.repository.name))
       .limit(TOP),
@@ -66,7 +74,14 @@ export const statisticsRoutes = new Hono<AppEnv>().get("/", async (c) => {
         ...openBySeverity,
       })
       .from(f)
-      .where(and(eq(f.organizationId, organizationId), visibleRepository(f.repositoryId, actor), counted))
+      .where(
+        and(
+          eq(f.organizationId, organizationId),
+          visibleRepository(f.repositoryId, actor),
+          activeRepository(f.repositoryId),
+          counted,
+        ),
+      )
       .groupBy(f.packageName, f.packageType)
       .orderBy(...worstFirst, asc(f.packageName))
       .limit(TOP),
@@ -87,6 +102,7 @@ export const statisticsRoutes = new Hono<AppEnv>().get("/", async (c) => {
         and(
           eq(f.organizationId, organizationId),
           visibleRepository(f.repositoryId, actor),
+          activeRepository(f.repositoryId),
           eq(f.state, "open"),
           inArray(f.severity, ["critical", "high"]),
         ),

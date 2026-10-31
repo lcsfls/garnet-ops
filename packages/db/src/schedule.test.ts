@@ -120,6 +120,16 @@ describe.skipIf(!adminUrl)("nightly scan schedule", () => {
     expect(row?.queuedScans).toBe(1);
   });
 
+  it("does not scan a repository that is set aside (ADR 0043)", async () => {
+    const id = await org();
+    await t.db
+      .update(schema.repository)
+      .set({ inactiveAt: new Date() })
+      .where(eq(schema.repository.id, `${id}_r1`));
+    const [run] = await runsOf(id, "2026-06-11T00:45:00Z");
+    expect(run?.scans.map((s) => s.repositoryId)).toEqual([`${id}_r2`]);
+  });
+
   it("skips disabled organisations and unknown zones without failing the others", async () => {
     const off = await org({ enabled: false });
     const broken = await org({ zone: "Europe/Atlantis" });

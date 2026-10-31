@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Database } from "./index.ts";
-import { visibleRepository } from "./visibility.ts";
+import { activeRepository, visibleRepository } from "./visibility.ts";
 
 /** True for IANA zone names the runtime knows, e.g. "Europe/Berlin" or "UTC". */
 export function isTimeZone(value: string): boolean {
@@ -56,7 +56,7 @@ export async function openFindingsTrend(
     from days d
     join finding x on x.organization_id = ${input.organizationId}
       and ${visibleRepository(sql`x.repository_id`, input)}
-      ${input.repositoryId ? sql`and x.repository_id = ${input.repositoryId}` : sql``}
+      ${input.repositoryId ? sql`and x.repository_id = ${input.repositoryId}` : sql`and ${activeRepository(sql`x.repository_id`)}`}
       and (x.first_seen_at at time zone ${input.timeZone})::date <= d.day
       and (x.resolved_at is null or (x.resolved_at at time zone ${input.timeZone})::date > d.day)
       and x.severity in ('critical', 'high', 'medium', 'low')

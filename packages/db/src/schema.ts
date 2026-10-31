@@ -418,6 +418,15 @@ export const repository = pgTable(
     ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "set null" }),
     lastScanId: text("last_scan_id"),
     lastScanAt: timestamp("last_scan_at", { withTimezone: true }),
+    /**
+     * Set aside (ADR 0043): not used or maintained at the moment. No nightly scan, pull request refresh or early warning, and
+     * left out of the organisation's counts and lists; its findings and history are kept, a scan by hand and its quality gate
+     * still work. Null while active.
+     */
+    inactiveAt: timestamp("inactive_at", { withTimezone: true }),
+    inactiveBy: text("inactive_by").references(() => user.id, { onDelete: "set null" }),
+    /** A short note why, as the person wrote it (plain text). */
+    inactiveReason: text("inactive_reason"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

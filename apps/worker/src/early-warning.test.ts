@@ -258,4 +258,18 @@ describe.skipIf(!adminUrl)("early warnings", () => {
     expect(await check(boss as never)).toBe(0);
     expect(await conn.db.select().from(schema.earlyWarning)).toHaveLength(1);
   });
+  it("leaves a repository that is set aside out (ADR 0043)", async () => {
+    await conn.db.delete(schema.earlyWarning);
+    await conn.db
+      .update(schema.repository)
+      .set({ inactiveAt: new Date() })
+      .where(eq(schema.repository.id, "repo_ew"));
+    await reportVulnDb("2026-10-30T04:00:00.000Z");
+    expect(await check(boss as never)).toBe(0);
+    expect(await conn.db.select().from(schema.earlyWarning)).toEqual([]);
+    await conn.db
+      .update(schema.repository)
+      .set({ inactiveAt: null })
+      .where(eq(schema.repository.id, "repo_ew"));
+  });
 });

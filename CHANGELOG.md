@@ -10,6 +10,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- **Inactive repositories** ([ADR 0043](docs/adr/0043-inactive-repositories.md)): a repository that is not used or maintained
+  at the moment can be set aside on its page, with an optional reason. It is no longer scanned at night, gets no early warnings
+  or pull request refresh and is left out of the overview, findings, packages and statistics; its history is kept, a scan by
+  hand and its quality gate still work, and it can be taken back into use at any time. The repository list shows them under
+  **Inactive**.
+- API: `PUT /api/v1/repositories/{id}/activity`; `inactive` on repositories, `activity` on the repository list and `inactive`
+  in its counts.
 - Running containers say whether they run the repository's latest scanned commit, an older one (with the date it was scanned) or
   one GarnetOps never scanned, on the host, image and repository pages (from the `org.opencontainers.image.revision` label).
 - **Availability of websites** ([ADR 0040](docs/adr/0040-website-availability.md)): a check every 1, 5, 15 or 60 minutes per

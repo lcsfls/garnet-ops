@@ -1,5 +1,5 @@
 import { pageSizeSchema } from "@garnetops/core/pagination";
-import { schema, visibleRepository } from "@garnetops/db";
+import { activeRepository, schema, visibleRepository } from "@garnetops/db";
 import { and, count, eq, ilike, like, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -85,6 +85,8 @@ export const packageRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const where = and(
     eq(p.organizationId, actor.organizationId),
     visibleRepository(p.repositoryId, actor),
+    // Over the whole organisation, repositories set aside are left out (ADR 0043).
+    input.repositoryId ? undefined : activeRepository(p.repositoryId),
     name ? ilike(p.name, `%${escapeLike(name)}%`) : undefined,
     version ? like(p.version, `${escapeLike(version)}%`) : undefined,
     input.repositoryId ? eq(p.repositoryId, input.repositoryId) : undefined,

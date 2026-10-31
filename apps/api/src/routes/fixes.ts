@@ -28,7 +28,7 @@ import { isSafePackageName, type ManifestKind } from "@garnetops/core/manifests"
 import { decodeCursor, encodeCursor, pageSizeSchema } from "@garnetops/core/pagination";
 import { seal } from "@garnetops/core/vault";
 import { repositoryVisibleTo, schema, type Viewer, visibleRepository } from "@garnetops/db";
-import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
@@ -55,7 +55,11 @@ async function loadProposals(viewer: Viewer, repositoryId?: string) {
     .select({ id: schema.repository.id, name: schema.repository.name, url: schema.repository.url })
     .from(schema.repository)
     .where(
-      and(repositoryVisibleTo(viewer), repositoryId ? eq(schema.repository.id, repositoryId) : undefined),
+      and(
+        repositoryVisibleTo(viewer),
+        // Repositories set aside get no fix proposals in the organisation's list (ADR 0043).
+        repositoryId ? eq(schema.repository.id, repositoryId) : isNull(schema.repository.inactiveAt),
+      ),
     );
   if (repositories.length === 0)
     return { proposals: [], repositories: new Map<string, (typeof repositories)[number]>() };
