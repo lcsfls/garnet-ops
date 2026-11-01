@@ -2031,6 +2031,15 @@ export const de: Messages = {
     hours: "{count, plural, one {# Stunde} other {# Stunden}}",
     repositoriesTitle: "Repositories mit den meisten offenen Findings",
     packagesTitle: "Pakete mit den meisten offenen Findings",
+    heatDescription:
+      "Heute, das Schlimmste zuerst; je dunkler eine Zelle, desto mehr Befunde dieser Schwere. Jede Zahl öffnet die Liste. Akzeptierte Risiken zählen nicht.",
+    repository: "Repository",
+    heatCell: "{count} offen mit Schwere {severity} in {name}",
+    ageTitle: "Wie lange offene Befunde schon offen sind",
+    ageDescription:
+      "Alte kritische und hohe Befunde zuerst ansehen. Gezählt ab dem Zeitpunkt, an dem GarnetOps sie zuerst gesehen hat.",
+    age: { week: "Bis 7 Tage", month: "8 bis 30 Tage", quarter: "31 bis 90 Tage", older: "Über 90 Tage" },
+    ageCell: "{count} mit Schwere {severity} seit {age} offen",
     rankingDescription: "Stand heute, die schlimmsten zuerst. Akzeptierte Risiken zählen nicht mit.",
     inRepositories: "{count, plural, one {in # Repository} other {in # Repositories}}",
     openInRepository: "{count, plural, one {# offenes Finding} other {# offene Findings}} in {name}",

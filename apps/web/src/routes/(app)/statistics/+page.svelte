@@ -33,6 +33,7 @@
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
   import CardHeader from "#lib/components/CardHeader.svelte";
+  import HeatTable from "#lib/components/HeatTable.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import RepositoryLink from "#lib/components/RepositoryLink.svelte";
@@ -366,31 +367,54 @@
 {/snippet}
 
 {#snippet repositoriesCard(rows: Statistics["repositories"])}
-  {@const most = Math.max(0, ...rows.map((r) => TREND_SEVERITIES.reduce((n, s) => n + r[s], 0)))}
+  <!-- Where the open findings are: repositories against severities, shaded by how many, each cell a link to that list. -->
   <Card>
-    <CardHeader title={t("statistics.repositoriesTitle")} description={t("statistics.rankingDescription")} />
-    {#if rows.length > 0}{@render severityKey()}{/if}
+    <CardHeader title={t("statistics.repositoriesTitle")} description={t("statistics.heatDescription")} />
     {#if rows.length === 0}
       <p class="px-5 pb-5 text-muted-foreground">{t("statistics.noOpenFindings")}</p>
     {:else}
-      <ol>
-        {#each rows as r (r.id)}
-          <li class="flex items-center gap-3 border-t px-5 py-2.5">
-            <div class="min-w-0 flex-1">
-              <RepositoryLink id={r.id} name={r.name} class="block truncate font-medium" />
-              {@render severityMeter(r, most)}
-            </div>
-            <a
-              href={href("/findings", { repositoryId: r.id })}
-              class="hover:underline"
-              aria-label={t("statistics.openInRepository", { count: r.open, name: r.name })}
-            >
-              {@render severityCounts(r)}
-            </a>
-          </li>
-        {/each}
-      </ol>
+      <div class="px-3 pb-4" data-testid="statistics-heat">
+        <HeatTable
+          caption={t("statistics.repositoriesTitle")}
+          {rows}
+          columns={TREND_SEVERITIES.map((s) => ({ key: s, label: t(`severity.${s}`) }))}
+          rowHeader={t("statistics.repository")}
+          value={(r, s) => r[s as TrendSeverity]}
+          severityOf={(_, s) => s as TrendSeverity}
+          hrefOf={(r, s) => href("/findings", { repositoryId: r.id, severity: s })}
+          cellLabel={(r, s, n) =>
+            t("statistics.heatCell", { count: n, severity: t(`severity.${s as TrendSeverity}`), name: r.name })}
+        >
+          {#snippet rowLabel(r)}<RepositoryLink id={r.id} name={r.name} class="truncate" />{/snippet}
+        </HeatTable>
+      </div>
     {/if}
+  </Card>
+{/snippet}
+
+{#snippet ageCard(rows: Statistics["openAge"])}
+  <!-- How long the open findings have been open: severities against age, so old critical ones stand out. -->
+  <Card>
+    <CardHeader title={t("statistics.ageTitle")} description={t("statistics.ageDescription")} />
+    <div class="px-3 pb-4" data-testid="statistics-age">
+      <HeatTable
+        caption={t("statistics.ageTitle")}
+        {rows}
+        columns={(["week", "month", "quarter", "older"] as const).map((k) => ({ key: k, label: t(`statistics.age.${k}`) }))}
+        rowHeader={t("statistics.severity")}
+        value={(r, k) => r[k as "week" | "month" | "quarter" | "older"]}
+        severityOf={(r) => r.severity}
+        hrefOf={(r) => href("/findings", { severity: r.severity })}
+        cellLabel={(r, k, n) =>
+          t("statistics.ageCell", {
+            count: n,
+            severity: t(`severity.${r.severity}`),
+            age: t(`statistics.age.${k as "week" | "month" | "quarter" | "older"}`),
+          })}
+      >
+        {#snippet rowLabel(r)}<SeverityBadge severity={r.severity} />{/snippet}
+      </HeatTable>
+    </div>
   </Card>
 {/snippet}
 
@@ -502,6 +526,7 @@
       {@render gatesCard(data)}
       {@render timeToFixCard(data)}
       {@render repositoriesCard(data.repositories)}
+      {@render ageCard(data.openAge)}
       {@render packagesCard(data.packages)}
     </div>
     {@render oldestCard(data.oldest)}

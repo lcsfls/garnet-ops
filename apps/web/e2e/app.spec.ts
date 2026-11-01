@@ -95,8 +95,21 @@ test("statistics: found, resolved and time to fix over a range, with links to th
   await expect(page.getByRole("link", { name: /^Resolved .*Previous/ })).toContainText("1");
   await expect(page.getByRole("link", { name: /^Gates passed/ })).toContainText("0 of 1 gate run");
   // Seen ten days ago, resolved three days ago.
-  await expect(page.getByRole("row", { name: /High/ })).toContainText("7 days");
-  await expect(page.getByRole("row", { name: /Critical/ })).toContainText("None resolved");
+  const timeToFix = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Time to fix" }) });
+  await expect(timeToFix.getByRole("row", { name: /High/ })).toContainText("7 days");
+  await expect(timeToFix.getByRole("row", { name: /Critical/ })).toContainText("None resolved");
+  // Where the open findings are, shaded by count, each number a link to that list; and how long they have been open.
+  const heat = page.getByTestId("statistics-heat");
+  const cell = heat.getByRole("link", {
+    name: new RegExp(`open of severity High in ${SEEDED.repositoryName}`),
+  });
+  await expect(cell).toHaveAttribute("href", /\/findings\?repositoryId=.*severity=high/);
+  const age = page.getByTestId("statistics-age");
+  await expect(age.getByRole("rowheader")).toHaveCount(4);
+  await expect(age.getByRole("columnheader", { name: "Over 90 days" })).toBeVisible();
+  await expect(age.getByRole("link", { name: /of severity High open for Up to 7 days/ })).toBeVisible();
   await expect(page.getByText(SEEDED.hostileId)).toBeVisible();
   await expect(page.getByText(SEEDED.repositoryName).first()).toBeVisible();
 

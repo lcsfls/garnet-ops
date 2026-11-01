@@ -39,6 +39,15 @@ const worstFirst = [
 ] as const;
 const counted = and(eq(f.state, "open"), inArray(f.severity, ["critical", "high", "medium", "low"]));
 
+/** How long the open findings have been open, by severity: up to 7 days, 8 to 30, 31 to 90, more than 90. */
+const ageBuckets = {
+  severity: f.severity,
+  week: sql<number>`count(*) filter (where ${f.firstSeenAt} > now() - interval '7 days')::int`,
+  month: sql<number>`count(*) filter (where ${f.firstSeenAt} <= now() - interval '7 days' and ${f.firstSeenAt} > now() - interval '30 days')::int`,
+  quarter: sql<number>`count(*) filter (where ${f.firstSeenAt} <= now() - interval '30 days' and ${f.firstSeenAt} > now() - interval '90 days')::int`,
+  older: sql<number>`count(*) filter (where ${f.firstSeenAt} <= now() - interval '90 days')::int`,
+};
+
 /**
  * The statistics page: what happened in the last 30, 90 or 365 days (found, resolved, gate
  * results, scans, fix pull requests, time to fix) and where the open findings are today.
@@ -49,7 +58,7 @@ export const statisticsRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const { organizationId } = actor;
   const { days, tz: timeZone } = query.parse(c.req.query());
 
-  const [stats, repositories, packages, oldest] = await Promise.all([
+  const [stats, repositories, packages, oldest, ages] = await Promise.all([
     organizationStatistics(db, { organizationId, userId: actor.userId, timeZone, days }),
     db
       .select({ id: schema.repository.id, name: schema.repository.name, ...openBySeverity })
@@ -109,7 +118,30 @@ export const statisticsRoutes = new Hono<AppEnv>().get("/", async (c) => {
       )
       .orderBy(asc(f.firstSeenAt), asc(f.id))
       .limit(TOP),
+    db
+      .select(ageBuckets)
+      .from(f)
+      .where(
+        and(
+          eq(f.organizationId, organizationId),
+          visibleRepository(f.repositoryId, actor),
+          activeRepository(f.repositoryId),
+          counted,
+        ),
+      )
+      .groupBy(f.severity),
   ]);
+  // Every severity has a row, also with nothing open, so the chart keeps its shape.
+  const openAge = (["critical", "high", "medium", "low"] as const).map((severity) => {
+    const row = ages.find((a) => a.severity === severity);
+    return {
+      severity,
+      week: row?.week ?? 0,
+      month: row?.month ?? 0,
+      quarter: row?.quarter ?? 0,
+      older: row?.older ?? 0,
+    };
+  });
 
-  return c.json({ ...stats, repositories, packages, oldest, generatedAt: new Date() });
+  return c.json({ ...stats, repositories, packages, oldest, openAge, generatedAt: new Date() });
 });

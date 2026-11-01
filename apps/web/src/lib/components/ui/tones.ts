@@ -54,6 +54,32 @@ export const SEVERITY_EDGE: Record<Severity, string> = {
   unknown: "border-l-muted-foreground/45",
 };
 
+/**
+ * Background of a heat-table cell (statistics): four steps of the severity's colour by how much of the table's largest value a
+ * cell holds. Fixed classes, because the CSP allows no inline styles; the number is always written in the cell as well.
+ */
+export const SEVERITY_HEAT: Record<
+  "critical" | "high" | "medium" | "low",
+  readonly [string, string, string, string]
+> = {
+  critical: ["bg-destructive/10", "bg-destructive/20", "bg-destructive/35", "bg-destructive/50"],
+  high: ["bg-high/10", "bg-high/20", "bg-high/35", "bg-high/50"],
+  medium: ["bg-warning/10", "bg-warning/20", "bg-warning/35", "bg-warning/50"],
+  low: [
+    "bg-muted-foreground/8",
+    "bg-muted-foreground/15",
+    "bg-muted-foreground/25",
+    "bg-muted-foreground/35",
+  ],
+};
+
+/** The step (0 to 3) of a value against the largest value of its table; null for zero. */
+export function heatStep(value: number, max: number): 0 | 1 | 2 | 3 | null {
+  if (value <= 0 || max <= 0) return null;
+  const share = value / max;
+  return share > 0.75 ? 3 : share > 0.5 ? 2 : share > 0.25 ? 1 : 0;
+}
+
 /** Scan state is neutral or informational: a finished scan is not proof of anything, so never green. */
 export function scanStateTone(state: ScanState): BadgeTone {
   return state === "failed" ? "critical" : state === "succeeded" ? "neutral" : "info";

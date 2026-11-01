@@ -2,6 +2,7 @@
 import type { FindingState, ScanState, Severity } from "@garnetops/core";
 import type { AiError, TriageResult } from "@garnetops/core/ai";
 import type { Grade, GradeRule } from "@garnetops/core/grades";
+import type { TrendSeverity } from "./trend.ts";
 
 export type { FindingState, Grade, GradeRule, ScanState, Severity };
 export type SeverityCounts = Partial<Record<Severity, number>>;
@@ -448,6 +449,8 @@ export interface Statistics {
     repositoryName: string;
     firstSeenAt: string;
   }[];
+  /** How long the open findings have been open, by severity (every severity has a row). */
+  openAge: { severity: TrendSeverity; week: number; month: number; quarter: number; older: number }[];
   generatedAt: string;
 }
 

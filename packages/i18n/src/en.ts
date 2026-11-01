@@ -1971,6 +1971,15 @@ export const en = {
     hours: "{count, plural, one {# hour} other {# hours}}",
     repositoriesTitle: "Repositories with the most open findings",
     packagesTitle: "Packages with the most open findings",
+    heatDescription:
+      "Today, worst first; the darker a cell, the more findings of that severity. Each number opens the list. Accepted risks are not counted.",
+    repository: "Repository",
+    heatCell: "{count} open of severity {severity} in {name}",
+    ageTitle: "How long open findings have been open",
+    ageDescription:
+      "Old critical and high findings are the ones to look at first. Counted from when GarnetOps first saw them.",
+    age: { week: "Up to 7 days", month: "8 to 30 days", quarter: "31 to 90 days", older: "Over 90 days" },
+    ageCell: "{count} of severity {severity} open for {age}",
     rankingDescription: "Today, worst first. Accepted risks are not counted.",
     inRepositories: "{count, plural, one {in # repository} other {in # repositories}}",
     openInRepository: "{count, plural, one {# open finding} other {# open findings}} in {name}",

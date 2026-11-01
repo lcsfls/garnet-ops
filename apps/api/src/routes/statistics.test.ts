@@ -159,6 +159,18 @@ describe.skipIf(!adminUrl)("statistics API", () => {
     expect(other.json?.repositories.map((r: Json) => r.name)).toEqual(["secret"]);
   });
 
+  it("says how long the open findings have been open, by severity, every severity with a row", async () => {
+    const { json } = await get("/api/v1/statistics");
+    expect(json?.openAge).toEqual([
+      { severity: "critical", week: 0, month: 0, quarter: 1, older: 0 },
+      { severity: "high", week: 2, month: 0, quarter: 0, older: 0 },
+      { severity: "medium", week: 1, month: 0, quarter: 0, older: 0 },
+      { severity: "low", week: 1, month: 0, quarter: 0, older: 0 },
+    ]);
+    // Another organisation's 400-day-old critical is its own.
+    expect((await get("/api/v1/statistics", OTHER)).json?.openAge[0]).toMatchObject({ older: 1 });
+  });
+
   it("counts what was found in the range", async () => {
     const { json } = await get("/api/v1/statistics?days=30");
     // Found in the last 30 days: everything above except the 40-day-old critical and the negligible one.
