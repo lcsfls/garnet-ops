@@ -15,6 +15,21 @@ Security-relevant changes are listed under **Security** in every release.
   off from what is really set up and leads to where it is done; the list can be hidden.
 - **Quality gate in CI, step by step**: a wizard on the gates page picks the repository, creates its token with a link to the
   forge's secrets page, and shows the whole workflow file to commit (with a link that fills it in on GitHub).
+- **Statistics**: where the open findings are, as a table of repositories against severities shaded by count (each number
+  opens that list), and how long the open findings have been open, by severity (up to 7 days, 8 to 30, 31 to 90, over 90).
+  Each severity is shaded against itself, and every cell writes its number.
+- **Scan on push, registered for you** ([ADR 0045](docs/adr/0045-scan-on-push.md), `docs/scan-on-push.md`): with your own
+  connected account on the repository's forge, **Switch on and register in *forge*** creates the webhook in the forge, after a
+  dialog that says what will be created and with which account; nothing has to be copied. The card shows whether it is being
+  registered, done (by whom) or failed (and why). **Scan on push for all of them** does the same when adding repositories from
+  a connected account. Switching off or replacing removes the webhook GarnetOps created. GitHub Apps need the repository
+  permission **Webhooks: Read and write** for this (`docs/connected-accounts.md`).
+
+### Security
+
+- Registering a webhook uses only the caller's own connection, checked again by the worker before the token is opened; the
+  webhook secret reaches the worker sealed in the vault for that one job and is deleted afterwards in every outcome (a sweep
+  removes leftovers after 30 minutes). Jobs carry ids only; failures are stored and audited as short codes.
 
 ## [0.0.17] - 2026-11-01
 <!-- title: Scan on push -->

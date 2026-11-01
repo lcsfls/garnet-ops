@@ -366,6 +366,7 @@ export const secret = pgTable(
         "wordpress-plugin-token",
         "vulndb-github-token",
         "vulndb-nvd-api-key",
+        "webhook-secret",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -745,6 +746,22 @@ export const repositoryWebhook = pgTable(
       .$type<{ at: string; event: string; result: string }[]>()
       .notNull()
       .default([]),
+    /**
+     * Registered in the forge through `createdBy`'s own connected account (ADR 0045, "Registering through a connected
+     * account"); null when entered by hand, or when the connection was removed since.
+     */
+    connectionId: text("connection_id").references(() => forgeConnection.id, { onDelete: "set null" }),
+    /** The forge's id of the webhook it created, for removing it again; null until registered. */
+    forgeHookId: text("forge_hook_id"),
+    /** null: entered in the forge by hand. */
+    registerState: text("register_state", { enum: ["pending", "ok", "failed"] }),
+    /** A short code when registering failed (a ForgeError code or a check of the worker); never a response body. */
+    registerReason: text("register_reason"),
+    /**
+     * A copy of the secret sealed for the worker (purpose "webhook-secret") while registering is pending. The worker
+     * deletes it once it has tried, whatever the outcome.
+     */
+    handoverSecretId: text("handover_secret_id").references(() => secret.id, { onDelete: "set null" }),
   },
   (t) => [
     uniqueIndex("repository_webhook_repo_uq").on(t.repositoryId),

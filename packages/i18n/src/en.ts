@@ -655,6 +655,8 @@ export const en = {
         hostsMatch: "Image checks",
         hostsTick: "Hosts schedule",
         hostsRegistry: "Registry checks",
+        repositoryWebhookRegister: "Webhook registration",
+        repositoryWebhookUnregister: "Webhook removal",
       },
       nightly: "Nightly scan",
       nightlyBadgeOn: "On",
@@ -818,6 +820,13 @@ export const en = {
     noMatch: "No repository matches the filter.",
     addedToast:
       "{count, plural, one {# repository added} other {# repositories added}}. The first scan has started.",
+    addedWithPushToast:
+      "{count, plural, one {# repository added} other {# repositories added}}. The first scan has started, and the webhooks are being created.",
+    scanOnPush: "Scan on push for all of them",
+    scanOnPushHint:
+      "GarnetOps creates a webhook in {forge} on each of them with this account, so every push to the scanned branch starts a scan.",
+    scanOnPushWriteSignIn:
+      "Needs write access: sign in to this account again with write access first (Pull requests, Sign in with write access).",
     fromAccount: "From a connected account",
     private: "Private",
     privateHint: "Only you see this repository and what is found in it.",
@@ -2327,6 +2336,59 @@ export const en = {
         "Gitea or Forgejo: Settings, Webhooks, Add webhook, Gitea or Forgejo. Target URL and secret from above, POST, application/json, push events.",
       howReach: "The forge must be able to reach this address. GarnetOps answers nothing else there.",
       done: "Done",
+      enableRegister: "Switch on and register in {forge}",
+      disableDescriptionRegistered:
+        "The address stops working at once. GarnetOps also removes the webhook it created in the forge.",
+      registerTitle: "Register the webhook in {forge}?",
+      registerDescription: "GarnetOps creates the webhook in the forge for you, with your connected account.",
+      registerWhat: "What will be created",
+      registerWhatHook:
+        "A webhook on this repository in {forge}, for push events only, that calls this GarnetOps installation.",
+      registerWhatSecret: "A new random secret that signs every delivery. You do not have to copy it.",
+      registerWhatRemove:
+        "When scan on push is switched off or replaced, GarnetOps removes this webhook again with the same account.",
+      registerAccount: "Account: {login} on {forge}",
+      registerAcknowledge: "GarnetOps may use my account {login} to create this webhook",
+      registerAcknowledgeHint:
+        "The token is used for this and nothing else. Creating a webhook needs admin rights on the repository in the forge.",
+      registerConfirm: "Create the webhook",
+      registeredToast: "Scan on push is on. GarnetOps is creating the webhook in {forge}.",
+      registering: "Being registered in the forge …",
+      registeredBy: "Registered in the forge by {login}",
+      registeredNoConnection:
+        "Registered in the forge. The connected account was removed since: when you switch this off, remove the webhook in the forge as well.",
+      registerFailed: "Could not be registered in the forge: {reason}.",
+      registerFailedHint:
+        "Try again, or create a new address and secret and enter them in the forge yourself.",
+      registerAgain: "Register again",
+      registerWriteScopeHint:
+        "To let GarnetOps register it in {forge}, sign in to your connected account again with write access (Settings, Connected accounts).",
+      registerConnectionHint:
+        "Your connected account on {forge} does not work. Check it in Settings, Connected accounts, to let GarnetOps register the webhook.",
+      registerReason: {
+        tokenRejected: "the forge refused the account's token",
+        forbidden: "the account may not create webhooks here; it needs admin rights on the repository",
+        notFound: "the forge did not find the repository, or the account may not manage its webhooks",
+        conflict: "the forge refused the webhook",
+        rejected: "the forge refused the webhook",
+        rateLimited: "the forge's rate limit was reached; try again later",
+        redirect: "the forge answered unexpectedly",
+        tooLarge: "the forge answered unexpectedly",
+        badResponse: "the forge answered unexpectedly",
+        httpError: "the forge answered with an error",
+        timeout: "the forge did not answer in time",
+        tls: "the forge's certificate is not trusted",
+        connectionFailed: "the forge could not be reached",
+        addressRefused: "the forge's address is not allowed",
+        unresolvable: "the forge's name could not be resolved",
+        connectionMissing: "the connected account is gone or no longer covers this repository",
+        writeScopeMissing: "the connected account has no write access",
+        repositoryGone: "the repository is gone",
+        noPublicUrl: "GarnetOps does not know its own address (PUBLIC_URL)",
+        secretMissing: "the secret could not be handed over",
+        expired: "it was not done in time",
+        unexpected: "something unexpected went wrong",
+      },
       result: {
         title: "Result",
         scanQueued: "Scan started",
@@ -3487,6 +3549,10 @@ export const en = {
       repository_webhook_created: "Scan on push switched on",
       repository_webhook_replaced: "Webhook address and secret replaced",
       repository_webhook_removed: "Scan on push switched off",
+      repository_webhook_registered: "Webhook registered in the forge",
+      repository_webhook_register_failed: "Webhook could not be registered in the forge",
+      repository_webhook_unregistered: "Webhook removed in the forge",
+      repository_webhook_unregister_failed: "Webhook could not be removed in the forge",
       update_scheduled: "Update scheduled",
       update_rescheduled: "Update rescheduled",
       update_cancelled: "Update cancelled",

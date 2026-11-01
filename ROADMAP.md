@@ -107,8 +107,8 @@ paginated findings, and every number on the overview leads to its details.
       sorting and filter, detail pages (ADR 0018, `docs/grades.md`). Still open: a grade distribution on the overview
 - [x] Scan scheduling: on demand and nightly done (per organisation, local
       time in an explicit zone, one run per local date, DST-tested, ADR 0005),
-      settings screen to change it; scans on push via webhook for GitHub, Gitea and Forgejo (ADR 0045, `docs/scan-on-push.md`).
-      Still open: creating the webhook in the forge through a connected account
+      settings screen to change it; scans on push via webhook for GitHub, Gitea and Forgejo (ADR 0045, `docs/scan-on-push.md`),
+      entered by hand or created in the forge through the person's own connected account
 - [x] Quality gate API for CI (token per repository), rules in report-only
       mode by default, status check on the pull request (the pipeline step) (ADR 0008).
       Still open: per-repository rule overrides, secret and SAST rules (Phase 5)

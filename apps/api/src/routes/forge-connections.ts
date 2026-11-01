@@ -2,12 +2,14 @@ import { newId } from "@garnetops/core";
 import {
   apiBaseFromWeb,
   apiBaseProblem,
+  connectionCoversRepository,
   FORGE_KINDS,
   needsWriteScope,
   normalizeForgeWebBase,
   repositoryKey,
 } from "@garnetops/core/fix-prs";
 import { seal } from "@garnetops/core/vault";
+import { registerConnectionProblem } from "@garnetops/core/webhook";
 import { repositoryVisibleTo, schema, type Viewer } from "@garnetops/db";
 import { and, asc, count, eq, ilike, inArray, or } from "drizzle-orm";
 import { Hono } from "hono";
@@ -18,6 +20,7 @@ import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
+import { requireRegisterConnection, switchOnWebhook } from "../lib/repository-webhook.ts";
 import { requireRecentSignIn } from "../lib/step-up.ts";
 import { queueScan } from "./repositories.ts";
 
@@ -47,7 +50,11 @@ const createBody = z.object({
   token: tokenSchema,
 });
 const tokenBody = z.object({ token: tokenSchema });
-const pickBody = z.object({ forgeIds: z.array(z.string().min(1).max(100)).min(1).max(PICK_LIMIT) });
+const pickBody = z.object({
+  forgeIds: z.array(z.string().min(1).max(100)).min(1).max(PICK_LIMIT),
+  /** Scan on push for every repository added (ADR 0045): the webhook is registered in the forge with this connection. */
+  scanOnPush: z.boolean().optional(),
+});
 const listQuery = z.object({ q: z.string().trim().max(100).optional() });
 const removeQuery = z.object({ removeRepositories: z.enum(["0", "1"]).default("0") });
 const pullRequestsBody = z.object({
@@ -349,12 +356,22 @@ export const forgeConnectionRoutes = new Hono<AppEnv>()
       }),
     });
   })
-  /** Adds the chosen repositories, private to the caller, cloned with this connection, and scans them. */
+  /**
+   * Adds the chosen repositories, private to the caller, cloned with this connection, and scans them. With `scanOnPush`
+   * each gets a webhook registered in the forge through this same connection (ADR 0045), as if switched on one by one on
+   * the repository page: the caller owns the new private repositories, a recent sign-in is required, and a Gitea/Forgejo
+   * sign-in needs its write scope.
+   */
   .post("/:id/repositories", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "member");
     const row = await ownConnection(actor, c.req.param("id"));
     const input = pickBody.parse(await c.req.json());
+    if (input.scanOnPush) {
+      requireRecentSignIn(actor);
+      // The same checks as on the repository page, before anything is added.
+      requireRegisterConnection({ connection: row, problem: registerConnectionProblem(row) });
+    }
     await rateLimit(`forge-connection:pick:${actor.userId}`, 10);
     const ids = [...new Set(input.forgeIds)];
     const [picked, repos] = await Promise.all([
@@ -365,7 +382,7 @@ export const forgeConnectionRoutes = new Hono<AppEnv>()
       db.select({ url: r.url }).from(r).where(eq(r.organizationId, actor.organizationId)),
     ]);
     const known = new Set(repos.map((x) => repositoryKey(x.url)));
-    const created: { id: string; name: string; scanId: string }[] = [];
+    const created: { id: string; name: string; scanId: string; registering: boolean }[] = [];
     const skipped: { forgeId: string; reason: "duplicate" | "unknown" }[] = ids
       .filter((id) => !picked.some((p) => p.forgeId === id))
       .map((forgeId) => ({ forgeId, reason: "unknown" as const }));
@@ -395,7 +412,13 @@ export const forgeConnectionRoutes = new Hono<AppEnv>()
         { type: "repository", id },
         { url: item.cloneUrl, auth: "connection", connection: row.id, visibility: "private" },
       );
-      created.push({ id, name, scanId: await queueScan(actor.organizationId, id, actor.userId, "manual") });
+      const scanId = await queueScan(actor.organizationId, id, actor.userId, "manual");
+      // Listed by this connection, so on its forge; checked again all the same, like the worker does.
+      const registering =
+        input.scanOnPush === true && connectionCoversRepository(row.webBaseUrl, item.cloneUrl)
+          ? (await switchOnWebhook(actor, id, row)).registering
+          : false;
+      created.push({ id, name, scanId, registering });
     }
     return c.json({ created, skipped }, 201);
   })

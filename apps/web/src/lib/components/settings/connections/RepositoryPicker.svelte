@@ -3,10 +3,12 @@
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "../../../api.ts";
   import { t } from "../../../i18n.svelte.ts";
+  import { StepUp } from "../../../step-up.svelte.ts";
   import { toast } from "../../../toast.svelte.ts";
   import type { ConnectionRepository, ForgeConnection } from "../../../types.ts";
   import QueryStatus from "../../QueryStatus.svelte";
   import SearchInput from "../../SearchInput.svelte";
+  import StepUpPrompt from "../../StepUpPrompt.svelte";
   import Alert from "../../ui/Alert.svelte";
   import Badge from "../../ui/Badge.svelte";
   import Button from "../../ui/Button.svelte";
@@ -19,13 +21,19 @@
 
   /**
    * The repositories a connected account can see, each with a checkbox (ADR 0030). Ones that are already monitored
-   * cannot be picked again. The chosen ones are added private to the person and scanned at once.
+   * cannot be picked again. The chosen ones are added private to the person and scanned at once. "Scan on push for all of
+   * them" also lets GarnetOps create a webhook on each in the forge with this account (ADR 0045); that needs a recent
+   * sign-in, and for a Gitea/Forgejo sign-in the write scope.
    */
-  let { connection, onClose }: { connection: ForgeConnection; onClose: () => void } = $props();
+  let { connection, email, onClose }: { connection: ForgeConnection; email: string; onClose: () => void } =
+    $props();
 
   const queryClient = useQueryClient();
+  const stepUp = new StepUp();
   let filter = $state("");
   let chosen = $state(new Set<string>());
+  let scanOnPush = $state(false);
+  const forgeName = $derived(t(`repository.writeAccess.forgeNames.${connection.forgeKind}`));
   const list = createQuery(() => ({
     queryKey: ["forge-connection-repositories", connection.id],
     queryFn: () =>
@@ -52,16 +60,21 @@
     mutationFn: () =>
       api<{ created: { id: string; name: string }[]; skipped: unknown[] }>(
         `/forge-connections/${connection.id}/repositories`,
-        { method: "POST", body: { forgeIds: [...chosen] } },
+        { method: "POST", body: { forgeIds: [...chosen], ...(scanOnPush ? { scanOnPush: true } : {}) } },
       ),
     onSuccess: async (result: { created: { id: string; name: string }[] }) => {
-      toast.success(t("connections.addedToast", { count: result.created.length }));
+      toast.success(
+        t(scanOnPush ? "connections.addedWithPushToast" : "connections.addedToast", {
+          count: result.created.length,
+        }),
+      );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["repositories"] }),
         queryClient.invalidateQueries({ queryKey: ["forge-connection-repositories", connection.id] }),
       ]);
       onClose();
     },
+    onError: (e: Error) => void stepUp.handled(e, () => add.mutate()),
   }));
 </script>
 
@@ -78,7 +91,7 @@
       if (chosen.size > 0) add.mutate();
     }}
   >
-    {#if add.isError}<Alert tone="error">{t("errors.actionFailed")}</Alert>{/if}
+    {#if add.isError && !stepUp.open}<Alert tone="error">{t("errors.actionFailed")}</Alert>{/if}
     <div class="flex flex-wrap items-center gap-2">
       <SearchInput label={t("connections.filter")} value={filter} onChange={(q) => (filter = q)} />
       <Button
@@ -137,6 +150,22 @@
         {/each}
       </ul>
     {/if}
+    <label class="flex items-start gap-2.5 rounded-md border p-3">
+      <Checkbox
+        class="mt-1"
+        bind:checked={scanOnPush}
+        disabled={connection.needsWriteSignIn}
+        data-testid="picker-scan-on-push"
+      />
+      <span>
+        <b class="font-medium">{t("connections.scanOnPush")}</b>
+        <span class="block text-sm text-muted-foreground">
+          {connection.needsWriteSignIn
+            ? t("connections.scanOnPushWriteSignIn")
+            : t("connections.scanOnPushHint", { forge: forgeName })}
+        </span>
+      </span>
+    </label>
     <DialogFooter>
       <Button variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
       <Button type="submit" disabled={add.isPending || chosen.size === 0}>
@@ -145,3 +174,4 @@
     </DialogFooter>
   </form>
 </Dialog>
+<StepUpPrompt {stepUp} {email} />

@@ -9,7 +9,9 @@ import { blobSha, FakeForge, FORGE_HOST } from "../test/fake-forge.ts";
 import {
   branchHead,
   createBranch,
+  createPushHook,
   deleteBranch,
+  deletePushHook,
   type ForgeError,
   type ForgeTarget,
   LIMITS,
@@ -278,6 +280,77 @@ describe.skipIf(!openssl).each([
     await code(readFile(target, "dir with space/pa?th#x/package.json", "feature/x y"));
     expect(forge.requests[0]?.path).toContain("/contents/dir%20with%20space/pa%3Fth%23x/package.json");
     expect(forge.requests[0]?.query).toBe("?ref=feature%2Fx%20y");
+  });
+
+  describe("push webhooks (ADR 0045)", () => {
+    const url = `https://garnetops.example.com/api/v1/hooks/${"p".repeat(43)}`;
+    const secret = "s".repeat(43);
+
+    it("creates a webhook for push events only, signed with the secret, and returns the forge's id", async () => {
+      const id = await createPushHook(target, url, secret);
+      expect(id).toMatch(/^[1-9][0-9]*$/);
+      const [request] = forge.requests;
+      expect(request).toMatchObject({
+        method: "POST",
+        path: `${forge.prefix}/repos/team/app/hooks`,
+        authorization: forge.authorization,
+      });
+      expect(request?.body).toEqual(
+        flavour === "github"
+          ? {
+              name: "web",
+              active: true,
+              events: ["push"],
+              config: { url, content_type: "json", secret, insecure_ssl: "0" },
+            }
+          : { type: "gitea", active: true, events: ["push"], config: { url, content_type: "json", secret } },
+      );
+      expect(forge.hooks.has(Number(id))).toBe(true);
+      await deletePushHook(target, id);
+      expect(forge.requests[1]).toMatchObject({
+        method: "DELETE",
+        path: `${forge.prefix}/repos/team/app/hooks/${id}`,
+      });
+      expect(forge.hooks.has(Number(id))).toBe(false);
+    });
+
+    it.skipIf(flavour === "github")("names Forgejo as the webhook type for a Forgejo account", async () => {
+      await createPushHook({ ...target, kind: "forgejo" }, url, secret);
+      expect(forge.requests[0]?.body).toMatchObject({ type: "forgejo" });
+    });
+
+    it("a webhook that is gone already counts as removed; other failures are codes", async () => {
+      await deletePushHook(target, "999999");
+      forge.faults.push({ match: /^DELETE .*\/hooks\//, status: 403, once: true });
+      expect(await code(deletePushHook(target, "5"))).toBe("forbidden");
+      // An account without admin rights on the repository: the forge refuses, and its text never travels on.
+      forge.faults.push({ match: /^POST .*\/hooks$/, status: 404, once: true });
+      expect(await code(createPushHook(target, url, secret))).toBe("not-found");
+    });
+
+    it("an id that could reshape the path is never sent, nor an answer without a usable id accepted", async () => {
+      for (const id of ["../1", "1/2", "abc", "0"])
+        expect(await code(deletePushHook(target, id))).toBe("not-found");
+      expect(forge.requests).toHaveLength(0);
+      forge.faults.push({ match: /^POST .*\/hooks$/, status: 201, body: '{"id":"../7"}', once: true });
+      expect(await code(createPushHook(target, url, secret))).toBe("bad-response");
+    });
+
+    it("the secret never appears in an error", async () => {
+      forge.faults.push({
+        match: /^POST .*\/hooks$/,
+        status: 422,
+        body: `{"message":"${secret}"}`,
+        once: true,
+      });
+      try {
+        await createPushHook(target, url, secret);
+        expect.unreachable();
+      } catch (error) {
+        expect(String(error)).not.toContain(secret);
+        expect(JSON.stringify(error)).not.toContain(secret);
+      }
+    });
   });
 });
 

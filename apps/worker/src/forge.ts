@@ -3,7 +3,8 @@
  * Enterprise Server, `/api/v3`) and Gitea or Forgejo (`/api/v1`). It can do exactly what a
  * version-bump pull request needs and nothing else: read the repository, read one branch and
  * one file, create one branch, update one file, open and read one pull request, delete the
- * branch it made. It never merges, approves, comments or touches the default branch.
+ * branch it made. It never merges, approves, comments or touches the default branch. For scan
+ * on push (ADR 0045) it also creates one push webhook and removes the one it created.
  *
  * The token is only sent to the API address stored with the write access, which an admin
  * chose. The address is resolved here and every answer is checked with the same rules as
@@ -19,6 +20,7 @@ import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { classifyAddress } from "@garnetops/core/ai-endpoint";
 import { type ForgeKind, stripControl } from "@garnetops/core/fix-prs";
+import { FORGE_HOOK_ID_PATTERN } from "@garnetops/core/webhook";
 import { z } from "zod";
 
 export const FORGE_ERROR_CODES = [
@@ -466,6 +468,51 @@ export async function pullRequestState(target: ForgeTarget, number: number): Pro
   const data = parse(pullStateSchema, response.json);
   if (data.merged === true || data.merged_at) return "merged";
   return data.state === "open" ? "open" : "closed";
+}
+
+/* -------------------------------------------------------------------------- */
+/* Scan on push (ADR 0045): one push webhook, created and removed               */
+/* -------------------------------------------------------------------------- */
+
+const hookSchema = z.object({
+  id: z.union([z.number().int().positive(), z.string().regex(FORGE_HOOK_ID_PATTERN)]),
+});
+
+/**
+ * Creates a webhook that calls `url` on every push, signed with `secret` (HMAC-SHA256), and returns the forge's id of it.
+ * Only push events, JSON bodies and (GitHub) TLS verification on. The secret travels only in this request's body to the
+ * account's API address; it is never logged and never part of an error.
+ */
+export async function createPushHook(target: ForgeTarget, url: string, secret: string): Promise<string> {
+  const address = new URL(url);
+  if (address.protocol !== "https:" && address.protocol !== "http:") throw new ForgeError("rejected");
+  const body =
+    target.kind === "github"
+      ? {
+          name: "web",
+          active: true,
+          events: ["push"],
+          config: { url, content_type: "json", secret, insecure_ssl: "0" },
+        }
+      : {
+          type: target.kind,
+          active: true,
+          events: ["push"],
+          config: { url, content_type: "json", secret },
+        };
+  const response = await call(target, { method: "POST", path: `${repoPath(target)}/hooks`, body });
+  return String(parse(hookSchema, response.json).id);
+}
+
+/** Removes the webhook with the forge's id `id`. A webhook that is gone already (404) counts as removed. */
+export async function deletePushHook(target: ForgeTarget, id: string): Promise<void> {
+  if (!FORGE_HOOK_ID_PATTERN.test(id)) throw new ForgeError("not-found");
+  try {
+    await call(target, { method: "DELETE", path: `${repoPath(target)}/hooks/${seg(id)}` });
+  } catch (error) {
+    if (error instanceof ForgeError && error.code === "not-found") return;
+    throw error;
+  }
 }
 
 /* -------------------------------------------------------------------------- */

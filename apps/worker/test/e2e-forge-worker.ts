@@ -1,6 +1,7 @@
 /**
  * For the end-to-end tests of the web app only (apps/web/e2e): the fix pull request part of the
- * worker (ADR 0014) plus a fake Gitea/Forgejo server (HTTPS, throw-away certificate made with
+ * worker (ADR 0014), connected accounts and registering scan-on-push webhooks (ADR 0045), plus a
+ * fake Gitea/Forgejo server (HTTPS, throw-away certificate made with
  * openssl) in one process, and a small control server on plain http for the tests to look at
  * what the forge received and to merge a pull request. The real worker stays off there: it would
  * also pick up the scans other tests queue.
@@ -10,6 +11,7 @@
  * Run with: tsx test/e2e-forge-worker.ts (environment as for the worker).
  */
 import { createServer } from "node:http";
+import type { WebhookRegisterJob, WebhookUnregisterJob } from "@garnetops/core/webhook";
 import { PgBoss } from "pg-boss";
 import { env } from "../src/env.ts";
 import {
@@ -24,6 +26,12 @@ import { setForgeTestHooks } from "../src/forge.ts";
 import { FORGE_CONNECTION_QUEUE, type RefreshJob, refreshConnection } from "../src/forge-connection.ts";
 import { FORGE_SIGN_IN_QUEUE, runSignIn } from "../src/forge-sign-in.ts";
 import { PULL_REQUEST_QUEUE, refreshPullRequests } from "../src/pull-requests.ts";
+import {
+  runWebhookRegister,
+  runWebhookUnregister,
+  WEBHOOK_REGISTER_QUEUE,
+  WEBHOOK_UNREGISTER_QUEUE,
+} from "../src/webhook-register.ts";
 import { FakeForge } from "./fake-forge.ts";
 
 const forgePort = Number(process.env.E2E_FORGE_PORT ?? 8093);
@@ -76,6 +84,8 @@ createServer((req, res) => {
         token: TOKEN,
         requests: forge.requests,
         pulls: forge.pulls,
+        // Scan on push (ADR 0045): the webhooks created through a connected account, with what they were created with.
+        hooks: [...forge.hooks.entries()].map(([id, hook]) => ({ id, ...hook })),
         branches: [...forge.branches.keys()],
         files: Object.fromEntries(
           [...forge.branches.keys()].map((b) => [b, forge.fileOn(b, "package.json")]),
@@ -110,6 +120,14 @@ await boss.createQueue(FIX_PR_REFRESH_QUEUE);
 await boss.createQueue(FORGE_CONNECTION_QUEUE);
 await boss.createQueue(FORGE_SIGN_IN_QUEUE);
 await boss.createQueue(PULL_REQUEST_QUEUE);
+await boss.createQueue(WEBHOOK_REGISTER_QUEUE);
+await boss.createQueue(WEBHOOK_UNREGISTER_QUEUE);
+await boss.work<WebhookRegisterJob>(WEBHOOK_REGISTER_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await runWebhookRegister(job.data);
+});
+await boss.work<WebhookUnregisterJob>(WEBHOOK_UNREGISTER_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await runWebhookUnregister(job.data);
+});
 await boss.work<{ organizationId: string; repositoryIds?: string[] }>(
   PULL_REQUEST_QUEUE,
   { batchSize: 1 },

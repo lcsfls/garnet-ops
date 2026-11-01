@@ -553,7 +553,7 @@ test("scan on push: switched on with a fresh sign-in, shown once, and a signed p
   await page.goto(`/repositories/${id}`);
   const card = page.getByTestId("repository-webhook");
   await expect(card).toContainText("Off");
-  await card.getByRole("button", { name: "Switch on" }).click();
+  await card.getByRole("button", { name: "Switch on", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Enter this in the forge" });
   const url = ((await dialog.getByTestId("webhook-created-url").textContent()) ?? "").trim();
   const secret = ((await dialog.getByTestId("webhook-created-secret").textContent()) ?? "").trim();
@@ -2358,6 +2358,127 @@ test.describe("pull request overview (ADR 0032)", () => {
     await confirm.getByRole("button", { name: "Remove" }).click();
     await expect(page.getByText("No account connected yet.")).toBeVisible();
     expect(await sql("select 1 from pull_request where number = 42")).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+});
+
+test.describe("scan on push through a connected account (ADR 0045)", () => {
+  test("adds a repository with scan on push, registers the webhook in the forge, removes it, and registers it again", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    const control = `http://127.0.0.1:${E2E.forgeControlPort}`;
+    type Hook = {
+      id: number;
+      repo: string;
+      body: { type: string; events: string[]; config: Record<string, string> };
+    };
+    const hooks = async () => ((await (await fetch(`${control}/state`)).json()) as { hooks: Hook[] }).hooks;
+    const forge = `https://forge.example.test:${E2E.forgePort}`;
+    await page.goto("/settings?section=accounts");
+    await page.getByRole("button", { name: "Connect account" }).click();
+    const dialog = page.getByRole("dialog", { name: "Connect account" });
+    await dialog.getByLabel("Forge", { exact: true }).selectOption("gitea");
+    await dialog.getByLabel("Address of the forge").fill(forge);
+    await dialog.getByLabel("Personal access token").fill(FIXES.token);
+    await dialog.getByRole("button", { name: "Connect", exact: true }).click();
+    const connection = page.getByTestId("forge-connection");
+    await expect(connection).toContainText("Connected as alex", { timeout: 20_000 });
+
+    // Adding: one checkbox for all of them, with what it does.
+    await connection.getByRole("button", { name: "Choose repositories" }).click();
+    const picker = page.getByRole("dialog", { name: "Choose repositories" });
+    await picker.getByLabel(/team\/seeded-app/).check();
+    await expect(picker).toContainText(
+      "GarnetOps creates a webhook in Gitea on each of them with this account",
+    );
+    await picker.getByLabel("Scan on push for all of them").check();
+    await picker.getByRole("button", { name: "Add 1 repository" }).click();
+    await expect(picker).toBeHidden();
+    await expect(page.getByText("the webhooks are being created")).toBeVisible();
+    const [repo] = await sql<{ id: string }>(
+      "select id from repository where auth_kind = 'connection' and url like '%/team/seeded-app.git'",
+    );
+    const [hookRow] = await sql<{ path_id: string }>(
+      "select path_id from repository_webhook where repository_id = $1",
+      [repo?.id],
+    );
+
+    // The worker registered it with the account's token: push events only, the address of this installation, signed.
+    await expect.poll(async () => (await hooks()).length, { timeout: 20_000 }).toBe(1);
+    const [created] = await hooks();
+    expect(created?.repo).toBe("seeded-app");
+    expect(created?.body).toMatchObject({
+      type: "gitea",
+      events: ["push"],
+      config: { content_type: "json" },
+    });
+    expect(created?.body.config.url).toBe(
+      `${E2E.publicUrl.replace(/\/+$/, "")}/api/v1/hooks/${hookRow?.path_id}`,
+    );
+    expect(created?.body.config.secret).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    await page.goto(`/repositories/${repo?.id}`);
+    const card = page.getByTestId("repository-webhook");
+    await expect(card.getByTestId("repository-webhook-registration")).toHaveAttribute("data-state", "ok", {
+      timeout: 20_000,
+    });
+    await expect(card).toContainText("Registered in the forge by alex");
+    // The copy of the secret handed to the worker is gone, and the secret was never shown.
+    expect(await sql("select id from secret where purpose = 'webhook-secret'")).toEqual([]);
+    expect(await page.content()).not.toContain(created?.body.config.secret);
+
+    // Switching off removes it in the forge too.
+    await card.getByRole("button", { name: "Switch off" }).click();
+    const off = page.getByRole("dialog", { name: "Switch off scan on push?" });
+    await expect(off).toContainText("GarnetOps also removes the webhook it created in the forge.");
+    await off.getByRole("button", { name: "Switch off" }).click();
+    await expect(card).toContainText("Off");
+    await expect.poll(async () => (await hooks()).length, { timeout: 20_000 }).toBe(0);
+
+    // On the repository page: the dialog says what will be created and with which account, and wants the acknowledgement.
+    await card.getByRole("button", { name: "Switch on and register in Gitea" }).click();
+    const confirm = page.getByRole("dialog", { name: "Register the webhook in Gitea?" });
+    await expect(confirm).toContainText("for push events only");
+    await expect(confirm).toContainText("Account: alex on Gitea");
+    const create = confirm.getByRole("button", { name: "Create the webhook" });
+    await expect(create).toBeDisabled();
+    await confirm.getByLabel("GarnetOps may use my account alex to create this webhook").check();
+    await create.click();
+    await expect(confirm).toBeHidden();
+    await expect(page.getByText("GarnetOps is creating the webhook in Gitea.")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Enter this in the forge" })).toHaveCount(0);
+    await expect(card).toContainText("Registered in the forge by alex", { timeout: 20_000 });
+    await expect.poll(async () => (await hooks()).length).toBe(1);
+
+    const actions = await sql<{ action: string; data: Record<string, unknown> | null }>(
+      "select action, data from audit_log where action like 'repository.webhook_%' and target_id = $1 order by id",
+      [repo?.id],
+    );
+    // The worker writes its entries on its own time, so only what happened is compared, not the order.
+    expect(actions.map((a) => a.action).sort()).toEqual([
+      "repository.webhook_created",
+      "repository.webhook_created",
+      "repository.webhook_registered",
+      "repository.webhook_registered",
+      "repository.webhook_removed",
+      "repository.webhook_unregistered",
+    ]);
+    expect(actions[0]?.data).toMatchObject({ via: "connection" });
+
+    // Clean up for the tests after this one: off (removed in the forge), then the connection with its private repository.
+    await card.getByRole("button", { name: "Switch off" }).click();
+    await page
+      .getByRole("dialog", { name: "Switch off scan on push?" })
+      .getByRole("button", { name: "Switch off" })
+      .click();
+    await expect.poll(async () => (await hooks()).length, { timeout: 20_000 }).toBe(0);
+    await page.goto("/settings?section=accounts");
+    await page.getByRole("button", { name: /^Remove: / }).click();
+    const remove = page.getByRole("dialog", { name: /Remove the connection/ });
+    await remove.getByLabel(/Also remove the private repositories/).check();
+    await remove.getByRole("button", { name: "Remove" }).click();
+    await expect(page.getByText("No account connected yet.")).toBeVisible();
     expect(problems).toEqual([]);
   });
 });

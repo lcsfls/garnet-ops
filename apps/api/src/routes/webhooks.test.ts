@@ -12,23 +12,31 @@ import { Hono } from "hono";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const adminUrl = devDatabaseUrl();
-const shared = vi.hoisted(() => ({ db: null as unknown, sent: [] as unknown[] }));
+const shared = vi.hoisted(() => ({ db: null as unknown, sent: [] as unknown[], privateKeyPem: "" }));
 
 vi.mock("../db.ts", async () => {
   const { createTestDatabase: create, devDatabaseUrl: url } = await import("@garnetops/db/testing");
   const target = url();
   const boss = { send: async (...args: unknown[]) => shared.sent.push(args) };
-  if (!target) return { db: null, pool: null, boss, QUEUES: { scanRepository: "scan-repository" } };
+  const QUEUES = {
+    scanRepository: "scan-repository",
+    webhookRegister: "repository-webhook.register",
+    webhookUnregister: "repository-webhook.unregister",
+  };
+  if (!target) return { db: null, pool: null, boss, QUEUES };
   const t = await create(target, "api_webhooks");
   shared.db = t;
-  return { db: t.db, pool: t.pool, boss, QUEUES: { scanRepository: "scan-repository" } };
+  return { db: t.db, pool: t.pool, boss, QUEUES };
 });
 vi.mock("../env.ts", async () => {
   const { generateVaultKeyPair: gen, loadVaultPublicKey: load } = await import("@garnetops/core/vault");
+  const pair = gen();
+  // Only the test opens what the API sealed, to check it; the API itself never gets the private key.
+  shared.privateKeyPem = pair.privateKeyPem;
   return {
     env: { BETTER_AUTH_SECRET: "b".repeat(48), PUBLIC_URL: "https://garnetops.example.com" },
     isProduction: false,
-    vaultPublicKey: load(gen().publicKeyPem),
+    vaultPublicKey: load(pair.publicKeyPem),
   };
 });
 vi.mock("../auth.ts", () => ({ auth: { api: {} } }));
@@ -45,14 +53,20 @@ describe.skipIf(!adminUrl)("Scan on push", () => {
   let t: TestDatabase;
   let app: Hono;
 
-  async function call(method: string, path: string, opts: { role?: Role; user?: string; age?: number } = {}) {
+  async function call(
+    method: string,
+    path: string,
+    opts: { role?: Role; user?: string; age?: number; body?: unknown } = {},
+  ) {
     const res = await app.request(`/api/v1${path}`, {
       method,
       headers: {
         "x-role": opts.role ?? "admin",
         "x-user": opts.user ?? "user_hook_a",
         "x-age": String(opts.age ?? 0),
+        ...(opts.body === undefined ? {} : { "content-type": "application/json" }),
       },
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
     });
     const text = await res.text();
     return { status: res.status, json: (text ? JSON.parse(text) : null) as Json | null };
@@ -136,6 +150,9 @@ describe.skipIf(!adminUrl)("Scan on push", () => {
   });
   beforeEach(async () => {
     await t.db.delete(schema.repositoryWebhook);
+    await t.db.delete(schema.forgeConnection);
+    await t.db.delete(schema.secret);
+    await t.db.delete(schema.auditLog);
     await t.db.delete(schema.scan);
     await t.db.delete(schema.rateLimit);
     await t.db.update(schema.repository).set({ inactiveAt: null });
@@ -280,5 +297,202 @@ describe.skipIf(!adminUrl)("Scan on push", () => {
       404,
     );
     expect((await call("GET", `/repositories/${REPO}/webhook`)).json).toMatchObject({ enabled: false });
+  });
+
+  describe("registering through a connected account", () => {
+    let counter = 0;
+    const problemCode = (r: { json: Json | null }) =>
+      String(r.json?.type ?? "")
+        .split("/")
+        .pop();
+
+    /** A connection as the worker leaves it after a successful check. */
+    async function connect(
+      userId: string,
+      overrides: Partial<typeof schema.forgeConnection.$inferInsert> = {},
+    ): Promise<string> {
+      const n = ++counter;
+      const secretId = `sec_hookconn${n}`;
+      await t.db.insert(schema.secret).values({
+        id: secretId,
+        organizationId: ORG,
+        purpose: "forge-connection-token",
+        sealed: {},
+        vaultKeyId: "k",
+      });
+      const id = `fcn_hook${n}`;
+      await t.db.insert(schema.forgeConnection).values({
+        id,
+        organizationId: ORG,
+        userId,
+        forgeKind: "gitea",
+        webBaseUrl: "https://git.example.com",
+        apiBaseUrl: "https://git.example.com/api/v1",
+        secretId,
+        accountLogin: userId === "user_hook_a" ? "erika" : "max",
+        state: "ok",
+        ...overrides,
+      });
+      return id;
+    }
+    const register = (opts: { role?: Role; user?: string; age?: number } = {}, repo = REPO) =>
+      call("POST", `/repositories/${repo}/webhook`, { ...opts, body: { register: true } });
+    const hookRow = async () => (await t.db.select().from(schema.repositoryWebhook))[0];
+    const sentTo = (queue: string) =>
+      (shared.sent as unknown[][]).filter((args) => args[0] === queue).map((args) => args[1] as Json);
+
+    it("needs the caller's own connected account on the repository's forge", async () => {
+      // Somebody else's connection never counts, for admins neither; nor one on another forge.
+      await connect("user_hook_b");
+      await connect("user_hook_a", {
+        webBaseUrl: "https://git.example.org",
+        apiBaseUrl: "https://git.example.org/api/v1",
+      });
+      const none = await register();
+      expect(none.status).toBe(409);
+      expect(problemCode(none)).toBe("no-connection");
+      expect(await hookRow()).toBeUndefined();
+      expect(shared.sent).toHaveLength(0);
+      // The other checks come first: who may manage it, and a recent sign-in.
+      expect((await register({ role: "member" })).status).toBe(403);
+      expect(problemCode(await register({ age: STALE }))).toBe("step-up-required");
+    });
+
+    it("a Gitea or Forgejo sign-in needs its write scope", async () => {
+      await connect("user_hook_a", { authMethod: "sign-in", writeScope: false });
+      const res = await register();
+      expect(res.status).toBe(409);
+      expect(problemCode(res)).toBe("connection-write-scope-missing");
+      expect(await hookRow()).toBeUndefined();
+      expect((await call("GET", `/repositories/${REPO}/webhook`)).json?.canRegister).toEqual({
+        login: "erika",
+        kind: "gitea",
+        problem: "write-scope-missing",
+      });
+    });
+
+    it("seals a copy of the secret for the worker and queues a job with ids only", async () => {
+      const connectionId = await connect("user_hook_a", { authMethod: "sign-in", writeScope: true });
+      const res = await register();
+      expect(res.status).toBe(201);
+      expect(res.json).toMatchObject({ registering: true });
+      const secret = res.json?.secret as string;
+      expect(secret).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      const row = await hookRow();
+      expect(row).toMatchObject({
+        connectionId,
+        registerState: "pending",
+        forgeHookId: null,
+        createdBy: "user_hook_a",
+      });
+      const [handover] = await t.db
+        .select()
+        .from(schema.secret)
+        .where(eq(schema.secret.id, row?.handoverSecretId as string));
+      expect(handover).toMatchObject({ organizationId: ORG, purpose: "webhook-secret" });
+      const { loadVaultPrivateKey, open } = await import("@garnetops/core/vault");
+      const key = loadVaultPrivateKey(shared.privateKeyPem);
+      const binding = {
+        organizationId: ORG,
+        recordId: handover?.id as string,
+        purpose: "webhook-secret" as const,
+      };
+      expect(open(handover?.sealed as never, binding, key).toString("utf8")).toBe(secret);
+      // Bound to its purpose: it does not open as anything else.
+      expect(() =>
+        open(handover?.sealed as never, { ...binding, purpose: "forge-connection-token" }, key),
+      ).toThrow();
+      const jobs = sentTo("repository-webhook.register");
+      expect(jobs).toEqual([{ webhookId: row?.id, organizationId: ORG, secretId: row?.handoverSecretId }]);
+      expect(JSON.stringify(shared.sent)).not.toContain(secret);
+      const [audit] = await t.db
+        .select()
+        .from(schema.auditLog)
+        .where(eq(schema.auditLog.action, "repository.webhook_created"));
+      expect(audit?.data).toMatchObject({ via: "connection", connection: connectionId });
+      expect(JSON.stringify(audit)).not.toContain(secret);
+    });
+
+    it("shows how it was registered to those who may manage it, and nothing of it to others", async () => {
+      await connect("user_hook_a");
+      await register();
+      const view = await call("GET", `/repositories/${REPO}/webhook`);
+      expect(view.json).toMatchObject({
+        enabled: true,
+        registration: { state: "pending", reason: null, connection: { login: "erika", kind: "gitea" } },
+        canRegister: { login: "erika", kind: "gitea", problem: null },
+      });
+      await t.db
+        .update(schema.repositoryWebhook)
+        .set({ registerState: "failed", registerReason: "forbidden" });
+      expect((await call("GET", `/repositories/${REPO}/webhook`)).json?.registration).toMatchObject({
+        state: "failed",
+        reason: "forbidden",
+      });
+      expect((await call("GET", `/repositories/${REPO}/webhook`, { role: "member" })).json).toMatchObject({
+        registration: null,
+        canRegister: null,
+      });
+      // Entered by hand: no registration to show.
+      await call("POST", `/repositories/${REPO}/webhook`);
+      expect((await call("GET", `/repositories/${REPO}/webhook`)).json?.registration).toBeNull();
+    });
+
+    it("the owner of a private repository registers it with their own account", async () => {
+      await connect("user_hook_b");
+      const res = await register({ role: "member", user: "user_hook_b" }, PRIVATE);
+      expect(res.status).toBe(201);
+      expect(sentTo("repository-webhook.register")).toHaveLength(1);
+    });
+
+    it("switching off or replacing removes the webhook it registered in the forge, with ids only", async () => {
+      const connectionId = await connect("user_hook_a");
+      await register();
+      await t.db
+        .update(schema.repositoryWebhook)
+        .set({ registerState: "ok", forgeHookId: "42", handoverSecretId: null });
+      // An admin switches it off; the job names whose connection registered it, and who asked.
+      await connect("user_hook_b");
+      expect((await call("DELETE", `/repositories/${REPO}/webhook`, { user: "user_hook_b" })).status).toBe(
+        204,
+      );
+      expect(sentTo("repository-webhook.unregister")).toEqual([
+        {
+          organizationId: ORG,
+          repositoryId: REPO,
+          connectionId,
+          forgeHookId: "42",
+          ownerUserId: "user_hook_a",
+          requestedBy: "user_hook_b",
+        },
+      ]);
+      expect(await hookRow()).toBeUndefined();
+
+      shared.sent.length = 0;
+      await register();
+      await t.db.update(schema.repositoryWebhook).set({ registerState: "ok", forgeHookId: "43" });
+      const replaced = await call("POST", `/repositories/${REPO}/webhook`);
+      expect(replaced.status).toBe(201);
+      expect(replaced.json).toMatchObject({ registering: false });
+      expect(sentTo("repository-webhook.unregister").map((j) => j.forgeHookId)).toEqual(["43"]);
+      expect(await hookRow()).toMatchObject({ registerState: null, connectionId: null, forgeHookId: null });
+    });
+
+    it("replacing a registration that is still pending deletes its handed-over secret", async () => {
+      await connect("user_hook_a");
+      await register();
+      const first = (await hookRow())?.handoverSecretId as string;
+      await register();
+      const second = (await hookRow())?.handoverSecretId as string;
+      expect(second).not.toBe(first);
+      const left = await t.db.select().from(schema.secret).where(eq(schema.secret.purpose, "webhook-secret"));
+      expect(left.map((x) => x.id)).toEqual([second]);
+      // Nothing was registered yet, so nothing is to be removed in the forge.
+      expect(sentTo("repository-webhook.unregister")).toHaveLength(0);
+      await call("DELETE", `/repositories/${REPO}/webhook`);
+      expect(
+        await t.db.select().from(schema.secret).where(eq(schema.secret.purpose, "webhook-secret")),
+      ).toEqual([]);
+    });
   });
 });

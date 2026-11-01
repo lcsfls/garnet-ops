@@ -2,12 +2,12 @@
  * Scan on push (ADR 0045). Two parts:
  *
  * - `webhookRoutes` under `/repositories/:id/webhook`, signed in: owners and admins, or the owner of a private repository, switch
- *   it on (a new address and secret, shown once, with a recent sign-in), see the last deliveries, and switch it off.
+ *   it on (a new address and secret, shown once, with a recent sign-in), see the last deliveries, and switch it off. With their
+ *   own connected account on the forge they can let the worker register it there (lib/repository-webhook.ts).
  * - `webhookDeliveryRoutes` under `/api/v1/hooks/:pathId`, without a session: the forge's delivery. Nothing of it is read before
  *   its HMAC-SHA256 matches; then only the event and the pushed ref count. A push to the scanned branch queues a scan unless one
  *   is already queued or running. Answers are codes only, so the forge's delivery log shows what happened.
  */
-import { newId } from "@garnetops/core";
 import {
   MAX_WEBHOOK_BODY_BYTES,
   signatureMatches,
@@ -19,16 +19,23 @@ import { repositoryVisibleTo, schema } from "@garnetops/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { z } from "zod";
 import { db } from "../db.ts";
-import { env } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, isAdmin, requireRole } from "../lib/context.ts";
 import { clientIp } from "../lib/ip.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
+import {
+  hookUrl,
+  registerConnectionFor,
+  requireRegisterConnection,
+  switchOffWebhook,
+  switchOnWebhook,
+} from "../lib/repository-webhook.ts";
 import { queueScan } from "../lib/scan-queue.ts";
 import { requireRecentSignIn } from "../lib/step-up.ts";
-import { newWebhookSecret, openWebhookSecret, sealWebhookSecret } from "../lib/webhook-secret.ts";
+import { openWebhookSecret } from "../lib/webhook-secret.ts";
 
 const w = schema.repositoryWebhook;
 const KEEP_DELIVERIES = 10;
@@ -36,7 +43,8 @@ const KEEP_DELIVERIES = 10;
 const PER_HOOK_PER_MINUTE = 60;
 const PER_IP_PER_MINUTE = 120;
 
-const hookUrl = (pathId: string) => `${env.PUBLIC_URL.replace(/\/+$/, "")}/api/v1/hooks/${pathId}`;
+/** `register: true`: create the webhook in the forge with the caller's own connected account (ADR 0045). */
+const switchOnBody = z.object({ register: z.boolean().optional() });
 
 type Actor = AppEnv["Variables"]["actor"];
 
@@ -45,6 +53,7 @@ async function manageable(actor: Actor, id: string) {
   const [repo] = await db
     .select({
       id: schema.repository.id,
+      url: schema.repository.url,
       visibility: schema.repository.visibility,
       ownerUserId: schema.repository.ownerUserId,
     })
@@ -56,12 +65,44 @@ async function manageable(actor: Actor, id: string) {
   return { repo, canManage: own || isAdmin(actor) };
 }
 
+const forbidden = () =>
+  new ProblemError(403, "forbidden", "Only owners and admins, or the owner of a private repository");
+
+/** The account a connection signs in as: its login, else the forge's host. */
+const accountOf = (connection: { accountLogin: string | null; webBaseUrl: string }) =>
+  connection.accountLogin ?? new URL(connection.webBaseUrl).host;
+
 export const webhookRoutes = new Hono<AppEnv>()
-  /** Whether the webhook is on, its address (for those who may change it) and its last deliveries. Never the secret. */
+  /**
+   * Whether the webhook is on, its address (for those who may change it) and its last deliveries. Never the secret. For those
+   * who may change it also: how it was registered in the forge (`registration`), and whether the caller could let GarnetOps
+   * register it with their own connected account (`canRegister`).
+   */
   .get("/", async (c) => {
     const actor = c.get("actor");
     const { repo, canManage } = await manageable(actor, c.req.param("id") as string);
-    const [row] = await db.select().from(w).where(eq(w.repositoryId, repo.id)).limit(1);
+    const [found] = await db
+      .select({
+        hook: w,
+        login: schema.forgeConnection.accountLogin,
+        webBaseUrl: schema.forgeConnection.webBaseUrl,
+        kind: schema.forgeConnection.forgeKind,
+      })
+      .from(w)
+      .leftJoin(schema.forgeConnection, eq(schema.forgeConnection.id, w.connectionId))
+      .where(eq(w.repositoryId, repo.id))
+      .limit(1);
+    const row = found?.hook;
+    let canRegister: { login: string; kind: string; problem: string | null } | null = null;
+    if (canManage) {
+      const own = await registerConnectionFor(actor, repo.url);
+      if (own)
+        canRegister = {
+          login: accountOf(own.connection),
+          kind: own.connection.forgeKind,
+          problem: own.problem,
+        };
+    }
     return c.json({
       enabled: Boolean(row),
       canManage,
@@ -69,54 +110,50 @@ export const webhookRoutes = new Hono<AppEnv>()
       createdAt: row?.createdAt.toISOString() ?? null,
       lastDeliveryAt: row?.lastDeliveryAt?.toISOString() ?? null,
       deliveries: row?.deliveries ?? [],
+      registration:
+        row?.registerState && canManage
+          ? {
+              state: row.registerState,
+              reason: row.registerReason,
+              connection:
+                found?.webBaseUrl && found.kind
+                  ? {
+                      login: accountOf({ accountLogin: found.login, webBaseUrl: found.webBaseUrl }),
+                      kind: found.kind,
+                    }
+                  : null,
+            }
+          : null,
+      canRegister,
     });
   })
-  /** Switches it on, or replaces address and secret. Both are shown once in the answer and never again. */
+  /**
+   * Switches it on, or replaces address and secret. Both are shown once in the answer and never again. With
+   * `{ "register": true }` the worker also creates the webhook in the forge with the caller's own connected account.
+   */
   .post("/", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "member");
+    const input = switchOnBody.parse(await c.req.json().catch(() => ({})));
     const { repo, canManage } = await manageable(actor, c.req.param("id") as string);
-    if (!canManage)
-      throw new ProblemError(
-        403,
-        "forbidden",
-        "Only owners and admins, or the owner of a private repository",
-      );
+    if (!canManage) throw forbidden();
     requireRecentSignIn(actor);
-    const id = newId("hook");
-    const pathId = newWebhookSecret();
-    const secret = newWebhookSecret();
-    const replaced = await db.transaction(async (tx) => {
-      const deleted = await tx.delete(w).where(eq(w.repositoryId, repo.id)).returning({ id: w.id });
-      await tx.insert(w).values({
-        id,
-        organizationId: actor.organizationId,
-        repositoryId: repo.id,
-        pathId,
-        secretSealed: sealWebhookSecret(secret, id),
-        createdBy: actor.userId,
-      });
-      return deleted.length > 0;
-    });
-    await audit(actor, replaced ? "repository.webhook_replaced" : "repository.webhook_created", {
-      type: "repository",
-      id: repo.id,
-    });
+    let connection = null;
+    if (input.register) {
+      // Only the caller's own connection is ever a candidate, for admins too.
+      connection = requireRegisterConnection(await registerConnectionFor(actor, repo.url));
+      await rateLimit(`webhook:register:${actor.userId}`, 20);
+    }
+    const result = await switchOnWebhook(actor, repo.id, connection);
     c.header("cache-control", "no-store");
-    return c.json({ url: hookUrl(pathId), secret }, 201);
+    return c.json({ url: result.url, secret: result.secret, registering: result.registering }, 201);
   })
+  /** Switches it off. A webhook GarnetOps registered in the forge is removed there too (best effort, audited). */
   .delete("/", async (c) => {
     const actor = c.get("actor");
     const { repo, canManage } = await manageable(actor, c.req.param("id") as string);
-    if (!canManage)
-      throw new ProblemError(
-        403,
-        "forbidden",
-        "Only owners and admins, or the owner of a private repository",
-      );
-    const deleted = await db.delete(w).where(eq(w.repositoryId, repo.id)).returning({ id: w.id });
-    if (deleted.length > 0)
-      await audit(actor, "repository.webhook_removed", { type: "repository", id: repo.id });
+    if (!canManage) throw forbidden();
+    await switchOffWebhook(actor, repo.id);
     return c.body(null, 204);
   });
 

@@ -28,6 +28,12 @@ export const QUEUES = {
   forgeConnectionRefresh: "forge-connection.refresh",
   /** Signing in to a forge (ADR 0031): the device flow, or exchanging the code of the authorization code flow. */
   forgeSignIn: "forge-sign-in.run",
+  /**
+   * Scan on push (ADR 0045): creating a repository's webhook in the forge with the requester's own connected account, and
+   * removing one GarnetOps created. Jobs carry ids only.
+   */
+  webhookRegister: "repository-webhook.register",
+  webhookUnregister: "repository-webhook.unregister",
   /** Reading the open pull requests again (ADR 0032). */
   pullRequestRefresh: "pull-requests.refresh",
   /**

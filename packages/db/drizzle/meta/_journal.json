@@ -309,6 +309,13 @@
       "when": 1793535021716,
       "tag": "0043_repository_webhook",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793569442987,
+      "tag": "0044_repository_webhook_registration",
+      "breakpoints": true
     }
   ]
 }

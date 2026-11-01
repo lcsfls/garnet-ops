@@ -5,7 +5,8 @@
  * branches with their files, pull requests, and a log of every request. Faults can be injected
  * per request (status codes, redirects, endless or oversized bodies, a hang).
  *
- * Used by apps/worker/src/fix-pr.test.ts and the end-to-end worker in test/e2e-forge-worker.ts.
+ * Used by apps/worker/src/fix-pr.test.ts, apps/worker/src/webhook-register.test.ts and the end-to-end worker in
+ * test/e2e-forge-worker.ts.
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -86,6 +87,11 @@ export class FakeForge {
   };
   /** More open pull requests for `GET /repos/{owner}/{repo}/pulls`, as the forge would spell them. */
   extraPulls: Record<string, unknown>[] = [];
+  /** Webhooks created through `POST /repos/{owner}/{repo}/hooks` (scan on push, ADR 0045), by the forge's id. */
+  readonly hooks = new Map<number, { repo: string; body: Record<string, unknown> }>();
+  private hookCounter = 0;
+  /** Runs (and is awaited) before an authorised API request is answered; tests use it to change things in between. */
+  beforeAnswer: ((method: string, path: string) => unknown) | null = null;
   /** The account name `GET /user` answers with. */
   login = "alex";
   /** What `GET /user/repos` lists, page by page, as the forge would spell it. */
@@ -251,11 +257,16 @@ export class FakeForge {
         return json(res, 401, { message: "Bad credentials" });
       const path = url.pathname.startsWith(this.prefix) ? url.pathname.slice(this.prefix.length) : null;
       if (path === null) return json(res, 404, { message: "Not Found" });
-      try {
-        this.route(method, path, url.searchParams, body, res);
-      } catch (error) {
-        json(res, 500, { message: String(error) });
-      }
+      const answer = () => {
+        try {
+          this.route(method, path, url.searchParams, body, res);
+        } catch (error) {
+          json(res, 500, { message: String(error) });
+        }
+      };
+      // A test can act while the forge is "working" on a request, e.g. change the database in between.
+      if (this.beforeAnswer) void Promise.resolve(this.beforeAnswer(method, path)).then(answer, answer);
+      else answer();
     });
   }
 
@@ -470,6 +481,17 @@ export class FakeForge {
       this.pulls.push(pull);
       // A hostile forge answer: the page address is never taken from here.
       return json(res, 201, { number: pull.number, html_url: "https://evil.example/phish" });
+    }
+    // Webhooks (scan on push, ADR 0045): both flavours spell create and delete the same way.
+    if (method === "POST" && rest === "/hooks") {
+      const id = 100 + ++this.hookCounter;
+      this.hooks.set(id, { repo: named[2] as string, body: b });
+      return json(res, 201, { id, active: b.active === true, events: b.events, config: { url: "hidden" } });
+    }
+    m = /^\/hooks\/(\d+)$/.exec(rest);
+    if (m && method === "DELETE") {
+      if (!this.hooks.delete(Number(m[1]))) return json(res, 404, { message: "Not Found" });
+      return void res.writeHead(204).end();
     }
     m = /^\/pulls\/(\d+)$/.exec(rest);
     if (m && method === "GET") {

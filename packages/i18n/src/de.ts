@@ -678,6 +678,8 @@ export const de: Messages = {
         hostsMatch: "Image-Prüfungen",
         hostsTick: "Zeitplan der Hosts",
         hostsRegistry: "Registry-Prüfungen",
+        repositoryWebhookRegister: "Webhook-Registrierung",
+        repositoryWebhookUnregister: "Webhook-Entfernung",
       },
       nightly: "Nächtlicher Scan",
       nightlyBadgeOn: "An",
@@ -846,6 +848,13 @@ export const de: Messages = {
     noMatch: "Kein Repository passt zum Filter.",
     addedToast:
       "{count, plural, one {# Repository hinzugefügt} other {# Repositories hinzugefügt}}. Der erste Scan läuft.",
+    addedWithPushToast:
+      "{count, plural, one {# Repository hinzugefügt} other {# Repositories hinzugefügt}}. Der erste Scan läuft, und die Webhooks werden angelegt.",
+    scanOnPush: "Scan bei Push für alle",
+    scanOnPushHint:
+      "GarnetOps legt mit diesem Konto an jedem davon einen Webhook in {forge} an, sodass jeder Push auf den gescannten Branch einen Scan startet.",
+    scanOnPushWriteSignIn:
+      "Braucht Schreibrechte: Melden Sie dieses Konto zuerst erneut mit Schreibrechten an (Pull Requests, Mit Schreibrechten anmelden).",
     fromAccount: "Aus einem verbundenen Konto",
     private: "Privat",
     privateHint: "Nur Sie sehen dieses Repository und was darin gefunden wird.",
@@ -2398,6 +2407,61 @@ export const de: Messages = {
         "Gitea oder Forgejo: Einstellungen, Webhooks, Webhook hinzufügen, Gitea oder Forgejo. Ziel-URL und Geheimnis von oben, POST, application/json, Push-Ereignisse.",
       howReach: "Die Forge muss diese Adresse erreichen können. GarnetOps beantwortet dort nichts anderes.",
       done: "Fertig",
+      enableRegister: "Einschalten und in {forge} registrieren",
+      disableDescriptionRegistered:
+        "Die Adresse funktioniert sofort nicht mehr. GarnetOps entfernt auch den Webhook, den es in der Forge angelegt hat.",
+      registerTitle: "Webhook in {forge} registrieren?",
+      registerDescription: "GarnetOps legt den Webhook mit Ihrem verbundenen Konto in der Forge an.",
+      registerWhat: "Was angelegt wird",
+      registerWhatHook:
+        "Ein Webhook an diesem Repository in {forge}, nur für Push-Ereignisse, der diese GarnetOps-Installation aufruft.",
+      registerWhatSecret:
+        "Ein neues zufälliges Geheimnis, das jede Zustellung signiert. Sie müssen es nicht kopieren.",
+      registerWhatRemove:
+        "Wird Scan bei Push ausgeschaltet oder ersetzt, entfernt GarnetOps diesen Webhook mit demselben Konto wieder.",
+      registerAccount: "Konto: {login} bei {forge}",
+      registerAcknowledge: "GarnetOps darf mein Konto {login} nutzen, um diesen Webhook anzulegen",
+      registerAcknowledgeHint:
+        "Das Token wird nur dafür verwendet. Zum Anlegen eines Webhooks braucht das Konto Admin-Rechte am Repository in der Forge.",
+      registerConfirm: "Webhook anlegen",
+      registeredToast: "Scan bei Push ist an. GarnetOps legt den Webhook in {forge} an.",
+      registering: "Wird in der Forge registriert …",
+      registeredBy: "In der Forge registriert von {login}",
+      registeredNoConnection:
+        "In der Forge registriert. Das verbundene Konto wurde seither entfernt: Entfernen Sie den Webhook beim Ausschalten auch in der Forge.",
+      registerFailed: "Registrierung in der Forge fehlgeschlagen: {reason}.",
+      registerFailedHint:
+        "Versuchen Sie es erneut, oder erzeugen Sie eine neue Adresse und ein neues Geheimnis und tragen Sie beides selbst in der Forge ein.",
+      registerAgain: "Erneut registrieren",
+      registerWriteScopeHint:
+        "Damit GarnetOps ihn in {forge} registrieren kann, melden Sie Ihr verbundenes Konto erneut mit Schreibzugriff an (Einstellungen, Verbundene Konten).",
+      registerConnectionHint:
+        "Ihr verbundenes Konto bei {forge} funktioniert nicht. Prüfen Sie es unter Einstellungen, Verbundene Konten, damit GarnetOps den Webhook registrieren kann.",
+      registerReason: {
+        tokenRejected: "die Forge hat das Token des Kontos abgelehnt",
+        forbidden: "das Konto darf hier keine Webhooks anlegen; es braucht Admin-Rechte am Repository",
+        notFound: "die Forge kennt das Repository nicht, oder das Konto darf seine Webhooks nicht verwalten",
+        conflict: "die Forge hat den Webhook abgelehnt",
+        rejected: "die Forge hat den Webhook abgelehnt",
+        rateLimited: "das Anfragelimit der Forge ist erreicht; versuchen Sie es später erneut",
+        redirect: "die Forge hat unerwartet geantwortet",
+        tooLarge: "die Forge hat unerwartet geantwortet",
+        badResponse: "die Forge hat unerwartet geantwortet",
+        httpError: "die Forge hat mit einem Fehler geantwortet",
+        timeout: "die Forge hat nicht rechtzeitig geantwortet",
+        tls: "dem Zertifikat der Forge wird nicht vertraut",
+        connectionFailed: "die Forge war nicht erreichbar",
+        addressRefused: "die Adresse der Forge ist nicht erlaubt",
+        unresolvable: "der Name der Forge ließ sich nicht auflösen",
+        connectionMissing:
+          "das verbundene Konto gibt es nicht mehr, oder es deckt dieses Repository nicht mehr ab",
+        writeScopeMissing: "das verbundene Konto hat keinen Schreibzugriff",
+        repositoryGone: "das Repository gibt es nicht mehr",
+        noPublicUrl: "GarnetOps kennt seine eigene Adresse nicht (PUBLIC_URL)",
+        secretMissing: "das Geheimnis konnte nicht übergeben werden",
+        expired: "es wurde nicht rechtzeitig erledigt",
+        unexpected: "etwas Unerwartetes ist schiefgegangen",
+      },
       result: {
         title: "Ergebnis",
         scanQueued: "Scan gestartet",
@@ -3583,6 +3647,10 @@ export const de: Messages = {
       repository_webhook_created: "Scan bei Push eingeschaltet",
       repository_webhook_replaced: "Webhook-Adresse und Geheimnis ersetzt",
       repository_webhook_removed: "Scan bei Push ausgeschaltet",
+      repository_webhook_registered: "Webhook in der Forge registriert",
+      repository_webhook_register_failed: "Webhook konnte nicht in der Forge registriert werden",
+      repository_webhook_unregistered: "Webhook in der Forge entfernt",
+      repository_webhook_unregister_failed: "Webhook konnte nicht in der Forge entfernt werden",
       update_scheduled: "Update geplant",
       update_rescheduled: "Update verschoben",
       update_cancelled: "Update abgebrochen",

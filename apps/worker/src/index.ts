@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import type { WebhookRegisterJob, WebhookUnregisterJob } from "@garnetops/core/webhook";
 import { PgBoss } from "pg-boss";
 import { AI_PROBE_QUEUE, AI_QUEUE, runGeneration, runProbe, sweepAi } from "./ai.ts";
 import { pool } from "./db.ts";
@@ -38,6 +39,13 @@ import { startSystemReports } from "./system-report.ts";
 import { startUptime } from "./uptime.ts";
 import { startUserNotificationUpkeep, tellAboutScan } from "./user-notify.ts";
 import { startVulnDbUpdates } from "./vulndb.ts";
+import {
+  runWebhookRegister,
+  runWebhookUnregister,
+  sweepWebhookRegistrations,
+  WEBHOOK_REGISTER_QUEUE,
+  WEBHOOK_UNREGISTER_QUEUE,
+} from "./webhook-register.ts";
 import { startWordfence } from "./wordfence.ts";
 import { startWordPressOrg } from "./wordpress-org.ts";
 
@@ -61,6 +69,8 @@ await boss.createQueue(FORGE_CONNECTION_QUEUE);
 await boss.createQueue(FORGE_SIGN_IN_QUEUE);
 await boss.createQueue(EXPOSURE_VERIFY_QUEUE);
 await boss.createQueue(EXPOSURE_RUN_QUEUE);
+await boss.createQueue(WEBHOOK_REGISTER_QUEUE);
+await boss.createQueue(WEBHOOK_UNREGISTER_QUEUE);
 // Queues and schedules of the modules removed in 0.0.4 (ADR 0025) would otherwise stay in the database.
 const retired = await removeRetiredQueues(boss);
 if (retired.length > 0) console.log(`worker: removed ${retired.length} retired queues`);
@@ -153,6 +163,19 @@ for (let i = 0; i < 4; i++) {
     if (job) await runSignIn(job.data.signInId);
   });
 }
+// Scan on push (ADR 0045): creating and removing a webhook in the forge with the connected account of the person who
+// switched it on. No retries: a second attempt could create a second webhook, so a failure is stored on the webhook.
+await boss.work<WebhookRegisterJob>(WEBHOOK_REGISTER_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await runWebhookRegister(job.data);
+});
+await boss.work<WebhookUnregisterJob>(WEBHOOK_UNREGISTER_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await runWebhookUnregister(job.data);
+});
+const webhookSweep = setInterval(
+  () => sweepWebhookRegistrations().catch((error: Error) => console.error("webhook sweep:", error.name)),
+  5 * 60_000,
+);
+sweepWebhookRegistrations().catch((error: Error) => console.error("webhook sweep:", error.name));
 // Website monitoring (ADR 0023, a module since ADR 0033): the proof of control, stage 1 (passive) and stage 2 (light active).
 // Every outbound connection to an asset is made here, after the address was checked, and only for organisations that
 // switched the module on.
@@ -192,6 +215,7 @@ async function shutdown() {
   await stopSystemReports();
   clearInterval(aiSweep);
   clearInterval(directorySweep);
+  clearInterval(webhookSweep);
   await boss.stop({ graceful: true, timeout: 30_000 }).catch(() => {});
   await pool.end().catch(() => {});
   process.exit(0);

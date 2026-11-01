@@ -36,13 +36,15 @@ vi.mock("../db.ts", async () => {
     QUEUES: {
       scanRepository: "scan.repository",
       forgeConnectionRefresh: "forge-connection.refresh",
+      webhookRegister: "repository-webhook.register",
+      webhookUnregister: "repository-webhook.unregister",
     },
   };
 });
 vi.mock("../env.ts", async () => {
   const { generateVaultKeyPair: gen, loadVaultPublicKey: load } = await import("@garnetops/core/vault");
   return {
-    env: { PUBLIC_URL: "https://garnetops.example.test/" },
+    env: { PUBLIC_URL: "https://garnetops.example.test/", BETTER_AUTH_SECRET: "b".repeat(48) },
     isProduction: false,
     vaultPublicKey: load(gen().publicKeyPem),
   };
@@ -281,5 +283,93 @@ describe.skipIf(!adminUrl)("pull requests through a connected account", () => {
     ]);
     expect(audit[2]?.data).toMatchObject({ reason: "token-replaced" });
     expect(JSON.stringify(audit)).not.toContain(TOKEN);
+  });
+
+  describe("adding repositories with scan on push (ADR 0045)", () => {
+    /** Two repositories the connection lists, on its own forge. */
+    async function listed(connectionId: string) {
+      const [row] = await t.db
+        .select()
+        .from(schema.forgeConnection)
+        .where(eq(schema.forgeConnection.id, connectionId));
+      const web = row?.webBaseUrl as string;
+      await t.db.insert(schema.forgeConnectionRepository).values(
+        ["api", "web"].map((name, i) => ({
+          connectionId,
+          forgeId: String(700 + i),
+          fullName: `team/${name}`,
+          cloneUrl: `${web}/team/${name}.git`,
+          defaultBranch: "main",
+          private: true,
+          archived: false,
+        })),
+      );
+      return ["700", "701"];
+    }
+    const pick = (id: string, body: unknown, age = 0) =>
+      call("POST", `/api/v1/forge-connections/${id}/repositories`, ALEX, body, age);
+    const hooks = () => t.db.select().from(schema.repositoryWebhook);
+    beforeEach(async () => {
+      await t.db.delete(schema.repository);
+      await t.db.delete(schema.auditLog);
+    });
+
+    it("registers a webhook on each new repository through this connection, with ids only in the jobs", async () => {
+      const id = await addConnection(ALEX.user, { authMethod: "sign-in", writeScope: true });
+      const forgeIds = await listed(id);
+      const res = await pick(id, { forgeIds, scanOnPush: true });
+      expect(res.status).toBe(201);
+      expect(res.json?.created).toHaveLength(2);
+      expect(res.json?.created.every((c: Json) => c.registering === true)).toBe(true);
+      const rows = await hooks();
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row).toMatchObject({ connectionId: id, registerState: "pending", createdBy: ALEX.user });
+        expect(row.handoverSecretId).toBeTruthy();
+      }
+      const jobs = holder.sent.filter((j) => j.name === "repository-webhook.register");
+      expect(jobs.map((j) => Object.keys(j.data).sort())).toEqual([
+        ["organizationId", "secretId", "webhookId"],
+        ["organizationId", "secretId", "webhookId"],
+      ]);
+      const created = await t.db
+        .select()
+        .from(schema.auditLog)
+        .where(eq(schema.auditLog.action, "repository.webhook_created"));
+      expect(created).toHaveLength(2);
+      expect(created[0]?.data).toMatchObject({ via: "connection", connection: id });
+    });
+
+    it("needs a recent sign-in and, for a Gitea or Forgejo sign-in, the write scope; nothing is added otherwise", async () => {
+      const readOnly = await addConnection(ALEX.user, { authMethod: "sign-in", writeScope: false });
+      const ids = await listed(readOnly);
+      const stale = await pick(readOnly, { forgeIds: ids, scanOnPush: true }, STALE);
+      expect(stale.status).toBe(403);
+      expect(problemCode(stale)).toBe("step-up-required");
+      const scope = await pick(readOnly, { forgeIds: ids, scanOnPush: true });
+      expect(scope.status).toBe(409);
+      expect(problemCode(scope)).toBe("connection-write-scope-missing");
+      expect(
+        await t.db.select().from(schema.repository).where(eq(schema.repository.forgeConnectionId, readOnly)),
+      ).toEqual([]);
+      // Somebody else's connection is not found, for owners of the organisation too.
+      expect(
+        (
+          await call("POST", `/api/v1/forge-connections/${readOnly}/repositories`, KIM, {
+            forgeIds: ids,
+            scanOnPush: true,
+          })
+        ).status,
+      ).toBe(404);
+    });
+
+    it("without it, repositories are added as before, without a webhook and without a recent sign-in", async () => {
+      const id = await addConnection(ALEX.user, { authMethod: "sign-in", writeScope: false });
+      const res = await pick(id, { forgeIds: await listed(id) }, STALE);
+      expect(res.status).toBe(201);
+      expect(res.json?.created.every((c: Json) => c.registering === false)).toBe(true);
+      expect(await hooks()).toEqual([]);
+      expect(holder.sent.some((j) => j.name === "repository-webhook.register")).toBe(false);
+    });
   });
 });

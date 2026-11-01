@@ -74,7 +74,12 @@ export type SecretPurpose =
    * The installation's NVD API key for the own vulnerability database build: sealed by the API, opened only by the worker,
    * which hands it to the builder for one build.
    */
-  | "vulndb-nvd-api-key";
+  | "vulndb-nvd-api-key"
+  /**
+   * A copy of a repository webhook's shared secret (ADR 0045), sealed by the API for the worker while the webhook is being
+   * registered in the forge through a connected account; the worker deletes it as soon as it has tried.
+   */
+  | "webhook-secret";
 
 export interface SecretBinding {
   organizationId: string;

@@ -1,6 +1,13 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { signatureMatches, webhookHeaders, webhookIntent } from "./webhook.ts";
+import {
+  FORGE_HOOK_ID_PATTERN,
+  registerConnectionProblem,
+  signatureMatches,
+  webhookAddress,
+  webhookHeaders,
+  webhookIntent,
+} from "./webhook.ts";
 
 const SECRET = "s".repeat(43);
 const body = Buffer.from(JSON.stringify({ ref: "refs/heads/main" }));
@@ -77,5 +84,51 @@ describe("webhookIntent", () => {
     expect(webhookIntent("push", "not an object", "main")).toBe("unreadable");
     expect(webhookIntent("push", { ref: 42 }, "main")).toBe("unreadable");
     expect(webhookIntent("push", { ref: "refs/heads/main" }, null)).toBe("unreadable");
+  });
+});
+
+describe("webhookAddress", () => {
+  it("is the public address plus the hook path, with no doubled slash", () => {
+    const id = "a".repeat(43);
+    expect(webhookAddress("https://garnetops.example.com", id)).toBe(
+      `https://garnetops.example.com/api/v1/hooks/${id}`,
+    );
+    expect(webhookAddress("https://garnetops.example.com/sub//", id)).toBe(
+      `https://garnetops.example.com/sub/api/v1/hooks/${id}`,
+    );
+  });
+});
+
+describe("registerConnectionProblem", () => {
+  const base = {
+    forgeKind: "gitea" as const,
+    authMethod: "sign-in" as const,
+    writeScope: true,
+    state: "ok",
+    secretId: "sec_1",
+  };
+
+  it("a Gitea or Forgejo sign-in needs the write scope; GitHub and pasted tokens do not", () => {
+    expect(registerConnectionProblem(base)).toBeNull();
+    expect(registerConnectionProblem({ ...base, writeScope: false })).toBe("write-scope-missing");
+    expect(registerConnectionProblem({ ...base, forgeKind: "forgejo", writeScope: false })).toBe(
+      "write-scope-missing",
+    );
+    expect(registerConnectionProblem({ ...base, forgeKind: "github", writeScope: false })).toBeNull();
+    expect(registerConnectionProblem({ ...base, authMethod: "token", writeScope: false })).toBeNull();
+  });
+
+  it("a connection whose check failed or that holds no token cannot register", () => {
+    expect(registerConnectionProblem({ ...base, state: "failed" })).toBe("connection-failed");
+    expect(registerConnectionProblem({ ...base, secretId: null })).toBe("connection-failed");
+  });
+});
+
+describe("FORGE_HOOK_ID_PATTERN", () => {
+  it("accepts a positive integer and nothing that could reshape a path", () => {
+    expect(FORGE_HOOK_ID_PATTERN.test("12")).toBe(true);
+    for (const bad of ["0", "-1", "1/2", "../1", "1a", "", "1".repeat(21)]) {
+      expect(FORGE_HOOK_ID_PATTERN.test(bad)).toBe(false);
+    }
   });
 });

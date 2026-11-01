@@ -24,7 +24,7 @@ refused (for example after you revoked GarnetOps on the forge), the connection s
 
 | Forge | On the forge | In GarnetOps |
 | --- | --- | --- |
-| GitHub, GitHub Enterprise Server | Create a **GitHub App** (Settings → Developer settings → GitHub Apps). Permissions: **Metadata**, **Contents** and **Pull requests** set to **Read**, nothing else. No webhook. **Enable Device Flow** on. Install the App for the accounts and organisations whose repositories people should see. To let people open fix pull requests in their name (below), set **Contents** and **Pull requests** to **Read and write** instead. | Client ID and a client secret (needed to renew tokens). |
+| GitHub, GitHub Enterprise Server | Create a **GitHub App** (Settings → Developer settings → GitHub Apps). Permissions: **Metadata**, **Contents** and **Pull requests** set to **Read**, nothing else. No webhook. **Enable Device Flow** on. Install the App for the accounts and organisations whose repositories people should see. To let people open fix pull requests in their name (below), set **Contents** and **Pull requests** to **Read and write** instead. To let people register scan-on-push webhooks with their account (below), also set **Webhooks** (a repository permission) to **Read and write**. | Client ID and a client secret (needed to renew tokens). |
 | Gitea, Forgejo | Create an **OAuth2 application** (Settings → Applications) with the **redirect address** GarnetOps shows (`<PUBLIC_URL>/settings/accounts/callback`). | Client ID, and the client secret for a confidential client. |
 
 The client secret is stored encrypted and only the worker uses it; it is never shown again. Removing a forge stops new
@@ -103,6 +103,23 @@ Before every pull request the worker asks the forge whether the token may push t
 **Replace token**, or signing in again without write access to Gitea or Forgejo, switches pull requests off again. A
 token that can do more than it needs keeps its warning.
 
+## Scan on push through your account
+
+GarnetOps can create the scan-on-push webhook of a repository in the forge with your connection, instead of you copying
+address and secret ([scan-on-push.md](scan-on-push.md), [ADR 0045](adr/0045-scan-on-push.md)): **Switch on and register in
+*forge*** on the repository page, or **Scan on push for all of them** when you choose repositories from this connection.
+Each time is your own explicit action with a recent sign-in; the **Pull requests** switch is not needed. What the token needs:
+
+| Connection | To create a webhook |
+| --- | --- |
+| GitHub, signed in | The GitHub App needs **Webhooks: Read and write** (a repository permission, set by an admin, above), and you need admin rights on the repository. |
+| Gitea, Forgejo, signed in | Write access: **Sign in with write access** in the **Pull requests** dialog first (`write:repository`). You need admin rights on the repository. |
+| Personal access token | GitHub: **Webhooks: Read and write** for the repository. Gitea, Forgejo: the scope **write:repository**. You need admin rights on the repository. |
+
+When scan on push is switched off or replaced, GarnetOps removes the webhook it created, with the same connection. If you
+removed the connection (or the repository) first, remove the webhook in the forge yourself; it only reaches an address that
+answers nobody.
+
 ## Removing a connection, leaving the organisation
 
 **Remove** deletes the connection and its token. Tick **Also remove the private repositories I added through it** to delete
@@ -123,4 +140,5 @@ Repository objects carry `visibility` (`organization` or `private`), `mine` and 
 `GET`, `POST`, `PATCH`, `DELETE /api/v1/forge-apps` (owners and admins), `GET /api/v1/forge-apps/available`,
 `POST /api/v1/forge-sign-in` (`write: true` asks Gitea and Forgejo for `write:repository`), `GET` and
 `DELETE /api/v1/forge-sign-in/{id}`, `POST /api/v1/forge-sign-in/callback`. Connections carry `pullRequests`,
-`pullRequestsAt`, `writeScope` and `needsWriteSignIn`.
+`pullRequestsAt`, `writeScope` and `needsWriteSignIn`. `POST /api/v1/forge-connections/{id}/repositories` takes
+`scanOnPush: true` to register a scan-on-push webhook on every repository it adds; each created entry says `registering`.

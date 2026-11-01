@@ -261,7 +261,7 @@
 {/if}
 {#if picking}
   {#key picking.id}
-    <RepositoryPicker connection={picking} onClose={() => (picking = null)} />
+    <RepositoryPicker connection={picking} email={me.user.email} onClose={() => (picking = null)} />
   {/key}
 {/if}
 <ConfirmDialog

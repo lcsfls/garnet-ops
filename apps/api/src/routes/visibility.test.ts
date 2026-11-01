@@ -450,7 +450,7 @@ describe.skipIf(!adminUrl)("private repositories and personal connections", () =
     });
     expect(picked.status).toBe(201);
     expect(picked.json?.created).toEqual([
-      { id: expect.any(String), name: "new-app", scanId: expect.any(String) },
+      { id: expect.any(String), name: "new-app", scanId: expect.any(String), registering: false },
     ]);
     expect(picked.json?.skipped).toEqual(
       expect.arrayContaining([
