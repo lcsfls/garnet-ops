@@ -27,6 +27,9 @@ matched) or **Blocked** (a Block rule matched).
 
 ## Add the gate to a pipeline
 
+The quickest way is **Code → Quality gates → Set up step by step**: it picks the repository, creates the token (with a
+link to the forge's secrets page) and shows the whole workflow file to commit. By hand:
+
 1. Under **Code → Quality gates → Add to your pipeline**, choose the repository and create
    a gate token. Copy it right away: it is shown once.
 2. Store it in your forge as the CI secret `GARNETOPS_TOKEN`.

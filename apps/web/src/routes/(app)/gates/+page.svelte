@@ -4,6 +4,7 @@
   import GatePipeline from "#lib/components/gates/GatePipeline.svelte";
   import GateRules from "#lib/components/gates/GateRules.svelte";
   import GateRuns from "#lib/components/gates/GateRuns.svelte";
+  import GateWizard from "#lib/components/gates/GateWizard.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
@@ -45,6 +46,10 @@
       {admin}
       repositoryId={search.repositoryId}
       onRepository={(repositoryId) => setSearch({ repositoryId })}
+      onWizard={() => setSearch({ wizard: "1" })}
     />
   </div>
 </div>
+{#if admin && search.wizard === "1"}
+  <GateWizard repositoryId={search.repositoryId} onClose={() => setSearch({ wizard: undefined })} />
+{/if}

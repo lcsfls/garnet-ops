@@ -33,6 +33,7 @@ import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
 import { searchRoutes } from "./routes/search.ts";
 import { setupRoutes } from "./routes/setup.ts";
+import { setupProgressRoutes } from "./routes/setup-progress.ts";
 import { repositorySharingRoutes, shareRequestRoutes } from "./routes/sharing.ts";
 import { signInOptionsRoutes } from "./routes/sign-in-options.ts";
 import { statisticsRoutes } from "./routes/statistics.ts";
@@ -115,6 +116,7 @@ const v1 = new Hono<AppEnv>()
   .route("/me", meRoutes)
   .route("/me", userNotificationRoutes)
   .route("/account", accountRoutes)
+  .route("/overview/setup", setupProgressRoutes)
   .route("/overview", overviewRoutes)
   .route("/statistics", statisticsRoutes)
   .route("/repositories", repositoryRoutes)

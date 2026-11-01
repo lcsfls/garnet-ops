@@ -8,6 +8,14 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Getting started** on the overview, for owners and admins: six steps (connect a forge account, pick repositories, scan on
+  push, a notification channel, current vulnerability data, a quality gate in CI) with a progress bar. Each step ticks itself
+  off from what is really set up and leads to where it is done; the list can be hidden.
+- **Quality gate in CI, step by step**: a wizard on the gates page picks the repository, creates its token with a link to the
+  forge's secrets page, and shows the whole workflow file to commit (with a link that fills it in on GitHub).
+
 ## [0.0.17] - 2026-11-01
 <!-- title: Scan on push -->
 

@@ -1,24 +1,4 @@
 <script lang="ts" module>
-  /** The pipeline step to copy, with the server's own address. */
-  function pipelineStep(origin: string) {
-    return `- name: GarnetOps quality gate
-  env:
-    GARNETOPS_URL: ${origin}
-    GARNETOPS_TOKEN: \${{ secrets.GARNETOPS_TOKEN }}
-    REF: refs/pull/\${{ github.event.number }}/head
-    SHA: \${{ github.event.pull_request.head.sha }}
-  run: |
-    auth="Authorization: Bearer $GARNETOPS_TOKEN"
-    id=$(curl -fsS -X POST "$GARNETOPS_URL/api/v1/gate/checks" -H "$auth" \\
-      -H "Content-Type: application/json" -d "{\\"ref\\":\\"$REF\\",\\"sha\\":\\"$SHA\\"}" | jq -r .id)
-    while :; do
-      r=$(curl -fsS "$GARNETOPS_URL/api/v1/gate/checks/$id" -H "$auth")
-      case $(echo "$r" | jq -r .state) in queued|running) sleep 10 ;; *) break ;; esac
-    done
-    echo "$r" | jq .
-    [ "$(echo "$r" | jq -r .state)" = succeeded ] && [ "$(echo "$r" | jq -r .result)" != blocked ]`;
-  }
-
   const GATES_DOCS = "https://github.com/lcsfls/garnet-ops/blob/main/docs/quality-gates.md";
 </script>
 
@@ -28,8 +8,10 @@
   import { api } from "../../api.ts";
   import { t } from "../../i18n.svelte.ts";
   import type { Page, RepositoryRow } from "../../types.ts";
+  import { pipelineStep } from "../../gate-pipeline.ts";
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
+  import Button from "../ui/Button.svelte";
   import CopyButton from "../ui/CopyButton.svelte";
   import Select from "../ui/Select.svelte";
   import GateTokens from "./GateTokens.svelte";
@@ -39,7 +21,13 @@
     admin,
     repositoryId,
     onRepository,
-  }: { admin: boolean; repositoryId: string | undefined; onRepository: (id: string | undefined) => void } = $props();
+    onWizard,
+  }: {
+    admin: boolean;
+    repositoryId: string | undefined;
+    onRepository: (id: string | undefined) => void;
+    onWizard: () => void;
+  } = $props();
 
   const repositories = createQuery(() => ({
     queryKey: ["repositories", { pageSize: 100 }],
@@ -49,7 +37,11 @@
 </script>
 
 <Card>
-  <CardHeader title={t("gates.pipelineTitle")} description={t("gates.pipelineDescription")} />
+  <CardHeader title={t("gates.pipelineTitle")} description={t("gates.pipelineDescription")}>
+    {#snippet actions()}
+      {#if admin}<Button onclick={onWizard}>{t("gates.wizard.open")}</Button>{/if}
+    {/snippet}
+  </CardHeader>
   <div class="grid gap-4 px-5 pb-5">
     <pre class="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-[13px] leading-relaxed"><code
         >{step}</code

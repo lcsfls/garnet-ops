@@ -1989,6 +1989,50 @@ export const en = {
     foundResolvedSelect:
       "Enter opens the findings found in that period. The table links to the resolved ones too.",
   },
+  setupChecklist: {
+    title: "Getting started",
+    description:
+      "Six steps, and GarnetOps watches your code for you. Each one ticks itself off once it is done.",
+    allDone: "Everything is set up. You can hide this list.",
+    hide: "Hide the list",
+    progress: "{done} of {total} done",
+    doneLabel: "done",
+    openLabel: "still open",
+    more: "Open",
+    ofRepositories: "On for {count} of {total} repositories",
+    step: {
+      forge: {
+        title: "Connect your forge account",
+        text: "Sign in to GitHub, Gitea or Forgejo, so GarnetOps can list your repositories.",
+        action: "Connect an account",
+      },
+      repositories: {
+        title: "Pick the repositories",
+        text: "Choose what GarnetOps scans; it scans them at once and then every night.",
+        action: "Add repositories",
+      },
+      scanOnPush: {
+        title: "Scan on every push",
+        text: "Switch on scan on push for a repository, so new findings show up within minutes.",
+        action: "Choose a repository",
+      },
+      notifications: {
+        title: "Get told",
+        text: "Add a notification channel (mail, Teams, Discord, a webhook) for new critical findings.",
+        action: "Add a channel",
+      },
+      vulnDb: {
+        title: "Keep the vulnerability data current",
+        text: "A current database is what the scans compare against. Check where it comes from.",
+        action: "Open the system status",
+      },
+      ciGate: {
+        title: "Put a quality gate into CI",
+        text: "Let a pipeline ask GarnetOps before a merge; it only reports until you choose to block.",
+        action: "Set up a gate",
+      },
+    },
+  },
   overview: {
     title: "Overview",
     description: "What needs attention today, across all repositories.",
@@ -2536,6 +2580,31 @@ export const en = {
     blocks: "blocks",
     seconds: "{count} s",
     minutes: "{minutes} min {seconds} s",
+    wizard: {
+      open: "Set up step by step",
+      title: "Quality gate in CI",
+      description: "Three steps: the repository, its token, the workflow file.",
+      steps: "Steps",
+      stepDone: "done",
+      stepRepository: "Repository",
+      stepToken: "Token",
+      stepWorkflow: "Workflow",
+      repositoryHint: "The pipeline of this repository asks GarnetOps before a merge.",
+      tokenText: "A token lets the pipeline of {name} ask for a gate result, and nothing else.",
+      tokenLabel: "CI pipeline",
+      createToken: "Create token",
+      storeSecret: "Store it in the forge as the CI secret GARNETOPS_TOKEN.",
+      openSecrets: "Open the secrets page of the repository",
+      haveToken: "I already have a token",
+      workflowText:
+        "Commit this file as {path}. GitHub, Gitea and Forgejo all read it; the runner needs curl and jq.",
+      createOnGithub: "Create the file on GitHub",
+      after:
+        "Open a pull request: the check shows up on it. Until you switch a rule to Block, the gate only reports.",
+      back: "Back",
+      next: "Next",
+      done: "Done",
+    },
     pipelineTitle: "Add to your pipeline",
     pipelineDescription: "Forgejo Actions, GitHub Actions, Gitea Actions or any CI with curl and jq.",
     pipelineHint:

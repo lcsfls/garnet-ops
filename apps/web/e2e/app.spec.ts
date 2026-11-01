@@ -36,6 +36,32 @@ async function rowAction(row: Locator, action: string) {
   await row.getByRole("menuitem", { name: action }).click();
 }
 
+test("getting started ticks itself off from what is there, leads to each step, and can be hidden", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  await page.goto("/");
+  const list = page.getByTestId("setup-steps");
+  await expect(page.getByRole("heading", { name: "Getting started" })).toBeVisible();
+  // Repositories exist in this suite; the step says so without anyone ticking it.
+  await expect(list.locator('[data-step="repositories"]')).toHaveAttribute("data-done", "true");
+  await expect(list.locator("li")).toHaveCount(6);
+  const open = list.locator('[data-done="false"]').first();
+  await expect(open.getByRole("link")).toHaveAttribute("href", /^\//);
+  await expect(page.getByTestId("setup-progress")).toContainText(/\d of 6 done/);
+  // Hidden in this browser until a step that was done is undone.
+  await page.getByRole("button", { name: "Hide the list" }).click();
+  await expect(page.getByRole("heading", { name: "Getting started" })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Getting started" })).toHaveCount(0);
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage))
+      if (key.startsWith("garnetops.setupHidden.")) localStorage.removeItem(key);
+  });
+  expect(problems).toEqual([]);
+});
+
 test("overview tiles lead to the filtered list", async ({ page }) => {
   const problems = watchForProblems(page);
   await page.goto("/");
@@ -867,6 +893,40 @@ test("sorting: a column header sorts the findings and says so", async ({ page })
   await expect(page).toHaveURL(/dir=asc/);
   await header.getByRole("button").click();
   await expect(header).toHaveAttribute("aria-sort", "none");
+});
+
+test("the gate wizard leads from the repository to its token and a workflow file to commit", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  await page.goto("/gates");
+  await page.getByRole("button", { name: "Set up step by step" }).click();
+  await expect(page).toHaveURL(/wizard=1/);
+  const wizard = page.getByTestId("gate-wizard");
+  const steps = wizard.getByRole("list", { name: "Steps" });
+  await expect(steps.locator('[aria-current="step"]')).toContainText("Repository");
+  await expect(wizard.getByRole("button", { name: "Next" })).toBeDisabled();
+  await wizard.getByRole("combobox").selectOption({ label: "seeded-app" });
+  await wizard.getByRole("button", { name: "Next" }).click();
+  await expect(steps.locator('[aria-current="step"]')).toContainText("Token");
+  await expect(steps.getByText("Repository, done")).toBeAttached();
+  await wizard.getByRole("button", { name: "Create token" }).click();
+  await expect(wizard.getByTestId("gate-wizard-token")).toHaveText(/\S{20,}/);
+  await expect(wizard).toContainText("GARNETOPS_TOKEN");
+  await wizard.getByRole("button", { name: "Next" }).click();
+  const workflow = wizard.getByTestId("gate-wizard-workflow");
+  await expect(workflow).toContainText("on:\n  pull_request:");
+  await expect(workflow).toContainText(`GARNETOPS_URL: ${E2E.publicUrl}`);
+  await expect(wizard).toContainText(".github/workflows/garnetops-gate.yml");
+  await wizard.getByRole("button", { name: "Done" }).click();
+  await expect(page).not.toHaveURL(/wizard=1/);
+  // The token it created is listed like any other.
+  const [row] = await sql<{ n: number }>(
+    "select count(*)::int as n from gate_token where label = 'CI pipeline'",
+  );
+  expect(row?.n).toBe(1);
+  await sql("delete from gate_token where label = 'CI pipeline'");
+  expect(problems).toEqual([]);
 });
 
 test("quality gates: report by default, an admin blocks a rule, a pipeline checks with its token", async ({

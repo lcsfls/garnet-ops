@@ -193,6 +193,8 @@ export const gateSearch = z.object({
   pageSize,
   /** The repository whose gate tokens and pipeline step are shown. */
   repositoryId: text(40),
+  /** Opens the step-by-step setup (repository, token, workflow file). */
+  wizard: flag,
 });
 export type GateSearch = z.infer<typeof gateSearch>;
 
