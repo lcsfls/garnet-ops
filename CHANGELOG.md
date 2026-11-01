@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.17] - 2026-11-01
+<!-- title: Scan on push -->
+
 ### Added
 
 - **Scan on push** ([ADR 0045](docs/adr/0045-scan-on-push.md), `docs/scan-on-push.md`): a webhook per repository for GitHub,
@@ -1292,7 +1295,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.16...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.17...HEAD
+[0.0.17]: https://github.com/lcsfls/garnet-ops/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/lcsfls/garnet-ops/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/lcsfls/garnet-ops/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/lcsfls/garnet-ops/compare/v0.0.13...v0.0.14
