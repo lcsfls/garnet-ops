@@ -8,6 +8,18 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Scan on push** ([ADR 0045](docs/adr/0045-scan-on-push.md), `docs/scan-on-push.md`): a webhook per repository for GitHub,
+  Gitea and Forgejo. A push to the scanned branch starts a scan at once; other branches, tags and events are ignored, and a push
+  while a scan waits starts no second one. Owners and admins, or the owner of a private repository, switch it on with a recent
+  sign-in; address and secret are shown once. The repository page lists the last deliveries with their result.
+
+### Security
+
+- Webhook deliveries are read only after their HMAC-SHA256 signature matches; the address is random, the secret is stored
+  encrypted with a key outside the database, deliveries are limited per webhook and per address, and at most 5 MB is read.
+
 ## [0.0.16] - 2026-11-01
 <!-- title: A calmer website page, severities told apart without colour -->
 

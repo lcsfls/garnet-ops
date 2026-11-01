@@ -14,7 +14,7 @@ import {
 import { and, count, desc, eq, getTableColumns, ilike, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { boss, db, QUEUES } from "../db.ts";
+import { db } from "../db.ts";
 import { vaultPublicKey } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
@@ -36,7 +36,11 @@ import {
   toPage,
 } from "../lib/paginate.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
+import { queueScan } from "../lib/scan-queue.ts";
 import { renovateRoutes, writeAccessRoutes, writeAccessSummary } from "./fixes.ts";
+import { webhookRoutes } from "./webhooks.ts";
+
+export { queueScan };
 
 const r = schema.repository;
 
@@ -752,6 +756,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
   })
   .route("/:id/write-access", writeAccessRoutes)
   .route("/:id/renovate-config", renovateRoutes)
+  .route("/:id/webhook", webhookRoutes)
   .post("/:id/scans", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "member");
@@ -772,37 +777,3 @@ export const repositoryRoutes = new Hono<AppEnv>()
     await audit(actor, "scan.requested", { type: "repository", id }, { scanId });
     return c.json({ scanId }, 202);
   });
-
-export async function queueScan(
-  organizationId: string,
-  repositoryId: string,
-  requestedBy: string | null,
-  trigger: "manual" | "schedule" | "webhook" | "ci",
-  /** Gate checks of another ref (ADR 0008): scanned on their own, never changing the repository's findings. */
-  check: { ref: string | null; expectedSha: string | null } = { ref: null, expectedSha: null },
-): Promise<string> {
-  const scanId = newId("scan");
-  await db.insert(schema.scan).values({
-    id: scanId,
-    organizationId,
-    repositoryId,
-    state: "queued",
-    trigger,
-    requestedBy,
-    ref: check.ref,
-    expectedSha: check.expectedSha,
-    // Millisecond precision on purpose: this column is a pagination key (see lib/paginate.ts).
-    createdAt: new Date(),
-  });
-  await boss.send(
-    QUEUES.scanRepository,
-    { scanId },
-    // One job per repository and ref at a time; a check of a pull request does not wait for the nightly scan.
-    {
-      singletonKey: check.ref ? `${repositoryId}@${check.ref}@${check.expectedSha ?? ""}` : repositoryId,
-      retryLimit: 1,
-      expireInSeconds: 1800,
-    },
-  );
-  return scanId;
-}

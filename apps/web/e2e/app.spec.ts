@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -501,6 +502,63 @@ test("a repository can be set aside as inactive and taken back into use (ADR 004
     "select data from audit_log where action = 'repository.deactivated' order by id desc limit 1",
   );
   expect(audited?.data).toMatchObject({ reason: "replaced by the new portal" });
+  expect(problems).toEqual([]);
+});
+
+test("scan on push: switched on with a fresh sign-in, shown once, and a signed push starts a scan (ADR 0045)", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  const id = "repo_e2eseeded000000001";
+  await signedInAt("now");
+  await page.goto(`/repositories/${id}`);
+  const card = page.getByTestId("repository-webhook");
+  await expect(card).toContainText("Off");
+  await card.getByRole("button", { name: "Switch on" }).click();
+  const dialog = page.getByRole("dialog", { name: "Enter this in the forge" });
+  const url = ((await dialog.getByTestId("webhook-created-url").textContent()) ?? "").trim();
+  const secret = ((await dialog.getByTestId("webhook-created-secret").textContent()) ?? "").trim();
+  expect(url).toMatch(/\/api\/v1\/hooks\/[A-Za-z0-9_-]{43}$/);
+  expect(secret).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(card).toContainText("On");
+  await expect(card).not.toContainText(secret);
+
+  // What a forge sends: a wrong signature is refused, the right one on the scanned branch starts a scan.
+  const deliver = async (body: string, key: string) =>
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-github-event": "push",
+        "x-hub-signature-256": `sha256=${createHmac("sha256", key).update(body).digest("hex")}`,
+      },
+      body,
+    });
+  const push = JSON.stringify({ ref: "refs/heads/main", repository: { default_branch: "main" } });
+  expect((await deliver(push, "not-the-secret")).status).toBe(401);
+  const res = await deliver(push, secret);
+  expect([200, 202]).toContain(res.status);
+  expect(["scan-queued", "already-queued"]).toContain(((await res.json()) as { result: string }).result);
+  await page.reload();
+  const deliveries = page.getByTestId("repository-webhook-deliveries");
+  await expect(deliveries.locator("tbody tr")).toHaveCount(2);
+  await expect(deliveries.locator("tbody tr").last()).toContainText("Signature does not match the secret");
+
+  // Off again: the address answers nobody.
+  await card.getByRole("button", { name: "Switch off" }).click();
+  await page
+    .getByRole("dialog", { name: "Switch off scan on push?" })
+    .getByRole("button", { name: "Switch off" })
+    .click();
+  await expect(card).toContainText("Off");
+  expect((await deliver(push, secret)).status).toBe(404);
+  const actions = await sql<{ action: string }>(
+    "select action from audit_log where action like 'repository.webhook_%' order by id",
+  );
+  expect(actions.map((a) => a.action)).toEqual(["repository.webhook_created", "repository.webhook_removed"]);
+  // The scan it queued would wait for a worker the suite does not run.
+  await sql("delete from scan where trigger = 'webhook'");
   expect(problems).toEqual([]);
 });
 

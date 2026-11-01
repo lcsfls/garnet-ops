@@ -719,6 +719,39 @@ export const repositoryWriteAccess = pgTable("repository_write_access", {
   checkedAt: timestamp("checked_at", { withTimezone: true }),
 });
 
+/**
+ * Scan on push (ADR 0045): one webhook per repository. The forge (GitHub, Gitea, Forgejo) signs every delivery with HMAC-SHA256;
+ * the API keeps the shared secret encrypted with a key derived from BETTER_AUTH_SECRET (`secretSealed`, bound to this row) and
+ * checks the signature itself, so a wrong one is refused at once. The address holds `pathId`, a random value, never the
+ * repository id. The last deliveries are kept as time, event and result only, for the setup; never a payload.
+ */
+export const repositoryWebhook = pgTable(
+  "repository_webhook",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    repositoryId: text("repository_id")
+      .notNull()
+      .references(() => repository.id, { onDelete: "cascade" }),
+    pathId: text("path_id").notNull(),
+    secretSealed: text("secret_sealed").notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    lastDeliveryAt: timestamp("last_delivery_at", { withTimezone: true }),
+    /** Newest first, at most 10: `{ at, event, result }` with result a short code. */
+    deliveries: jsonb("deliveries")
+      .$type<{ at: string; event: string; result: string }[]>()
+      .notNull()
+      .default([]),
+  },
+  (t) => [
+    uniqueIndex("repository_webhook_repo_uq").on(t.repositoryId),
+    uniqueIndex("repository_webhook_path_uq").on(t.pathId),
+  ],
+);
+
 /** One fix pull request, from the request to its end on the forge. */
 export const fixPr = pgTable(
   "fix_pr",

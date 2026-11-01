@@ -2313,6 +2313,52 @@ export const de: Messages = {
     days: "{count, plural, =0 {weniger als einen Tag} one {# Tag} other {# Tage}}",
     noPatches:
       "Noch nichts behoben. Behobene Findings erscheinen hier nach dem Scan, der sie nicht mehr findet.",
+    webhook: {
+      title: "Scan bei Push",
+      description:
+        "Die Forge meldet GarnetOps jeden Push; ein Push auf den gescannten Branch startet einen Scan.",
+      on: "An",
+      off: "Aus",
+      offHint:
+        "Aus: Das Repository wird nachts und auf Wunsch gescannt. Schalten Sie es ein, um jeden Push auf den gescannten Branch zu scannen.",
+      enable: "Einschalten",
+      replace: "Neue Adresse und neues Geheimnis",
+      disable: "Ausschalten",
+      disableTitle: "Scan bei Push ausschalten?",
+      disableDescription:
+        "Die Adresse funktioniert sofort nicht mehr. Entfernen Sie den Webhook auch in der Forge.",
+      address: "Webhook-Adresse",
+      secret: "Geheimnis",
+      lastDelivery: "Letzte Zustellung {when}",
+      noDelivery: "Noch keine Zustellung",
+      deliveries: "Letzte Zustellungen",
+      when: "Wann",
+      event: "Ereignis",
+      createdTitle: "Tragen Sie das in der Forge ein",
+      createdDescription: "Adresse und Geheimnis des Webhooks für dieses Repository.",
+      secretOnce:
+        "Das Geheimnis wird nur jetzt angezeigt. Geht es verloren, erzeugen Sie eine neue Adresse und ein neues Geheimnis.",
+      howTitle: "So geht es",
+      howGithub:
+        "GitHub: Settings, Webhooks, Add webhook. Payload URL und Secret von oben, Content type application/json, nur das Push-Ereignis.",
+      howGitea:
+        "Gitea oder Forgejo: Einstellungen, Webhooks, Webhook hinzufügen, Gitea oder Forgejo. Ziel-URL und Geheimnis von oben, POST, application/json, Push-Ereignisse.",
+      howReach: "Die Forge muss diese Adresse erreichen können. GarnetOps beantwortet dort nichts anderes.",
+      done: "Fertig",
+      result: {
+        title: "Ergebnis",
+        scanQueued: "Scan gestartet",
+        alreadyQueued: "Ein Scan wartete schon",
+        ping: "Test der Forge",
+        ignoredEvent: "Kein Push",
+        ignoredBranch: "Anderer Branch",
+        ignoredDelete: "Branch gelöscht",
+        inactive: "Repository inaktiv",
+        unreadable: "Nicht lesbar",
+        badSignature: "Signatur passt nicht zum Geheimnis",
+        rateLimited: "Zu viele Zustellungen",
+      },
+    },
     writeAccess: {
       title: "Fix-Pull-Requests",
       description:
@@ -3456,6 +3502,9 @@ export const de: Messages = {
       finding_exported: "Findings exportiert",
       organization_scan_schedule_changed: "Nächtlicher Scan geändert",
       repository_ssh_host_keys_cleared: "Festgelegter Host-Key vergessen",
+      repository_webhook_created: "Scan bei Push eingeschaltet",
+      repository_webhook_replaced: "Webhook-Adresse und Geheimnis ersetzt",
+      repository_webhook_removed: "Scan bei Push ausgeschaltet",
       update_scheduled: "Update geplant",
       update_rescheduled: "Update verschoben",
       update_cancelled: "Update abgebrochen",

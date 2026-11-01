@@ -41,6 +41,7 @@ import { teamRoutes } from "./routes/team.ts";
 import { maintenanceRoutes, updateRoutes } from "./routes/updates.ts";
 import { userNotificationRoutes } from "./routes/user-notifications.ts";
 import { vulnDbBuildRoutes } from "./routes/vulndb-build.ts";
+import { webhookDeliveryRoutes } from "./routes/webhooks.ts";
 import { APP_VERSION } from "./version.ts";
 
 const publicOrigin = new URL(env.PUBLIC_URL).origin;
@@ -100,6 +101,8 @@ export const app = new Hono()
   .route("/api/v1/gate", gateCiRoutes)
   /** The host agent (ADR 0034): a one-time code to enrol, then requests signed with the host's key; no cookies. */
   .route("/api/v1/agent", agentRoutes)
+  /** Scan on push (ADR 0045): a forge's delivery, signed with the webhook's secret; no cookies, so before the same-origin check. */
+  .route("/api/v1/hooks", webhookDeliveryRoutes)
   .use("/api/v1/*", sameOrigin)
   .route("/api/v1/setup", setupRoutes)
   // The sign-in page asks what it may offer (the directory) before anyone is signed in (ADR 0020).
