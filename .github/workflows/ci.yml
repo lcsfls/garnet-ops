@@ -67,6 +67,66 @@ jobs:
           zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
           git . --no-banner --redact --log-opts="--all"
 
+  # The tests that need a database (skipped in the job above) and the whole end-to-end suite, against a PostgreSQL service
+  # container. Everything here is throw-away: the password only exists for this job, the vault key is generated per run.
+  e2e:
+    name: Database and end-to-end tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        # The same image as the Compose stack (docker-compose.yml).
+        image: postgres:17.11-alpine3.24@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_USER: garnetops
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: garnetops
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U garnetops" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.22.1"
+
+      - name: pnpm
+        run: npm install --global corepack@0.36.0 && corepack enable
+
+      - name: Install
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Development environment for the tests (.data/dev.env, vault key)
+        run: node scripts/dev.mjs --env-only
+        env:
+          DATABASE_URL: postgres://garnetops:ci-only@127.0.0.1:54329/garnetops
+
+      - name: Scanners (grype and syft, pinned checksums)
+        run: corepack pnpm scanners:fetch
+
+      - name: Unit tests, now with the database
+        run: corepack pnpm test
+
+      - name: Browser for Playwright
+        run: corepack pnpm --filter @garnetops/web exec playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: corepack pnpm --filter @garnetops/web exec playwright test
+
+      - name: Report of a failed run
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore
+
   # The update sidecar (updater/, ADR 0026) is an isolated pnpm workspace with its own lockfile
   # and its own lint, types and tests; the root workspace does not include it.
   updater:

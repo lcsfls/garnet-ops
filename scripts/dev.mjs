@@ -5,6 +5,9 @@
  *  - creates development secrets once (.data/dev.env, .data/vault/*),
  *  - runs API, worker and web together with prefixed output.
  *
+ * `--env-only` (CI): only writes .data/dev.env and the vault key, for a PostgreSQL given in DATABASE_URL (a service
+ * container), then exits. The tests read the same file as in development.
+ *
  * Development only. Production uses the Docker Compose stack with real secrets.
  */
 import { spawn } from "node:child_process";
@@ -28,6 +31,11 @@ const data = join(root, ".data");
 const vaultDir = join(data, "vault");
 const envFile = join(data, "dev.env");
 const exe = process.platform === "win32" ? ".exe" : "";
+const envOnly = process.argv.includes("--env-only");
+if (envOnly && !process.env.DATABASE_URL) {
+  console.error("dev: --env-only needs DATABASE_URL (the PostgreSQL to use)");
+  process.exit(1);
+}
 
 mkdirSync(vaultDir, { recursive: true });
 
@@ -60,7 +68,7 @@ if (!existsSync(envFile)) {
     "NODE_ENV=development",
     "PUBLIC_URL=http://localhost:5173",
     "PORT=3000",
-    `DATABASE_URL=postgres://garnetops:${pgPassword}@127.0.0.1:${PG_PORT}/garnetops`,
+    `DATABASE_URL=${envOnly ? process.env.DATABASE_URL : `postgres://garnetops:${pgPassword}@127.0.0.1:${PG_PORT}/garnetops`}`,
     `BETTER_AUTH_SECRET=${randomBytes(32).toString("base64url")}`,
     `GARNETOPS_VAULT_PUBLIC_KEY_FILE=${pub}`,
     `GARNETOPS_VAULT_PRIVATE_KEY_FILE=${priv}`,
@@ -71,6 +79,11 @@ if (!existsSync(envFile)) {
   ];
   writeFileSync(envFile, `${lines.join("\n")}\n`, { mode: 0o600 });
   console.log("dev: created .data/dev.env and a development vault key");
+}
+
+if (envOnly) {
+  console.log("dev: environment written; nothing started (--env-only)");
+  process.exit(0);
 }
 
 const env = Object.fromEntries(
