@@ -190,7 +190,10 @@ test.describe("the owner's settings", () => {
     await form(page).getByRole("button", { name: "Save" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Saved." }).first()).toBeVisible();
     await expect(page.getByText("On", { exact: true }).first()).toBeVisible();
-    expect((await sql<{ enabled: boolean }>("select enabled from ldap_config"))[0]?.enabled).toBe(true);
+    // A message on screen can still be the one of an earlier save: wait for the stored value itself.
+    await expect
+      .poll(async () => (await sql<{ enabled: boolean }>("select enabled from ldap_config"))[0]?.enabled)
+      .toBe(true);
 
     // The directory saw the service account bind and a search; every message was encrypted.
     const seen = (await state()).seen;
@@ -591,7 +594,10 @@ test.describe("pinning a server certificate", () => {
     await signedInAt("now");
     await form(page).getByRole("button", { name: "Save" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Saved." }).first()).toBeVisible();
-    expect((await sql<{ enabled: boolean }>("select enabled from ldap_config"))[0]?.enabled).toBe(true);
+    // A message on screen can still be the one of an earlier save: wait for the stored value itself.
+    await expect
+      .poll(async () => (await sql<{ enabled: boolean }>("select enabled from ldap_config"))[0]?.enabled)
+      .toBe(true);
 
     // The server now presents another certificate: refused before anything is sent, and shown to the owner.
     await control("/certificate", { which: "B" });
