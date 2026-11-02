@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.0.18] - 2026-11-02
+<!-- title: Getting started, a gate wizard, webhooks registered for you, and new statistics -->
+
 ### Added
 
 - **Getting started** on the overview, for owners and admins: six steps (connect a forge account, pick repositories, scan on
@@ -1318,7 +1321,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.17...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.18...HEAD
+[0.0.18]: https://github.com/lcsfls/garnet-ops/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/lcsfls/garnet-ops/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/lcsfls/garnet-ops/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/lcsfls/garnet-ops/compare/v0.0.14...v0.0.15
