@@ -29,7 +29,7 @@ test("first-run setup, mandatory TOTP, backup code and TOTP sign-in", async ({ p
   await expect(page.getByRole("heading", { name: "Restore from a backup" })).toBeVisible();
   await expect(page.getByLabel("Backup file")).toBeVisible();
   await expect(page.getByLabel("Passphrase of the backup")).toBeVisible();
-  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByTestId("setup-choose-new").click();
 
   // Setup without the one-time token is refused.
