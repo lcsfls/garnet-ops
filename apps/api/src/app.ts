@@ -30,6 +30,7 @@ import { organizationRoutes } from "./routes/organization.ts";
 import { overviewRoutes } from "./routes/overview.ts";
 import { packageRoutes } from "./routes/packages.ts";
 import { pullRequestRoutes } from "./routes/pull-requests.ts";
+import { reportMailRoutes, reportRoutes } from "./routes/reports.ts";
 import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
 import { searchRoutes } from "./routes/search.ts";
@@ -116,10 +117,12 @@ const v1 = new Hono<AppEnv>()
   .use("*", requireActor)
   .route("/me", meRoutes)
   .route("/me", userNotificationRoutes)
+  .route("/me", reportMailRoutes)
   .route("/account", accountRoutes)
   .route("/overview/setup", setupProgressRoutes)
   .route("/overview", overviewRoutes)
   .route("/statistics", statisticsRoutes)
+  .route("/reports", reportRoutes)
   .route("/repositories", repositoryRoutes)
   .route("/repositories/:id", repositorySharingRoutes)
   .route("/share-requests", shareRequestRoutes)

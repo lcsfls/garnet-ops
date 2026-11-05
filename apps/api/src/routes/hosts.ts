@@ -17,6 +17,7 @@ import {
   thirdPartyPhp,
   upgradeCommand,
 } from "@garnetops/core/apt";
+import { HOST_STALE_AFTER_MS } from "@garnetops/core/reports";
 import { repositoryVisibleTo, schema } from "@garnetops/db";
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -45,7 +46,7 @@ const cf = schema.containerImageFinding;
 /** The agent image of this release; the snippet in the web app names it. */
 export const AGENT_IMAGE = `ghcr.io/lcsfls/garnetops-agent:${APP_VERSION}`;
 /** A host that has not reported for this long is shown as "not reporting" (the agent reports every 6 hours by default). */
-export const STALE_AFTER_MS = 25 * 3600_000;
+export const STALE_AFTER_MS = HOST_STALE_AFTER_MS;
 
 const SEVERITIES = ["critical", "high", "medium", "low"] as const;
 type Counts = Record<(typeof SEVERITIES)[number], number>;
@@ -287,7 +288,7 @@ async function revisionSync(
 }
 
 /** What the registry check said about a container's reference, if it was checked. */
-async function updatesByRef(organizationId: string, refs: string[]) {
+export async function updatesByRef(organizationId: string, refs: string[]) {
   const map = new Map<string, typeof schema.imageUpdateCheck.$inferSelect>();
   if (refs.length === 0) return map;
   const rows = await db
@@ -304,7 +305,7 @@ async function updatesByRef(organizationId: string, refs: string[]) {
 }
 
 /** A container's update status from the stored check and the digests of the image it runs. */
-function updateOf(
+export function updateOf(
   check: typeof schema.imageUpdateCheck.$inferSelect | undefined,
   digests: string[],
 ): {

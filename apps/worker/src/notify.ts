@@ -190,12 +190,20 @@ export interface MailTestOptions {
   ca?: string;
 }
 
+/** A file attached to a mail: the report PDF (ADR 0047). Nothing else is ever attached. */
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 async function sendSmtp(
   channel: Channel,
   title: string,
   text: string,
   to: string[],
   test: MailTestOptions = {},
+  attachments: MailAttachment[] = [],
 ) {
   const c = channel.config;
   const password = c.username ? await openSecret(channel, "smtp-password") : null;
@@ -212,7 +220,21 @@ async function sendSmtp(
     tls: { minVersion: "TLSv1.2", ...(test.ca ? { ca: test.ca } : {}) },
   });
   try {
-    await transport.sendMail({ from: String(c.from), to, subject: title, text });
+    await transport.sendMail({
+      from: String(c.from),
+      to,
+      subject: title,
+      text,
+      ...(attachments.length > 0
+        ? {
+            attachments: attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content,
+              contentType: a.contentType,
+            })),
+          }
+        : {}),
+    });
   } catch (error) {
     const code = (error as { code?: string; responseCode?: number }).code;
     const status = (error as { responseCode?: number }).responseCode;
@@ -222,7 +244,13 @@ async function sendSmtp(
   }
 }
 
-async function sendGraph(channel: Channel, title: string, text: string, to: string[]) {
+async function sendGraph(
+  channel: Channel,
+  title: string,
+  text: string,
+  to: string[],
+  attachments: MailAttachment[] = [],
+) {
   const c = channel.config;
   const secret = await openSecret(channel, "graph-client-secret");
   const tokenResponse = await fetch(
@@ -256,6 +284,16 @@ async function sendGraph(channel: Channel, title: string, text: string, to: stri
           subject: title,
           body: { contentType: "Text", content: text },
           toRecipients: to.map((address) => ({ emailAddress: { address } })),
+          ...(attachments.length > 0
+            ? {
+                attachments: attachments.map((a) => ({
+                  "@odata.type": "#microsoft.graph.fileAttachment",
+                  name: a.filename,
+                  contentType: a.contentType,
+                  contentBytes: a.content.toString("base64"),
+                })),
+              }
+            : {}),
         },
         saveToSentItems: false,
       }),
@@ -282,6 +320,28 @@ export async function sendMailVia(
   else if (channel.kind === "graph") await sendGraph(channel, title, text, to);
   else throw new DeliveryError("not a mail channel");
 }
+
+/**
+ * Sends one mail with attachments through a mail channel (SMTP or Graph): the report mail (ADR 0047), to the one person it
+ * is for. Graph accepts attachments of up to 3 MB in one request; a larger one is refused before anything is sent.
+ */
+export async function sendMailWithAttachments(
+  channel: Channel,
+  title: string,
+  text: string,
+  to: string[],
+  attachments: MailAttachment[],
+): Promise<void> {
+  if (attachments.reduce((sum, a) => sum + a.content.length, 0) > GRAPH_ATTACHMENT_LIMIT) {
+    throw new DeliveryError("attachment too large");
+  }
+  if (channel.kind === "smtp") await sendSmtp(channel, title, text, to, {}, attachments);
+  else if (channel.kind === "graph") await sendGraph(channel, title, text, to, attachments);
+  else throw new DeliveryError("not a mail channel");
+}
+
+/** The size Graph's sendMail takes in one request (its limit is 3 MB with the message itself). */
+const GRAPH_ATTACHMENT_LIMIT = 2_500_000;
 
 /** Sends one notification to one channel and records the delivery. Throws so the queue retries. */
 export async function deliver(channelId: string, payload: NotifyPayload): Promise<void> {

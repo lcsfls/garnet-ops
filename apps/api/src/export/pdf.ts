@@ -1,10 +1,9 @@
-import { deflateSync } from "node:zlib";
+import { assemblePdf, clip, textAt, width, winAnsi } from "@garnetops/core/pdf";
 import { type Cell, cellText, type Report } from "./table.ts";
 
 /**
- * A minimal PDF writer for tabular reports: A4 landscape, the standard Helvetica fonts
- * (no embedded font files), a repeated header row and page numbers. Written here
- * instead of adding a dependency; a findings list needs nothing more.
+ * The findings list as a PDF: A4 landscape, a repeated header row and page numbers. The writing itself (fonts, WinAnsi
+ * text, the file structure) is shared with the reports in `@garnetops/core/pdf`.
  *
  * Text is encoded as WinAnsi (Latin-1 plus typographic quotes and dashes); characters
  * outside it become "?". Cell text is cut to its column with "…".
@@ -16,64 +15,6 @@ const MARGIN = 36;
 const FONT_SIZE = 7.5;
 const ROW_H = 12;
 const CELL_PAD = 4;
-
-/** Helvetica advance widths (1/1000 em) for ASCII 32 to 126, from the standard AFM metrics. */
-const HELVETICA = [
-  278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556,
-  556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278,
-  500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469,
-  556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500,
-  278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
-];
-
-const WIN_ANSI_EXTRA: Record<string, number> = {
-  "€": 0x80,
-  "‚": 0x82,
-  "„": 0x84,
-  "…": 0x85,
-  "‘": 0x91,
-  "’": 0x92,
-  "“": 0x93,
-  "”": 0x94,
-  "•": 0x95,
-  "–": 0x96,
-  "—": 0x97,
-};
-
-/** Unicode text as WinAnsi bytes (in a latin1 string); unknown characters become "?". */
-function winAnsi(text: string): string {
-  let out = "";
-  for (const ch of text.replace(/\p{Cc}/gu, " ")) {
-    const code = ch.codePointAt(0) ?? 63;
-    if ((code >= 32 && code <= 126) || (code >= 160 && code <= 255)) out += ch;
-    else out += String.fromCharCode(WIN_ANSI_EXTRA[ch] ?? 63);
-  }
-  return out;
-}
-
-function width(text: string, size: number, bold = false): number {
-  let units = 0;
-  for (const ch of text) {
-    const code = ch.charCodeAt(0);
-    units += code >= 32 && code <= 126 ? (HELVETICA[code - 32] ?? 556) : 556;
-  }
-  return (units / 1000) * size * (bold ? 1.06 : 1);
-}
-
-/** The longest start of `text` that fits `max` points, with "…" when it was cut. */
-function clip(text: string, max: number, size: number, bold = false): string {
-  const encoded = winAnsi(text);
-  if (width(encoded, size, bold) <= max) return encoded;
-  let cut = encoded;
-  while (cut.length > 0 && width(`${cut}\x85`, size, bold) > max) cut = cut.slice(0, -1);
-  return `${cut}\x85`;
-}
-
-const literal = (text: string) => `(${text.replace(/[\\()]/g, "\\$&")})`;
-
-function textAt(x: number, y: number, text: string, font: "F1" | "F2", size: number): string {
-  return `BT /${font} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td ${literal(text)} Tj ET`;
-}
 
 export function toPdf(report: Report): Buffer {
   const columns = report.columns.map((c, i) => ({ ...c, index: i })).filter((c) => !c.wide);
@@ -138,55 +79,8 @@ export function toPdf(report: Report): Buffer {
       textAt(MARGIN, MARGIN - 16, "GarnetOps", "F1", 8),
       textAt(PAGE_W - MARGIN - width(footer, 8), MARGIN - 16, footer, "F1", 8),
     );
-    return deflateSync(Buffer.from(ops.join("\n"), "latin1"));
+    return ops.join("\n");
   });
 
-  // Objects: 1 catalog, 2 page tree, 3 and 4 fonts, 5 info, then a page and its content per page.
-  const objects: (string | Buffer)[] = [];
-  const pageIds = pages.map((_, i) => 6 + i * 2);
-  objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
-  objects[2] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`;
-  objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
-  objects[4] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>";
-  objects[5] = `<< /Title ${literal(winAnsi(report.title))} /Producer (GarnetOps) >>`;
-  streams.forEach((stream, i) => {
-    const pageId = 6 + i * 2;
-    objects[pageId] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] ` +
-      `/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${pageId + 1} 0 R >>`;
-    objects[pageId + 1] = Buffer.concat([
-      Buffer.from(`<< /Length ${stream.length} /Filter /FlateDecode >>\nstream\n`, "latin1"),
-      stream,
-      Buffer.from("\nendstream", "latin1"),
-    ]);
-  });
-
-  const chunks: Buffer[] = [Buffer.from("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n", "latin1")];
-  let length = chunks[0]?.length ?? 0;
-  const offsets: number[] = [];
-  for (let id = 1; id < objects.length; id++) {
-    offsets[id] = length;
-    const body = objects[id] ?? "";
-    const chunk = Buffer.concat([
-      Buffer.from(`${id} 0 obj\n`, "latin1"),
-      typeof body === "string" ? Buffer.from(body, "latin1") : body,
-      Buffer.from("\nendobj\n", "latin1"),
-    ]);
-    chunks.push(chunk);
-    length += chunk.length;
-  }
-  const xref = [
-    "xref",
-    `0 ${objects.length}`,
-    "0000000000 65535 f ",
-    ...offsets.slice(1).map((o) => `${String(o).padStart(10, "0")} 00000 n `),
-    "trailer",
-    `<< /Size ${objects.length} /Root 1 0 R /Info 5 0 R >>`,
-    "startxref",
-    String(length),
-    "%%EOF",
-    "",
-  ].join("\n");
-  chunks.push(Buffer.from(xref, "latin1"));
-  return Buffer.concat(chunks);
+  return assemblePdf(streams, report.title, { width: PAGE_W, height: PAGE_H });
 }

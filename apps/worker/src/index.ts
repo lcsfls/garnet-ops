@@ -33,6 +33,7 @@ import { FORGE_SIGN_IN_QUEUE, runSignIn } from "./forge-sign-in.ts";
 import { startHosts } from "./hosts.ts";
 import { deliver, eventsForScan, NOTIFY_QUEUE, queueNotifications } from "./notify.ts";
 import { startPullRequestRefresh } from "./pull-requests.ts";
+import { startReportMail } from "./report-mail.ts";
 import { removeRetiredQueues } from "./retired-queues.ts";
 import { runScan } from "./scan.ts";
 import { SCAN_QUEUE as QUEUE, startScheduler } from "./schedule.ts";
@@ -213,6 +214,8 @@ await startScheduler(boss);
 const stopDirectoryReconcile = startDirectoryReconcile();
 const stopVulnDbUpdates = startVulnDbUpdates();
 const stopUserNotifications = startUserNotificationUpkeep();
+// The report mail (ADR 0047): daily, weekly or monthly for those who chose it, in their own zone.
+const stopReportMail = startReportMail();
 // The heartbeat, the scanner versions and the database metadata for the System status page (ADR 0024).
 const stopSystemReports = startSystemReports();
 const stopEarlyWarnings = startEarlyWarnings(boss);
@@ -223,6 +226,7 @@ async function shutdown() {
   stopVulnDbUpdates();
   stopEarlyWarnings();
   stopUserNotifications();
+  stopReportMail();
   await stopSystemReports();
   clearInterval(aiSweep);
   clearInterval(directorySweep);

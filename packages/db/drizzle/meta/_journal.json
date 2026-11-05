@@ -337,6 +337,13 @@
       "when": 1793877713984,
       "tag": "0047_host_apt_facts",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793877756321,
+      "tag": "0048_report_mail",
+      "breakpoints": true
     }
   ]
 }

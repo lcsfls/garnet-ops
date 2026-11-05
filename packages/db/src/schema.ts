@@ -337,6 +337,56 @@ export const notificationPreference = pgTable(
   (t) => [primaryKey({ columns: [t.organizationId, t.userId, t.event] })],
 );
 
+/**
+ * A person's report mail (ADR 0047): how often the organisation report comes by mail, and whether the PDF is attached. A
+ * missing row means off; nothing is sent to anyone who did not choose it. The mail goes to the person's own sign-in address
+ * through the organisation's mail channel (ADR 0019), built with that person's visibility.
+ */
+export const reportSubscription = pgTable(
+  "report_subscription",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    frequency: text("frequency", { enum: ["daily", "weekly", "monthly"] }).notNull(),
+    attachPdf: boolean("attach_pdf").notNull().default(true),
+    /** When the frequency was last chosen: a period whose send time came before it is not sent. */
+    since: timestamp("since", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.userId] })],
+);
+
+/**
+ * One report mail per person and period (ADR 0005 point 6): the key names the frequency and the period's first local day.
+ * The row is written before the mail is sent, so a repeated hour, a second worker or a retry never sends it twice.
+ */
+export const reportMailRun = pgTable(
+  "report_mail_run",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** "weekly:2026-10-26": frequency and the first day of the period in the person's zone. */
+    periodKey: text("period_key").notNull(),
+    /** "sending" while claimed, then "sent", "failed" (a short code in `error`) or "skipped" (no mail channel). */
+    state: text("state", { enum: ["sending", "sent", "failed", "skipped"] }).notNull(),
+    error: text("error"),
+    createdAt: createdAt(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.organizationId, t.userId, t.periodKey] }),
+    index("report_mail_run_created_idx").on(t.createdAt),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Secrets vault (ADR 0004). Plaintext never touches the database.             */
 /* -------------------------------------------------------------------------- */
