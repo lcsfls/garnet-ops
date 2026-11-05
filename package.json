@@ -13,7 +13,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "lint": "biome check .",
+    "lint": "biome check . && node scripts/check-colours.mjs",
     "format": "biome format --write .",
     "db:generate": "pnpm --filter @garnetops/db generate",
     "scanners:fetch": "node scripts/fetch-scanners.mjs",
