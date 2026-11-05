@@ -34,6 +34,7 @@ function host(over: Partial<SshdFacts> = {}, settings: Overrides = {}): SshdFact
     server: "openssh",
     package: { name: "openssh-server", version: "10.0_p1-r9" },
     libc: "musl",
+    program: "/usr/sbin/sshd",
     pamLinked: false,
     config: { read: true, problem: null, files: ["/etc/ssh/sshd_config"], skipped: [], settings: all },
     ...over,
@@ -246,6 +247,7 @@ describe("the inventory field sshd", () => {
       server: "none",
       package: null,
       libc: "glibc",
+      program: null,
       pamLinked: null,
       config: null,
     });
@@ -257,6 +259,19 @@ describe("the inventory field sshd", () => {
         config: { read: true, files: ["sshd_config"] },
       }).success,
     ).toBe(false);
+  });
+
+  it("takes the program that runs, and a bad one costs only the program", () => {
+    const sent = (program: unknown) =>
+      sshdFactsSchema.parse({ server: "openssh", libc: "musl", pamLinked: true, program, config: null });
+    expect(sent("/usr/sbin/sshd.pam").program).toBe("/usr/sbin/sshd.pam");
+    expect(sent(undefined).program).toBeNull();
+    expect(sent("sshd.pam").program).toBeNull();
+    expect(sent(42).program).toBeNull();
+    // Alpine's sshd.pam with UsePAM yes: PAM is used, so sshole cannot be used there.
+    const pam = host({ program: "/usr/sbin/sshd.pam", pamLinked: true }, { usePam: "yes" });
+    expect(rules(pam)).toEqual(["password-authentication:medium:global"]);
+    expect(ssholeSafeReasons(pam)).toEqual(["pam"]);
   });
 
   it("reads lists an agent sends as null as empty, so the field is not dropped", () => {

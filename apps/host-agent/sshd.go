@@ -64,6 +64,8 @@ type SSHConfig struct {
 	Files    []string     `json:"files"`
 	Skipped  []SSHSkipped `json:"skipped"`
 	Settings *SSHSettings `json:"settings"`
+	// global holds every global value read, also those not reported (Kerberos, GSSAPI), for choosing the program.
+	global map[string]string
 }
 
 // SSHPackage is the installed package of the SSH server.
@@ -79,7 +81,11 @@ type SSHFacts struct {
 	Package *SSHPackage `json:"package"`
 	// Libc is "musl", "glibc" or "unknown": from the program interpreter of sshd, else from the loaders the system has.
 	Libc string `json:"libc"`
-	// PamLinked says whether sshd is linked against libpam (nil: not known). Without it, UsePAM has no effect.
+	// Program is the SSH server program the host starts: /usr/sbin/sshd, or on Alpine (OpenRC) /usr/sbin/sshd.pam or
+	// /usr/sbin/sshd.krb5, chosen the way Alpine's /etc/init.d/sshd chooses it.
+	Program string `json:"program"`
+	// PamLinked says whether that program or its sshd-session and sshd-auth helpers are linked against libpam (nil: not known).
+	// Without it, UsePAM has no effect.
 	PamLinked *bool      `json:"pamLinked"`
 	Config    *SSHConfig `json:"config"`
 }
@@ -104,7 +110,7 @@ func sshKeyword(word string) string {
 	case "challengeresponseauthentication":
 		return "kbdinteractiveauthentication"
 	case "passwordauthentication", "kbdinteractiveauthentication", "permitrootlogin", "usepam", "permitemptypasswords",
-		"pubkeyauthentication":
+		"pubkeyauthentication", "kerberosauthentication", "gssapiauthentication":
 		return k
 	}
 	return ""
@@ -118,25 +124,131 @@ func isRegular(p string) bool {
 // ReadSSHFacts looks at the host's SSH server. It never fails: what cannot be read is reported as unknown.
 func ReadSSHFacts(root string, packages []Package) *SSHFacts {
 	facts := &SSHFacts{Server: "none", Libc: "unknown"}
-	sshd := hostPath(root, sshdPath)
 	switch {
-	case isRegular(sshd):
+	// Alpine's openssh-server-pam brings only sshd.pam (and sshd.krb5 its own); /usr/sbin/sshd comes with openssh-server.
+	case isRegular(hostPath(root, sshdPath)) || isRegular(hostPath(root, sshdPath+".pam")) ||
+		isRegular(hostPath(root, sshdPath+".krb5")):
 		facts.Server = "openssh"
 	case isRegular(hostPath(root, "/usr/sbin/dropbear")) || isRegular(hostPath(root, "/usr/bin/dropbear")):
 		facts.Server = "dropbear"
 	}
 	interp := ""
 	if facts.Server == "openssh" {
-		var pam *bool
-		interp, pam = elfFacts(sshd)
-		facts.PamLinked = pam
-		facts.Package = sshPackage(packages, "openssh-server", "openssh-server-pam", "openssh")
 		facts.Config = ReadSSHConfig(root)
+		facts.Program = sshdProgram(root, facts.Config)
+		interp, facts.PamLinked = sshdLinkage(root, facts.Program)
+		names := []string{"openssh-server", "openssh-server-pam", "openssh-server-krb5", "openssh"}
+		if flavor := sshdFlavor(facts.Program); flavor != "" {
+			// The package of the program that runs comes first; all of them carry the same OpenSSH version.
+			names = append([]string{"openssh-server-" + flavor[1:]}, names...)
+		}
+		facts.Package = sshPackage(packages, names...)
 	} else if facts.Server == "dropbear" {
 		facts.Package = sshPackage(packages, "dropbear")
 	}
 	facts.Libc = DetectLibc(root, interp)
 	return facts
+}
+
+// sshdProgram says which SSH server program the host starts. Debian, Ubuntu, Fedora and their kin have one, /usr/sbin/sshd.
+// Alpine builds three, and its OpenRC script (/etc/init.d/sshd) picks one at every start: SSHD_BINARY from /etc/conf.d/sshd
+// if set; else sshd.krb5 if installed and the configuration switches on Kerberos or GSSAPI; else sshd.pam if installed and the
+// configuration says UsePAM yes; else sshd. The script asks the program itself (sshd -G); the agent runs nothing and reads the
+// same files, first value wins.
+func sshdProgram(root string, cfg *SSHConfig) string {
+	if DetectServiceManager(root) != "openrc" {
+		return sshdPath
+	}
+	if binary := openrcSSHDBinary(root); binary != "" {
+		return binary
+	}
+	if cfg == nil || cfg.global == nil {
+		return sshdPath
+	}
+	executable := func(p string) bool {
+		info, err := os.Stat(hostPath(root, p))
+		return err == nil && info.Mode().IsRegular() && info.Mode()&0o111 != 0
+	}
+	g := cfg.global
+	if executable(sshdPath+".krb5") && (g["kerberosauthentication"] == "yes" || g["gssapiauthentication"] == "yes") {
+		return sshdPath + ".krb5"
+	}
+	if executable(sshdPath+".pam") && g["usepam"] == "yes" {
+		return sshdPath + ".pam"
+	}
+	return sshdPath
+}
+
+// openrcSSHDBinary reads SSHD_BINARY from /etc/conf.d/sshd: the last plain assignment of an absolute path. A value the shell would
+// still expand ($, backquotes) is not guessed at.
+func openrcSSHDBinary(root string) string {
+	file := hostPath(root, "/etc/conf.d/sshd")
+	if !isRegular(file) {
+		// Not a FIFO or device, whose opening could block the report.
+		return ""
+	}
+	text, err := readLimited(file, 64*1024)
+	if err != nil {
+		return ""
+	}
+	found := ""
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "export "))
+		value, ok := strings.CutPrefix(line, "SSHD_BINARY=")
+		if !ok {
+			continue
+		}
+		if i := strings.Index(value, " #"); i >= 0 {
+			value = value[:i]
+		}
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if value == "" || strings.ContainsAny(value, "$`\\ \t") || !strings.HasPrefix(value, "/") || len(value) > 200 {
+			found = ""
+			continue
+		}
+		found = path.Clean(value)
+	}
+	return found
+}
+
+// sshdFlavor is the suffix of one of Alpine's server programs (".pam", ".krb5"), or "" for plain sshd and anything else.
+func sshdFlavor(program string) string {
+	switch base := path.Base(program); base {
+	case "sshd.pam", "sshd.krb5":
+		return strings.TrimPrefix(base, "sshd")
+	}
+	return ""
+}
+
+// sshdLinkage reads the program interpreter of the server program and whether PAM is linked. Since OpenSSH 9.8 and 10.0 the
+// session and the authentication run in helper programs (sshd-session, sshd-auth) that link libpam where sshd itself may not;
+// on Alpine they carry the program's suffix (sshd-auth.pam). PAM counts as linked when any of them links it; nil when none could
+// be read.
+func sshdLinkage(root, program string) (string, *bool) {
+	flavor := sshdFlavor(program)
+	files := []string{program}
+	for _, dir := range []string{"/usr/lib/ssh", "/usr/lib/openssh", "/usr/libexec/openssh", "/usr/libexec"} {
+		files = append(files, dir+"/sshd-session"+flavor, dir+"/sshd-auth"+flavor)
+	}
+	interp := ""
+	var pam *bool
+	for _, file := range files {
+		full := hostPath(root, file)
+		if !isRegular(full) {
+			continue
+		}
+		i, linked := elfFacts(full)
+		if interp == "" {
+			interp = i
+		}
+		if linked != nil {
+			if pam == nil {
+				pam = new(bool)
+			}
+			*pam = *pam || *linked
+		}
+	}
+	return interp, pam
 }
 
 func sshPackage(packages []Package, names ...string) *SSHPackage {
@@ -252,6 +364,7 @@ func ReadSSHConfig(root string) *SSHConfig {
 	p.files = append(p.files, main)
 	p.parse(text, false, 0)
 	cfg.Read = true
+	cfg.global = p.global
 	// Append keeps what the initial empty slices hold: a nil slice would be sent as null, and the server's schema expects a list.
 	cfg.Files = append(cfg.Files, p.files...)
 	cfg.Skipped = append(cfg.Skipped, p.skipped...)

@@ -11,7 +11,8 @@
   /**
    * The host's SSH server (ADR 0037, addendum "SSH server"): what the agent read from files (the server, its package, the C library,
    * PAM and the global values of a few settings) and the configuration findings, worst first. Report-only: nothing here changes a
-   * vulnerability, a count, a grade or a gate, and the card says so.
+   * vulnerability, a grade or a gate, and the card says so. The one exception is sshole while the vulnerability database does not
+   * list it: it counts in the menu's number for agents (GET /hosts/attention).
    */
   let { ssh }: { ssh: HostSsh } = $props();
   const settings = $derived(ssh.server === "openssh" && ssh.config?.read ? ssh.config.settings : null);
@@ -44,6 +45,7 @@
       text: t(`hosts.sshServerValue.${ssh.server}`),
       note: ssh.package ? `${ssh.package.name} ${ssh.package.version}` : null,
     },
+    ...(ssh.program ? [{ label: t("hosts.sshProgram"), text: ssh.program, mono: true }] : []),
     { label: t("hosts.sshLibc"), text: t(`hosts.sshLibcValue.${ssh.libc}`) },
     ...(ssh.server === "openssh" ? [{ label: t("hosts.sshPam"), text: pamText }] : []),
     ...(settings

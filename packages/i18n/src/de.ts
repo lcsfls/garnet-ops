@@ -1112,13 +1112,14 @@ export const de: Messages = {
     runtimeOpenrcShort: "OpenRC-Dienst",
     sshTitle: "SSH-Server",
     sshDescription:
-      "Die Einstellungen des SSH-Servers, gelesen aus seinen Konfigurationsdateien. Diese Befunde sind nur ein Bericht: Sie ändern keine Schwachstellen, Zählungen, Noten oder Gates.",
+      "Die Einstellungen des SSH-Servers, gelesen aus seinen Konfigurationsdateien. Diese Befunde sind nur ein Bericht: Sie ändern keine Schwachstellen, Noten oder Gates. Nur sshole zählt in der Zahl der Agents im Menü mit, solange die Schwachstellendatenbank die Lücke noch nicht führt.",
     sshServer: "Server",
     sshServerValue: {
       openssh: "OpenSSH",
       dropbear: "Dropbear",
       none: "Keiner gefunden",
     },
+    sshProgram: "Programm",
     sshLibc: "C-Bibliothek",
     sshLibcValue: {
       musl: "musl",
@@ -1127,7 +1128,7 @@ export const de: Messages = {
     },
     sshPam: "PAM",
     sshPamUsed: "Verwendet",
-    sshPamNotBuilt: "Nicht verwendet: sshd ist ohne PAM gebaut",
+    sshPamNotBuilt: "Nicht verwendet: Das gestartete Programm ist ohne PAM gebaut",
     sshPamOff: "Nicht verwendet (UsePAM no)",
     sshPamUnknown: "Nicht bekannt",
     sshPasswordAuthentication: "Anmeldung mit Passwort",

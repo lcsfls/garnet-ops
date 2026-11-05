@@ -341,6 +341,120 @@ func TestSSHFactsOnAlpine(t *testing.T) {
 	}
 }
 
+// A program linked against libpam (su, login or passwd) and one without it (ls) stand in for the server programs.
+func pamStandIns(t *testing.T) (withPAM, without []byte) {
+	t.Helper()
+	for _, name := range []string{"su", "login", "passwd"} {
+		p, err := exec.LookPath(name)
+		if err != nil {
+			continue
+		}
+		if _, pam := elfFacts(p); pam != nil && *pam {
+			withPAM, _ = os.ReadFile(p)
+			break
+		}
+	}
+	if ls, err := exec.LookPath("ls"); err == nil {
+		if _, pam := elfFacts(ls); pam != nil && !*pam {
+			without, _ = os.ReadFile(ls)
+		}
+	}
+	if withPAM == nil || without == nil {
+		t.Skip("no dynamically linked programs with and without libpam here")
+	}
+	return withPAM, without
+}
+
+func writeExecutable(t *testing.T, root, name string, data []byte) {
+	t.Helper()
+	writeFile(t, root, name, string(data))
+	if err := os.Chmod(hostPath(root, name), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Alpine's three server programs: OpenRC starts sshd.pam when it is installed and the configuration says UsePAM yes (and
+// sshd.krb5 for Kerberos or GSSAPI), else sshd; SSHD_BINARY in /etc/conf.d/sshd overrides that. PAM is linked in the helpers.
+func TestSSHProgramOnAlpine(t *testing.T) {
+	withPAM, without := pamStandIns(t)
+	alpine := func(config string) string {
+		root := t.TempDir()
+		if err := os.MkdirAll(hostPath(root, "/run/openrc"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeExecutable(t, root, "/usr/sbin/sshd", without)
+		writeExecutable(t, root, "/usr/lib/ssh/sshd-session", without)
+		writeExecutable(t, root, "/usr/lib/ssh/sshd-auth", without)
+		writeExecutable(t, root, "/usr/sbin/sshd.pam", without)
+		writeExecutable(t, root, "/usr/lib/ssh/sshd-session.pam", withPAM)
+		writeExecutable(t, root, "/usr/lib/ssh/sshd-auth.pam", withPAM)
+		writeFile(t, root, "/etc/ssh/sshd_config", config)
+		return root
+	}
+	packages := []Package{{Name: "openssh-server-pam", Version: "10.0_p1-r9"}, {Name: "openssh-server", Version: "10.0_p1-r9"}}
+	check := func(name string, f *SSHFacts, program string, pam bool, pkg string) {
+		t.Helper()
+		if f.Program != program || f.PamLinked == nil || *f.PamLinked != pam || f.Package == nil || f.Package.Name != pkg {
+			t.Errorf("%s: got program %q pam %v package %+v", name, f.Program, f.PamLinked, f.Package)
+		}
+	}
+
+	root := alpine("Include /etc/ssh/sshd_config.d/*.conf\n")
+	writeFile(t, root, "/etc/ssh/sshd_config.d/pam.conf", "usepam YES\n")
+	check("UsePAM yes", ReadSSHFacts(root, packages), "/usr/sbin/sshd.pam", true, "openssh-server-pam")
+
+	root = alpine("#UsePAM yes\nMatch User backup\n  UsePAM yes\n")
+	check("UsePAM only in a Match block", ReadSSHFacts(root, packages), "/usr/sbin/sshd", false, "openssh-server")
+
+	root = alpine("UsePAM yes\n")
+	if err := os.Chmod(hostPath(root, "/usr/sbin/sshd.pam"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	check("sshd.pam not executable", ReadSSHFacts(root, packages), "/usr/sbin/sshd", false, "openssh-server")
+
+	root = alpine("UsePAM no\n")
+	writeFile(t, root, "/etc/conf.d/sshd", "# SSHD_BINARY=/usr/sbin/sshd\nexport SSHD_BINARY=\"/usr/sbin/sshd.pam\"  # with PAM\n")
+	check("SSHD_BINARY", ReadSSHFacts(root, packages), "/usr/sbin/sshd.pam", true, "openssh-server-pam")
+	writeFile(t, root, "/etc/conf.d/sshd", "SSHD_BINARY=/usr/sbin/sshd.pam\nSSHD_BINARY=\"$PREFIX/sshd\"\n")
+	check("SSHD_BINARY the agent cannot expand", ReadSSHFacts(root, packages), "/usr/sbin/sshd", false, "openssh-server")
+
+	root = alpine("GSSAPIAuthentication yes\nUsePAM yes\n")
+	writeExecutable(t, root, "/usr/sbin/sshd.krb5", without)
+	writeExecutable(t, root, "/usr/lib/ssh/sshd-auth.krb5", withPAM)
+	check("Kerberos", ReadSSHFacts(root, packages), "/usr/sbin/sshd.krb5", true, "openssh-server")
+
+	// Only the PAM flavour installed (no openssh-server): still an OpenSSH server.
+	root = alpine("UsePAM yes\n")
+	if err := os.Remove(hostPath(root, "/usr/sbin/sshd")); err != nil {
+		t.Fatal(err)
+	}
+	f := ReadSSHFacts(root, packages[:1])
+	check("only openssh-server-pam", f, "/usr/sbin/sshd.pam", true, "openssh-server-pam")
+	if f.Server != "openssh" {
+		t.Errorf("server: %q", f.Server)
+	}
+
+	// Without OpenRC (a systemd host) the program is sshd, whatever else lies around.
+	root = alpine("UsePAM yes\n")
+	if err := os.Remove(hostPath(root, "/run/openrc")); err != nil {
+		t.Fatal(err)
+	}
+	check("systemd", ReadSSHFacts(root, packages), "/usr/sbin/sshd", false, "openssh-server")
+}
+
+// OpenSSH 10 on Debian: sshd itself does not link libpam, sshd-session and sshd-auth in /usr/lib/openssh do.
+func TestSSHPAMInTheHelpers(t *testing.T) {
+	withPAM, without := pamStandIns(t)
+	root := t.TempDir()
+	writeExecutable(t, root, "/usr/sbin/sshd", without)
+	writeExecutable(t, root, "/usr/lib/openssh/sshd-auth", withPAM)
+	writeFile(t, root, "/etc/ssh/sshd_config", "UsePAM yes\n")
+	f := ReadSSHFacts(root, []Package{{Name: "openssh-server", Version: "1:10.0p1-7"}})
+	if f.Program != "/usr/sbin/sshd" || f.PamLinked == nil || !*f.PamLinked {
+		t.Errorf("got %q %v", f.Program, f.PamLinked)
+	}
+}
+
 func TestSSHFactsWithoutOpenSSH(t *testing.T) {
 	none := t.TempDir()
 	if f := ReadSSHFacts(none, nil); f.Server != "none" || f.Config != nil || f.Package != nil {

@@ -283,6 +283,10 @@ export const sshdFactsSchema = z.object({
     .nullish()
     .transform((v) => v ?? null),
   libc: z.enum(["musl", "glibc", "unknown"]).catch("unknown"),
+  program: sshdPath
+    .nullish()
+    .transform((v) => v ?? null)
+    .catch(null),
   pamLinked: z
     .boolean()
     .nullish()

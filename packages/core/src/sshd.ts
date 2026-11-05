@@ -42,7 +42,12 @@ export interface SshdFacts {
   server: "openssh" | "dropbear" | "none";
   package: { name: string; version: string } | null;
   libc: "musl" | "glibc" | "unknown";
-  /** Whether sshd is linked against libpam; without it UsePAM has no effect. Null when unknown. */
+  /**
+   * The server program the host starts: /usr/sbin/sshd, or on Alpine /usr/sbin/sshd.pam (UsePAM yes and openssh-server-pam
+   * installed) or /usr/sbin/sshd.krb5. Null from agents before it was reported.
+   */
+  program: string | null;
+  /** Whether that program or its sshd-session and sshd-auth helpers link libpam; without it UsePAM has no effect. Null when unknown. */
   pamLinked: boolean | null;
   /** Null for Dropbear and hosts without an SSH server. `read` is false when sshd_config itself could not be read. */
   config: {

@@ -4361,6 +4361,7 @@ test.describe("hosts and containers (ADR 0034)", () => {
     await expect(card.getByRole("heading", { name: "SSH server" })).toBeVisible();
     await expect(card).toContainText("openssh-server 10.0_p1-r9");
     await expect(card).toContainText("musl");
+    await expect(card).toContainText("/usr/sbin/sshd");
     await expect(card).toContainText("Not used (UsePAM no)");
     await expect(card).toContainText("In Match blocks: yes");
     await expect(card).toContainText("2 configuration files read");

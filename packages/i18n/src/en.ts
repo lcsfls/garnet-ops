@@ -1076,13 +1076,14 @@ export const en = {
     runtimeOpenrcShort: "OpenRC service",
     sshTitle: "SSH server",
     sshDescription:
-      "The SSH server's settings, read from its configuration files. These findings are report-only: they do not change vulnerabilities, counts, grades or gates.",
+      "The SSH server's settings, read from its configuration files. These findings are report-only: they do not change vulnerabilities, grades or gates. Only sshole counts in the menu's number for agents while the vulnerability database does not list it yet.",
     sshServer: "Server",
     sshServerValue: {
       openssh: "OpenSSH",
       dropbear: "Dropbear",
       none: "None found",
     },
+    sshProgram: "Program",
     sshLibc: "C library",
     sshLibcValue: {
       musl: "musl",
@@ -1091,7 +1092,7 @@ export const en = {
     },
     sshPam: "PAM",
     sshPamUsed: "Used",
-    sshPamNotBuilt: "Not used: sshd is built without PAM",
+    sshPamNotBuilt: "Not used: the program that runs is built without PAM",
     sshPamOff: "Not used (UsePAM no)",
     sshPamUnknown: "Not known",
     sshPasswordAuthentication: "Password logins",

@@ -82,6 +82,7 @@ export interface HostSsh {
   server: SshdFacts["server"];
   package: SshdFacts["package"];
   libc: SshdFacts["libc"];
+  program: string | null;
   pamLinked: boolean | null;
   /** Whether sshd uses PAM: built with it and UsePAM yes. Null when unknown. */
   pam: boolean | null;
