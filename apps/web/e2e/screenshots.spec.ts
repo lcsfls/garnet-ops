@@ -42,7 +42,13 @@ for (const theme of ["light", "dark"] as const) {
 test("findings with the detail of one", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("garnetops.theme", "light"));
   await page.goto("/findings");
-  await page.getByRole("row").filter({ hasText: "GHSA-xvch-5gv4-984h" }).first().click();
+  // The advisory's own cell: the repository cell in the same row is a link to the repository.
+  await page
+    .getByRole("row")
+    .filter({ hasText: "GHSA-xvch-5gv4-984h" })
+    .first()
+    .getByText("GHSA-xvch-5gv4-984h")
+    .click();
   await expect(page).toHaveURL(/id=/);
   await shoot(page, "findings");
 });
