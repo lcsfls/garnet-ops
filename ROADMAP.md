@@ -103,6 +103,8 @@ paginated findings, and every number on the overview leads to its details.
       30, 90 or 365 days in the viewer's calendar days; rankings of today's open findings (`docs/statistics.md`)
 - [x] Repository page: trend, scan history and patch history per repository
 - [x] Findings export (CSV, XLSX, PDF, text) with the active filters, per repository
+- [x] Reports (ADR 0047, `docs/reports.md`): a report card with PDF per repository and per host, the websites at a glance, and
+      the organisation's security report for 7 or 30 days as PDF, each built with the reader's own visibility
 - [~] Grades A to F per repository, display only: Grade column, reason note with a link to the findings,
       sorting and filter, detail pages (ADR 0018, `docs/grades.md`). Still open: a grade distribution on the overview
 - [x] Scan scheduling: on demand and nightly done (per organisation, local
@@ -219,8 +221,8 @@ What was removed, and the items that were open when it was:
 
 - [ ] Container image scanning, IaC and secret scanning, SAST (resale-safe rules)
 - [~] Mail via SMTP or Microsoft Graph and webhooks (Discord, Slack-compatible, JSON) for
-      alerts (ADR 0010); per-channel minimum severity and repositories, Discord embeds (0.0.10). Still open: weekly digest, never sent twice or skipped around a
-      clock change (ADR 0005); invitation mail
+      alerts (ADR 0010); per-channel minimum severity and repositories, Discord embeds (0.0.10); the security report by email, daily,
+      weekly or monthly per person in their own zone, sent once per period (ADR 0047). Still open: invitation mail
 - [~] In-app notifications: bell, toasts and a per-person matrix with personal mail (ADR 0019,
       `docs/notifications.md`). Still open: quiet hours, a page with all notifications, "update available",
       cutting an open stream when a session is revoked

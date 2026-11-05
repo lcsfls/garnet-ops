@@ -137,6 +137,12 @@ and mail only ever goes to your own address.
   15 minutes are over (one line each, up to 20, and a link). A mail that cannot be sent is not retried; the
   notification is still in the bell. A mail that could not be sent within a day is dropped.
 
+### Security report by email
+
+Separate from the matrix, the card **Security report by email** on the same page sends the organisation's security report
+daily, weekly or monthly, at 07:00 in your time zone, through the same mail channel and to your own address only; it is
+off unless you choose it. See [reports.md](reports.md#the-security-report-by-email).
+
 ### Toasts
 
 Short messages at the bottom right tell you the result of what you just did: saved, copied, scan queued, invitation

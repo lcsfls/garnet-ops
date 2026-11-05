@@ -38,13 +38,26 @@ Security-relevant changes are listed under **Security** in every release.
   for the distribution's security server.
 - Packages from third-party sources (for example PHP from the ondrej/php PPA or packages.sury.org) are shown as not covered by the
   distribution's security data; PHP from them is judged against its end-of-life data, like on websites.
+- **Reports** ([ADR 0047](docs/adr/0047-reports.md), `docs/reports.md`). A **Report** card on every repository and host page: what
+  was checked and when (last scan, last successful scan, the vulnerability database it used, the agent's last report), open findings
+  by severity with the worst first, grade and quality gate (repositories), kernel, host packages and running images (hosts), early
+  warnings, what to do next, and the ten worst open findings. **Download PDF** on the card.
+- **Security report (PDF)** on the statistics page: the organisation for the last 7 or 30 days in your own calendar days, with open
+  findings and what was found and fixed, the repositories and hosts with the most open findings, the websites, quality gates, early
+  warnings, accepted risks, coverage (repositories not scanned successfully yet, hosts not reporting, the vulnerability database) and
+  what to do next.
+- **Websites at a glance**: a second view on the websites page with every site's availability, certificate days left, worst open
+  finding, software behind or without fixes, verification and last look, worst first and sortable; each row opens the site's report.
+  The same table is part of the organisation report.
+- **Security report by email**, off unless you choose it under Account → Notifications: daily (the day before), weekly (Monday to
+  Sunday) or monthly, at 07:00 in your time zone, with the PDF attached if you want. It needs the organisation's mail channel.
+- API: `GET /api/v1/reports/organization`, `/reports/repositories/{id}`, `/reports/hosts/{id}`, `/reports/websites`, and
+  `GET`/`PUT /api/v1/me/report-mail`.
 
 ### Changed
 
 - Websites: a PHP build from deb.sury.org that a site names (`PHP/8.3.14-1+ubuntu24.04.1+deb.sury.org+1`) is judged by its
   upstream version; it was skipped as a distribution build before, although these builds follow upstream releases.
-
-### Changed
 
 - **Certificate expiry notifications go out once per certificate**: when several websites serve the same certificate, one
   message names the first of them and their number, with a link to the certificate, instead of one message per name. A
@@ -61,6 +74,10 @@ Security-relevant changes are listed under **Security** in every release.
 ### Security
 
 - Backups are for owners only, after a recent sign-in, at most three an hour; asking and every download are audited and every owner is told. The vault's private key never reaches the API: the worker builds the file, and the passphrase reaches it sealed and is deleted at once. A restore is only possible before the first account exists and with the setup token.
+- Every report, PDF and report mail is built with the access of the one person it is for: another member's private repository is in
+  nobody else's report. The report mail goes to the person's own address only, contains counts and links but no names of findings,
+  packages, paths or code, and is sent at most once per period (the period is recorded before sending, also across a clock change).
+  PDF downloads are audited and limited per person.
 
 ## [0.0.18] - 2026-11-02
 <!-- title: Getting started, a gate wizard, webhooks registered for you, and new statistics -->

@@ -5,6 +5,9 @@ page says whether things get better over time: what was found and resolved, how 
 where today's open findings are. Every member of the organisation can open it, viewers included. It only counts what the findings list
 shows anyway.
 
+The button **Security report (PDF)** downloads a summary of the organisation for the last 7 or 30 days, built with what you can
+see; see [reports.md](reports.md).
+
 ## Time range and days
 
 Choose **30 days**, **90 days** or **365 days** at the top right; the choice is part of the address (`/statistics?days=90`), so a link
