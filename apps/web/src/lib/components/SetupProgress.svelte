@@ -100,12 +100,16 @@
         class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
         aria-expanded={open}
         aria-controls="setup-steps-region"
+        aria-label={t("setupChecklist.title")}
+        aria-describedby="setup-progress-text"
         onclick={() => setOpen(!open)}
       >
         <Rocket aria-hidden="true" class="size-4 flex-none text-muted-foreground" />
         <span class="min-w-0 flex-1">
           <span class="block font-medium" id="setup-progress-title">{t("setupChecklist.title")}</span>
-          <span class="block text-muted-foreground tabular-nums" data-testid="setup-progress">{progressText}</span>
+          <span class="block text-muted-foreground tabular-nums" id="setup-progress-text" data-testid="setup-progress"
+            >{progressText}</span
+          >
         </span>
         <ChevronDown
           aria-hidden="true"
