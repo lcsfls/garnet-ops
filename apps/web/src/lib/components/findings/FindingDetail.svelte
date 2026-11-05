@@ -27,13 +27,15 @@
   import { createQuery } from "@tanstack/svelte-query";
   import type { Snippet } from "svelte";
   import { api } from "../../api.ts";
-  import { formatDateTime, formatPercent, formatRelative } from "../../format.ts";
+  import { formatDate, formatDateTime, formatPercent, formatRelative } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import { href } from "../../url.ts";
   import Card from "../Card.svelte";
   import Alert from "../ui/Alert.svelte";
+  import RepositoryLink from "../RepositoryLink.svelte";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
+  import ButtonLink from "../ui/ButtonLink.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
   import FindingNotes from "./FindingNotes.svelte";
   import FindingStateActions from "./FindingStateActions.svelte";
@@ -68,17 +70,18 @@
   });
 </script>
 
-{#snippet fact(label: string, value: Snippet)}
+{#snippet fact(label: string, value: Snippet, note?: string)}
   <div class="bg-card px-5 py-3">
     <dt class="text-[13px] text-muted-foreground">{label}</dt>
     <dd class="mt-0.5 text-lg font-semibold">{@render value()}</dd>
+    {#if note}<dd class="text-[13px] text-muted-foreground">{note}</dd>{/if}
   </div>
 {/snippet}
 
 {#snippet body(data: Detail)}
   {@const v = data.vulnerability}
-  <!-- Mockup .facts: the three numbers that decide what to do, side by side. -->
-  <dl class="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-px border-y bg-border">
+  <!-- Mockup .facts: the three numbers that decide what to do, side by side; EPSS says what it means right there. -->
+  <dl class="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-px border-y bg-border" data-testid="finding-facts">
     {#snippet cvss()}
       {#if v.cvssScore !== null}{v.cvssScore.toFixed(1)}{:else}<span class="text-muted-foreground">–</span>{/if}
     {/snippet}
@@ -93,51 +96,82 @@
       {/if}
     {/snippet}
     {@render fact(t("findings.cvss"), cvss)}
-    {@render fact(t("findings.epss"), epss)}
+    {@render fact(t("findings.epss"), epss, t("findings.epssExplained"))}
     {@render fact(t("findings.columnFixedIn"), fixedIn)}
   </dl>
   <div class="grid gap-5 px-5 py-4">
+    {#if data.state === "open" && data.fixProposal}
+      <ButtonLink
+        class="justify-self-start"
+        data-testid="finding-fix-proposal"
+        href={href("/fixes", {
+          repositoryId: data.fixProposal.repositoryId,
+          q: data.packageName,
+          id: data.fixProposal.key,
+        })}
+      >
+        {t("findings.fixProposal")}
+      </ButtonLink>
+    {/if}
+
     {#if v.description}<p class="whitespace-pre-line">{v.description}</p>{/if}
 
     {#if v.knownExploited}<Alert tone="error">{t("findings.kevHint")}</Alert>{/if}
 
-    {#if data.state === "open" && data.fixedIn?.length}
-      <a
-        href={href("/fixes", { repositoryId: data.repository.id, q: data.packageName })}
-        class="link text-sm font-medium">{t("findings.fixProposal")}</a
-      >
-    {/if}
-
-    {#if data.locations?.length}
-      <div>
-        <h3 class="mb-1 text-sm font-medium">{t("findings.locations")}</h3>
-        <ul class="grid gap-0.5 font-mono text-sm break-all text-muted-foreground">
-          <!-- Unkeyed: scanner data may list a path twice, and a duplicate key would stop the page. -->
-          {#each data.locations as path}<li>{path}</li>{/each}
-        </ul>
-      </div>
-    {/if}
-
-    <dl class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
-      {#if v.cvssVector}
-        <dt class="text-muted-foreground">{t("findings.cvssVector")}</dt>
-        <dd class="font-mono break-all">{v.cvssVector}</dd>
+    <dl class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm" data-testid="finding-facts-list">
+      <dt class="text-muted-foreground">{t("findings.package")}</dt>
+      <dd class="font-mono break-all">
+        {data.packageName}
+        {data.packageVersion} <span class="font-sans text-muted-foreground">· {data.packageType}</span>
+      </dd>
+      <dt class="text-muted-foreground">{t("findings.locations")}</dt>
+      <dd>
+        <RepositoryLink id={data.repository.id} name={data.repository.name} class="font-medium" />
+        {#if data.locations?.length}
+          <ul class="mt-0.5 grid gap-0.5 font-mono break-all text-muted-foreground">
+            <!-- Unkeyed: scanner data may list a path twice, and a duplicate key would stop the page. -->
+            {#each data.locations as path}<li>{path}</li>{/each}
+          </ul>
+        {/if}
+      </dd>
+      {#if v.aliases?.length}
+        <dt class="text-muted-foreground">{t("findings.aliases")}</dt>
+        <dd class="font-mono break-all">{v.aliases.join(", ")}</dd>
       {/if}
-      {#if v.epss !== null}
-        <dt class="text-muted-foreground">{t("findings.epss")}</dt>
-        <dd class="text-muted-foreground">{t("findings.epssHint")}</dd>
+      {#if data.alsoIn.length}
+        <dt class="text-muted-foreground">{t("findings.alsoIn")}</dt>
+        <dd>
+          <ul class="grid gap-0.5" data-testid="finding-also-in">
+            {#each data.alsoIn as other (other.id)}
+              <li>
+                <a href={href("/findings", { id: other.id, state: "all" })} class="link">{other.repositoryName}</a>
+                <span class="text-muted-foreground">
+                  · <span class="font-mono">{other.packageVersion}</span>{#if other.state !== "open"}
+                    · {t(`findingState.${other.state}`)}{/if}
+                </span>
+              </li>
+            {/each}
+          </ul>
+        </dd>
       {/if}
-      {#if v.publishedAt}
-        <dt class="text-muted-foreground">{t("findings.columnPublished")}</dt>
-        <dd>{formatDateTime(v.publishedAt)}</dd>
-      {/if}
+      <dt class="text-muted-foreground">{t("findings.advisory")}</dt>
+      <dd>
+        <span class="font-mono break-all">{v.id}</span>
+        {#if v.publishedAt}
+          <span class="text-muted-foreground"
+            >· <time datetime={v.publishedAt} title={formatDateTime(v.publishedAt)}
+              >{t("findings.published", { date: formatDate(v.publishedAt) })}</time
+            ></span
+          >
+        {/if}
+      </dd>
       {#if v.modifiedAt}
         <dt class="text-muted-foreground">{t("findings.modified")}</dt>
         <dd>{formatDateTime(v.modifiedAt)}</dd>
       {/if}
-      {#if v.aliases?.length}
-        <dt class="text-muted-foreground">{t("findings.aliases")}</dt>
-        <dd class="font-mono break-all">{v.aliases.join(", ")}</dd>
+      {#if v.cvssVector}
+        <dt class="text-muted-foreground">{t("findings.cvssVector")}</dt>
+        <dd class="font-mono break-all">{v.cvssVector}</dd>
       {/if}
       <dt class="text-muted-foreground">{t("findings.columnFirstSeen")}</dt>
       <dd>{formatDateTime(data.firstSeenAt)}</dd>
@@ -168,7 +202,18 @@
 
     <FindingNotes findingId={data.id} />
 
-    {#if canEdit}<FindingStateActions {data} />{/if}
+    <!-- The decisions about this finding, as real buttons: accept the risk (or reopen it), ask the AI. -->
+    {#if canEdit || onAskAi}
+      <div class="flex flex-wrap items-start gap-2 border-t pt-4" data-testid="finding-actions">
+        {#if canEdit}<FindingStateActions {data} />{/if}
+        {#if onAskAi}
+          <Button onclick={onAskAi}>
+            <Sparkles aria-hidden="true" class="size-4" />
+            {t("ai.askAi")}
+          </Button>
+        {/if}
+      </div>
+    {/if}
   </div>
 {/snippet}
 
@@ -184,7 +229,6 @@
           {@const data = query.data}
           <div class="mb-2 flex flex-wrap items-center gap-1.5">
             <SeverityBadge severity={data.severity} />
-            <Badge tone="outline" class="font-mono">{data.vulnerability.id}</Badge>
             {#if data.vulnerability.knownExploited}
               <Badge tone="critical">
                 <ShieldAlert aria-hidden="true" />
@@ -195,19 +239,16 @@
           </div>
           <h2 class="text-[19px] leading-snug font-semibold tracking-[-0.01em] break-words">{titleOf(data)}</h2>
           <p class="mt-1 text-sm text-muted-foreground">
-            {data.repository.name} ·{" "}<span class="font-mono break-all">{data.packageName} {data.packageVersion}</span
-            >{" "}· {t("findings.detected", { when: formatRelative(data.firstSeenAt) })}
+            <!-- The id is the title when the advisory has no text; then it is not repeated here. -->
+            {#if data.vulnerability.description?.trim()}<span class="font-mono break-all">{data.vulnerability.id}</span>
+              ·{/if}
+            {data.repository.name} ·
+            {t("findings.detected", { when: formatRelative(data.firstSeenAt) })}
           </p>
         {:else}
           <p class="text-muted-foreground">{query.isError ? t("errors.generic") : t("common.loading")}</p>
         {/if}
       </div>
-      {#if onAskAi}
-        <Button variant="secondary" class="h-8 flex-none px-3 text-sm" onclick={onAskAi}>
-          <Sparkles aria-hidden="true" class="size-3.5" />
-          {t("ai.askAi")}
-        </Button>
-      {/if}
       {#if onClose}
         <button
           type="button"

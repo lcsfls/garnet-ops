@@ -77,6 +77,9 @@
     goto(href(page.url.pathname, { ...search, ...patch }), { reset: false });
 
   const canScan = $derived(data.me.role !== "viewer");
+  // Columns with nothing in them are left out: no fixed version known on this list, or no action for a viewer.
+  const showFixedIn = $derived((list.data?.items ?? []).some((w) => w.fixedIn.length > 0));
+  const showLast = $derived(state !== "open" || canScan);
   const queryClient = useQueryClient();
   const scan = createMutation(() => ({
     mutationFn: (repo: { id: string; name: string }) =>
@@ -148,12 +151,20 @@
         <th class="px-5 py-2.5 font-medium">{t("earlyWarnings.columnSeverity")}</th>
         <th class="px-3 py-2.5 font-medium">{t("earlyWarnings.columnAdvisory")}</th>
         <th class="px-3 py-2.5 font-medium">{t("earlyWarnings.columnPackage")}</th>
-        <th class="hidden px-3 py-2.5 font-medium @3xl:table-cell">{t("earlyWarnings.columnFixedIn")}</th>
+        {#if showFixedIn}
+          <th class="hidden px-3 py-2.5 font-medium @3xl:table-cell">{t("earlyWarnings.columnFixedIn")}</th>
+        {/if}
         <th class="px-3 py-2.5 font-medium">{t("earlyWarnings.columnRepository")}</th>
         <th class="hidden px-3 py-2.5 font-medium @5xl:table-cell">{t("earlyWarnings.columnDetected")}</th>
-        <th class="px-5 py-2.5 font-medium">
-          {state === "open" ? "" : t("earlyWarnings.columnOutcome")}
-        </th>
+        {#if showLast}
+          <th class="px-5 py-2.5 font-medium">
+            {#if state === "open"}
+              <span class="sr-only">{t("earlyWarnings.columnAction")}</span>
+            {:else}
+              {t("earlyWarnings.columnOutcome")}
+            {/if}
+          </th>
+        {/if}
       </tr>
     </thead>
     <tbody>
@@ -170,30 +181,34 @@
             {/if}
           </td>
           <td class="px-3 py-2.5 font-mono text-sm break-all">{w.packageName} {w.packageVersion}</td>
-          <td class="hidden px-3 py-2.5 font-mono text-sm break-all @3xl:table-cell">
-            {w.fixedIn.length ? w.fixedIn.join(", ") : "–"}
-          </td>
+          {#if showFixedIn}
+            <td class="hidden px-3 py-2.5 font-mono text-sm break-all @3xl:table-cell">
+              {w.fixedIn.length ? w.fixedIn.join(", ") : "–"}
+            </td>
+          {/if}
           <td class="px-3 py-2.5"><RepositoryLink id={w.repositoryId} name={w.repositoryName} /></td>
           <td class="hidden px-3 py-2.5 text-sm text-muted-foreground @5xl:table-cell">
             {formatRelative(w.detectedAt)}
           </td>
-          <td class="px-5 py-2.5 text-sm">
-            {#if w.state === "confirmed"}
-              {t("earlyWarnings.confirmed")}
-            {:else if w.state === "cleared"}
-              <span class="text-muted-foreground">{t("earlyWarnings.cleared")}</span>
-            {:else if canScan && firstOfRepository.has(w.id)}
-              <Button
-                variant="secondary"
-                class="h-8 whitespace-nowrap"
-                aria-label={t("earlyWarnings.scanNowFor", { repository: w.repositoryName })}
-                disabled={scan.isPending}
-                onclick={() => scan.mutate({ id: w.repositoryId, name: w.repositoryName })}
-              >
-                {t("earlyWarnings.scanNow")}
-              </Button>
-            {/if}
-          </td>
+          {#if showLast}
+            <td class="px-5 py-2.5 text-sm">
+              {#if w.state === "confirmed"}
+                {t("earlyWarnings.confirmed")}
+              {:else if w.state === "cleared"}
+                <span class="text-muted-foreground">{t("earlyWarnings.cleared")}</span>
+              {:else if canScan && firstOfRepository.has(w.id)}
+                <Button
+                  variant="secondary"
+                  class="h-8 whitespace-nowrap"
+                  aria-label={t("earlyWarnings.scanNowFor", { repository: w.repositoryName })}
+                  disabled={scan.isPending}
+                  onclick={() => scan.mutate({ id: w.repositoryId, name: w.repositoryName })}
+                >
+                  {t("earlyWarnings.scanNow")}
+                </Button>
+              {/if}
+            </td>
+          {/if}
         </tr>
       {/each}
     </tbody>

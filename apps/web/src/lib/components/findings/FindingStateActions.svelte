@@ -64,63 +64,60 @@
   }
 </script>
 
+<!-- Inline in the detail's row of actions: the acceptance takes a line of its own above its Reopen button. -->
 {#if data.state === "accepted"}
-  <div class="grid gap-3 border-t pt-4">
-    <p class="text-sm">
-      <span class="font-medium">
-        {t("findings.acceptedBy", {
-          // The stored instant is the first moment after the chosen day; show the day itself.
-          date: data.acceptedUntil ? formatDate(new Date(new Date(data.acceptedUntil).getTime() - 1)) : "",
-        })}
-      </span>
-      {#if data.acceptedReason}<span class="mt-1 block whitespace-pre-line">{data.acceptedReason}</span>{/if}
-    </p>
-    <Button variant="secondary" class="justify-self-start" disabled={reopen.isPending} onclick={() => reopen.mutate()}>
-      {t("findings.reopen")}
-    </Button>
-  </div>
+  <p class="basis-full text-sm">
+    <span class="font-medium">
+      {t("findings.acceptedBy", {
+        // The stored instant is the first moment after the chosen day; show the day itself.
+        date: data.acceptedUntil ? formatDate(new Date(new Date(data.acceptedUntil).getTime() - 1)) : "",
+      })}
+    </span>
+    {#if data.acceptedReason}<span class="mt-1 block whitespace-pre-line">{data.acceptedReason}</span>{/if}
+  </p>
+  <Button disabled={reopen.isPending} onclick={() => reopen.mutate()}>
+    {t("findings.reopen")}
+  </Button>
 {:else if data.state === "open"}
-  <div class="border-t pt-4">
-    <Button variant="secondary" onclick={() => (accepting = true)}>{t("findings.acceptOpen")}</Button>
-    <Dialog
-      open={accepting}
-      onClose={() => (accepting = false)}
-      title={t("findings.acceptTitle", { id: data.vulnerability.id })}
-      description={t("findings.acceptDescription")}
-    >
-      <form class="grid gap-4" onsubmit={submit}>
-        <div class="grid gap-1.5">
-          <label for="accept-reason" class="text-sm font-medium">{t("findings.acceptReason")}</label>
-          <textarea
-            id="accept-reason"
-            name="reason"
-            required
-            minlength={10}
-            maxlength={1000}
-            rows={3}
-            aria-describedby="accept-reason-hint"
-            class="rounded-md border border-control bg-card px-3 py-2 text-base shadow-xs"
-          ></textarea>
-          <p id="accept-reason-hint" class="text-sm text-muted-foreground">
-            {errors.reason ?? t("findings.acceptReasonHint")}
-          </p>
-        </div>
-        <Field
-          label={t("findings.acceptUntil")}
-          hint={t("findings.acceptUntilHint")}
-          error={errors.until}
-          name="until"
-          type="date"
+  <Button onclick={() => (accepting = true)}>{t("findings.acceptOpen")}</Button>
+  <Dialog
+    open={accepting}
+    onClose={() => (accepting = false)}
+    title={t("findings.acceptTitle", { id: data.vulnerability.id })}
+    description={t("findings.acceptDescription")}
+  >
+    <form class="grid gap-4" onsubmit={submit}>
+      <div class="grid gap-1.5">
+        <label for="accept-reason" class="text-sm font-medium">{t("findings.acceptReason")}</label>
+        <textarea
+          id="accept-reason"
+          name="reason"
           required
-          value={days.defaultUntil}
-          min={days.minUntil}
-          max={days.maxUntil}
-        />
-        <DialogFooter>
-          <Button variant="secondary" onclick={() => (accepting = false)}>{t("common.cancel")}</Button>
-          <Button variant="primary" type="submit" disabled={accept.isPending}>{t("findings.accept")}</Button>
-        </DialogFooter>
-      </form>
-    </Dialog>
-  </div>
+          minlength={10}
+          maxlength={1000}
+          rows={3}
+          aria-describedby="accept-reason-hint"
+          class="rounded-md border border-control bg-card px-3 py-2 text-base shadow-xs"
+        ></textarea>
+        <p id="accept-reason-hint" class="text-sm text-muted-foreground">
+          {errors.reason ?? t("findings.acceptReasonHint")}
+        </p>
+      </div>
+      <Field
+        label={t("findings.acceptUntil")}
+        hint={t("findings.acceptUntilHint")}
+        error={errors.until}
+        name="until"
+        type="date"
+        required
+        value={days.defaultUntil}
+        min={days.minUntil}
+        max={days.maxUntil}
+      />
+      <DialogFooter>
+        <Button variant="secondary" onclick={() => (accepting = false)}>{t("common.cancel")}</Button>
+        <Button variant="primary" type="submit" disabled={accept.isPending}>{t("findings.accept")}</Button>
+      </DialogFooter>
+    </form>
+  </Dialog>
 {/if}

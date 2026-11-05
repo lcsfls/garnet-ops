@@ -36,7 +36,8 @@
   let collapsed = $state(storedCollapsed());
   const counts = createQuery(() => ({ ...findingCountsQuery(), refetchInterval: 60_000 }));
   const system = createQuery(() => systemQuery);
-  const criticalOpen = $derived(counts.data?.open.critical ?? 0);
+  // Every open finding the person sees (0.1.1, the maintainer's choice), not only the critical ones.
+  const openFindings = $derived(counts.data?.states.open ?? 0);
   // What needs a look under Infrastructure: the same "attention" the pages filter by.
   type Attention = { count: number; worst: "critical" | "high" | null };
   const hostsAttention = createQuery(() => ({
@@ -57,8 +58,8 @@
   /** A count beside a nav item. Neutral (AGENTS.md rule 6): the number and its label say it, not a colour. */
   function badgeOf(item: NavItem): { count: number; label: string } | null {
     if (item.to === "/findings")
-      return criticalOpen > 0
-        ? { count: criticalOpen, label: t("shell.criticalOpenBadge", { count: criticalOpen }) }
+      return openFindings > 0
+        ? { count: openFindings, label: t("shell.openFindingsBadge", { count: openFindings }) }
         : null;
     const attention =
       item.to === "/hosts"

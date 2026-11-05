@@ -1,6 +1,6 @@
 import { relativeTime } from "./dates.ts";
 import { language } from "./i18n.svelte.ts";
-import { displayTimeZone, formatInstant } from "./time-zone.svelte.ts";
+import { displayTimeZone, formatInstant, formatShortDate } from "./time-zone.svelte.ts";
 import { formatBytesIn } from "./units.ts";
 
 /** Absolute date and time in the UI language and the user's display time zone (account page, else the browser's). */
@@ -10,6 +10,11 @@ export function formatDateTime(value: string | Date): string {
 
 export function formatDate(value: string | Date): string {
   return formatInstant(value, language(), displayTimeZone(), "date");
+}
+
+/** "Oct 20" this year, "Oct 20, 2025" before, in the UI language and the display time zone. */
+export function formatDay(value: string | Date, now: Date = new Date()): string {
+  return formatShortDate(value, language(), displayTimeZone(), now);
 }
 
 /** "3 hours ago", "yesterday", "just now", counting calendar days in the user's display zone (ADR 0005). */

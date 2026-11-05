@@ -9,7 +9,7 @@ import {
   visibleRepository,
 } from "@garnetops/db";
 import { LANGUAGES, resources } from "@garnetops/i18n";
-import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
@@ -26,6 +26,7 @@ import { toText } from "../export/txt.ts";
 import { toXlsx } from "../export/xlsx.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
+import { loadProposals } from "../lib/fix-proposals.ts";
 import {
   type KeysetSpec,
   keysetQuery,
@@ -324,19 +325,32 @@ export const findingRoutes = new Hono<AppEnv>()
   .get("/counts", async (c) => {
     const actor = c.get("actor");
     const input = countsQuery.parse(c.req.query());
-    const rows = await db
-      .select({ state: f.state, severity: f.severity, n: count() })
-      .from(f)
-      .innerJoin(v, eq(v.id, f.vulnerabilityId))
-      .where(findingWhere(actor, { ...input, state: "all" }))
-      .groupBy(f.state, f.severity);
+    const countBy = (filters: z.infer<typeof findingFilters>) =>
+      db
+        .select({ state: f.state, severity: f.severity, n: count() })
+        .from(f)
+        .innerJoin(v, eq(v.id, f.vulnerabilityId))
+        .where(findingWhere(actor, filters))
+        .groupBy(f.state, f.severity);
+    // The severity toggles count under every other filter but their own, so a toggle shows what it would add.
+    const [rows, bySeverity] = await Promise.all([
+      countBy({ ...input, state: "all" }),
+      input.severity.length ? countBy({ ...input, state: "all", severity: [] }) : null,
+    ]);
     const states: Record<(typeof FINDING_STATES)[number], number> = { open: 0, accepted: 0, resolved: 0 };
     const open: Record<string, number> = {};
+    const severities: Record<(typeof FINDING_STATES)[number], Record<string, number>> = {
+      open: {},
+      accepted: {},
+      resolved: {},
+    };
     for (const row of rows) {
       states[row.state] += row.n;
       if (row.state === "open") open[row.severity] = row.n;
     }
-    return c.json({ states, open });
+    for (const row of bySeverity ?? rows) severities[row.state][row.severity] = row.n;
+    /** `severities` (0.1.1): per state and severity, without the severity filter. */
+    return c.json({ states, open, severities });
   })
   .get("/:id", async (c) => {
     const actor = c.get("actor");
@@ -359,7 +373,48 @@ export const findingRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!row) throw notFound("Finding");
     const { dedupKey: _internal, ...finding } = row.finding;
-    return c.json({ ...finding, vulnerability: row.vulnerability, repository: row.repository });
+    const [alsoIn, { proposals }] = await Promise.all([
+      // The same vulnerability in the same package in other repositories the viewer sees, not resolved.
+      db
+        .select({
+          id: f.id,
+          repositoryId: f.repositoryId,
+          repositoryName: schema.repository.name,
+          packageVersion: f.packageVersion,
+          state: f.state,
+        })
+        .from(f)
+        .innerJoin(schema.repository, eq(schema.repository.id, f.repositoryId))
+        .where(
+          and(
+            eq(f.organizationId, actor.organizationId),
+            visibleRepository(f.repositoryId, actor),
+            activeRepository(f.repositoryId),
+            eq(f.vulnerabilityId, finding.vulnerabilityId),
+            eq(f.packageName, finding.packageName),
+            eq(f.packageType, finding.packageType),
+            ne(f.repositoryId, finding.repositoryId),
+            ne(f.state, "resolved"),
+          ),
+        )
+        .orderBy(schema.repository.name, f.id)
+        .limit(20),
+      finding.state === "open" && (finding.fixedIn?.length ?? 0) > 0
+        ? loadProposals(actor, finding.repositoryId)
+        : { proposals: [] },
+    ]);
+    const proposal = proposals.find((p) => p.targetVersion !== null && p.findingIds.includes(finding.id));
+    return c.json({
+      ...finding,
+      vulnerability: row.vulnerability,
+      repository: row.repository,
+      /** 0.1.1: the same finding in other repositories the viewer sees. */
+      alsoIn,
+      /** 0.1.1: the fix proposal that closes it, if there is one (its key on the Fix proposals page). */
+      fixProposal: proposal
+        ? { key: proposal.key, repositoryId: proposal.repositoryId, targetVersion: proposal.targetVersion }
+        : null,
+    });
   })
   /** Notes on a finding, newest first. Today they come from people taking over an AI suggestion (ADR 0013). */
   .get("/:id/notes", async (c) => {

@@ -9,7 +9,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { ScanSearch, X } from "@lucide/svelte";
+  import { Check, ScanSearch, ShieldAlert, X } from "@lucide/svelte";
   import { createMutation, createQuery, keepPreviousData, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import { cn } from "#lib/cn.ts";
@@ -25,11 +25,17 @@
   import Segmented from "#lib/components/Segmented.svelte";
   import SortHeader, { type SortDir } from "#lib/components/SortHeader.svelte";
   import Button from "#lib/components/ui/Button.svelte";
-  import Checkbox from "#lib/components/ui/Checkbox.svelte";
   import Drawer from "#lib/components/ui/Drawer.svelte";
   import Select from "#lib/components/ui/Select.svelte";
   import SeverityBadge from "#lib/components/ui/SeverityBadge.svelte";
-  import { formatCalendarDate, formatDate, formatDateTime, formatPercent, formatRelative } from "#lib/format.ts";
+  import {
+    formatCalendarDate,
+    formatDate,
+    formatDateTime,
+    formatDay,
+    formatPercent,
+    formatRelative,
+  } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { layoutStep } from "#lib/layout-step.svelte.ts";
   import { rowClick } from "#lib/row-link.ts";
@@ -37,6 +43,7 @@
   import { findingCountsQuery } from "#lib/shell.ts";
   import type { FindingRow, Page, RepositoryRow } from "#lib/types.ts";
   import { href, parseSearch } from "#lib/url.ts";
+  import type { Snippet } from "svelte";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
@@ -105,6 +112,25 @@
     else next.add(s);
     setSearch({ severity: next.size ? [...next].join(",") : undefined });
   }
+  // The toggles' counts: per severity in the chosen state, under every filter but the severity one (API /findings/counts).
+  const severityCounts = $derived.by(() => {
+    const by = counts.data?.severities;
+    if (!by) return null;
+    const state = search.state ?? "open";
+    const states = state === "all" ? (["open", "accepted", "resolved"] as const) : [state];
+    const out: Partial<Record<string, number>> = {};
+    for (const st of states) for (const [sev, n] of Object.entries(by[st] ?? {})) out[sev] = (out[sev] ?? 0) + (n ?? 0);
+    return out;
+  });
+
+  // A column whose values are all empty on this page is left out (the export keeps it): "Published" is often unknown.
+  const items = $derived(list.data?.items ?? []);
+  const show = $derived({
+    cvss: items.length === 0 || items.some((f) => f.cvssScore !== null),
+    epss: items.length === 0 || items.some((f) => f.epss !== null),
+    published: items.length === 0 || items.some((f) => f.publishedAt !== null),
+  });
+
   const hasFilters = $derived(
     Boolean(
       search.severity ||
@@ -133,11 +159,23 @@
   </span>
 {/snippet}
 
-{#snippet filterCheckbox(label: string, checked: boolean, onChange: (on: boolean) => void)}
-  <label class="flex items-center gap-2 text-sm whitespace-nowrap">
-    <Checkbox {checked} onchange={(e) => onChange(e.currentTarget.checked)} />
-    {label}
-  </label>
+<!-- A filter that is on or off: a real toggle button, with a check mark when on and a dashed border when off. -->
+{#snippet toggle(on: boolean, onToggle: () => void, content: Snippet, disabled: boolean, testid: string)}
+  <button
+    type="button"
+    aria-pressed={on}
+    {disabled}
+    onclick={onToggle}
+    data-testid={testid}
+    class={cn(
+      "inline-flex h-9 items-center gap-1.5 rounded-md border px-2 text-sm whitespace-nowrap",
+      "disabled:pointer-events-none disabled:opacity-50",
+      on ? "border-foreground bg-card font-medium" : "border-dashed border-control text-muted-foreground hover:bg-accent",
+    )}
+  >
+    {#if on}<Check aria-hidden="true" class="size-3.5 flex-none" />{/if}
+    {@render content()}
+  </button>
 {/snippet}
 
 <!-- A date filter set from the statistics, shown as what it is and removable in one click. -->
@@ -173,83 +211,84 @@
 
 <PageHeader title={t("findings.title")} description={t("findings.description")} actions={headerActions} />
 
-<div class="mb-4 flex flex-wrap items-center gap-3">
-  <Segmented
-    label={t("findings.stateFilter")}
-    value={search.state ?? "open"}
-    options={STATES.map((s) => ({
-      value: s,
-      label: t(`findingState.${s}`),
-      count: counts.data
-        ? s === "all"
-          ? counts.data.states.open + counts.data.states.accepted + counts.data.states.resolved
-          : counts.data.states[s]
-        : null,
-    }))}
-    onChange={(state) => setSearch({ state: state === "open" ? undefined : state })}
-  />
-  <fieldset class="flex flex-wrap gap-1.5">
-    <legend class="sr-only">{t("findings.severityFilter")}</legend>
-    {#each FILTER_SEVERITIES as s (s)}
-      <button
-        type="button"
-        aria-pressed={selected.has(s)}
-        onclick={() => toggleSeverity(s)}
-        class={cn(
-          "rounded-md border p-0.5",
-          selected.has(s) ? "border-foreground" : "border-transparent opacity-70 hover:opacity-100",
-        )}
-      >
-        <SeverityBadge severity={s} />
-      </button>
-    {/each}
-  </fieldset>
-  <Select
-    aria-label={t("findings.repository")}
-    value={search.repositoryId ?? ""}
-    onchange={(e) => setSearch({ repositoryId: e.currentTarget.value || undefined })}
-    class="max-w-56"
-  >
-    <option value="">{t("findings.allRepositories")}</option>
-    {#each repositories.data?.items ?? [] as r (r.id)}
-      <option value={r.id}>{r.name}</option>
-    {/each}
-  </Select>
-  {@render filterCheckbox(t("findings.knownExploitedOnly"), search.kev === "1", (on) =>
-    setSearch({ kev: on ? "1" : undefined }),
-  )}
-  {@render filterCheckbox(t("findings.fixableOnly"), search.fixable === "1", (on) =>
-    setSearch({ fixable: on ? "1" : undefined }),
-  )}
-  {#if search.firstSeenFrom || search.firstSeenTo}
-    {@render dateChip(t("findings.firstSeenRange", { range: dayRange(search.firstSeenFrom, search.firstSeenTo) }), {
-      firstSeenFrom: undefined,
-      firstSeenTo: undefined,
-    })}
-  {/if}
-  {#if search.resolvedFrom || search.resolvedTo}
-    {@render dateChip(t("findings.resolvedRange", { range: dayRange(search.resolvedFrom, search.resolvedTo) }), {
-      resolvedFrom: undefined,
-      resolvedTo: undefined,
-    })}
-  {/if}
-  <SearchInput
-    class="ml-auto"
-    label={t("findings.search")}
-    value={search.q ?? ""}
-    onChange={(q) => setSearch({ q: q || undefined }, true)}
-  />
-  <!-- Always rendered so the toolbar never shifts when a filter is set; hidden while nothing is filtered. -->
-  <button
-    type="button"
-    onclick={() => go({})}
-    disabled={!hasFilters}
-    aria-hidden={!hasFilters}
-    tabindex={hasFilters ? undefined : -1}
-    class={cn("link text-sm font-medium", !hasFilters && "invisible")}
-  >
-    {t("findings.clearFilters")}
-  </button>
+<!-- Row 1: the state with counts, and the search; row 2: severity, repository, known exploited, fix available. -->
+<div class="mb-4 grid gap-3">
+  <div class="flex flex-wrap items-center gap-3">
+    <Segmented
+      label={t("findings.stateFilter")}
+      value={search.state ?? "open"}
+      options={STATES.map((s) => ({
+        value: s,
+        label: t(`findingState.${s}`),
+        count: counts.data
+          ? s === "all"
+            ? counts.data.states.open + counts.data.states.accepted + counts.data.states.resolved
+            : counts.data.states[s]
+          : null,
+      }))}
+      onChange={(state) => setSearch({ state: state === "open" ? undefined : state })}
+    />
+    <SearchInput
+      class="ml-auto"
+      label={t("findings.search")}
+      value={search.q ?? ""}
+      onChange={(q) => setSearch({ q: q || undefined }, true)}
+    />
+  </div>
+  <div class="flex flex-wrap items-center gap-2" data-testid="findings-filters">
+    <fieldset class="flex flex-wrap gap-1.5">
+      <legend class="sr-only">{t("findings.severityFilter")}</legend>
+      {#each FILTER_SEVERITIES as s (s)}
+        {@const count = severityCounts ? (severityCounts[s] ?? 0) : undefined}
+        {#snippet badge()}<SeverityBadge severity={s} {count} />{/snippet}
+        {@render toggle(selected.has(s), () => toggleSeverity(s), badge, count === 0 && !selected.has(s), `severity-${s}`)}
+      {/each}
+    </fieldset>
+    <Select
+      aria-label={t("findings.repository")}
+      value={search.repositoryId ?? ""}
+      onchange={(e) => setSearch({ repositoryId: e.currentTarget.value || undefined })}
+      class="h-9 max-w-56"
+    >
+      <option value="">{t("findings.allRepositories")}</option>
+      {#each repositories.data?.items ?? [] as r (r.id)}
+        <option value={r.id}>{r.name}</option>
+      {/each}
+    </Select>
+    {#snippet kevLabel()}<ShieldAlert aria-hidden="true" class="size-3.5" />{t("findings.toggleKnownExploited")}{/snippet}
+    {@render toggle(search.kev === "1", () => setSearch({ kev: search.kev ? undefined : "1" }), kevLabel, false, "toggle-kev")}
+    {#snippet fixLabel()}{t("findings.toggleFixable")}{/snippet}
+    {@render toggle(
+      search.fixable === "1",
+      () => setSearch({ fixable: search.fixable ? undefined : "1" }),
+      fixLabel,
+      false,
+      "toggle-fixable",
+    )}
+    {#if search.firstSeenFrom || search.firstSeenTo}
+      {@render dateChip(t("findings.firstSeenRange", { range: dayRange(search.firstSeenFrom, search.firstSeenTo) }), {
+        firstSeenFrom: undefined,
+        firstSeenTo: undefined,
+      })}
+    {/if}
+    {#if search.resolvedFrom || search.resolvedTo}
+      {@render dateChip(t("findings.resolvedRange", { range: dayRange(search.resolvedFrom, search.resolvedTo) }), {
+        resolvedFrom: undefined,
+        resolvedTo: undefined,
+      })}
+    {/if}
+    <!-- Always rendered so the toolbar never shifts when a filter is set; hidden while nothing is filtered. -->
+    <button
+      type="button"
+      onclick={() => go({})}
+      disabled={!hasFilters}
+      aria-hidden={!hasFilters}
+      tabindex={hasFilters ? undefined : -1}
+      class={cn("link ml-auto text-sm font-medium", !hasFilters && "invisible")}
+    >
+      {t("findings.clearFilters")}
+    </button>
+  </div>
 </div>
 
 <div
@@ -260,57 +299,19 @@
 >
   <!-- The table answers to the width of its own card, which is narrower when panes sit beside it. -->
   <Card class="@container/list self-start">
-    <table class="w-full text-left">
+    <table class="w-full text-left" data-testid="findings-table">
       <thead class="text-sm text-muted-foreground">
         <tr class="border-b">
+          <th class="py-2.5 pr-2 pl-5 font-medium">{t("findings.columnSeverity")}</th>
           <SortHeader
             column="vulnerability"
             label={t("findings.columnFinding")}
             natural="asc"
-            class="px-5"
-            current={search.sort}
-            dir={search.dir}
-            {onSort}
-          />
-          <SortHeader
-            column="cvss"
-            label={t("findings.columnCvss")}
-            natural="desc"
-            align="right"
             class="px-3"
             current={search.sort}
             dir={search.dir}
             {onSort}
           />
-          <SortHeader
-            column="epss"
-            label={epssLabel}
-            natural="desc"
-            align="right"
-            class="hidden px-3 @6xl/list:table-cell"
-            current={search.sort}
-            dir={search.dir}
-            {onSort}
-          />
-          <SortHeader
-            column="published"
-            label={t("findings.columnPublished")}
-            natural="desc"
-            class="hidden px-3 @3xl/list:table-cell"
-            current={search.sort}
-            dir={search.dir}
-            {onSort}
-          />
-          <SortHeader
-            column="package"
-            label={t("findings.columnPackage")}
-            natural="asc"
-            class="px-3"
-            current={search.sort}
-            dir={search.dir}
-            {onSort}
-          />
-          <th class="hidden px-3 py-2.5 font-medium @4xl/list:table-cell">{t("findings.columnFixedIn")}</th>
           <SortHeader
             column="repository"
             label={t("findings.columnRepository")}
@@ -320,11 +321,46 @@
             dir={search.dir}
             {onSort}
           />
+          {#if show.cvss}
+            <SortHeader
+              column="cvss"
+              label={t("findings.columnCvss")}
+              natural="desc"
+              align="right"
+              class="px-3"
+              current={search.sort}
+              dir={search.dir}
+              {onSort}
+            />
+          {/if}
+          {#if show.epss}
+            <SortHeader
+              column="epss"
+              label={epssLabel}
+              natural="desc"
+              align="right"
+              class="hidden px-3 @5xl/list:table-cell"
+              current={search.sort}
+              dir={search.dir}
+              {onSort}
+            />
+          {/if}
+          {#if show.published}
+            <SortHeader
+              column="published"
+              label={t("findings.columnPublished")}
+              natural="desc"
+              class="hidden px-3 @4xl/list:table-cell"
+              current={search.sort}
+              dir={search.dir}
+              {onSort}
+            />
+          {/if}
           <SortHeader
             column="firstSeen"
-            label={t("findings.columnFirstSeen")}
+            label={t("findings.columnDetected")}
             natural="desc"
-            class="hidden px-5 @5xl/list:table-cell"
+            class="hidden pr-5 pl-3 @3xl/list:table-cell"
             current={search.sort}
             dir={search.dir}
             {onSort}
@@ -332,59 +368,72 @@
         </tr>
       </thead>
       <tbody>
-        {#each list.data?.items ?? [] as f (f.id)}
+        {#each items as f (f.id)}
           <tr
             aria-selected={f.id === shownId}
-            class="row-link border-b align-top last:border-0"
+            class="row-link border-b last:border-0"
             onclick={rowClick(() => setSearch({ id: f.id, cursor: search.cursor }))}
           >
-            <td class="px-5 py-2.5">
-              <div class="mb-1"><SeverityBadge severity={f.severity} /></div>
-              <button
-                type="button"
-                onclick={() => setSearch({ id: f.id, cursor: search.cursor })}
-                aria-current={f.id === shownId ? "true" : undefined}
-                class="text-left font-medium break-all hover:underline"
-              >
-                {f.vulnerabilityId}
-              </button>
-              {#if f.knownExploited}<div class="text-sm text-critical">{t("findings.kev")}</div>{/if}
+            <td class="py-1.5 pr-2 pl-5 align-middle whitespace-nowrap"><SeverityBadge severity={f.severity} /></td>
+            <td class="px-3 py-1.5">
+              <div class="flex items-center gap-1.5 leading-5">
+                <button
+                  type="button"
+                  onclick={() => setSearch({ id: f.id, cursor: search.cursor })}
+                  aria-current={f.id === shownId ? "true" : undefined}
+                  class="text-left font-medium break-all hover:underline"
+                >
+                  {f.vulnerabilityId}
+                </button>
+                {#if f.knownExploited}
+                  <span class="inline-flex items-center gap-1 text-sm whitespace-nowrap text-critical">
+                    <ShieldAlert aria-hidden="true" class="size-3.5" />{t("findings.kev")}
+                  </span>
+                {/if}
+              </div>
+              <div class="font-mono text-sm leading-5 break-all text-muted-foreground">
+                {f.packageName}
+                {f.packageVersion}
+                {#if f.fixedIn?.length}
+                  <span aria-label={t("findings.fixedInLabel", { versions: f.fixedIn.join(", ") })}
+                    >→ {f.fixedIn.join(", ")}</span
+                  >
+                {:else}
+                  <span class="font-sans">· {t("findings.noFix")}</span>
+                {/if}
+              </div>
             </td>
-            <td class="px-3 py-2.5 text-right font-mono text-sm tabular-nums">
-              {#if f.cvssScore !== null}{f.cvssScore.toFixed(1)}{:else}{@render missing()}{/if}
-            </td>
-            <td class="hidden px-3 py-2.5 text-right font-mono text-sm tabular-nums @6xl/list:table-cell">
-              {#if f.epss !== null}{formatPercent(f.epss)}{:else}{@render missing()}{/if}
-            </td>
-            <td class="hidden px-3 py-2.5 text-sm whitespace-nowrap @3xl/list:table-cell">
-              {#if f.publishedAt}
-                <time datetime={f.publishedAt} title={formatDateTime(f.publishedAt)}>{formatDate(f.publishedAt)}</time>
-              {:else}
-                {@render missing()}
-              {/if}
-            </td>
-            <td class="px-3 py-2.5 font-mono text-sm break-all">
-              {f.packageName}
-              <div class="text-muted-foreground">{f.packageVersion}</div>
-            </td>
-            <td class="hidden px-3 py-2.5 font-mono text-sm break-all @4xl/list:table-cell">
-              {#if f.fixedIn?.length}
-                {f.fixedIn.join(", ")}
-              {:else}
-                <span class="font-sans text-muted-foreground">{t("findings.noFix")}</span>
-              {/if}
-            </td>
-            <td class="px-3 py-2.5"><RepositoryLink id={f.repositoryId} name={f.repositoryName} /></td>
-            <td class="hidden px-5 py-2.5 text-sm whitespace-nowrap @5xl/list:table-cell">
-              <time datetime={f.firstSeenAt}>{formatDateTime(f.firstSeenAt)}</time>
-              <div class="text-muted-foreground">{formatRelative(f.firstSeenAt)}</div>
+            <td class="px-3 py-1.5"><RepositoryLink id={f.repositoryId} name={f.repositoryName} /></td>
+            {#if show.cvss}
+              <td class="px-3 py-1.5 text-right font-mono text-sm tabular-nums">
+                {#if f.cvssScore !== null}{f.cvssScore.toFixed(1)}{:else}{@render missing()}{/if}
+              </td>
+            {/if}
+            {#if show.epss}
+              <td class="hidden px-3 py-1.5 text-right font-mono text-sm tabular-nums @5xl/list:table-cell">
+                {#if f.epss !== null}{formatPercent(f.epss)}{:else}{@render missing()}{/if}
+              </td>
+            {/if}
+            {#if show.published}
+              <td class="hidden px-3 py-1.5 text-sm whitespace-nowrap @4xl/list:table-cell">
+                {#if f.publishedAt}
+                  <time datetime={f.publishedAt} title={formatDateTime(f.publishedAt)}>{formatDate(f.publishedAt)}</time>
+                {:else}
+                  {@render missing()}
+                {/if}
+              </td>
+            {/if}
+            <td class="hidden py-1.5 pr-5 pl-3 text-sm whitespace-nowrap @3xl/list:table-cell">
+              <time datetime={f.firstSeenAt} title={formatDateTime(f.firstSeenAt)}>
+                {formatDay(f.firstSeenAt)} · {formatRelative(f.firstSeenAt)}
+              </time>
             </td>
           </tr>
         {/each}
       </tbody>
     </table>
     <QueryStatus query={list} />
-    {#if list.data && list.data.items.length === 0}
+    {#if list.data && items.length === 0}
       <p class="px-5 py-6 text-muted-foreground">{t("findings.empty")}</p>
     {/if}
     {#if list.data}

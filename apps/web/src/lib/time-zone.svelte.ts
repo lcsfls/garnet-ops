@@ -46,6 +46,23 @@ export function formatInstant(
   return new Intl.DateTimeFormat(locale, options).format(new Date(value));
 }
 
+/**
+ * The calendar day of `value` in `zone`, short: "Oct 20" in the current year of that zone, "Oct 20, 2025" before it. A
+ * list row reads it next to the relative time ("Oct 20 · last week"); the full date and time is in its title.
+ */
+export function formatShortDate(
+  value: string | Date,
+  locale: string,
+  zone: string,
+  now: Date = new Date(),
+): string {
+  const yearOf = (d: Date) => new Intl.DateTimeFormat("en", { year: "numeric", timeZone: zone }).format(d);
+  const date = new Date(value);
+  const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", timeZone: zone };
+  if (yearOf(date) !== yearOf(now)) options.year = "numeric";
+  return new Intl.DateTimeFormat(locale, options).format(date);
+}
+
 /** IANA zones the browser knows, UTC first and `include` always present. */
 export function timeZoneChoices(include?: string | null): string[] {
   const zones = new Set<string>(Intl.supportedValuesOf("timeZone"));

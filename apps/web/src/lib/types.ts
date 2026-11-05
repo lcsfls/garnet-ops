@@ -230,6 +230,16 @@ export interface FindingDetail {
     modifiedAt: string | null;
   };
   repository: { id: string; name: string; url: string };
+  /** The same finding (vulnerability and package) in other repositories the viewer sees, not resolved. */
+  alsoIn: {
+    id: string;
+    repositoryId: string;
+    repositoryName: string;
+    packageVersion: string;
+    state: FindingState;
+  }[];
+  /** The fix proposal that closes it, when there is one. */
+  fixProposal: { key: string; repositoryId: string; targetVersion: string } | null;
 }
 
 /** `GET /repositories/:id`: one repository with its latest scan and finding counts. */

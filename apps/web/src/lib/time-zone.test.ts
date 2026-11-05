@@ -3,6 +3,7 @@ import {
   browserTimeZone,
   displayTimeZone,
   formatInstant,
+  formatShortDate,
   isKnownZone,
   setPreferredTimeZone,
   timeZoneChoices,
@@ -58,5 +59,27 @@ describe("formatInstant around daylight saving (ADR 0005)", () => {
 
   it("formats only the date when asked, in the language given", () => {
     expect(formatInstant("2026-01-15T23:30:00Z", "de-DE", "Europe/Berlin", "date")).toBe("16.01.2026");
+  });
+});
+
+describe("short dates in a list row", () => {
+  const now = new Date("2026-11-05T12:00:00Z");
+
+  it("leaves out the year of the current year and names it for earlier ones", () => {
+    expect(formatShortDate("2026-10-20T08:00:00Z", "en", "Europe/Berlin", now)).toBe("Oct 20");
+    expect(formatShortDate("2025-10-20T08:00:00Z", "en", "Europe/Berlin", now)).toBe("Oct 20, 2025");
+    expect(formatShortDate("2026-10-20T08:00:00Z", "de", "Europe/Berlin", now)).toBe("20. Okt.");
+  });
+
+  it("takes the day of the display zone, not of UTC", () => {
+    // 23:30 UTC on 25 October is already the 26th in Berlin (after the switch back to CET) and still the 25th in New York.
+    expect(formatShortDate("2026-10-25T23:30:00Z", "en", "Europe/Berlin", now)).toBe("Oct 26");
+    expect(formatShortDate("2026-10-25T23:30:00Z", "en", "America/New_York", now)).toBe("Oct 25");
+  });
+
+  it("decides the year in the zone as well: New Year's Eve in UTC is New Year's Day in Tokyo", () => {
+    const newYear = new Date("2027-01-01T03:00:00Z");
+    expect(formatShortDate("2026-12-31T20:00:00Z", "en", "Asia/Tokyo", newYear)).toBe("Jan 1");
+    expect(formatShortDate("2026-12-31T20:00:00Z", "en", "UTC", newYear)).toBe("Dec 31, 2026");
   });
 });

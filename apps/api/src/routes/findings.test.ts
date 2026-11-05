@@ -1,6 +1,7 @@
 /**
  * The findings list's date filters against a throw-away PostgreSQL database on the development server:
- * first seen and resolved on calendar days of the viewer's zone, as the statistics charts link to them.
+ * first seen and resolved on calendar days of the viewer's zone, as the statistics charts link to them; the severity
+ * counts of the filter toggles; and the detail's "Also in" and fix proposal (0.1.1), within the viewer's repositories.
  * Sessions are replaced by a header-driven actor. Skipped without the development PostgreSQL.
  */
 import { schema } from "@garnetops/db";
@@ -87,7 +88,11 @@ describe.skipIf(!adminUrl)("findings API date filters", () => {
     const v1 = new Hono().use("*", async (c, next) => {
       c.set(
         "actor" as never,
-        { userId: "u", organizationId: c.req.header("x-org"), role: "viewer" } as never,
+        {
+          userId: c.req.header("x-user") ?? "u",
+          organizationId: c.req.header("x-org"),
+          role: "viewer",
+        } as never,
       );
       await next();
     });
@@ -120,6 +125,106 @@ describe.skipIf(!adminUrl)("findings API date filters", () => {
       "fnd_noon",
     ]);
     expect((await ids("resolvedFrom=2026-10-25&resolvedTo=2026-10-25&tz=UTC")).ids).toEqual(["fnd_winter"]);
+  });
+
+  describe("counts and the detail (0.1.1)", () => {
+    const B = "org_fd_b";
+    const get = async (path: string, user = "user_fd_sam") => {
+      const res = await app.request(`/api/v1/findings${path}`, { headers: { "x-org": B, "x-user": user } });
+      return { status: res.status, json: (await res.json()) as Json };
+    };
+
+    beforeAll(async () => {
+      await t.db.insert(schema.organization).values({ id: B, name: "B" });
+      await t.db.insert(schema.user).values([
+        { id: "user_fd_sam", name: "Sam Example", email: "sam@example.test" },
+        { id: "user_fd_alex", name: "Alex Example", email: "alex@example.test" },
+      ]);
+      await t.db.insert(schema.vulnerability).values([
+        { id: "CVE-2099-0101", severity: "critical" },
+        { id: "CVE-2099-0102", severity: "low" },
+      ]);
+      const repos = [
+        { id: "repo_fd_api", name: "api", visibility: "organization" as const, inactiveAt: null },
+        { id: "repo_fd_billing", name: "billing", visibility: "organization" as const, inactiveAt: null },
+        { id: "repo_fd_secret", name: "secret-app", visibility: "private" as const, inactiveAt: null },
+        { id: "repo_fd_old", name: "old-app", visibility: "organization" as const, inactiveAt: new Date() },
+      ];
+      await t.db.insert(schema.repository).values(
+        repos.map((r) => ({
+          ...r,
+          organizationId: B,
+          url: `https://git.example.lan/team/${r.name}.git`,
+          authKind: "none" as const,
+          ownerUserId: "user_fd_alex",
+        })),
+      );
+      const at = new Date("2026-10-20T08:00:00Z");
+      const finding = (
+        id: string,
+        repositoryId: string,
+        vulnerabilityId: string,
+        severity: string,
+        state = "open",
+      ) => ({
+        id,
+        organizationId: B,
+        repositoryId,
+        vulnerabilityId,
+        dedupKey: id,
+        packageName: "minimist",
+        packageVersion: "1.2.0",
+        packageType: "npm",
+        severity,
+        severityRank: severity === "critical" ? 5 : 2,
+        state: state as "open" | "accepted" | "resolved",
+        fixedIn: ["1.2.6"],
+        firstSeenScanId: "scan_x",
+        lastSeenScanId: "scan_x",
+        firstSeenAt: at,
+        lastSeenAt: at,
+      });
+      await t.db
+        .insert(schema.finding)
+        .values([
+          finding("fnd_b_api", "repo_fd_api", "CVE-2099-0101", "critical"),
+          finding("fnd_b_api_low", "repo_fd_api", "CVE-2099-0102", "low", "accepted"),
+          finding("fnd_b_billing", "repo_fd_billing", "CVE-2099-0101", "critical"),
+          finding("fnd_b_secret", "repo_fd_secret", "CVE-2099-0101", "critical"),
+          finding("fnd_b_old", "repo_fd_old", "CVE-2099-0101", "critical"),
+        ]);
+    });
+
+    it("counts every severity per state without the severity filter, for the toggles", async () => {
+      const { json } = await get("/counts?severity=critical");
+      // The state tabs follow the severity filter; the toggles do not.
+      expect(json.states).toEqual({ open: 2, accepted: 0, resolved: 0 });
+      expect(json.severities).toEqual({ open: { critical: 2 }, accepted: { low: 1 }, resolved: {} });
+      // The owner of the private repository counts it too.
+      expect((await get("/counts", "user_fd_alex")).json.severities.open).toEqual({ critical: 3 });
+    });
+
+    it("names the other repositories with the same finding the viewer may see, and its fix proposal", async () => {
+      const { status, json } = await get("/fnd_b_api");
+      expect(status).toBe(200);
+      expect(json.alsoIn).toEqual([
+        {
+          id: "fnd_b_billing",
+          repositoryId: "repo_fd_billing",
+          repositoryName: "billing",
+          packageVersion: "1.2.0",
+          state: "open",
+        },
+      ]);
+      expect(json.fixProposal).toMatchObject({ repositoryId: "repo_fd_api", targetVersion: "1.2.6" });
+      expect(json.fixProposal.key).toMatch(/^[0-9a-f]{24}$/);
+      expect(JSON.stringify(json)).not.toContain("secret-app");
+      // An accepted finding has no proposal to open.
+      expect((await get("/fnd_b_api_low")).json.fixProposal).toBeNull();
+      // Alex also sees the private repository, never the one set aside.
+      const own = (await get("/fnd_b_api", "user_fd_alex")).json.alsoIn.map((x: Json) => x.repositoryName);
+      expect(own).toEqual(["billing", "secret-app"]);
+    });
   });
 
   it("refuses days that do not exist and unknown zones", async () => {
