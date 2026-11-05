@@ -198,12 +198,16 @@ describe.each(["light", "dark"] as const)("%s theme", (theme) => {
   });
 
   /*
-   * The text colours of the severities from the 0.1.1 mockup are close in lightness (light: low 0.442, medium 0.454,
-   * critical 0.500, high 0.539; dark: low 0.823, high 0.837, critical 0.839, medium 0.884), so this cannot hold yet. The
-   * pill shows the level as bars and the word, so severity never depends on the text colour; whether to change the
-   * mockup's values is the maintainer's call.
+   * The text colours of the severities differ in lightness too (maintainer's decision for 0.1.1; the mockup's values were
+   * almost equally light). Light: medium darkest, then high, critical, and low lightest and quietest, all at least 4.5:1;
+   * dark: critical brightest, then high, medium, low. So severity never depends on hue alone, not even in plain text.
    */
-  it.todo("tells the four severities apart by the lightness of their text colour as well");
+  it("tells the four severities apart by the lightness of their text colour as well", () => {
+    const fgs = SEVERITY_LEVELS.map((s) => ({ s, l: lightness(theme, `${s}-fg`) }));
+    for (const a of fgs)
+      for (const b of fgs)
+        if (a.s < b.s) expect(Math.abs(a.l - b.l), `${a.s} and ${b.s} text`).toBeGreaterThanOrEqual(0.045);
+  });
 });
 
 describe("the PDF report", () => {
