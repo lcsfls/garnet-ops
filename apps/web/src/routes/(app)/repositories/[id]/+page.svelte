@@ -8,6 +8,7 @@
   import RunningCard from "#lib/components/hosts/RunningCard.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
+  import RepositoryReportCard from "#lib/components/reports/RepositoryReportCard.svelte";
   import ActivityCard from "#lib/components/repositories/ActivityCard.svelte";
   import GradeSummary from "#lib/components/repositories/GradeSummary.svelte";
   import PatchHistory from "#lib/components/repositories/PatchHistory.svelte";
@@ -113,6 +114,7 @@
     {/if}
     <ActivityCard repo={data} {me} />
     <SharingCard repo={data} {me} />
+    <RepositoryReportCard {id} />
     <div class="grid gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <RepositoryFacts repo={data} />
       <div class="grid grid-cols-2 gap-4 @3xl:grid-cols-4">

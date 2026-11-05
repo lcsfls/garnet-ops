@@ -690,6 +690,7 @@ test.describe("signed in, with website monitoring on", () => {
 
   for (const { path, heading, name } of [
     { path: "/websites", heading: "Websites", name: "websites" },
+    { path: "/websites?view=overview", heading: "Websites", name: "websites-overview" },
     {
       path: "/websites?status=attention&sort=critical&dir=desc",
       heading: "Websites",

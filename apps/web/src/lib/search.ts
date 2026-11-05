@@ -267,6 +267,8 @@ export const websiteSearch = z.object({
   add: flag,
   /** Opens it on the list of names (several subdomains at once). */
   list: flag,
+  /** "overview": every website at a glance, worst first (ADR 0047); the list otherwise. */
+  view: z.enum(["list", "overview"]).optional().catch(undefined),
 });
 export type WebsiteSearch = z.infer<typeof websiteSearch>;
 

@@ -13,6 +13,7 @@
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import RepositoryLink from "#lib/components/RepositoryLink.svelte";
+  import HostReportCard from "#lib/components/reports/HostReportCard.svelte";
   import Badge from "#lib/components/ui/Badge.svelte";
   import Button from "#lib/components/ui/Button.svelte";
   import ConfirmDialog from "#lib/components/ui/ConfirmDialog.svelte";
@@ -78,6 +79,7 @@
 {:else if !host}
   <Card><QueryStatus {query} /></Card>
 {:else}
+  <div class="mb-4"><HostReportCard {id} /></div>
   <div class="grid gap-4 @wide:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
     <div class="grid content-start gap-4">
     <Card>

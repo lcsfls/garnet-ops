@@ -7,6 +7,7 @@
   import PageHeader from "#lib/components/PageHeader.svelte";
   import Pagination from "#lib/components/Pagination.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
+  import WebsitesOverview from "#lib/components/reports/WebsitesOverview.svelte";
   import SearchInput from "#lib/components/SearchInput.svelte";
   import Segmented from "#lib/components/Segmented.svelte";
   import SortHeader, { type SortDir } from "#lib/components/SortHeader.svelte";
@@ -37,8 +38,8 @@
 
   const query = createQuery(() => ({
     queryKey: ["websites", "list", search],
-    queryFn: () => api<Page<WebsiteAsset>>(`/exposure${toQuery(search, ["add", "list"])}`),
-    enabled: on,
+    queryFn: () => api<Page<WebsiteAsset>>(`/exposure${toQuery(search, ["add", "list", "view"])}`),
+    enabled: on && search.view !== "overview",
     placeholderData: keepPreviousData,
     // Follow the worker until the first look at a new website is done.
     refetchInterval: (q: { state: { data?: Page<WebsiteAsset> } }) =>
@@ -117,6 +118,16 @@
 
   <div class="mb-4 flex flex-wrap items-center gap-3">
     <Segmented
+      label={t("reports.websites.views")}
+      value={search.view ?? "list"}
+      options={[
+        { value: "list", label: t("reports.websites.viewList") },
+        { value: "overview", label: t("reports.websites.viewOverview") },
+      ]}
+      onChange={(view) => setSearch({ view: view === "list" ? undefined : view })}
+    />
+    {#if search.view !== "overview"}
+    <Segmented
       label={t("websites.statusFilter")}
       value={search.status ?? "all"}
       options={WEBSITE_STATUSES.map((s) => ({
@@ -132,8 +143,12 @@
       value={search.q ?? ""}
       onChange={(q) => setSearch({ q: q || undefined }, true)}
     />
+    {/if}
   </div>
 
+  {#if search.view === "overview"}
+    <WebsitesOverview />
+  {:else}
   <Card>
     <table class="w-full text-left" data-testid="websites-table">
       <thead class="text-sm text-muted-foreground">
@@ -223,6 +238,7 @@
       />
     {/if}
   </Card>
+  {/if}
   {#if c}
     <p class="mt-3 text-sm text-muted-foreground">{t("websites.limitNote", { count: c.all, limit: c.limit })}</p>
   {/if}

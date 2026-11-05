@@ -35,6 +35,7 @@
   import CardHeader from "#lib/components/CardHeader.svelte";
   import HeatTable from "#lib/components/HeatTable.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
+  import OrganizationReportButton from "#lib/components/reports/OrganizationReportButton.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import RepositoryLink from "#lib/components/RepositoryLink.svelte";
   import Segmented from "#lib/components/Segmented.svelte";
@@ -491,6 +492,7 @@
 
 <PageHeader icon={ChartColumn} title={t("statistics.title")} description={t("statistics.description")}>
   {#snippet actions()}
+    <OrganizationReportButton />
     <Segmented
       label={t("statistics.range")}
       value={String(days)}

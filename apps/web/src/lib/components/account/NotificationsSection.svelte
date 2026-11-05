@@ -5,6 +5,7 @@
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
   import QueryStatus from "../QueryStatus.svelte";
+  import ReportMailCard from "../reports/ReportMailCard.svelte";
   import NotificationsMatrix from "./NotificationsMatrix.svelte";
 
   /**
@@ -21,5 +22,8 @@
     <QueryStatus {query} />
   </Card>
 {:else}
-  <NotificationsMatrix data={query.data} />
+  <div class="grid gap-4">
+    <NotificationsMatrix data={query.data} />
+    <ReportMailCard canManageChannels={query.data.canManageChannels} />
+  </div>
 {/if}

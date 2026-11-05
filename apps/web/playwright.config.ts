@@ -53,11 +53,23 @@ export default defineConfig({
         timezoneId: "Europe/Berlin",
       },
     },
+    // Reports (ADR 0047): repository and host reports, the organisation report, websites at a glance, the report mail.
+    {
+      name: "reports",
+      testMatch: /reports\.spec\.ts/,
+      dependencies: ["app"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1920, height: 1080 },
+        locale: "en-US",
+        timezoneId: "Europe/Berlin",
+      },
+    },
     // In-app updates against the fake sidecar (ADR 0007).
     {
       name: "updates",
       testMatch: /updates\.spec\.ts/,
-      dependencies: ["app"],
+      dependencies: ["reports"],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1920, height: 1080 },
