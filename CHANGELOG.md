@@ -34,6 +34,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Changed
 
+- **Getting started moved to the foot of the sidebar** (owners and admins): one closed line with a rocket and the
+  progress ("2 of 6 done"); opened it lists the six steps, each a link to where it is done. Open or closed is kept in
+  this browser, it can still be hidden, and the overview starts with what needs attention instead.
 - **New colours for light and dark** (AGENTS.md rule 6): calmer warm-grey surfaces, fixed severity colours with their own
   background, text and border, and a steel-blue information colour. Charts, heat tables, badges, banners and the PDF report take
   them from one place, so the app and the PDF cannot drift; the four severities, and the three gate results, also differ in

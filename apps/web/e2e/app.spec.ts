@@ -36,28 +36,40 @@ async function rowAction(row: Locator, action: string) {
   await row.getByRole("menuitem", { name: action }).click();
 }
 
-test("getting started ticks itself off from what is there, leads to each step, and can be hidden", async ({
+test("getting started sits at the foot of the sidebar, ticks itself off, leads to each step, and can be hidden", async ({
   page,
 }) => {
   const problems = watchForProblems(page);
   await page.goto("/");
+  // Not on the overview any more: one closed line with a rocket and the progress at the foot of the sidebar.
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  const panel = page.getByTestId("setup-progress-panel");
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId("setup-progress")).toContainText(/\d of 6 done/);
+  const toggle = panel.getByRole("button", { name: /Getting started/ });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByTestId("setup-steps")).toHaveCount(0);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
   const list = page.getByTestId("setup-steps");
-  await expect(page.getByRole("heading", { name: "Getting started" })).toBeVisible();
   // Repositories exist in this suite; the step says so without anyone ticking it.
   await expect(list.locator('[data-step="repositories"]')).toHaveAttribute("data-done", "true");
   await expect(list.locator("li")).toHaveCount(6);
   const open = list.locator('[data-done="false"]').first();
   await expect(open.getByRole("link")).toHaveAttribute("href", /^\//);
-  await expect(page.getByTestId("setup-progress")).toContainText(/\d of 6 done/);
+  // Open or closed stays as it was on the next page.
+  await page.goto("/findings");
+  await expect(page.getByTestId("setup-steps")).toBeVisible();
   // Hidden in this browser until a step that was done is undone.
-  await page.getByRole("button", { name: "Hide the list" }).click();
-  await expect(page.getByRole("heading", { name: "Getting started" })).toHaveCount(0);
+  await panel.getByRole("button", { name: "Hide the list" }).click();
+  await expect(page.getByTestId("setup-progress-panel")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Getting started" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Findings", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("setup-progress-panel")).toHaveCount(0);
   await page.evaluate(() => {
     for (const key of Object.keys(localStorage))
-      if (key.startsWith("garnetops.setupHidden.")) localStorage.removeItem(key);
+      if (key.startsWith("garnetops.setupHidden.") || key === "garnetops.setupOpen")
+        localStorage.removeItem(key);
   });
   expect(problems).toEqual([]);
 });

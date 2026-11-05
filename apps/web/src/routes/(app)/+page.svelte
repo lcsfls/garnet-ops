@@ -10,7 +10,6 @@
   import Card from "#lib/components/Card.svelte";
   import Dashboard from "#lib/components/overview/Dashboard.svelte";
   import EmptyState from "#lib/components/overview/EmptyState.svelte";
-  import SetupChecklist from "#lib/components/overview/SetupChecklist.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import Button from "#lib/components/ui/Button.svelte";
@@ -66,7 +65,6 @@
     {/if}
   {/snippet}
 </PageHeader>
-{#if isAdmin(me)}<SetupChecklist organizationId={me.organization.id} />{/if}
 {#if !data}
   <Card>
     <QueryStatus {query} />

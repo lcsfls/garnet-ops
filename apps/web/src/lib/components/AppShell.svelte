@@ -17,6 +17,7 @@
   import MaintenanceBanner from "./MaintenanceBanner.svelte";
   import Mark from "./Mark.svelte";
   import NotificationBell from "./NotificationBell.svelte";
+  import SetupProgress from "./SetupProgress.svelte";
   import ToastRegion from "./ToastRegion.svelte";
   import UserMenu from "./UserMenu.svelte";
   import Badge from "./ui/Badge.svelte";
@@ -185,10 +186,17 @@
         </div>
       {/each}
     </nav>
+    <!-- Getting started (owners and admins): at the foot of the sidebar, closed by default, so it never pushes the pages down. -->
+    {#if isAdmin(me)}
+      <div class="mt-auto">
+        <SetupProgress organizationId={me.organization.id} {collapsed} onExpand={() => collapsed && toggleSidebar()} />
+      </div>
+    {/if}
     <!-- One line: the badge keeps its size and the version gives way (and shows in full on hover). -->
     <div
       class={cn(
-        "mt-auto flex min-w-0 items-center gap-2 border-t py-3 text-sm whitespace-nowrap text-muted-foreground",
+        "flex min-w-0 items-center gap-2 border-t py-3 text-sm whitespace-nowrap text-muted-foreground",
+        !isAdmin(me) && "mt-auto",
         collapsed ? "justify-center" : "justify-between px-2",
       )}
     >
