@@ -59,16 +59,17 @@
 <div data-testid="overview-headline">
   {#if h.level === "none"}
     {#if h.scanned}
-      <Banner tone="neutral" title={t("overview.headline.noneTitle")}>
+      <Banner class="mb-0" tone="neutral" title={t("overview.headline.noneTitle")}>
         {t("overview.headline.noneText", { open })}
       </Banner>
     {:else}
-      <Banner tone="neutral" title={t("overview.headline.notScannedTitle")}>
+      <Banner class="mb-0" tone="neutral" title={t("overview.headline.notScannedTitle")}>
         {t("overview.headline.notScannedText")}
       </Banner>
     {/if}
   {:else}
     <Banner
+      class="mb-0"
       tone={h.level}
       title={t(`overview.headline.${h.level}`, { count: h.count, repositories: h.repositories })}
     >

@@ -128,7 +128,7 @@ test("overview: a top statement from the data, four key figures, Fix first by up
     const gate = activity.locator('[data-kind="gate"]');
     await expect(gate).toContainText("Gate check from a pipeline: seeded-app");
     await expect(gate).toContainText("Passed");
-    const scan = activity.locator('[data-kind="scan"]').first();
+    const scan = activity.locator('[data-kind="scan"]').filter({ hasText: "seeded-app" }).first();
     await expect(scan).toContainText("Scan: seeded-app");
     await expect(scan).toContainText("Scanned");
     await expect(activity).not.toContainText("Nothing has happened yet");

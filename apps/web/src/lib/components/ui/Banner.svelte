@@ -15,7 +15,8 @@
     tone = "medium",
     children,
     action,
-  }: { title: string; tone?: BannerTone; children?: Snippet; action?: Snippet } = $props();
+    class: className,
+  }: { title: string; tone?: BannerTone; children?: Snippet; action?: Snippet; class?: string } = $props();
   const ICON: Record<BannerTone, IconName> = {
     critical: "flame",
     high: "triangle-alert",
@@ -29,7 +30,11 @@
 <div
   role="status"
   data-tone={tone}
-  class={cn("mb-5 flex flex-wrap items-center gap-3.5 rounded-xl border px-[18px] py-3.5", TONE_CLASSES[tone].callout)}
+  class={cn(
+    "mb-5 flex flex-wrap items-center gap-3.5 rounded-xl border px-[18px] py-3.5",
+    TONE_CLASSES[tone].callout,
+    className,
+  )}
 >
   <StateIcon name={ICON[tone]} class={cn("size-[18px] flex-none", TONE_CLASSES[tone].text)} />
   <div class="min-w-0 flex-[1_1_20rem]">
