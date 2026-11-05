@@ -117,7 +117,7 @@ test("a running update shows its progress, a finished one its result", async ({ 
   const problems = watchForProblems(page);
   await signedInAt("now");
   await page.goto("/settings?section=updates");
-  await page.getByLabel("Start").selectOption({ label: "in 1 hour" });
+  await page.getByLabel("Start", { exact: true }).selectOption({ label: "in 1 hour" });
   await page.getByRole("button", { name: "Schedule update" }).click();
   await expect(banner(page)).toHaveAttribute("data-state", "scheduled");
 
