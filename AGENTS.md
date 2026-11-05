@@ -215,10 +215,21 @@ purposeful, and respect `prefers-reduced-motion`.
   `readable` for forms and prose (reading width), `full` for multi-pane views.
 - **Green means proof**: a gate that passed, a fix whose tests passed. A
   host that is merely online or a scan that merely finished is neutral.
-- **Brand colour is burgundy** (primary actions, active navigation, logo).
-  Because red also means "critical", critical uses a brighter vermilion with a
+- **Brand colour is burgundy**, used only for the logo and the one primary
+  action of a page. Active navigation, selected rows, active tabs and links are
+  neutral: a neutral surface, the full text colour and a heavier weight (links
+  are underlined). Red and reddish tones belong to the critical severity and to
+  destructive or blocking states (blocked, failed) only, never to selection,
+  navigation, links or decoration. Critical uses a brighter vermilion with a
   label or icon, and information uses steel blue. Burgundy is never used to
   signal a state.
+- **No accent bars:** no coloured edge on one side of an element (left border,
+  inset shadow, pseudo-element) as an active, selected or highlight marker, in
+  navigation, cards, callouts or table rows. States are shown by surface, text
+  colour and weight. The underline of the active tab is the one exception.
+- **Colours come from semantic tokens** with fixed values per theme (no alpha
+  overlays of semantic colours, no hard-coded colours in components), and every
+  text pair is tested against WCAG AA in CI.
 - **Severity colours** are fixed: critical vermilion, high orange, medium
   amber, low grey. Never decorative.
 - **No AI-slop tells:** no gradients or glow, no glassmorphism, no emoji in
