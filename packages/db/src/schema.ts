@@ -2,6 +2,7 @@
  * Database schema. Migrations are generated from this file with drizzle-kit
  * and are forward-only (expand/contract, AGENTS.md rule 2).
  */
+import type { SshdFacts } from "@garnetops/core/sshd";
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
@@ -3274,6 +3275,17 @@ export const agentHost = pgTable(
       }[];
     }>(),
     aptFactsAt: timestamp("apt_facts_at", { withTimezone: true }),
+    /**
+     * The service manager that runs the agent without Docker: "systemd" or "openrc" (Alpine). `runtime` stays "systemd" for both,
+     * as published in /api/v1/hosts. Null for older agents and the container agent.
+     */
+    serviceManager: text("service_manager"),
+    /**
+     * The host's SSH server (`SshdFacts` in @garnetops/core/sshd): which server, its package, the C library, whether sshd links
+     * libpam, and the global values of six settings from sshd_config. Replaced with every report; null for older agents.
+     */
+    sshdFacts: jsonb("sshd_facts").$type<SshdFacts>(),
+    sshdFactsAt: timestamp("sshd_facts_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("agent_host_org_idx").on(t.organizationId, t.name)],

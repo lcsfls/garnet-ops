@@ -582,6 +582,143 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     await t.db.delete(schema.hostPackageFinding);
   });
 
+  it("keeps the SSH server's facts, judges its configuration report-only, and still takes agents without them", async () => {
+    const setting = (value: string, isDefault = false, match: string[] = []) => ({
+      value,
+      default: isDefault,
+      match,
+    });
+    const sshd = (passwordAuthentication: string) => ({
+      server: "openssh",
+      package: { name: "openssh-server", version: "10.0_p1-r9" },
+      libc: "musl",
+      pamLinked: false,
+      config: {
+        read: true,
+        files: ["/etc/ssh/sshd_config"],
+        skipped: [{ path: "/etc/ssh/sshd_config.d/local.conf", reason: "unreadable" }],
+        settings: {
+          passwordAuthentication: setting(passwordAuthentication, passwordAuthentication === "yes"),
+          kbdInteractiveAuthentication: setting("yes", true),
+          permitRootLogin: setting("prohibit-password", true, ["yes"]),
+          usePam: setting("no", true),
+          permitEmptyPasswords: setting("no", true),
+          pubkeyAuthentication: setting("yes", true),
+        },
+      },
+    });
+    const attentionBefore = (await session("GET", "/api/v1/hosts/attention")).json;
+    const sent = await agent(
+      "/api/v1/agent/inventory",
+      inventory({
+        runtime: "systemd",
+        serviceManager: "openrc",
+        sshd: sshd("yes"),
+        containers: [],
+        images: [],
+      }),
+    );
+    expect(sent.status).toBe(200);
+    const [stored] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, hostId));
+    expect(stored).toMatchObject({
+      serviceManager: "openrc",
+      sshdFacts: { server: "openssh", libc: "musl" },
+    });
+    expect(stored?.sshdFactsAt).toBeInstanceOf(Date);
+
+    type Ssh = {
+      findings: { rule: string; severity: string; scope: string; basis?: string }[];
+      pam: boolean | null;
+    };
+    const detail = async () =>
+      (await session("GET", `/api/v1/hosts/${hostId}`, { role: "viewer" })).json as unknown as {
+        serviceManager: string | null;
+        ssh: Ssh | null;
+        hostPackages: { findings: { id: string; severity: string; configurationNote: unknown }[] };
+      };
+    // The database does not know the CVE yet: the upstream version decides.
+    let host = await detail();
+    expect(host.serviceManager).toBe("openrc");
+    expect(host.ssh?.pam).toBe(false);
+    expect(host.ssh?.findings).toEqual([
+      { rule: "sshole", severity: "critical", scope: "global", basis: "version" },
+      { rule: "root-login", severity: "high", scope: "match" },
+      { rule: "password-authentication", severity: "medium", scope: "global" },
+    ]);
+    // Configuration findings are report-only: the menu's count does not change.
+    expect((await session("GET", "/api/v1/hosts/attention")).json).toEqual(attentionBefore);
+    expect((await session("GET", "/api/v1/hosts", { role: "viewer" })).json?.[0]).toMatchObject({
+      serviceManager: "openrc",
+    });
+
+    // Once the database has the CVE and the host's openssh has the finding, the finding decides.
+    await t.db
+      .insert(schema.vulnerability)
+      .values({ id: "CVE-2026-123158", severity: "critical" })
+      .onConflictDoNothing();
+    await t.db.insert(schema.hostPackageFinding).values({
+      id: "hpf_sshole",
+      organizationId: ORG,
+      hostId,
+      vulnerabilityId: "CVE-2026-123158",
+      packageName: "openssh-server",
+      packageVersion: "10.0_p1-r9",
+      packageType: "apk",
+      fixedIn: ["10.0_p1-r10"],
+      fixState: "fixed",
+      severity: "critical",
+      severityRank: 5,
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+    });
+    host = await detail();
+    expect(host.ssh?.findings[0]).toEqual({
+      rule: "sshole",
+      severity: "critical",
+      scope: "global",
+      basis: "finding",
+    });
+    expect(host.hostPackages.findings[0]).toMatchObject({ id: "hpf_sshole", configurationNote: null });
+
+    // Password logins off: the finding stays critical, with a note why it cannot be used here.
+    await agent(
+      "/api/v1/agent/inventory",
+      inventory({ runtime: "systemd", sshd: sshd("no"), containers: [], images: [] }),
+    );
+    host = await detail();
+    expect(host.ssh?.findings.map((f) => f.rule)).toEqual(["root-login"]);
+    expect(host.hostPackages.findings[0]).toMatchObject({
+      id: "hpf_sshole",
+      severity: "critical",
+      configurationNote: { kind: "not-exploitable", reasons: ["password-authentication-off"] },
+    });
+    // The database knows the CVE and this host's packages were matched without a finding: a backported fix, nothing to say.
+    await t.db.delete(schema.hostPackageFinding);
+    await t.db
+      .update(schema.agentHost)
+      .set({ hostPackagesMatchedAt: new Date() })
+      .where(eq(schema.agentHost.id, hostId));
+    await agent(
+      "/api/v1/agent/inventory",
+      inventory({ runtime: "systemd", sshd: sshd("yes"), containers: [], images: [] }),
+    );
+    host = await detail();
+    expect(host.ssh?.findings.map((f) => f.rule)).toEqual(["root-login", "password-authentication"]);
+
+    // An older agent sends neither field; a broken field is dropped without failing the report.
+    expect(
+      (await agent("/api/v1/agent/inventory", inventory({ runtime: "systemd", sshd: { server: "telnet" } })))
+        .status,
+    ).toBe(200);
+    const [cleared] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, hostId));
+    expect(cleared).toMatchObject({ sshdFacts: null, sshdFactsAt: null, serviceManager: null });
+    expect((await detail()).ssh).toBeNull();
+    await t.db
+      .update(schema.agentHost)
+      .set({ hostPackagesMatchedAt: null })
+      .where(eq(schema.agentHost.id, hostId));
+  });
+
   it("serves the install script and the binaries it was built with, and no code in either", async () => {
     const { mkdir, writeFile } = await import("node:fs/promises");
     const { createHash } = await import("node:crypto");

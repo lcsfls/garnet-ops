@@ -205,8 +205,15 @@ export const agentRoutes = new Hono<AgentEnv>()
           lastInventoryAt: now,
           ...(input.runtime ? { runtime: input.runtime } : {}),
           // What the host's apt lists offer (systemd agent on Debian and Ubuntu); replaced with every report.
+          // The SSH server and the service manager (agent without Docker); replaced with every report like the apt facts.
           ...(input.runtime === "systemd"
-            ? { aptFacts: input.apt ?? null, aptFactsAt: input.apt ? now : null }
+            ? {
+                aptFacts: input.apt ?? null,
+                aptFactsAt: input.apt ? now : null,
+                serviceManager: input.serviceManager ?? null,
+                sshdFacts: input.sshd ?? null,
+                sshdFactsAt: input.sshd ? now : null,
+              }
             : {}),
           ...(input.kernel
             ? {

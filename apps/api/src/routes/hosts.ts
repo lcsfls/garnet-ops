@@ -18,6 +18,14 @@ import {
   upgradeCommand,
 } from "@garnetops/core/apt";
 import { HOST_STALE_AFTER_MS } from "@garnetops/core/reports";
+import {
+  isSsholeFinding,
+  SSHOLE_CVE,
+  sshdEffective,
+  sshdFindings,
+  ssholeSafeReasons,
+} from "@garnetops/core/sshd";
+import { vulnDbReportSchema } from "@garnetops/core/system-status";
 import { repositoryVisibleTo, schema } from "@garnetops/db";
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -155,6 +163,60 @@ function patchView<F extends PatchFindingInput>(facts: AptFacts | null, findings
           php: thirdPartyPhp(thirdParty, now),
         }
       : null,
+  };
+}
+
+/**
+ * Whether the local vulnerability database knows an advisory: yes when any match stored it, otherwise what the worker's last look
+ * into the database file says; null when neither can tell.
+ */
+async function advisoryKnown(id: string): Promise<boolean | null> {
+  const [stored] = await db
+    .select({ id: schema.vulnerability.id })
+    .from(schema.vulnerability)
+    .where(eq(schema.vulnerability.id, id))
+    .limit(1);
+  if (stored) return true;
+  const [report] = await db
+    .select({ data: schema.systemReport.data })
+    .from(schema.systemReport)
+    .where(eq(schema.systemReport.key, "vulndb"))
+    .limit(1);
+  const parsed = vulnDbReportSchema.safeParse(report?.data);
+  const known = parsed.success ? parsed.data.knownAdvisories : null;
+  return known ? known.includes(id) : null;
+}
+
+/**
+ * The SSH server card (ADR 0037, addendum "SSH server"): the facts the agent read and the configuration findings, computed when
+ * the page is read. Report-only: nothing here changes a finding, a count, a grade or a gate. Null for hosts without the facts
+ * (the container agent, older agents).
+ */
+async function sshView(
+  host: typeof h.$inferSelect,
+  findings: { vulnerabilityId: string; packageName: string }[],
+) {
+  const facts = host.sshdFacts;
+  if (!facts) return null;
+  const cveFinding = findings.some(isSsholeFinding);
+  return {
+    reportedAt: host.sshdFactsAt,
+    server: facts.server,
+    package: facts.package,
+    libc: facts.libc,
+    pamLinked: facts.pamLinked,
+    pam: sshdEffective(facts).pam,
+    config: facts.config,
+    findings: sshdFindings(facts, {
+      cveFinding,
+      // Without a finished match of the host's packages, no finding says nothing: the version decides until then.
+      cveKnown:
+        cveFinding || facts.server !== "openssh"
+          ? true
+          : host.hostPackagesMatchedAt && !host.hostPackagesMatchError
+            ? await advisoryKnown(SSHOLE_CVE)
+            : null,
+    }),
   };
 }
 
@@ -384,6 +446,7 @@ export const hostRoutes = new Hono<AppEnv>()
           lastInventoryAt: host.lastInventoryAt,
           reporting: Boolean(host.lastInventoryAt && now - host.lastInventoryAt.getTime() < STALE_AFTER_MS),
           runtime: host.runtime,
+          serviceManager: host.serviceManager,
           containers: mine.length,
           images: new Set(mine.map((x) => x.imageId)).size,
           open,
@@ -710,6 +773,36 @@ export const hostRoutes = new Hono<AppEnv>()
       actor.organizationId,
       rows.map((r) => imageRefKey(r.imageRef)).filter((r): r is string => Boolean(r)),
     );
+    const ownFindings = await db
+      .select({
+        id: schema.hostPackageFinding.id,
+        vulnerabilityId: schema.hostPackageFinding.vulnerabilityId,
+        packageName: schema.hostPackageFinding.packageName,
+        packageVersion: schema.hostPackageFinding.packageVersion,
+        packageType: schema.hostPackageFinding.packageType,
+        fixedIn: schema.hostPackageFinding.fixedIn,
+        fixState: schema.hostPackageFinding.fixState,
+        severity: schema.hostPackageFinding.severity,
+        severityRank: schema.hostPackageFinding.severityRank,
+        firstSeenAt: schema.hostPackageFinding.firstSeenAt,
+        cvssScore: schema.vulnerability.cvssScore,
+        knownExploited: schema.vulnerability.knownExploited,
+      })
+      .from(schema.hostPackageFinding)
+      .innerJoin(schema.vulnerability, eq(schema.vulnerability.id, schema.hostPackageFinding.vulnerabilityId))
+      .where(eq(schema.hostPackageFinding.hostId, host.id))
+      .orderBy(desc(schema.hostPackageFinding.severityRank), asc(schema.hostPackageFinding.vulnerabilityId))
+      .limit(2000);
+    // Why a configuration-dependent flaw cannot be used on this host as configured: shown next to the finding, which stays as the
+    // vulnerability database has it.
+    const safeReasons = ssholeSafeReasons(host.sshdFacts);
+    const annotated = ownFindings.map((f) => ({
+      ...f,
+      configurationNote:
+        isSsholeFinding(f) && safeReasons.length > 0
+          ? { kind: "not-exploitable" as const, reasons: safeReasons }
+          : null,
+    }));
     return c.json({
       id: host.id,
       name: host.name,
@@ -724,38 +817,12 @@ export const hostRoutes = new Hono<AppEnv>()
         host.lastInventoryAt && Date.now() - host.lastInventoryAt.getTime() < STALE_AFTER_MS,
       ),
       runtime: host.runtime,
+      serviceManager: host.serviceManager,
       hostPackages: {
         ...hostPackagesSummary(host),
-        ...patchView(
-          host.aptFacts,
-          await db
-            .select({
-              id: schema.hostPackageFinding.id,
-              vulnerabilityId: schema.hostPackageFinding.vulnerabilityId,
-              packageName: schema.hostPackageFinding.packageName,
-              packageVersion: schema.hostPackageFinding.packageVersion,
-              packageType: schema.hostPackageFinding.packageType,
-              fixedIn: schema.hostPackageFinding.fixedIn,
-              fixState: schema.hostPackageFinding.fixState,
-              severity: schema.hostPackageFinding.severity,
-              severityRank: schema.hostPackageFinding.severityRank,
-              firstSeenAt: schema.hostPackageFinding.firstSeenAt,
-              cvssScore: schema.vulnerability.cvssScore,
-              knownExploited: schema.vulnerability.knownExploited,
-            })
-            .from(schema.hostPackageFinding)
-            .innerJoin(
-              schema.vulnerability,
-              eq(schema.vulnerability.id, schema.hostPackageFinding.vulnerabilityId),
-            )
-            .where(eq(schema.hostPackageFinding.hostId, host.id))
-            .orderBy(
-              desc(schema.hostPackageFinding.severityRank),
-              asc(schema.hostPackageFinding.vulnerabilityId),
-            )
-            .limit(2000),
-        ),
+        ...patchView(host.aptFacts, annotated),
       },
+      ssh: await sshView(host, ownFindings),
       kernel: {
         ...kernelSummary(host),
         findings: await db
