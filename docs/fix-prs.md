@@ -25,6 +25,12 @@ Scans, quality gates and notifications never depend on it.
   forge), the **Create PR** button (or **Create PR as *your account***, below), or the reason why
   GarnetOps leaves the change to you.
 
+The overview's **Fix first** looks at the same findings across repositories: one row per package and installed version
+(for example `lodash 4.17.15 → 4.18.0` in three repositories), always within the installed major release. Its **Open N fix
+proposals** leads here, filtered to that package; a finding's detail leads to its own proposal with **Open the fix proposal**.
+When the installed major release cannot close every advisory, Fix first says **No single fix**, what the upgrade closes and
+which later version would close the rest; the proposal here may then be a **Major upgrade**.
+
 Sort by package, fixes, repository, ecosystem or status; filter by "can be opened" or "by hand",
 severity, repository, ecosystem and pull request state; search for a package, a CVE or a file.
 The filters live in the address. A click on a row opens the details (a pane on wide screens, a

@@ -16,6 +16,21 @@ Security-relevant changes are listed under **Security** in every release.
   no longer read as negative numbers.
 - Every text colour pair of both themes is checked against WCAG AA in CI, as are the focus ring and the lightness steps between
   the severities in charts; a lint step refuses hard-coded and faded colours in the web app.
+- **Overview: one top statement from your data**, for example "2 critical findings in 2 repositories. Both come from minimist
+  1.2.0. One upgrade, to 1.2.6, fixes both. None is known to be exploited." with **Review the fix**, which leads to the fix
+  proposal. It takes the colour of the worst open severity (critical, else high); with neither open it says so plainly.
+- **Fix first by upgrade**: the overview groups open findings by package and installed version across your repositories and
+  names the upgrade that closes them (`from → to`), what it closes (severity pills with counts), in which repositories, and
+  leads to the fix proposals or the findings. The target is always one of the advisories' own fixed versions (nothing is
+  looked up online) within the installed major version; when that cannot close everything the row says **No single fix**,
+  what the upgrade closes and which later major version would close the rest. Known exploited first. Below it: "3 upgrades
+  close 12 of 40 open findings."
+- **Finding detail**: **Open the fix proposal** leads to the exact proposal; **Also in** lists the same finding in your other
+  repositories; EPSS says what it means ("exploit chance, 30 days") next to its value.
+- API (additive): `headline`, `remedies`, `remedySummary` and `repositories.last_scan_at` on `GET /api/v1/overview`, scan and
+  gate items in its `activity`; `severities` on `GET /api/v1/findings/counts`; `alsoIn` and `fixProposal` on
+  `GET /api/v1/findings/{id}`. The overview's `fixFirst` and `recentScans` stay as they were and will be removed in a major
+  version.
 
 ### Changed
 
@@ -32,6 +47,35 @@ Security-relevant changes are listed under **Security** in every release.
 - No coloured edges any more: website findings, the website report and the websites report show severity with the pill alone, and
   an unread notification is bold on a neutral surface instead of carrying a coloured bar.
 - A certificate that has ended is shown as critical (it was shown like one that ends within a week).
+- **One primary button per page.** Buttons are secondary by default; only the main action of a page (for example **Scan all**,
+  **Scan now**, **Add repository**, the save of a settings section) is burgundy, and a dialog has its own. **Accept risk**,
+  **Decline**, **Unshare**, **Set aside** and **Dismiss** are real buttons; **Remove**, **Revoke** and **Delete** are marked as
+  destructive. Page titles no longer repeat the menu icon.
+- Text fields, selects, checkboxes and radio buttons have a darker border that stands out 3:1 against every surface in both
+  themes (WCAG 1.4.11).
+- **Overview**: four key figures (Critical open, High open, Fix available, Known exploited), with the critical and high numbers
+  in their colour, their trend and their change against last week, and a muted zero. **Repositories with critical findings** and
+  **Accepted risks** left the overview (the top statement and **Findings → Accepted** have them). **Recent scans** and **Recent
+  gate runs** left as well: the activity shows them. The header says "Last scan 2 hours ago" instead of "Updated" and a refresh
+  button (the page reloads every 30 seconds). Cards keep their own height, in two columns from 1450 px content width.
+- **Findings**: the state (Open, Accepted, Resolved, All, with counts) and the search in the first row; severity, repository,
+  **Known exploited** and **Fix available** as toggles in the second. A severity toggle shows how many findings it has and is
+  off when it has none. Existing links and bookmarks keep working. The table shows Severity, Vulnerability (with
+  `package version → fixed in`), Repository, CVSS, EPSS, Published and Detected ("Oct 20 · last week"), with lower rows; a
+  column that is empty on the whole page is left out (exports keep it). The detail shows its title once and ends with **Accept
+  risk** and **Ask AI**.
+- The **Findings** count in the menu is every open finding, not only the critical ones.
+- **System status** reloads every minute by itself, so its **Refresh now** button is gone. Fix proposals, pull requests,
+  connected accounts and the release check keep theirs: they ask the worker or the forge to look again.
+- The website page shows verification, stage 1 and stage 2 as three cards, each as tall as its content; the repository and
+  host pages no longer stretch a card to its neighbour's height. Early warnings leave out empty columns.
+
+### Fixed
+
+- The overview's activity showed only seven kinds of audit entries, so an organisation that scanned every day still read
+  "Nothing has happened yet". It now lists finished and failed scans, gate checks from pipelines and the audit entries, only
+  for repositories you see and that are in use.
+- The overview's list of recent scans (API `recentScans`) included repositories that were set aside.
 
 ## [0.1.0] - 2026-11-05
 <!-- title: Beta: backup and restore, reports, what can be patched now, and certificates at a glance -->

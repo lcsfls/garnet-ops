@@ -86,3 +86,5 @@ read-only, and nothing a CI job can reach may leak code or findings.
 - Scans gain an optional ref and expected sha (worker: fetch that ref, verify the sha).
 - New page "Quality gates" (rules, recent runs, pipeline step), a gate column on the
   repositories list and a "Recent gate runs" card on the overview, as in the mockup.
+  Since 0.1.1 the overview has no card of its own for them: its activity lists the gate checks pipelines asked for next to
+  the scans, and every gate result stays on the Quality gates page.
