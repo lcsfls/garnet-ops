@@ -4,7 +4,7 @@
 </script>
 
 <script lang="ts">
-  import { RefreshCw, ScanSearch } from "@lucide/svelte";
+  import { ScanSearch } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -14,8 +14,7 @@
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import Button from "#lib/components/ui/Button.svelte";
-  import { cn } from "#lib/cn.ts";
-  import { formatRelative } from "#lib/format.ts";
+  import { formatDateTime, formatRelative } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
   import type { Overview } from "#lib/types.ts";
@@ -24,6 +23,7 @@
   let { data: pageData }: { data: PageData } = $props();
   const me = $derived(pageData.me);
   const queryClient = useQueryClient();
+  // Reloads by itself every 30 seconds, so the page has no refresh button; it states when the last scan finished.
   const query = createQuery(() => ({
     queryKey: ["overview", timeZone],
     queryFn: () => api<Overview>(`/overview?tz=${encodeURIComponent(timeZone)}`),
@@ -52,21 +52,12 @@
       <span role="status" class="text-sm text-muted-foreground">
         {t("overview.scansQueued", { count: queued })}
       </span>
-    {:else if query.dataUpdatedAt}
-      <span class="text-sm text-muted-foreground">
-        {t("overview.updated", { when: formatRelative(new Date(query.dataUpdatedAt)) })}
+    {:else if data?.repositories.last_scan_at}
+      {@const at = data.repositories.last_scan_at}
+      <span class="text-sm text-muted-foreground" data-testid="overview-last-scan">
+        <time datetime={at} title={formatDateTime(at)}>{t("overview.lastScan", { when: formatRelative(at) })}</time>
       </span>
     {/if}
-    <Button
-      variant="secondary"
-      class="size-10 px-0"
-      aria-label={t("overview.refresh")}
-      title={t("overview.refresh")}
-      disabled={query.isFetching}
-      onclick={() => void query.refetch()}
-    >
-      <RefreshCw aria-hidden="true" class={cn("size-4", query.isFetching && "motion-safe:animate-spin")} />
-    </Button>
     {#if canScan}
       <Button variant="primary" disabled={scanAll.isPending} onclick={() => scanAll.mutate()}>
         <ScanSearch aria-hidden="true" class="size-4" />

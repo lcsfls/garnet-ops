@@ -10,31 +10,29 @@ import {
   ACTIVE_FIX_PR_STATES,
   apiBaseProblem,
   branchName,
-  buildProposals,
   connectionCoversRepository,
   connectionWriteProblem,
   defaultApiBase,
   detectForge,
   FIX_PR_STATES,
-  type FindingFact,
   FORGE_KINDS,
   isProposalKey,
-  type ManifestFact,
   type Proposal,
   parseRepoLocation,
   renovateConfig,
 } from "@garnetops/core/fix-prs";
-import { isSafePackageName, type ManifestKind } from "@garnetops/core/manifests";
+import { isSafePackageName } from "@garnetops/core/manifests";
 import { decodeCursor, encodeCursor, pageSizeSchema } from "@garnetops/core/pagination";
 import { seal } from "@garnetops/core/vault";
 import { repositoryVisibleTo, schema, type Viewer, visibleRepository } from "@garnetops/db";
-import { and, desc, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { boss, db, QUEUES } from "../db.ts";
 import { vaultPublicKey } from "../env.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
+import { loadProposals } from "../lib/fix-proposals.ts";
 import { type KeysetSpec, keysetQuery, parseDate, parseText, toPage } from "../lib/paginate.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
@@ -46,86 +44,6 @@ import { requireRecentSignIn } from "../lib/step-up.ts";
 
 type PrRow = typeof schema.fixPr.$inferSelect;
 type AccessRow = typeof schema.repositoryWriteAccess.$inferSelect;
-
-/** Every proposal of the organisation (or one repository) from the open findings and the last manifests. */
-async function loadProposals(viewer: Viewer, repositoryId?: string) {
-  const { organizationId } = viewer;
-  const f = schema.finding;
-  const repositories = await db
-    .select({ id: schema.repository.id, name: schema.repository.name, url: schema.repository.url })
-    .from(schema.repository)
-    .where(
-      and(
-        repositoryVisibleTo(viewer),
-        // Repositories set aside get no fix proposals in the organisation's list (ADR 0043).
-        repositoryId ? eq(schema.repository.id, repositoryId) : isNull(schema.repository.inactiveAt),
-      ),
-    );
-  if (repositories.length === 0)
-    return { proposals: [], repositories: new Map<string, (typeof repositories)[number]>() };
-  const ids = repositories.map((r) => r.id);
-  const [findings, manifests] = await Promise.all([
-    db
-      .select({
-        id: f.id,
-        repositoryId: f.repositoryId,
-        vulnerabilityId: f.vulnerabilityId,
-        severity: f.severity,
-        severityRank: f.severityRank,
-        packageName: f.packageName,
-        packageType: f.packageType,
-        packageVersion: f.packageVersion,
-        fixedIn: f.fixedIn,
-        locations: f.locations,
-      })
-      .from(f)
-      .where(
-        and(
-          eq(f.organizationId, organizationId),
-          eq(f.state, "open"),
-          inArray(f.repositoryId, ids),
-          sql`jsonb_array_length(coalesce(${f.fixedIn}, '[]'::jsonb)) > 0`,
-        ),
-      ),
-    db
-      .select()
-      .from(schema.repositoryManifest)
-      .where(
-        and(
-          eq(schema.repositoryManifest.organizationId, organizationId),
-          inArray(schema.repositoryManifest.repositoryId, ids),
-        ),
-      ),
-  ]);
-  const findingsOf = new Map<string, FindingFact[]>();
-  for (const row of findings) {
-    const list = findingsOf.get(row.repositoryId) ?? [];
-    list.push({ ...row, fixedIn: row.fixedIn ?? [], locations: row.locations ?? [] });
-    findingsOf.set(row.repositoryId, list);
-  }
-  const manifestsOf = new Map<string, ManifestFact[]>();
-  for (const row of manifests) {
-    const list = manifestsOf.get(row.repositoryId) ?? [];
-    list.push({
-      path: row.path,
-      kind: row.kind as ManifestKind,
-      blobSha: row.blobSha,
-      dependencies: row.dependencies as never,
-    });
-    manifestsOf.set(row.repositoryId, list);
-  }
-  const proposals: Proposal[] = [];
-  for (const repo of repositories) {
-    proposals.push(
-      ...buildProposals({
-        repositoryId: repo.id,
-        findings: findingsOf.get(repo.id) ?? [],
-        manifests: manifestsOf.get(repo.id) ?? [],
-      }),
-    );
-  }
-  return { proposals, repositories: new Map(repositories.map((r) => [r.id, r])) };
-}
 
 const ACTIVE = new Set<string>(ACTIVE_FIX_PR_STATES);
 

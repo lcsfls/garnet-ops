@@ -22,7 +22,14 @@ export interface Overview {
   fixableOpen: number;
   /** Open findings with a fixed version, per severity. */
   fixableBySeverity: SeverityCounts;
-  repositories: { total: number; blocked: number; attention: number; never_scanned: number };
+  repositories: {
+    total: number;
+    blocked: number;
+    attention: number;
+    never_scanned: number;
+    /** The latest successful scan of the repositories the viewer sees, or null. */
+    last_scan_at: string | null;
+  };
   fixFirst: {
     id: string;
     severity: Severity;
@@ -56,18 +63,83 @@ export interface Overview {
   } | null;
   /** Advisory sources behind the findings so far, e.g. ["debian", "github", "nvd"]. */
   vulnerabilitySources: string[];
-  /** Recent organisation events every member may see, newest first. */
+  /** Recent scans, gate checks and organisation events every member may see, newest first. */
   activity: ActivityItem[];
+  /** The top statement: the worst open severity, where it comes from and what fixes it. */
+  headline: Headline;
+  /** "Fix first": open findings grouped by the upgrade that closes them, in the order to fix them. */
+  remedies: RemedyRow[];
+  remedySummary: { upgrades: number; closes: number; open: number };
   generatedAt: string;
 }
 
+/** The fix proposals that carry out an upgrade: how many, and which one when there is exactly one. */
+export interface ProposalRef {
+  count: number;
+  key: string | null;
+  repositoryId: string | null;
+}
+
+export interface Headline {
+  level: "critical" | "high" | "none";
+  count: number;
+  repositories: number;
+  package: { name: string; version: string } | null;
+  packages: number;
+  oneUpgrade: {
+    remedyKey: string;
+    packageName: string;
+    fromVersion: string;
+    toVersion: string;
+    proposals: ProposalRef;
+  } | null;
+  fixable: number;
+  upgrades: number;
+  knownExploited: number;
+  /** False until one of the viewer's repositories was scanned. */
+  scanned: boolean;
+}
+
+export interface RemedyRow {
+  key: string;
+  packageType: string;
+  packageName: string;
+  ecosystem: string | null;
+  fromVersion: string;
+  /** Null when no fixed version in the installed major release is known. */
+  toVersion: string | null;
+  /** The upgrade closes every open finding of the package at this version; false: no single fix. */
+  complete: boolean;
+  /** Without a single fix: the later major version that would close everything, if known. */
+  laterVersion: string | null;
+  closes: {
+    total: number;
+    bySeverity: SeverityCounts;
+    knownExploited: number;
+    vulnerabilityIds: string[];
+  };
+  remainingVulnerabilityIds: string[];
+  findings: number;
+  knownExploited: number;
+  repositoryCount: number;
+  repositories: { id: string; name: string }[];
+  proposals: ProposalRef;
+}
+
 export interface ActivityItem {
-  /** An audit action such as "repository.created", or "schedule.run" for a nightly scan. */
+  /** "scan", "gate", "schedule.run" for a nightly scan, or an audit action such as "repository.created". */
   kind: string;
   at: string;
   actorName: string | null;
   subject: string | null;
   count: number | null;
+  /** Scans and gate runs: the repository, the scan state or gate result, the trigger and the changes. */
+  id?: string;
+  repositoryId?: string | null;
+  status?: string | null;
+  trigger?: string | null;
+  added?: number | null;
+  resolved?: number | null;
 }
 
 /**

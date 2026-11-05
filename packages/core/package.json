@@ -19,6 +19,7 @@
     "./ai": "./src/ai.ts",
     "./ai-endpoint": "./src/ai-endpoint.ts",
     "./versions": "./src/versions.ts",
+    "./remedies": "./src/remedies.ts",
     "./manifests": "./src/manifests.ts",
     "./fix-prs": "./src/fix-prs.ts",
     "./forge-sign-in": "./src/forge-sign-in.ts",

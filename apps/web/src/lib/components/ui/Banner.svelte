@@ -4,10 +4,11 @@
   import { type IconName, TONE_CLASSES, type TokenTone } from "../../severity-meta.ts";
   import StateIcon from "./StateIcon.svelte";
 
-  type BannerTone = Exclude<TokenTone, "low">;
+  type BannerTone = Exclude<TokenTone, "low"> | "neutral";
   /**
    * A page-level notice that needs attention (mockup .alert): title, one sentence, one action. It takes the tone of what it
    * talks about (severity-meta.ts), with that tone's icon, so the tone never depends on colour alone; no side bar.
+   * Neutral is for a plain fact that needs no action and proves nothing (green is for proof).
    */
   let {
     title,
@@ -21,6 +22,7 @@
     medium: "triangle-alert",
     info: "info",
     success: "circle-check",
+    neutral: "info",
   };
 </script>
 
