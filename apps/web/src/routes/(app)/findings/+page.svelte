@@ -455,9 +455,9 @@
       />
     {/key}
   {/if}
-  <!-- The pane is sized to start below the header and filters and still end inside the screen. -->
+  <!-- The pane is sized to start below the header and the two filter rows and still end inside the screen. -->
   {#if shownId && aiPane}
-    <div class="sticky top-0 h-[calc(100dvh-15rem)] self-start">
+    <div class="sticky top-0 h-[calc(100dvh-17rem)] self-start">
       {#key shownId}<AiPanel findingId={shownId} {me} variant="pane" />{/key}
     </div>
   {/if}
