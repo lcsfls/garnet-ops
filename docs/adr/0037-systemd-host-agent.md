@@ -84,3 +84,43 @@ without installing Docker or a language runtime.
   (`@garnetops/core/apt`, dpkg's version order in `@garnetops/core/deb-version`). Nothing changes findings, counts, grades or gates.
 - Packages from third-party sources are listed as not covered by the distribution's security data; PHP from them is judged by its
   upstream version against the end-of-life data of ADR 0038. RPM and apk follow later.
+
+## Addendum (2026-11): OpenRC
+
+- Hosts that boot with OpenRC (Alpine) get the same binary as the OpenRC service `/etc/init.d/garnetops-agent`. The install script
+  detects OpenRC by `openrc-run` (or `/sbin/openrc`) and a running `/run/openrc`, prefers systemd where it runs, and names the
+  alternatives where neither runs. The user is created with BusyBox's `addgroup -S` and `adduser -S -D -H` where `useradd` is
+  missing. BusyBox wget is accepted for the download with an `https://` address only and without a CA file; the SHA-256 check is what
+  protects the binary, as before.
+- The service runs under `supervise-daemon` (restart 60 seconds after a failure) as `garnetops-agent`, with `umask 077`,
+  `no_new_privs` (OpenRC 0.45 or newer), its pid file under `/run`, and cgroup v2 memory and CPU limits (256 MB, 20 %) that OpenRC
+  applies where it manages cgroup v2; `GOMEMLIMIT` keeps the Go runtime below them. The environment file is read into an allow-list
+  of names, never run as shell. The agent sets its own umask to 077 under any service manager.
+- OpenRC has no sandbox: `ProtectSystem`, `ProtectHome`, private `/tmp` and devices, the system call filter, `MemoryDenyWriteExecute`,
+  `RestrictAddressFamilies` and `RestrictNamespaces` are missing. This is accepted because the agent never runs as root (no
+  capabilities, nothing kernel-related it could change), owns only its state directory and log, cannot replace its own program,
+  only reads world-readable files and talks only to this installation. `docs/hosts.md` lists every difference. The systemd unit is
+  not weakened.
+- The inventory carries the optional field `serviceManager` (`systemd` or `openrc`), stored as `agent_host.service_manager`
+  (migration 0049). `runtime` stays `systemd` for every agent without Docker, so the published meaning of `/api/v1/hosts` does not
+  change; `serviceManager` is added next to it.
+
+## Addendum (2026-11): SSH server
+
+- The agent reads, as its unprivileged user and from files only, whether `/usr/sbin/sshd` or Dropbear exists, the program
+  interpreter and libpam link of sshd from its ELF headers (else the dynamic loaders), the OpenSSH server's package version from the
+  package list, and `/etc/ssh/sshd_config` with its includes (regular files under `/etc/ssh` only, 32 files of 256 KiB at most, host
+  keys never opened). Of the configuration it keeps the global values of six authentication settings by sshd's first-value rule,
+  OpenSSH's upstream defaults where nothing is set, and the values `Match` blocks set apart. `/etc/shadow` is never read. It is
+  sent as the optional inventory field `sshd`; a field that does not fit the schema is dropped without failing the inventory, and
+  older servers ignore it. GarnetOps stores it as `agent_host.sshd_facts` (migration 0049, additive).
+- `@garnetops/core/sshd` derives, when the host page is read, four report-only findings with fixed severities: password logins
+  (medium), root login with a password (high), empty passwords (high), and *sshole*, CVE-2026-123158 (critical: musl, OpenSSH
+  without PAM, password logins and an affected OpenSSH). Whether OpenSSH is affected is the vulnerability database's finding once the
+  database knows the CVE (the worker reports which watched advisories the database holds; a distribution's backported fix then shows
+  as no finding); until then the upstream version below 10.6p2 decides.
+- Where the host has the CVE-2026-123158 finding but its configuration does not allow the attack, the finding carries a
+  `configurationNote` that says why. Findings from the scanner, their severities, counts, the attention count, grades and gates are
+  unchanged: configuration can change back, and the update is still due.
+- Not in this version: Dropbear's settings, sshd's command-line options and compiled-in distribution defaults, which users or
+  addresses a `Match` block covers, Alpine's `sshd.pam` build, and notifications about configuration findings.

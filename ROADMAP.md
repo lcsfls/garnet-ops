@@ -121,9 +121,10 @@ paginated findings, and every number on the overview leads to its details.
       organisation's views, history kept (ADR 0043)
 - [x] Hosts and containers with a host agent, a module off by default (ADR 0034, `docs/hosts.md`, 0.0.12): running containers,
       the packages and vulnerabilities of their images, the link to the repository they were built from, optional check for newer
-      images in public registries. Hosts without Docker: a small Go agent as a systemd service reports the host's kernel and
-      packages (ADR 0037). Still open: Kubernetes, private registries, notifications about running images, language packages
-      outside the distribution's package manager
+      images in public registries. Hosts without Docker: a small Go agent as a systemd or OpenRC service reports the host's kernel,
+      packages and SSH server settings, with report-only SSH hardening findings (ADR 0037). Still open: Kubernetes, private
+      registries, notifications about running images, language packages outside the distribution's package manager, Dropbear's
+      settings
 - [x] Website monitoring as a module, off by default (ADR 0023, ADR 0033, `docs/websites.md`, 0.0.12): certificates, DNS, mail
       authentication and security headers from the outside; proof of control by DNS TXT record or file; port checks only for proven
       names with a confirmation per name; switched on and off under Settings, Modules; DNSSEC checked at the source (ADR 0036);

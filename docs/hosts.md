@@ -45,8 +45,9 @@ The `/tmp` file system of the agent is where syft unpacks an image; make it larg
 
 ## Hosts without Docker: the systemd agent
 
-For a server without Docker choose **systemd service, without Docker** in **Add agent** ([ADR 0037](adr/0037-systemd-host-agent.md)).
-The dialog shows three commands to run on the host as root:
+For a server without Docker choose **systemd or OpenRC service, without Docker** in **Add agent**
+([ADR 0037](adr/0037-systemd-host-agent.md)). The same script installs a systemd service, or an OpenRC service where OpenRC runs
+(Alpine, see [Alpine and OpenRC](#alpine-and-openrc)). The dialog shows three commands to run on the host as root:
 
 ```sh
 curl -fsSLo garnetops-agent-install.sh https://garnetops.example.lan/api/v1/agent/install.sh
@@ -67,6 +68,76 @@ host**. A list is sent again only when it changed. It does not see Docker contai
 - Update: run the install script again (from the updated installation).
 - Remove: `systemctl disable --now garnetops-agent`, then delete `/usr/local/bin/garnetops-agent`, `/etc/garnetops-agent`,
   `/etc/systemd/system/garnetops-agent.service` and `/var/lib/garnetops-agent`, and remove the host in GarnetOps.
+
+A host with neither systemd nor OpenRC running (a minimal container, for example) gets a clear message from the script; use the
+container agent where Docker runs, or install the agent in a Debian, Ubuntu or Alpine container or VM.
+
+## Alpine and OpenRC
+
+On Alpine Linux (and other hosts that boot with OpenRC instead of systemd) the install script installs the same program as the
+OpenRC service `/etc/init.d/garnetops-agent`. It recognises OpenRC by `openrc-run` (or `/sbin/openrc`) and the directory
+`/run/openrc` that OpenRC creates at boot; OpenRC installed but not running is refused with a message.
+
+```sh
+apk add curl   # or use BusyBox wget, see below
+curl -fsSLo garnetops-agent-install.sh https://garnetops.example.lan/api/v1/agent/install.sh
+less garnetops-agent-install.sh   # read it before you run it
+GARNETOPS_ENROLMENT_CODE='goe_...' sh garnetops-agent-install.sh
+```
+
+What the script does on OpenRC:
+
+- creates the system group and user `garnetops-agent` with BusyBox's tools (`addgroup -S`, `adduser -S -D -H -h /nonexistent -s
+  /sbin/nologin`), or with `useradd` where it exists;
+- checks the binary against the SHA-256 in the script, as on systemd;
+- writes `/etc/garnetops-agent/agent.env` (root and the agent only) and `/var/lib/garnetops-agent` (the agent only, mode 0700);
+- writes the service, adds it to the `default` runlevel (`rc-update add garnetops-agent default`) and starts it.
+
+The service runs under `supervise-daemon`, which restarts the agent 60 seconds after it fails. It starts the agent as the user
+`garnetops-agent` (never root) with `umask 077`, sets `no_new_privs` (OpenRC 0.45 or newer; older versions ignore it), writes the
+pid file to `/run/garnetops-agent.pid` and the output to `/var/log/garnetops-agent.log`. The environment file is read line by line
+into the agent's own settings only (`GARNETOPS_URL`, `GARNETOPS_ENROLMENT_CODE`, `GARNETOPS_HOST_NAME`, `GARNETOPS_CA_FILE`,
+`GARNETOPS_INTERVAL_HOURS`); it is never run as shell code. Memory (256 MB) and CPU (20 %) limits are set as cgroup settings
+(`rc_cgroup_settings`) that OpenRC applies where it manages cgroup v2 and skips elsewhere; `GOMEMLIMIT=200MiB` keeps the agent's
+own memory use below the limit either way.
+
+**What OpenRC cannot give, and why the agent is still safe.** systemd puts the agent into a sandbox; OpenRC has no such sandbox.
+Under OpenRC these protections of the systemd unit are missing:
+
+| systemd setting | Under OpenRC |
+| --- | --- |
+| `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `PrivateDevices` | missing: the agent sees the file system as its user does |
+| `SystemCallFilter`, `SystemCallArchitectures`, `MemoryDenyWriteExecute`, `LockPersonality` | missing: no system call filter |
+| `RestrictAddressFamilies`, `RestrictNamespaces`, `RestrictRealtime`, `RestrictSUIDSGID` | missing |
+| `ProtectKernelTunables`, `ProtectKernelModules`, `ProtectKernelLogs`, `ProtectControlGroups`, `ProtectClock`, `ProtectHostname` | not set, but each of these needs root or a capability the agent does not have |
+| `NoNewPrivileges` | `no_new_privs` on OpenRC 0.45 or newer |
+| `CapabilityBoundingSet=` | not needed: the agent never runs as root, so it has no capabilities |
+| `MemoryMax`, `CPUQuota` | cgroup settings where OpenRC applies them, otherwise only `GOMEMLIMIT` |
+| `Restart=on-failure` | `supervise-daemon` respawn |
+
+The agent stays read-only and unprivileged: it runs as a user without password, shell or home, which owns only its state
+directory and its log file; the program and the service file belong to root, so the agent cannot change itself. It reads
+world-readable files only (os-release, `/proc`, apk's database, the SSH configuration where it is readable), runs no other
+program on Alpine (it runs `rpm` only on RPM systems), writes nothing besides its identity file and its log, and talks only to
+this installation over HTTPS. Where the stronger sandbox matters to you, use a systemd host or the container agent.
+
+**Downloading with BusyBox wget.** Without curl, the script uses `wget`. GNU wget gets `--https-only` and the CA file, as before.
+BusyBox wget (Alpine's default) only has `-q -O`: it has no option to refuse plain HTTP, to name a CA file or to refuse
+redirects, and it checks the server's certificate only when it hands TLS to its openssl helper (its built-in TLS does not check
+certificates). The script therefore passes it only an `https://` address, refuses `GARNETOPS_CA_FILE` with BusyBox wget (install
+curl for an internal CA), and the downloaded agent is checked against the SHA-256 in the script whatever the transport did. The
+script itself is your root of trust: download it with curl (`apk add curl`) or check it before you run it.
+
+- Logs: `/var/log/garnetops-agent.log`; status: `rc-service garnetops-agent status`
+- Update: run the install script again.
+- Remove: `rc-service garnetops-agent stop` and `rc-update del garnetops-agent default`, then delete `/usr/local/bin/garnetops-agent`,
+  `/etc/garnetops-agent`, `/etc/init.d/garnetops-agent`, `/var/lib/garnetops-agent` and `/var/log/garnetops-agent.log`, and remove
+  the host in GarnetOps.
+
+The agent reads apk's database (`/lib/apk/db/installed`) on Alpine; packages become package URLs as syft writes them
+(`pkg:apk/alpine/openssh-server@10.0_p1-r9?arch=x86_64&upstream=openssh&distro=alpine-3.22.2`) and are matched against the local
+vulnerability database, again after every update of it, with early warnings like any host's packages. What can be patched now is
+not shown for apk yet.
 
 ## What can be patched now
 
@@ -115,6 +186,76 @@ this; GarnetOps itself never asks a mirror anything, so this works air-gapped.
 Not yet: RPM (dnf, zypper) and Alpine (apk) hosts; the card says nothing about patching there. Indexes compressed with lz4, xz or
 zstd are skipped (apt keeps them uncompressed by default; Docker images use gzip).
 
+## SSH server check
+
+The agent without Docker (systemd or OpenRC) also looks at the host's SSH server and the host page shows it in the card **SSH
+server**: the server and its package, the C library, whether PAM is used, the global values of the settings below, and a few
+plain findings. They are **report-only**: they never change a vulnerability finding, its severity, a count, the menu's
+"needs attention", a grade or a quality gate.
+
+**What the agent reads**, as its unprivileged user and from files only (no `sshd -T`, which needs root, and no `ldd`):
+
+- whether `/usr/sbin/sshd` (OpenSSH) or `/usr/sbin/dropbear` exists, and the OpenSSH server's package and version from the
+  package list it already reads (`openssh-server`, else `openssh`);
+- the ELF headers of `/usr/sbin/sshd`: its program interpreter (`/lib/ld-musl-x86_64.so.1` means musl, `/lib64/ld-linux-x86-64.so.2`
+  glibc) and whether it is linked against `libpam`. Without that, the dynamic loaders the system has decide, and only when there is
+  one kind (a glibc system may carry musl's loader too);
+- `/etc/ssh/sshd_config` and the files it includes: only regular files under `/etc/ssh` (symbolic links that leave it are not
+  followed), globs resolved in lexical order, at most 32 files of 256 KiB each, Include nested at most 16 deep. Files it cannot read
+  are listed on the card with the reason. Host keys (`ssh_host_*`) are never opened, even where a glob matches them;
+- of those files only `PasswordAuthentication`, `KbdInteractiveAuthentication` (and its old name
+  `ChallengeResponseAuthentication`), `PermitRootLogin`, `UsePAM`, `PermitEmptyPasswords` and `PubkeyAuthentication`.
+
+It **never** reads `/etc/shadow` (the agent's user cannot read it anyway) or any password, key or other file content, and it sends
+only the values of these six settings, the file names under `/etc/ssh` and the facts above.
+
+**How the values are read.** As sshd does for its global settings: the first value wins, in the order of the files and their
+includes. Values inside `Match` blocks count only for the connections the block covers; the card shows them apart ("In Match blocks:
+yes"), and a rule fires for them with "only for the connections a Match block covers". A `Match` block inside an included file ends
+with that file, and an `Include` inside a `Match` block belongs to it. A setting no file sets has OpenSSH's own default:
+`PasswordAuthentication yes`, `KbdInteractiveAuthentication yes`, `PermitRootLogin prohibit-password`, `UsePAM no`,
+`PermitEmptyPasswords no`, `PubkeyAuthentication yes`. Distributions often change these in the files they ship (Debian and Ubuntu set
+`UsePAM yes` and `KbdInteractiveAuthentication no` in `sshd_config`, Fedora and RHEL set `UsePAM yes` in
+`sshd_config.d/50-redhat.conf`), which the agent reads; a default a distribution compiles in differently is not seen. On Fedora and
+RHEL the files are readable by root only, so the card says it could not read them and judges nothing. PAM counts as used only when
+sshd is linked against libpam and `UsePAM` is `yes`; Alpine's `openssh-server` is built without PAM.
+
+**The rules** (fixed severities):
+
+| Finding | Severity | Why | How to fix |
+| --- | --- | --- | --- |
+| *sshole* (CVE-2026-123158) | critical | musl, OpenSSH without PAM, password logins and an affected OpenSSH: any long password logs in (below) | `PasswordAuthentication no` in `/etc/ssh/sshd_config` (check key login first) and update openssh |
+| Root can log in with a password (`PermitRootLogin yes`) | high | whoever guesses or steals root's password logs in directly | `PermitRootLogin prohibit-password` or `no` |
+| Empty passwords (`PermitEmptyPasswords yes`) | high | an account without a password logs in with nothing | `PermitEmptyPasswords no` |
+| Password logins (`PasswordAuthentication yes`) | medium | passwords can be guessed, reused or phished; keys cannot | key login for every account, then `PasswordAuthentication no` |
+
+`PermitRootLogin prohibit-password` (or its old name `without-password`) and `forced-commands-only` are not findings. Password logins
+stay medium also where key logins are switched off (`PubkeyAuthentication no`): the exposure to guessing is the same, and switching
+passwords off there needs key login first. Reload sshd after a change (`rc-service sshd reload` on Alpine, `systemctl reload ssh` or
+`sshd` elsewhere); the card follows with the agent's next report.
+
+**sshole (CVE-2026-123158).** Published on 2026-11-05 and fixed in OpenSSH 10.6p2: on Linux with musl libc (Alpine, OpenWrt,
+Buildroot, Yocto), OpenSSH built or configured without PAM and with password logins allowed accepts any password of 257 to 1024
+bytes for an account whose password field is `*` (a locked root, for example), as soon as at least one other account has a valid
+password hash. glibc systems, OpenSSH with PAM, and Dropbear are not affected. Alpine's OpenSSH runs without PAM by default, and
+OpenSSH's default allows password logins. The workaround is `PasswordAuthentication no` (after checking that key login works),
+then the update.
+
+Whether the installed OpenSSH has the flaw is the vulnerability database's verdict once it knows the CVE: a finding for
+CVE-2026-123158 on an OpenSSH package means affected; no finding after the host's packages were matched means the distribution's
+fixed (or backported) package is installed. Until the database knows the CVE, the upstream version decides: below 10.6p2 counts as
+affected (Alpine's `10.0_p1-r9` is 10.0p1). The card says which of the two it used.
+
+**Not exploitable with this configuration.** Where the host has the CVE-2026-123158 finding but its configuration does not allow
+the attack (password logins off everywhere, PAM used, glibc, Dropbear, or no OpenSSH server), the **Packages on the host** card says
+so next to the finding, with the reason. The finding itself, its severity and the counts stay as the vulnerability database has
+them, and it stays open until openssh is updated: a configuration can change back.
+
+**Limits.** Only `/usr/sbin/sshd` is judged (Alpine's `openssh-server-pam` installs a PAM build as `/usr/sbin/sshd.pam`; if that is
+the one your service runs, PAM may be used although the card says otherwise). Options given on sshd's command line (for example in
+`/etc/conf.d/sshd`) and distribution-compiled defaults are not seen. Which users, groups or addresses a `Match` block covers is not
+reported. Dropbear's settings are not checked.
+
 ## Proxmox VE and LXC containers
 
 Install the agent where the packages you want checked live:
@@ -137,8 +278,8 @@ An unprivileged container without the **nesting** feature cannot set that up, an
 message if it does not work. In Proxmox VE enable **Options → Features → Nesting** for the container (`pct set <id> --features
 nesting=1`) and restart it, or use a VM. The service's hardening is never weakened to fit.
 
-**Alpine Linux** containers use OpenRC, not systemd, so the systemd agent cannot be installed there; the script says so. Use a Debian or
-Ubuntu container or VM, or, where Docker runs, the container agent.
+**Alpine Linux** containers use OpenRC: the script installs the agent as an OpenRC service there (see
+[Alpine and OpenRC](#alpine-and-openrc)); no nesting is needed, because OpenRC sets up no sandbox.
 
 ## What leaves the host
 
@@ -153,6 +294,10 @@ Over HTTPS to this installation only:
 - per image GarnetOps does not know yet: syft's package list (package URL, name, version, type);
 - systemd agent: the packages installed on the host (package URL, name, version, type), only when the list changed;
 - systemd agent: whether the host is itself a container, as a short name such as `lxc`;
+- agent without Docker: its service manager (`systemd` or `openrc`);
+- agent without Docker: the SSH server (OpenSSH, Dropbear or none), its package and version, the C library, whether sshd links
+  libpam, the names of the configuration files under `/etc/ssh` it read or skipped, and the values of six settings (see
+  [SSH server check](#ssh-server-check));
 - systemd agent on Debian and Ubuntu: its apt sources (host, path, suite, components, the Release file's `Origin`, `Label`,
   `Codename` and `Date`) and, for installed packages with a newer version offered or from a third-party source, the versions offered
   (see [What can be patched now](#what-can-be-patched-now)).
@@ -254,6 +399,8 @@ switched on and off, module switched on and off.
 - At most 1 000 containers and 500 images per report, 50 000 packages per image.
 - Tested with a fake Docker API, a stand-in syft and fake registries, and once with the real agent image against a real Docker daemon
   and a stand-in server; **not** against real registries or a real installation over the internet.
+- The OpenRC service and the SSH server check are tested with stand-in commands, synthetic configuration files and a fake host file
+  system; **not** on a real Alpine host with OpenRC, BusyBox and sshd.
 
 ## API
 
@@ -261,3 +408,7 @@ switched on and off, module switched on and off.
 - For people: `GET /api/v1/hosts`, `GET /api/v1/hosts/{id}`, `PATCH` and `DELETE /api/v1/hosts/{id}`, `GET` and `POST /api/v1/hosts/enrolments`,
   `DELETE /api/v1/hosts/enrolments/{id}`, `GET /api/v1/hosts/images/{imageId}`, `GET /api/v1/hosts/by-repository/{repositoryId}`,
   `GET` and `PUT /api/v1/hosts/settings`. Every route answers 409 `module-off` while the module is off.
+- `GET /api/v1/hosts` and `GET /api/v1/hosts/{id}` carry `serviceManager` (`systemd`, `openrc` or null); `runtime` stays `systemd`
+  for every agent without Docker, also under OpenRC. `GET /api/v1/hosts/{id}` carries `ssh` (the facts and the configuration findings,
+  null for agents that do not send them) and, on each entry of `hostPackages.findings`, `configurationNote` (null, or
+  `{ "kind": "not-exploitable", "reasons": [...] }`).

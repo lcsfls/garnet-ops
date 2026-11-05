@@ -8,6 +8,35 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Host agent on Alpine and other hosts with OpenRC** (`docs/hosts.md`, ADR 0037): the install script now installs the agent as an
+  OpenRC service where OpenRC runs, under `supervise-daemon` as the unprivileged user `garnetops-agent` with `umask 077`,
+  `no_new_privs` and memory and CPU limits where OpenRC applies them. It creates the user with BusyBox's tools and downloads with
+  curl, GNU wget or BusyBox wget (HTTPS address only, checksum checked as before). OpenRC has no sandbox like systemd's; the docs
+  list exactly what is missing and why the agent stays read-only and unprivileged. Hosts with neither systemd nor OpenRC get a
+  clear next step. The host list and page say **OpenRC service**.
+- **SSH server check**: the agent without Docker reads the SSH server (OpenSSH, Dropbear or none), the OpenSSH package version, the
+  C library (musl or glibc, from sshd's program interpreter), whether sshd uses PAM, and the global values of six authentication
+  settings from `/etc/ssh/sshd_config` and its includes, from files only and never `/etc/shadow`. The host page shows them in the
+  new **SSH server** card with report-only findings: password logins (medium), root login with a password (high), empty
+  passwords (high). They never change vulnerability findings, counts, grades or gates.
+- API (additive): `serviceManager` on `GET /api/v1/hosts` and `GET /api/v1/hosts/{id}`, `ssh` and `configurationNote` on
+  `GET /api/v1/hosts/{id}`; the optional inventory fields `sshd` and `serviceManager` for the agent. Older agents are accepted as
+  before.
+
+### Security
+
+- ***sshole* (CVE-2026-123158, fixed in OpenSSH 10.6p2)**: on musl systems such as Alpine, OpenSSH without PAM and with password
+  logins accepts any password of 257 to 1024 bytes for accounts without a password hash, such as a locked root. The SSH server
+  card reports this combination as critical with the action "Set PasswordAuthentication no in /etc/ssh/sshd_config (check key
+  login first) and update openssh". Whether OpenSSH is affected follows the vulnerability database's finding (a distribution's
+  backported fix counts) and, until the database knows the CVE, the upstream version. Where the host has the CVE finding but its
+  configuration does not allow the attack, the finding shows "not exploitable with this configuration" and why; its severity
+  stays as it is.
+- The agent sets its own file creation mask to 077 under any service manager, and never opens SSH host keys even where an
+  `Include` glob matches them.
+
 ## [0.1.1] - 2026-11-05
 <!-- title: A calmer interface: colours with one meaning, a clear overview and findings, getting started in the sidebar -->
 
