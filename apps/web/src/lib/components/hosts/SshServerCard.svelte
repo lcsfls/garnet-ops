@@ -63,8 +63,8 @@
 </script>
 
 <Card>
-  <CardHeader title={t("hosts.sshTitle")} description={t("hosts.sshDescription")} />
   <div data-testid="host-ssh">
+    <CardHeader title={t("hosts.sshTitle")} description={t("hosts.sshDescription")} />
     <Facts {rows} />
     <div class="grid gap-3 px-5 pb-5 text-sm">
       {#if ssh.server === "none"}
