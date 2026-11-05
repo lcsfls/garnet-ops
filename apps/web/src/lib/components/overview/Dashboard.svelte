@@ -27,7 +27,7 @@
 
 <div class="grid gap-4">
   {#if critical > 0}
-    <Banner title={t("overview.criticalBanner", { count: critical })}>
+    <Banner tone="critical" title={t("overview.criticalBanner", { count: critical })}>
       {t("overview.criticalBannerHint", {
         repos: data.repositories.blocked,
         exploited: data.knownExploitedOpen,
@@ -50,7 +50,7 @@
       hint={fixHint("critical")}
       href={href("/findings", { severity: "critical" })}
     >
-      {#snippet icon()}<Flame aria-hidden="true" class="size-4 text-destructive-text" />{/snippet}
+      {#snippet icon()}<Flame aria-hidden="true" class="size-4 text-critical" />{/snippet}
       {#snippet delta()}<WeekDelta {days} severity="critical" />{/snippet}
     </Tile>
     <Tile

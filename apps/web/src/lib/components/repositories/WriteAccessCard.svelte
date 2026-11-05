@@ -103,8 +103,8 @@
       </Alert>
     {/if}
     {#if access?.warning === "broad-token"}
-      <div class="flex gap-2.5 rounded-md border border-warning/45 px-3 py-2.5 text-sm">
-        <TriangleAlert aria-hidden="true" class="mt-0.5 size-4 flex-none text-warning-text" />
+      <div class="flex gap-2.5 rounded-md border border-medium-border bg-medium-bg px-3 py-2.5 text-sm">
+        <TriangleAlert aria-hidden="true" class="mt-0.5 size-4 flex-none text-medium" />
         <span>{t("repository.writeAccess.broadToken")}</span>
       </div>
     {/if}

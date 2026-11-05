@@ -107,7 +107,7 @@
       {/if}
       <a
         href={href("/findings", { repositoryId: p.repositoryId, q: p.packageName })}
-        class="text-sm font-medium text-primary-text hover:underline"
+        class="link text-sm font-medium"
       >
         {t("fixes.showFindings")}
       </a>
@@ -121,7 +121,7 @@
     {/if}
 
     {#if p.aiSuggestion}
-      <section aria-label={t("fixes.aiLabel")} class="grid gap-1.5 rounded-md border bg-muted/40 p-3">
+      <section aria-label={t("fixes.aiLabel")} class="grid gap-1.5 rounded-md border bg-surface-2 p-3">
         <h3 class="flex flex-wrap items-center gap-2 text-sm font-medium">
           <Badge tone="outline">{t("fixes.aiLabel")}</Badge>
           <span class="font-normal text-muted-foreground">
@@ -155,7 +155,7 @@
               href={prUrl}
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-1 font-medium text-primary-text hover:underline"
+              class="link inline-flex items-center gap-1 font-medium"
             >
               {t("fixes.prNumber", { number: p.pr.number })}
               <ExternalLink aria-hidden="true" class="size-3.5" />
@@ -164,7 +164,7 @@
           {/if}
         </div>
         {#if p.pr.state === "failed" && p.pr.reason}
-          <p class="text-sm text-destructive-text">
+          <p class="text-sm text-critical">
             {t(`fixes.failure.${camelCode(p.pr.reason)}` as MessageKey)}
           </p>
         {/if}

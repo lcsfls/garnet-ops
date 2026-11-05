@@ -29,7 +29,7 @@
 <div class="grid gap-2">
   <span class="text-sm font-medium">{t("directory.groupRoles")}</span>
   <p class="text-sm text-muted-foreground">{t("directory.groupRolesHint")}</p>
-  {#if error}<p class="text-sm text-destructive-text">{error}</p>{/if}
+  {#if error}<p class="text-sm text-critical">{error}</p>{/if}
   <ul class="grid gap-2">
     <!-- Rows have no identity of their own and are only edited in place, so they are keyed by position. -->
     {#each rows as row, index (index)}
@@ -42,7 +42,7 @@
           autocapitalize="off"
           autocomplete="off"
           spellcheck={false}
-          class="h-10 min-w-0 flex-[1_1_16rem] rounded-md border border-input bg-card px-3 font-mono text-sm shadow-xs aria-invalid:border-destructive"
+          class="h-10 min-w-0 flex-[1_1_16rem] rounded-md border border-input bg-card px-3 font-mono text-sm shadow-xs aria-invalid:border-critical"
         />
         <Select
           aria-label={t("directory.groupRole", { number: index + 1 })}

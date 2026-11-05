@@ -73,7 +73,7 @@
       {/if}
       <a
         href={href("/settings", { section: "accounts" })}
-        class="text-sm font-medium text-primary-text underline underline-offset-4"
+        class="link text-sm font-medium"
       >
         {t("connections.signIn.back")}
       </a>

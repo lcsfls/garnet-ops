@@ -36,7 +36,7 @@
   import ConfirmDialog from "../ui/ConfirmDialog.svelte";
   import Dialog from "../ui/Dialog.svelte";
   import ScanStateBadge from "../ui/ScanStateBadge.svelte";
-  import { BADGE_TONE } from "../ui/tones.ts";
+  import { BADGE_TONE } from "../../severity-meta.ts";
   import DeployKeyDetails from "./DeployKeyDetails.svelte";
   import GradeBadge from "./GradeBadge.svelte";
   import Sparkline from "./Sparkline.svelte";
@@ -204,13 +204,13 @@
       </time>
     {/if}
     {#if scanState === "failed" && repo.lastScan?.error}
-      <div class="mt-1 max-w-[36ch] text-sm text-destructive-text">{scanErrorText(repo.lastScan.error)}</div>
+      <div class="mt-1 max-w-[36ch] text-sm text-critical">{scanErrorText(repo.lastScan.error)}</div>
     {/if}
   </td>
   <td class="px-3 py-2 text-right @wide:px-5">
     <ActionMenu label={t("repositories.moreActions", { name: repo.name })} {actions} />
     {#if scan.isError}
-      <p role="alert" class="mt-1.5 text-right text-sm text-destructive-text">{t("errors.actionFailed")}</p>
+      <p role="alert" class="mt-1.5 text-right text-sm text-critical">{t("errors.actionFailed")}</p>
     {/if}
     {#if canDelete}
       <ConfirmDialog

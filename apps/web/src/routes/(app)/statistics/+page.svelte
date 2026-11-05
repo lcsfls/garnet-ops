@@ -4,13 +4,6 @@
   // Days and weeks are the viewer's own calendar days, so the API needs the browser's zone.
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  const SEVERITY_FILL: Record<TrendSeverity, { fill: string; stroke: string; swatch: string }> = {
-    critical: { fill: "fill-chart-critical", stroke: "stroke-chart-critical", swatch: "bg-chart-critical" },
-    high: { fill: "fill-chart-high", stroke: "stroke-chart-high", swatch: "bg-chart-high" },
-    medium: { fill: "fill-chart-medium", stroke: "stroke-chart-medium", swatch: "bg-chart-medium" },
-    low: { fill: "fill-chart-low", stroke: "stroke-chart-low", swatch: "bg-chart-low" },
-  };
-
   /** The time charts of the page share one crosshair. */
   const SYNC = "statistics";
 
@@ -42,10 +35,12 @@
   import Tile from "#lib/components/Tile.svelte";
   import TimeChart, { type ChartBucket, type ChartSeries } from "#lib/components/TimeChart.svelte";
   import SeverityBadge from "#lib/components/ui/SeverityBadge.svelte";
+  import SeverityDot from "#lib/components/ui/SeverityDot.svelte";
   import { cn } from "#lib/cn.ts";
   import { formatCalendarDate, formatNumber, formatPercent, formatRelative } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { STATISTICS_RANGES, type StatisticsRange, statisticsSearch } from "#lib/search.ts";
+  import { GATE_META, type Tone, TONE_CLASSES } from "#lib/severity-meta.ts";
   import { TREND_SEVERITIES } from "#lib/trend.ts";
   import type { Statistics, StatisticsBucket, StatisticsRanking } from "#lib/types.ts";
   import { href } from "#lib/url.ts";
@@ -71,11 +66,17 @@
       : `${formatCalendarDate(b.start)} – ${formatCalendarDate(b.end)}`;
   }
 
+  /** The marks of a chart series in a tone's colours (severity-meta.ts). */
+  function look(tone: Tone): Pick<ChartSeries<string>, "fill" | "stroke" | "swatch" | "area"> {
+    const c = TONE_CLASSES[tone];
+    return { fill: c.fill, stroke: c.stroke, swatch: c.swatch, area: c.area };
+  }
+
   function severitySeries(): ChartSeries<TrendSeverity>[] {
     return TREND_SEVERITIES.map((s) => ({
       key: s,
       label: t(`severity.${s}`),
-      ...SEVERITY_FILL[s],
+      ...look(s),
       link: href("/findings", { severity: s }),
     }));
   }
@@ -216,19 +217,18 @@
         sync={SYNC}
         linkOf={(i, key) => foundResolvedLink(data.buckets[i], key)}
         selectHint={t("statistics.foundResolvedSelect")}
+        axisLabels={{ up: t("statistics.axisFound"), down: t("statistics.axisResolved") }}
         series={[
           {
             key: "found",
             label: t("statistics.found"),
-            fill: "fill-info",
-            swatch: "bg-info",
+            ...look("info"),
             link: href("/findings", { state: "all", sort: "firstSeen", dir: "desc" }),
           },
           {
             key: "resolved",
             label: t("statistics.resolved"),
-            fill: "fill-success",
-            swatch: "bg-success",
+            ...look("success"),
             link: href("/findings", { state: "resolved" }),
           },
         ]}
@@ -257,19 +257,9 @@
         granularity={data.range.granularity}
         sync={SYNC}
         series={[
-          { key: "passed", label: t("gates.result.passed"), fill: "fill-success", swatch: "bg-success" },
-          {
-            key: "notes",
-            label: t("gates.result.notes"),
-            fill: "fill-chart-medium",
-            swatch: "bg-chart-medium",
-          },
-          {
-            key: "blocked",
-            label: t("gates.result.blocked"),
-            fill: "fill-chart-critical",
-            swatch: "bg-chart-critical",
-          },
+          { key: "passed", label: t(GATE_META.passed.label), ...look(GATE_META.passed.tone) },
+          { key: "notes", label: t(GATE_META.notes.label), ...look(GATE_META.notes.tone) },
+          { key: "blocked", label: t(GATE_META.blocked.label), ...look(GATE_META.blocked.tone) },
         ]}
         summary={t("statistics.gatesSummary", { passed: g.passed, notes: g.notes, blocked: g.blocked })}
       />
@@ -312,7 +302,7 @@
                 <div class="flex items-center gap-3">
                   <div aria-hidden="true" class="flex h-3 min-w-0 flex-1 items-center">
                     <span
-                      class="h-full min-w-1 rounded-r-[4px] bg-muted-foreground/45"
+                      class="h-full min-w-1 rounded-r-[4px] bg-muted-foreground"
                       style:width="{longest > 0 ? (row.medianDays / longest) * 100 : 0}%"
                     ></span>
                   </div>
@@ -332,7 +322,7 @@
   <span class="inline-flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-sm tabular-nums">
     {#each TREND_SEVERITIES.filter((s) => row[s] > 0) as s (s)}
       <span class="inline-flex items-center gap-1.5" title={t(`severity.${s}`)}>
-        <span aria-hidden="true" class="size-2 rounded-full {SEVERITY_FILL[s].swatch}"></span>
+        <SeverityDot severity={s} />
         <span class="sr-only">{t(`severity.${s}`)}</span>
         {formatNumber(row[s])}
       </span>
@@ -345,7 +335,7 @@
   <ul aria-hidden="true" class="flex flex-wrap gap-x-3 gap-y-1 px-5 pb-3 text-[13px] text-muted-foreground">
     {#each TREND_SEVERITIES as s (s)}
       <li class="inline-flex items-center gap-1.5">
-        <span class="size-2 rounded-full {SEVERITY_FILL[s].swatch}"></span>
+        <SeverityDot severity={s} />
         {t(`severity.${s}`)}
       </li>
     {/each}
@@ -361,7 +351,7 @@
     style:width="{most > 0 ? (total / most) * 100 : 0}%"
   >
     {#each TREND_SEVERITIES.filter((s) => row[s] > 0) as s (s)}
-      <span class="h-full min-w-0.5 basis-0 first:rounded-l-[2px] last:rounded-r-[2px] {SEVERITY_FILL[s].swatch}" style:flex-grow={row[s]}
+      <span class="h-full min-w-0.5 basis-0 first:rounded-l-[2px] last:rounded-r-[2px] {TONE_CLASSES[s].swatch}" style:flex-grow={row[s]}
       ></span>
     {/each}
   </div>

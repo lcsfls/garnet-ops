@@ -30,7 +30,7 @@
 
 {#snippet notes()}
   {#if hint}<p id={hintId} class={cn("text-sm text-muted-foreground", inRow && "pt-1.5")}>{hint}</p>{/if}
-  {#if error}<p id={errorId} class={cn("text-sm text-destructive-text", inRow && "pt-1.5")}>{error}</p>{/if}
+  {#if error}<p id={errorId} class={cn("text-sm text-critical", inRow && "pt-1.5")}>{error}</p>{/if}
 {/snippet}
 
 {#if !inRow}

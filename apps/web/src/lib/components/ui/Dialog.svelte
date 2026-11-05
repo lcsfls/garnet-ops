@@ -33,7 +33,7 @@
   onclose={onClose}
   aria-labelledby={titleId}
   aria-describedby={description ? descriptionId : undefined}
-  class="m-auto max-h-[calc(100vh-3rem)] w-[min(40rem,calc(100vw-3rem))] overflow-y-auto rounded-[14px] border bg-card px-[22px] pt-5 pb-[18px] text-card-foreground shadow-[0_20px_50px_oklch(0_0_0/30%)] backdrop:bg-[oklch(0.12_0.02_15/60%)]"
+  class="m-auto max-h-[calc(100vh-3rem)] w-[min(40rem,calc(100vw-3rem))] overflow-y-auto rounded-[14px] border bg-card px-[22px] pt-5 pb-[18px] text-card-foreground shadow-overlay"
 >
   {#if open}
     <div class="mb-[18px] flex items-start gap-3">

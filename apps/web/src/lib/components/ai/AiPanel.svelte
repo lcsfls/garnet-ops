@@ -143,7 +143,7 @@
     {/if}
     {#if data?.state === "ready"}
       {#if data.scope === "external"}
-        <Badge class="bg-warning/18 text-warning-text">
+        <Badge tone="medium">
           <TriangleAlert aria-hidden="true" />
           {t("ai.externalBadge")}
         </Badge>

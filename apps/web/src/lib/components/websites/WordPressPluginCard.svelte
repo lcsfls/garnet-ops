@@ -90,7 +90,7 @@
       <a
         href="/api/v1/exposure/wordpress-plugin.zip"
         download
-        class="text-sm text-primary-text hover:underline">{t("websites.wpPlugin.download")}</a
+        class="link text-sm">{t("websites.wpPlugin.download")}</a
       >
       {#if canEdit && verified}
         <div class="flex flex-wrap gap-2">
@@ -122,7 +122,7 @@
     <div class="grid gap-4">
       <ol class="grid list-decimal gap-1 pl-5 text-sm">
         <li>
-          <a href="/api/v1/exposure/wordpress-plugin.zip" download class="text-primary-text hover:underline"
+          <a href="/api/v1/exposure/wordpress-plugin.zip" download class="link"
             >{t("websites.wpPlugin.stepDownload")}</a
           >
         </li>

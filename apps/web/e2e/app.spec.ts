@@ -115,6 +115,9 @@ test("statistics: found, resolved and time to fix over a range, with links to th
 
   // The charts answer the keyboard: the crosshair starts on today and names every series of its day.
   const foundResolved = page.getByRole("slider", { name: /findings found and \d+ resolved/ });
+  // Both halves of the axis count up from the baseline, so the labels say which way is which.
+  await expect(page.getByTestId("chart-axis-up")).toHaveText("Found ↑");
+  await expect(page.getByTestId("chart-axis-down")).toHaveText("Resolved ↓");
   await foundResolved.focus();
   for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowLeft");
   await expect(foundResolved).toHaveAttribute("aria-valuetext", /, 1 Resolved;/);
@@ -680,8 +683,8 @@ test.describe("repository grades", () => {
     const badge = row.getByRole("link", { name: SEEDED_LINE });
     await expect(badge).toHaveText("F");
     // F is vermilion like critical, never green, and the letter is the signal, not the colour.
-    await expect(badge.locator("span").first()).toHaveClass(/bg-destructive/);
-    await expect(row.locator(".bg-success\\/16, .text-success-text")).toHaveCount(0);
+    await expect(badge.locator("span").first()).toHaveClass(/bg-critical-bg/);
+    await expect(row.locator(".bg-success-bg, .text-success")).toHaveCount(0);
 
     // Hover shows the reason in plain words and says that the grade is display only.
     await expect(page.getByRole("tooltip")).toHaveCount(0);
@@ -2804,8 +2807,9 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
       "aria-selected",
       "true",
     );
-    // What needs a look comes first in the report, worst first; a finding carries a strip in its severity's colour.
+    // What needs a look comes first in the report, worst first, with its severity pill and no coloured edge (AGENTS.md rule 6).
     await expect(report.locator("li").first().locator("button")).toHaveAttribute("data-state", "problem");
+    await expect(report.locator("li").first().locator("button")).not.toHaveClass(/border-l-/);
     await expect(report.locator("li").last().locator("button")).not.toHaveAttribute("data-state", "problem");
     await page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: "Ports" }).click();
     const ports = page.getByTestId("websites-ports");

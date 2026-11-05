@@ -9,6 +9,7 @@
   import { formatMessage, interpolate, messagesFor } from "@restow-backup/cicd-updater/messages";
   import { cn } from "../cn.ts";
   import { language, t } from "../i18n.svelte.ts";
+  import { TONE_CLASSES } from "../severity-meta.ts";
   import {
     dismissedUpdateRun,
     dismissUpdateRun,
@@ -53,6 +54,7 @@
   const phase = $derived(snapshot.phase);
   const failed = $derived(phase === "failed" || (view?.outcome != null && view.outcome !== "succeeded"));
   const succeeded = $derived(phase === "succeeded" && view?.outcome === "succeeded");
+  const tone = $derived(succeeded ? "success" : failed ? "critical" : "info");
   const Icon = $derived(
     phase === "scheduled" ? Clock : phase === "running" ? LoaderCircle : failed ? CircleX : CircleCheck,
   );
@@ -82,16 +84,16 @@
   <div
     data-state={phase}
     class={cn(
-      "mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card px-4 py-3 shadow-xs",
+      "mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-4 py-3",
       // Green means proof: only a finished, healthy update is shown as success (AGENTS.md rule 6).
-      succeeded ? "border-success/50" : failed ? "border-destructive/50" : "border-info/40",
+      TONE_CLASSES[tone].callout,
     )}
   >
     <Icon
       aria-hidden="true"
       class={cn(
         "size-5 flex-none",
-        succeeded ? "text-success-text" : failed ? "text-destructive-text" : "text-info-text",
+        TONE_CLASSES[tone].text,
         phase === "running" && "motion-safe:animate-spin",
       )}
     />
@@ -112,7 +114,7 @@
           max={100}
           value={view.progress}
           aria-label={interpolate(messages.ui.progress, { progress: view.progress })}
-          class="h-2 flex-1 overflow-hidden rounded-full bg-muted [&::-moz-progress-bar]:bg-info [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-info"
+          class="h-2 flex-1 overflow-hidden rounded-full bg-muted [&::-moz-progress-bar]:bg-info-fill-fill [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-info-fill-fill"
         ></progress>
         <span class="text-sm whitespace-nowrap tabular-nums">
           {interpolate(messages.ui.progress, { progress: view.progress })}

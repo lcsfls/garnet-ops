@@ -4,7 +4,8 @@
 
   /**
    * The steps of a wizard as a numbered row: done ones with a check, the current one marked, the rest muted. The current step
-   * is announced with aria-current; done steps say so in their label. Colour is never the only signal.
+   * is announced with aria-current; done steps say so in their label. Neutral (AGENTS.md rule 6): the current step has a heavier
+   * ring and weight, never the brand colour.
    */
   let {
     steps,
@@ -22,14 +23,14 @@
       <span
         class={cn(
           "grid size-6 flex-none place-items-center rounded-full border text-xs font-semibold tabular-nums",
-          done && "border-info bg-info text-white",
-          now && "border-primary text-primary-text",
+          done && "border-border bg-muted text-foreground",
+          now && "border-2 border-foreground text-foreground",
           !done && !now && "text-muted-foreground",
         )}
       >
         {#if done}<Check aria-hidden="true" class="size-3.5" />{:else}{i + 1}{/if}
       </span>
-      <span class={cn("text-sm", now ? "font-medium" : "text-muted-foreground")}>
+      <span class={cn("text-sm", now ? "font-semibold text-foreground" : "text-muted-foreground")}>
         {step}{#if done}<span class="sr-only">, {doneLabel}</span>{/if}
       </span>
       {#if i < steps.length - 1}<span aria-hidden="true" class="h-px w-6 bg-border"></span>{/if}

@@ -73,7 +73,7 @@
       </div>
       <p class="text-sm text-muted-foreground">{t("websites.wpOrgText")}</p>
       <Notice title={t("websites.wpOrgLeavesTitle", { host: wp.host })}>{t("websites.wpOrgLeavesText")}</Notice>
-      <code class="rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm break-all">{example}</code>
+      <code class="rounded-md border bg-surface-2 px-3 py-2 font-mono text-sm break-all">{example}</code>
       {#if wp.enabled}
         <p class="text-sm text-muted-foreground">
           {t("websites.ctEnabledBy", {
@@ -115,7 +115,7 @@
     <div class="grid gap-4">
       {#if error}<Alert tone="error">{error}</Alert>{/if}
       <Notice title={t("websites.wpOrgLeavesTitle", { host: wp.host })}>{t("websites.wpOrgLeavesText")}</Notice>
-      <code class="rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm break-all">{example}</code>
+      <code class="rounded-md border bg-surface-2 px-3 py-2 font-mono text-sm break-all">{example}</code>
       <label class="flex items-start gap-2.5 rounded-md border p-3">
         <Checkbox class="mt-1" bind:checked={acknowledged} />
         <span>{t("websites.wpOrgAcknowledge", { host: wp.host })}</span>

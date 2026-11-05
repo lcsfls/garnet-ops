@@ -47,7 +47,7 @@
               </td>
               <td class="px-3 py-2.5">{t(`websites.stageName.${run.stage}`)}</td>
               <td class="hidden px-3 py-2.5 @3xl:table-cell">{t(`websites.trigger.${run.trigger}`)}</td>
-              <td class={["px-3 py-2.5", run.state === "failed" && "text-destructive-text"]}>{result(run)}</td>
+              <td class={["px-3 py-2.5", run.state === "failed" && "text-critical"]}>{result(run)}</td>
             </tr>
           {/each}
         </tbody>

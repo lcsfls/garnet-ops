@@ -9,7 +9,7 @@
   const schemaChanged = $derived(run.failure?.schemaChanged ?? null);
 </script>
 
-<div class="grid gap-2 rounded-md border border-destructive/40 px-4 py-3">
+<div class="grid gap-2 rounded-md border border-critical-border bg-critical-bg px-4 py-3">
   <h3 class="font-semibold">{texts.attentionTitle}</h3>
   <p>{texts.attentionBody}</p>
   <p>
@@ -35,7 +35,7 @@
     </details>
   {/if}
   <p>
-    <a href={RUNBOOK_DOCS} target="_blank" rel="noopener noreferrer" class="text-primary-text underline-offset-4 hover:underline"
+    <a href={RUNBOOK_DOCS} target="_blank" rel="noopener noreferrer" class="link"
       >{texts.attentionRunbook}</a
     >. {texts.attentionAcknowledge}
   </p>

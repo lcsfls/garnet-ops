@@ -123,7 +123,7 @@
               provider: selectedProvider.name,
               servers: selectedProvider.servers.join(", "),
             })}
-            <a class="text-primary-text hover:underline" href={selectedProvider.privacy} rel="noreferrer noopener" target="_blank">
+            <a class="link" href={selectedProvider.privacy} rel="noreferrer noopener" target="_blank">
               {t("settings.publicDnsPrivacy")}
             </a>
           </Notice>

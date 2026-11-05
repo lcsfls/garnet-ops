@@ -20,7 +20,6 @@
   import ToastRegion from "./ToastRegion.svelte";
   import UserMenu from "./UserMenu.svelte";
   import Badge from "./ui/Badge.svelte";
-  import { BADGE_TONE, type BadgeTone } from "./ui/tones.ts";
   import Wordmark from "./Wordmark.svelte";
 
   let { me, children }: { me: Me; children: Snippet } = $props();
@@ -55,14 +54,11 @@
   // A newer release found by the updater's daily check: a dot at Settings, for those who can install it.
   const updates = createQuery(() => ({ ...updatesStatusQuery, enabled: isAdmin(me) }));
   const newVersion = $derived(isAdmin(me) ? availableUpdate(updates.data?.state) : null);
-  function badgeOf(item: NavItem): { count: number; tone: BadgeTone; label: string } | null {
+  /** A count beside a nav item. Neutral (AGENTS.md rule 6): the number and its label say it, not a colour. */
+  function badgeOf(item: NavItem): { count: number; label: string } | null {
     if (item.to === "/findings")
       return criticalOpen > 0
-        ? {
-            count: criticalOpen,
-            tone: "critical",
-            label: t("shell.criticalOpenBadge", { count: criticalOpen }),
-          }
+        ? { count: criticalOpen, label: t("shell.criticalOpenBadge", { count: criticalOpen }) }
         : null;
     const attention =
       item.to === "/hosts"
@@ -71,11 +67,7 @@
           ? websitesAttention.data
           : undefined;
     if (!attention || attention.count === 0 || !item.module || !moduleOn(me, item.module)) return null;
-    return {
-      count: attention.count,
-      tone: attention.worst ?? "neutral",
-      label: t("shell.attentionBadge", { count: attention.count }),
-    };
+    return { count: attention.count, label: t("shell.attentionBadge", { count: attention.count }) };
   }
   const trail = $derived(navTrail(page.url.pathname));
   const stageLabels = $derived({ alpha: t("shell.alpha"), beta: t("shell.beta") });
@@ -146,9 +138,9 @@
                         : undefined}
                   aria-current={active ? "page" : undefined}
                   class={cn(
-                    "flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md hover:bg-sidebar-hover",
+                    "flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md hover:bg-accent",
                     collapsed ? "relative justify-center" : "px-2",
-                    active && "bg-sidebar-accent font-medium text-sidebar-accent-foreground hover:bg-sidebar-accent",
+                    active && "bg-nav-active font-semibold text-foreground hover:bg-nav-active",
                   )}
                 >
                   <item.icon aria-hidden="true" class="size-4 flex-none" />
@@ -158,9 +150,8 @@
                       aria-hidden="true"
                       data-testid="nav-badge-{item.to.slice(1)}"
                       class={cn(
-                        "rounded-md px-1.5 text-xs leading-5 font-semibold",
-                        BADGE_TONE[badge.tone],
-                        collapsed ? "absolute -top-1 -right-1" : "ml-auto",
+                        "text-xs leading-5 font-medium text-muted-foreground tabular-nums",
+                        collapsed ? "absolute -top-1 -right-1 rounded-md bg-sidebar px-1" : "ml-auto",
                       )}
                     >
                       {formatNumber(badge.count)}
@@ -170,7 +161,10 @@
                       aria-hidden="true"
                       data-testid="nav-update-dot"
                       title={t("shell.updateAvailableBadge", { version: newVersion ?? "" })}
-                      class={cn("size-2 flex-none rounded-full bg-info", collapsed ? "absolute top-1.5 right-1.5" : "ml-auto")}
+                      class={cn(
+                        "size-2 flex-none rounded-full bg-muted-foreground",
+                        collapsed ? "absolute top-1.5 right-1.5" : "ml-auto",
+                      )}
                     ></span>
                   {/if}
                 </a>
@@ -179,7 +173,7 @@
                     href={add.to}
                     aria-label={t(add.label)}
                     title={t(add.label)}
-                    class="grid size-9 flex-none place-items-center rounded-md text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"
+                    class="grid size-9 flex-none place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
                   >
                     <Plus aria-hidden="true" class="size-4" />
                   </a>

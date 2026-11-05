@@ -2,12 +2,14 @@
   export interface ChartSeries<K extends string> {
     key: K;
     label: string;
-    /** Tailwind fill class of the marks, e.g. "fill-chart-critical". */
+    /** Tailwind fill class of the marks, from severity-meta.ts, e.g. "fill-critical-fill". */
     fill: string;
-    /** Tailwind stroke class of the line on top of an area, e.g. "stroke-chart-critical". */
+    /** Tailwind stroke class of the line on top of an area, e.g. "stroke-critical-fill". */
     stroke?: string;
-    /** Tailwind background class of the legend swatch and the readout key, e.g. "bg-chart-critical". */
+    /** Tailwind background class of the legend swatch and the readout key, e.g. "bg-critical-fill". */
     swatch: string;
+    /** Tailwind fill class of the area under the line: an opaque tint token, e.g. "fill-critical-bg" (no alpha mix). */
+    area?: string;
     /** Where the legend entry leads: the list behind the series, as a link such as `/findings?severity=high`. */
     link?: string;
   }
@@ -47,6 +49,7 @@
     sync,
     linkOf,
     selectHint,
+    axisLabels,
   }: {
     buckets: ChartBucket<K>[];
     series: ChartSeries<K>[];
@@ -66,6 +69,11 @@
     linkOf?: (index: number, key: K) => string | undefined;
     /** Where a click or Enter leads, in words, for screen readers. */
     selectHint?: string;
+    /**
+     * Diverging columns: what the values above and below the baseline mean, e.g. "Found ↑" and "Resolved ↓". The axis
+     * writes both halves as positive numbers, so the labels say which way each one counts.
+     */
+    axisLabels?: { up: string; down: string };
   } = $props();
 
   const uid = $props.id();
@@ -236,6 +244,9 @@
 {/snippet}
 
 <div>
+  {#if axisLabels && kind === "diverging"}
+    <p class="pb-1 pl-10 text-xs text-muted-foreground" data-testid="chart-axis-up">{axisLabels.up}</p>
+  {/if}
   <div
     role="slider"
     tabindex="0"
@@ -280,7 +291,7 @@
             x2={width}
             y1={Math.round(g.at) + 0.5}
             y2={Math.round(g.at) + 0.5}
-            class={g.v === 0 ? "stroke-muted-foreground/50" : "stroke-border"}
+            class={g.v === 0 ? "stroke-input" : "stroke-border"}
             shape-rendering="crispEdges"
           />
           <text
@@ -298,7 +309,7 @@
 
         {#if kind === "area"}
           {#each stacked as layer (layer.s.key)}
-            <path d={areaPath(layer.lo, layer.hi)} class={layer.s.fill} fill-opacity="0.1" />
+            <path d={areaPath(layer.lo, layer.hi)} class={layer.s.area ?? "fill-none"} />
           {/each}
           {#each stacked as layer (layer.s.key)}
             <path
@@ -316,7 +327,7 @@
               x2={cx(active)}
               y1={PAD_TOP}
               y2={base}
-              class="stroke-muted-foreground/60"
+              class="stroke-muted-foreground"
               shape-rendering="crispEdges"
             />
             {#each stacked as layer (layer.s.key)}
@@ -374,6 +385,9 @@
       {selectHint ?? ""}
     </p>
   </div>
+  {#if axisLabels && kind === "diverging"}
+    <p class="pt-1 pl-10 text-xs text-muted-foreground" data-testid="chart-axis-down">{axisLabels.down}</p>
+  {/if}
   <div class="mt-1 flex justify-between gap-4 pl-10 text-xs text-muted-foreground">
     <span>{buckets[0]?.label}</span>
     <span>{buckets.at(-1)?.label}</span>

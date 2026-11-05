@@ -94,6 +94,6 @@
     </div>
   {/if}
   {#if error}
-    <p id={`${id}-error`} class="text-sm text-destructive-text">{error}</p>
+    <p id={`${id}-error`} class="text-sm text-critical">{error}</p>
   {/if}
 </fieldset>

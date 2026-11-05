@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { cn } from "../../cn.ts";
-  import { BADGE_TONE, type BadgeTone } from "./tones.ts";
+  import { BADGE_TONE, type BadgeTone } from "../../severity-meta.ts";
 
   let {
     tone,

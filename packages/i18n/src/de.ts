@@ -2287,6 +2287,8 @@ export const de: Messages = {
     chartKeysWeeks: "Mit den Pfeiltasten links und rechts wechseln Sie zwischen den Wochen.",
     foundResolvedSelect:
       "Die Eingabetaste öffnet die in diesem Zeitraum gefundenen Funde. Die Tabelle verlinkt auch die behobenen.",
+    axisFound: "Gefunden ↑",
+    axisResolved: "Behoben ↓",
   },
   setupChecklist: {
     title: "Erste Schritte",

@@ -42,7 +42,7 @@
 </script>
 
 {#if repo.inactive}
-  <div class="grid gap-2 rounded-xl border bg-muted/40 px-5 py-4" data-testid="repository-inactive">
+  <div class="grid gap-2 rounded-xl border bg-surface-2 px-5 py-4" data-testid="repository-inactive">
     <div class="flex flex-wrap items-center gap-3">
       <Archive aria-hidden="true" class="size-5 text-muted-foreground" />
       <p class="font-medium">

@@ -205,7 +205,7 @@
 {#snippet stage2At()}{#if data?.stage2.lastAt}{@render when(data.stage2.lastAt)}{/if}{/snippet}
 {#snippet parentLink()}
   {#if data?.verification.parent}
-    <a href={`/websites/${encodeURIComponent(data.verification.parent.id)}`} class="text-primary-text hover:underline">
+    <a href={`/websites/${encodeURIComponent(data.verification.parent.id)}`} class="link">
       {data.verification.parent.value}
     </a>
   {/if}

@@ -78,7 +78,7 @@
           max={data.total}
           value={data.done}
           aria-label={t("setupChecklist.progress", { done: data.done, total: data.total })}
-          class="h-2 flex-1 overflow-hidden rounded-full bg-muted [&::-moz-progress-bar]:bg-info [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-info"
+          class="h-2 flex-1 overflow-hidden rounded-full bg-muted [&::-moz-progress-bar]:bg-info-fill [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-info-fill"
         ></progress>
         <span class="text-sm whitespace-nowrap tabular-nums" data-testid="setup-progress">
           {t("setupChecklist.progress", { done: data.done, total: data.total })} · {percent} %
@@ -88,12 +88,12 @@
     <ol class="mt-3 grid border-t @3xl:grid-cols-2 @wide:grid-cols-3" data-testid="setup-steps">
       {#each data.steps as step, i (step.id)}
         <li
-          class={cn("flex items-start gap-3 border-b px-5 py-3 @3xl:odd:border-r @wide:border-r", step.id === next && "bg-muted/40")}
+          class={cn("flex items-start gap-3 border-b px-5 py-3 @3xl:odd:border-r @wide:border-r", step.id === next && "bg-surface-2")}
           data-step={step.id}
           data-done={step.done}
         >
           {#if step.done}
-            <CircleCheck aria-hidden="true" class="mt-0.5 size-5 flex-none text-info-text" />
+            <CircleCheck aria-hidden="true" class="mt-0.5 size-5 flex-none text-info" />
           {:else}
             <Circle aria-hidden="true" class="mt-0.5 size-5 flex-none text-muted-foreground" />
           {/if}
@@ -119,8 +119,8 @@
               <a
                 href={LINKS[step.id]}
                 class={cn(
-                  "mt-1 inline-flex items-center gap-1 text-sm font-medium hover:underline",
-                  step.id === next ? "text-primary-text" : "text-foreground",
+                  "link mt-1 inline-flex items-center gap-1 text-sm",
+                  step.id === next ? "font-semibold" : "font-medium",
                 )}
               >
                 {step.done ? t("setupChecklist.more") : t(`setupChecklist.step.${step.id}.action`)}

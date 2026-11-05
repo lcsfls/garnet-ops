@@ -104,7 +104,7 @@
     {#if data.state === "open" && data.fixedIn?.length}
       <a
         href={href("/fixes", { repositoryId: data.repository.id, q: data.packageName })}
-        class="text-sm font-medium text-primary-text hover:underline">{t("findings.fixProposal")}</a
+        class="link text-sm font-medium">{t("findings.fixProposal")}</a
       >
     {/if}
 
@@ -154,7 +154,7 @@
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="inline-flex items-center gap-1 break-all text-primary-text hover:underline"
+                class="link inline-flex items-center gap-1 break-all"
                 aria-label={t("findings.externalLink", { host: new URL(url).host })}
               >
                 {url}

@@ -35,10 +35,10 @@
         {#each query.data as r (`${r.hostId}-${r.containerId}`)}
           <tr class="border-b align-top last:border-0">
             <td class="px-5 py-2.5">
-              <a href={`/hosts/${encodeURIComponent(r.hostId)}`} class="font-medium text-primary-text hover:underline">{r.hostName}</a>
+              <a href={`/hosts/${encodeURIComponent(r.hostId)}`} class="link font-medium">{r.hostName}</a>
             </td>
             <td class="px-3 py-2.5">
-              <a href={`/hosts/images/${encodeURIComponent(r.imageId)}`} class="text-primary-text hover:underline">{r.name}</a>
+              <a href={`/hosts/images/${encodeURIComponent(r.imageId)}`} class="link">{r.name}</a>
               <div class="font-mono text-xs break-all text-muted-foreground">
                 {r.imageRef}{r.revision ? ` · ${r.revision.slice(0, 12)}` : ""}
                 <SyncNote sync={r.sync} />

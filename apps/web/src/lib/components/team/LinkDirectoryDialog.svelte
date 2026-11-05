@@ -163,7 +163,7 @@
               {#if person.role}
                 <Badge tone="neutral">{t(`team.roles.${person.role}`)}</Badge>
               {:else}
-                <span class="text-destructive-text">{t("directory.testNoRole")}</span>
+                <span class="text-critical">{t("directory.testNoRole")}</span>
               {/if}
             </dd>
           </dl>

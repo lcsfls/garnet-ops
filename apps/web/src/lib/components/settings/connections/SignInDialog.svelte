@@ -128,7 +128,7 @@
         <p>{t("connections.signIn.deviceText")}</p>
         <div class="flex flex-wrap items-center gap-3">
           <output
-            class="rounded-md border bg-muted/40 px-4 py-2 font-mono text-2xl tracking-[0.15em]"
+            class="rounded-md border bg-surface-2 px-4 py-2 font-mono text-2xl tracking-[0.15em]"
             data-testid="device-code">{p.userCode}</output
           >
           <CopyButton text={p.userCode} />
@@ -137,7 +137,7 @@
           href={p.verificationUri}
           target="_blank"
           rel="noopener noreferrer"
-          class="inline-flex items-center gap-1.5 font-medium text-primary-text underline underline-offset-4"
+          class="link inline-flex items-center gap-1.5 font-medium"
         >
           {t("connections.signIn.openPage", { address: hostOf(p.verificationUri) + new URL(p.verificationUri).pathname })}
           <ExternalLink aria-hidden="true" class="size-4" />

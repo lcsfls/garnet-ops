@@ -109,7 +109,7 @@
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="inline-flex items-center gap-1 text-sm font-medium text-primary-text hover:underline"
+                  class="link inline-flex items-center gap-1 text-sm font-medium"
                 >
                   {t("fixes.prNumber", { number: pr.number })}
                   <ExternalLink aria-hidden="true" class="size-3.5" />
@@ -117,7 +117,7 @@
                 </a>
               {/if}
               {#if pr.state === "failed" && pr.reason}
-                <span class="text-sm text-destructive-text">
+                <span class="text-sm text-critical">
                   {t(`fixes.failure.${camelCode(pr.reason)}` as MessageKey)}
                 </span>
               {/if}

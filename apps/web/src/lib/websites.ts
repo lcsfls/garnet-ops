@@ -14,8 +14,8 @@ import {
   type VerifyMethod,
   type VerifyState,
 } from "@garnetops/core/exposure";
-import type { BadgeTone } from "./components/ui/tones.ts";
 import type { MessageKey } from "./i18n.svelte.ts";
+import type { BadgeTone } from "./severity-meta.ts";
 
 export type {
   CertificateGroup,

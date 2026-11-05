@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { Flame, TriangleAlert } from "@lucide/svelte";
+  import { cn } from "../../cn.ts";
   import { formatRelative } from "../../format.ts";
   import { type HostDetail, kernelState } from "../../hosts.ts";
   import { t } from "../../i18n.svelte.ts";
+  import { TONE_CLASSES } from "../../severity-meta.ts";
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
+  import StateIcon from "../ui/StateIcon.svelte";
   import Facts from "../websites/Facts.svelte";
 
   /**
@@ -52,7 +54,7 @@
         <p>{t("hosts.kernelNone")}</p>
       {:else}
         <p class="flex items-center gap-2 font-medium" data-testid="kernel-affected">
-          <TriangleAlert aria-hidden="true" class="size-4 text-high-text" />
+          <StateIcon name="triangle-alert" class={cn("size-4", TONE_CLASSES.high.text)} />
           {t("hosts.kernelAffected", { count: kernel.findings.length })}
         </p>
         <p class="text-muted-foreground">{t("hosts.kernelAffectedNote")}</p>
@@ -75,8 +77,8 @@
                 <td class="px-5 py-2.5">
                   <span class="font-mono">{f.vulnerabilityId}</span>
                   {#if f.knownExploited}
-                    <span class="ml-1 inline-flex items-center gap-1 text-destructive-text">
-                      <Flame aria-hidden="true" class="size-3.5" />{t("hosts.knownExploited")}
+                    <span class={cn("ml-1 inline-flex items-center gap-1", TONE_CLASSES.critical.text)}>
+                      <StateIcon name="flame" class="size-3.5" />{t("hosts.knownExploited")}
                     </span>
                   {/if}
                 </td>

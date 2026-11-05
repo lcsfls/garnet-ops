@@ -75,7 +75,7 @@
         <p class="text-sm text-muted-foreground" data-testid="report-mail-unavailable">
           {t("reports.mail.unavailable")}
           {#if canManageChannels}
-            <a class="text-primary-text hover:underline" href={href("/settings", { section: "notifications" })}
+            <a class="link" href={href("/settings", { section: "notifications" })}
               >{t("reports.mail.unavailableAdmin")}</a
             >
           {/if}

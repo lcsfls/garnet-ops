@@ -1,21 +1,9 @@
 <script lang="ts">
   import { formatCalendarDate, formatNumber } from "../format.ts";
   import { t } from "../i18n.svelte.ts";
-  import { TREND_SEVERITIES, type TrendDay, type TrendSeverity } from "../trend.ts";
+  import { TONE_CLASSES } from "../severity-meta.ts";
+  import { TREND_SEVERITIES, type TrendDay } from "../trend.ts";
   import { href } from "../url.ts";
-
-  const FILL: Record<TrendSeverity, string> = {
-    critical: "fill-chart-critical",
-    high: "fill-chart-high",
-    medium: "fill-chart-medium",
-    low: "fill-chart-low",
-  };
-  const SWATCH: Record<TrendSeverity, string> = {
-    critical: "bg-chart-critical",
-    high: "bg-chart-high",
-    medium: "bg-chart-medium",
-    low: "bg-chart-low",
-  };
 
   const total = (d: TrendDay) => TREND_SEVERITIES.reduce((sum, s) => sum + d[s], 0);
 
@@ -68,7 +56,7 @@
             width={barWidth}
             height={Math.max(0, seg.h - 1)}
             rx={1.5}
-            class={FILL[seg.s]}
+            class={TONE_CLASSES[seg.s].fill}
           />
         {/each}
       </g>
@@ -81,7 +69,7 @@
           href={href("/findings", { severity: s, repositoryId })}
           class="inline-flex items-center gap-1.5 hover:text-foreground hover:underline"
         >
-          <span aria-hidden="true" class="size-2.5 rounded-sm {SWATCH[s]}"></span>
+          <span aria-hidden="true" class="size-2.5 rounded-sm {TONE_CLASSES[s].swatch}"></span>
           {t(`severity.${s}`)}
           <span class="text-foreground">{last ? formatNumber(last[s]) : 0}</span>
         </a>

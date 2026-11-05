@@ -96,7 +96,7 @@
             }}
             class={cn(
               "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-left whitespace-nowrap hover:bg-accent focus-visible:bg-accent disabled:opacity-50",
-              action.destructive && "text-destructive-text",
+              action.destructive && "text-critical",
             )}
           >
             <action.icon aria-hidden="true" class="size-4" />

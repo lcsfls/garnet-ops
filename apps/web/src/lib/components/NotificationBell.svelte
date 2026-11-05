@@ -16,11 +16,11 @@
     type UserNotification,
     unreadBadge,
   } from "../notifications.ts";
+  import { BADGE_TONE } from "../severity-meta.ts";
   import { displayTimeZone } from "../time-zone.svelte.ts";
   import { toast } from "../toast.svelte.ts";
   import { href as appHref } from "../url.ts";
   import Button from "./ui/Button.svelte";
-  import { BADGE_TONE } from "./ui/tones.ts";
 
   /** Applies a change to every notification in the cached pages (marking as read, locally and at once). */
   function mapItems(
@@ -176,7 +176,7 @@
       </div>
       <div class="max-h-[min(28rem,calc(100dvh-10rem))] overflow-y-auto">
         {#if query.isError && items.length === 0}
-          <p role="alert" class="px-4 py-6 text-sm text-destructive-text">
+          <p role="alert" class="px-4 py-6 text-sm text-critical">
             {t("inapp.loadFailed")}
           </p>
         {:else if items.length === 0}
@@ -200,13 +200,9 @@
                   <li
                     data-notification={item.titleKey}
                     data-unread={item.readAt ? undefined : ""}
-                    class="flex items-start gap-1 px-2"
+                    class={cn("mx-2 flex items-start gap-1 rounded-md pl-1", !item.readAt && "bg-row-selected")}
                   >
-                    <!-- Not colour alone: an unread one is bold, has a bar and says so for screen readers. -->
-                    <span
-                      aria-hidden="true"
-                      class={cn("mt-2 h-8 w-1 flex-none rounded-full", item.readAt ? "bg-transparent" : "bg-info")}
-                    ></span>
+                    <!-- Not colour alone: an unread one is bold, sits on the selected surface and says so for screen readers. No accent bar (AGENTS.md rule 6). -->
                     {#if link}
                       <a
                         href={link}
@@ -254,7 +250,7 @@
         <a
           href={appHref("/account", { section: "notifications" })}
           onclick={() => (open = false)}
-          class="font-medium text-primary-text underline underline-offset-4"
+          class="link font-medium"
         >
           {t("inapp.settingsLink")}
         </a>

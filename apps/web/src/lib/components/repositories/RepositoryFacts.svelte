@@ -26,7 +26,7 @@
     {#snippet actions()}
       <a
         href={href("/findings", { repositoryId: repo.id })}
-        class="inline-flex items-center gap-1.5 text-sm font-medium text-primary-text hover:underline"
+        class="link inline-flex items-center gap-1.5 text-sm font-medium"
       >
         {t("overview.allFindings")}
         <ArrowRight aria-hidden="true" class="size-4" />
@@ -49,7 +49,7 @@
         {/if}
       </span>
       {#if repo.lastScan?.state === "failed" && repo.lastScan.error}
-        <div class="mt-1 text-sm text-destructive-text">{scanErrorText(repo.lastScan.error)}</div>
+        <div class="mt-1 text-sm text-critical">{scanErrorText(repo.lastScan.error)}</div>
       {/if}
     </dd>
     <dt class="text-muted-foreground">{t("repository.resolvedTotal")}</dt>

@@ -28,7 +28,7 @@
           href={node.href}
           target="_blank"
           rel="noopener noreferrer nofollow"
-          class="text-primary-text underline-offset-4 hover:underline">{@render inline(node.c)}</a
+          class="link">{@render inline(node.c)}</a
         ><span class="text-[0.9em] text-muted-foreground">{` (${node.host})`}</span></span
       >{/if}{/each}{/snippet}
 

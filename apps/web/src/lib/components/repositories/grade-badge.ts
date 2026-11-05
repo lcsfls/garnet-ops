@@ -1,6 +1,6 @@
 import type { MessageKey } from "../../i18n.svelte.ts";
+import type { BadgeTone } from "../../severity-meta.ts";
 import type { Grade, GradeRule, Severity } from "../../types.ts";
-import type { BadgeTone } from "../ui/tones.ts";
 
 /**
  * Grade colours come from the fixed severity scale (AGENTS.md rule 6): F and E vermilion,

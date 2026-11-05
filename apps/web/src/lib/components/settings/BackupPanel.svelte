@@ -5,6 +5,7 @@
   import { formatDateTime, formatNumber } from "../../format.ts";
   import { type MessageKey, t } from "../../i18n.svelte.ts";
   import type { Me } from "../../session.ts";
+  import type { BadgeTone } from "../../severity-meta.ts";
   import { StepUp } from "../../step-up.svelte.ts";
   import { toast } from "../../toast.svelte.ts";
   import Card from "../Card.svelte";
@@ -14,7 +15,6 @@
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
   import Field from "../ui/Field.svelte";
-  import type { BadgeTone } from "../ui/tones.ts";
 
   /**
    * Settings, Backup (ADR 0046), for owners: a backup of the whole installation, encrypted with a passphrase the owner chooses,
@@ -159,7 +159,7 @@
               {/if}
               {#if item.canDownload}
                 <a
-                  class="ml-auto inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  class="ml-auto inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   href={`/api/v1/backup/${item.id}/download`}
                   download={item.fileName}
                   data-testid="backup-download"

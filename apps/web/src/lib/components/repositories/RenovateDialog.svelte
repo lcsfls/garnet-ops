@@ -35,7 +35,7 @@
         spellcheck={false}
         aria-label={t("repository.renovate.title")}
         value={query.data.json}
-        class="max-h-72 w-full resize-none rounded-md border bg-muted/40 p-3 font-mono text-[13px]"
+        class="max-h-72 w-full resize-none rounded-md border bg-surface-2 p-3 font-mono text-[13px]"
       ></textarea>
     {:else}
       <QueryStatus {query} class="min-h-0 px-0 py-2" />

@@ -1,16 +1,35 @@
 <script lang="ts">
-  import { TriangleAlert } from "@lucide/svelte";
   import type { Snippet } from "svelte";
+  import { cn } from "../../cn.ts";
+  import { type IconName, TONE_CLASSES, type TokenTone } from "../../severity-meta.ts";
+  import StateIcon from "./StateIcon.svelte";
 
-  /** A page-level notice that needs attention (mockup .alert): title, one sentence, one action. */
-  let { title, children, action }: { title: string; children?: Snippet; action?: Snippet } = $props();
+  type BannerTone = Exclude<TokenTone, "low">;
+  /**
+   * A page-level notice that needs attention (mockup .alert): title, one sentence, one action. It takes the tone of what it
+   * talks about (severity-meta.ts), with that tone's icon, so the tone never depends on colour alone; no side bar.
+   */
+  let {
+    title,
+    tone = "medium",
+    children,
+    action,
+  }: { title: string; tone?: BannerTone; children?: Snippet; action?: Snippet } = $props();
+  const ICON: Record<BannerTone, IconName> = {
+    critical: "flame",
+    high: "triangle-alert",
+    medium: "triangle-alert",
+    info: "info",
+    success: "circle-check",
+  };
 </script>
 
 <div
   role="status"
-  class="mb-5 flex flex-wrap items-center gap-3.5 rounded-xl border border-warning/45 bg-[color-mix(in_srgb,var(--warning)_9%,var(--card))] px-[18px] py-3.5"
+  data-tone={tone}
+  class={cn("mb-5 flex flex-wrap items-center gap-3.5 rounded-xl border px-[18px] py-3.5", TONE_CLASSES[tone].callout)}
 >
-  <TriangleAlert aria-hidden="true" class="size-[18px] flex-none text-warning-text" />
+  <StateIcon name={ICON[tone]} class={cn("size-[18px] flex-none", TONE_CLASSES[tone].text)} />
   <div class="min-w-0 flex-[1_1_20rem]">
     <b class="block font-semibold">{title}</b>
     {#if children}<span class="text-muted-foreground">{@render children()}</span>{/if}

@@ -8,55 +8,80 @@
 @import "tailwindcss";
 
 /*
- * Design tokens: burgundy palette v1 from design/mockup (AGENTS.md rule 6).
- * Burgundy is brand and primary only; critical is a brighter vermilion and
- * never shares a colour with the brand. Contrast still needs a token test
- * before the first release (ROADMAP Phase 0).
+ * Design tokens (AGENTS.md rule 6): semantic tokens with fixed values per theme, from the maintainer's mockup for
+ * 0.1.1. Each value is the exact OKLCH form of the hex colour in its comment (scripts/hex-to-oklch.mjs converts them so
+ * the round trip gives the same sRGB colour); "added" marks a token the mockup does not define. Components never mix,
+ * fade or hard-code a colour (scripts/check-colours.mjs, part of pnpm lint); a missing step gets its own token here.
+ * lib/contrast.test.ts checks every text pair of both themes against WCAG AA and the lightness steps between severities.
  *
- * The theme follows the system colour scheme through CSS alone, so no inline
- * script is needed before first paint (strict CSP); an explicit choice in the
- * user menu is applied as data-theme by lib/theme.ts.
+ * Burgundy (--primary, --brand-mark) is for the logo and the one primary action only. Selection, navigation, links and
+ * focus are neutral. Red belongs to critical and to destructive or blocking states.
+ *
+ * The theme follows the system colour scheme through CSS alone, so no inline script is needed before first paint
+ * (strict CSP); an explicit choice in the user menu is applied as data-theme by lib/theme.ts.
  */
 :root {
   color-scheme: light;
   --radius: 0.625rem;
-  --background: oklch(0.975 0.004 20);
-  --foreground: oklch(0.21 0.02 15);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.02 15);
-  --primary: oklch(0.4 0.13 12);
-  --primary-foreground: oklch(1 0 0);
-  --primary-text: oklch(0.4 0.13 12);
-  --muted: oklch(0.952 0.007 20);
-  --muted-foreground: oklch(0.52 0.02 20);
-  --accent: oklch(0.952 0.007 20);
-  --accent-foreground: oklch(0.21 0.02 15);
-  --border: oklch(0.915 0.008 20);
-  --input: oklch(0.86 0.012 20);
-  --ring: oklch(0.4 0.13 12);
-  --destructive: oklch(0.57 0.2 30);
-  --destructive-text: oklch(0.5 0.18 30);
-  --success: oklch(0.64 0.12 165);
-  --success-text: oklch(0.486 0.101 166);
-  --info: oklch(0.48 0.09 245);
-  --info-text: oklch(0.46 0.09 245);
-  /* Severity: critical vermilion, high orange, medium amber, low grey. Never decorative. */
-  --high: oklch(0.68 0.17 55);
-  --high-text: oklch(0.53 0.13 55);
-  --warning: oklch(0.76 0.14 82);
-  --warning-text: oklch(0.49 0.105 76);
-  --mark-hold: oklch(0.21 0.02 15);
-  --mark-beam: oklch(0.4 0.13 12);
-  --shadow-xs: 0 1px 2px 0 oklch(0.21 0.02 15 / 5%);
-  --sidebar: oklch(1 0 0);
-  --sidebar-accent: oklch(0.94 0.025 12);
-  --sidebar-accent-foreground: oklch(0.4 0.13 12);
-  --sidebar-hover: oklch(0.952 0.007 20);
-  /* Chart fills: severity colours for areas and bars, never used as decoration. */
-  --chart-critical: oklch(0.55 0.21 30);
-  --chart-high: oklch(0.7 0.17 58);
-  --chart-medium: oklch(0.78 0.14 85);
-  --chart-low: oklch(0.55 0.01 20);
+  /* Surfaces and text. */
+  --bg: oklch(0.974 0.002 67.8); /* #f7f6f5 */
+  --sidebar: oklch(0.986 0.002 67.8); /* #fbfaf9 */
+  --surface: oklch(1 0 0); /* #ffffff */
+  --surface-2: oklch(0.983 0.002 67.8); /* #faf9f8 */
+  --border: oklch(0.92 0.005 67.8); /* #e7e4e1 */
+  --input-border: oklch(0.864 0.008 61.4); /* #d6d1cd, added */
+  --text: oklch(0.216 0.006 56); /* #1c1917 */
+  --text-muted: oklch(0.444 0.01 73.6); /* #57534e */
+  --nav-active-bg: oklch(0.935 0.003 67.8); /* #ebe9e7 */
+  --row-selected-bg: oklch(0.95 0.003 67.8); /* #f0eeec */
+  --hover-bg: oklch(0.965 0.003 67.8); /* #f5f3f1, added */
+  --neutral-bg: oklch(0.947 0.003 67.8); /* #efedeb, added */
+  --ring: var(--text);
+  /* Brand: the logo and the one primary action of a page, nothing else. */
+  --primary: oklch(0.393 0.125 12.4); /* #7a1f33 */
+  --primary-fg: oklch(1 0 0); /* #ffffff */
+  --primary-hover: oklch(0.348 0.108 11.7); /* #661a2b, added */
+  --brand-mark: oklch(0.393 0.125 12.4); /* #7a1f33 */
+  /* States and severities: bg, fg (text and icons), border, fill (charts, meters, swatches). Never decorative. */
+  --critical-bg: oklch(0.956 0.019 25.6); /* #fdecea */
+  --critical-fg: oklch(0.5 0.182 29.5); /* #b42318 */
+  --critical-border: oklch(0.858 0.059 26.1); /* #f5c2bc */
+  --critical-fill: oklch(0.529 0.19 29.9); /* #c1291b, added */
+  --high-bg: oklch(0.965 0.025 69.4); /* #fff1e2 */
+  --high-fg: oklch(0.539 0.156 43); /* #b54708 */
+  --high-border: oklch(0.872 0.053 53); /* #f2ccb5, added: 22 % fg over bg */
+  --high-fill: oklch(0.72 0.16 54.9); /* #ef852e, added */
+  --medium-bg: oklch(0.963 0.049 98.4); /* #fbf4cf */
+  --medium-fg: oklch(0.454 0.093 89.3); /* #6b5300 */
+  --medium-border: oklch(0.851 0.057 94); /* #dacea4, added: 22 % fg over bg */
+  --medium-fill: oklch(0.845 0.155 88); /* #f6c53c, added */
+  --low-bg: oklch(0.959 0.003 286.3); /* #f1f1f3 */
+  --low-fg: oklch(0.442 0.015 285.8); /* #52525b */
+  --low-border: oklch(0.846 0.004 286.3); /* #cccccf, added: 22 % fg over bg */
+  --low-fill: oklch(0.631 0.012 63.3); /* #8f8882, added */
+  --success-bg: oklch(0.955 0.018 161.1); /* #e6f4ec */
+  --success-fg: oklch(0.4315 0.0995 157.67); /* #05603a */
+  --success-border: oklch(0.839 0.036 159.5); /* #b7d2c2, added: 22 % fg over bg */
+  --success-fill: oklch(0.6311 0.1307 159.69); /* #28a16d, added */
+  --info-bg: oklch(0.951 0.013 244.3); /* #e8f0f7, added */
+  --info-fg: oklch(0.454 0.094 247.5); /* #245a88, added */
+  --info-border: oklch(0.843 0.03 245); /* #bccede, added: 22 % fg over bg */
+  --info-fill: oklch(0.531 0.089 244.7); /* #3b719c, added */
+  /* Heat-table steps above the bg (statistics): fixed mixes of fill over bg, text stays the text colour. */
+  --critical-heat-1: oklch(0.904 0.04 27.5); /* #f9d6d1, added: 12 % fill over bg */
+  --critical-heat-2: oklch(0.854 0.06 28.6); /* #f4c1b9, added: 24 % fill over bg */
+  --critical-heat-3: oklch(0.802 0.081 28.5); /* #eeaba1, added: 36 % fill over bg */
+  --high-heat-1: oklch(0.934 0.041 62.5); /* #fee4ce, added: 12 % fill over bg */
+  --high-heat-2: oklch(0.906 0.057 60.1); /* #fdd8bb, added: 24 % fill over bg */
+  --high-heat-3: oklch(0.876 0.073 57.9); /* #fccba7, added: 36 % fill over bg */
+  --medium-heat-1: oklch(0.95 0.062 95.4); /* #fbefc0, added: 12 % fill over bg */
+  --medium-heat-2: oklch(0.934 0.074 93.2); /* #fae9b1, added: 24 % fill over bg */
+  --medium-heat-3: oklch(0.922 0.087 91.8); /* #fae4a2, added: 36 % fill over bg */
+  --low-heat-1: oklch(0.92 0.002 325.6); /* #e5e4e5, added: 12 % fill over bg */
+  --low-heat-2: oklch(0.881 0.002 17.2); /* #d9d7d7, added: 24 % fill over bg */
+  --low-heat-3: oklch(0.841 0.004 39.5); /* #cdcac9, added: 36 % fill over bg */
+  --shadow-xs: 0 1px 2px 0 oklch(0.216 0.006 56 / 5%);
+  --shadow-overlay: 0 20px 50px oklch(0 0 0 / 22%);
 }
 
 /*
@@ -67,118 +92,191 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --background: oklch(0.185 0.012 15);
-    --foreground: oklch(0.965 0.004 20);
-    --card: oklch(0.225 0.015 15);
-    --card-foreground: oklch(0.965 0.004 20);
-    --primary: oklch(0.5 0.15 12);
-    --primary-foreground: oklch(1 0 0);
-    --primary-text: oklch(0.78 0.1 10);
-    --muted: oklch(0.27 0.016 15);
-    --muted-foreground: oklch(0.75 0.015 20);
-    --accent: oklch(0.27 0.016 15);
-    --accent-foreground: oklch(0.965 0.004 20);
-    --border: oklch(0.97 0.005 20 / 9%);
-    --input: oklch(0.97 0.005 20 / 16%);
-    --ring: oklch(0.7 0.12 10);
-    --destructive: oklch(0.7 0.18 32);
-    --destructive-text: oklch(0.76 0.16 32);
-    --success: oklch(0.66 0.12 165);
-    --success-text: oklch(0.76 0.117 166);
-    --info: oklch(0.75 0.08 245);
-    --info-text: oklch(0.77 0.08 245);
-    --high: oklch(0.76 0.15 58);
-    --high-text: oklch(0.8 0.13 60);
-    --warning: oklch(0.76 0.14 82);
-    --warning-text: oklch(0.81 0.122 81);
-    --mark-hold: oklch(0.965 0.004 20);
-    --mark-beam: oklch(0.64 0.15 12);
+    /* Surfaces and text. */
+    --bg: oklch(0.181 0.005 39.3); /* #141110 */
+    --sidebar: oklch(0.191 0.007 34.3); /* #171312 */
+    --surface: oklch(0.213 0.007 48.4); /* #1c1816 */
+    --surface-2: oklch(0.231 0.009 43.1); /* #211c1a */
+    --border: oklch(0.282 0.01 48.3); /* #2e2825 */
+    --input-border: oklch(0.359 0.013 48.3); /* #433b37, added */
+    --text: oklch(0.952 0.006 43.3); /* #f3eeec */
+    --text-muted: oklch(0.711 0.011 48.6); /* #a8a09c */
+    --nav-active-bg: oklch(0.275 0.01 39.3); /* #2c2624 */
+    --row-selected-bg: oklch(0.266 0.01 39.3); /* #2a2422 */
+    --hover-bg: oklch(0.247 0.008 59.3); /* #24201d, added */
+    --neutral-bg: oklch(0.269 0.008 43.1); /* #2a2523, added */
+    --ring: var(--text);
+    /* Brand: the logo and the one primary action of a page, nothing else. */
+    --primary: oklch(0.707 0.138 9.8); /* #e8798d */
+    --primary-fg: oklch(0.181 0.037 3.4); /* #1f0a10 */
+    --primary-hover: oklch(0.765 0.108 8.3); /* #ee95a5, added */
+    --brand-mark: oklch(0.707 0.138 9.8); /* #e8798d */
+    /* States and severities: bg, fg (text and icons), border, fill (charts, meters, swatches). Never decorative. */
+    --critical-bg: oklch(0.25 0.042 18); /* #33191a */
+    --critical-fg: oklch(0.839 0.089 25.1); /* #ffb4ad */
+    --critical-border: oklch(0.353 0.074 23.9); /* #5c2a28 */
+    --critical-fill: oklch(0.64 0.189 32.2); /* #e85339, added */
+    --high-bg: oklch(0.28 0.045 65.4); /* #38240f */
+    --high-fg: oklch(0.837 0.117 66.3); /* #fdba74 */
+    --high-border: oklch(0.402 0.061 64.6); /* #5f4123, added: 22 % fg over bg */
+    --high-fill: oklch(0.759 0.15 59.7); /* #f59740, added */
+    --medium-bg: oklch(0.287 0.045 99.6); /* #302b0e */
+    --medium-fg: oklch(0.8841 0.1584 97.87); /* #f5d94a */
+    --medium-border: oklch(0.418 0.071 99.3); /* #564d1a, added: 22 % fg over bg */
+    --medium-fill: oklch(0.88 0.15 95.3); /* #f6d653, added */
+    --low-bg: oklch(0.287 0.009 285.8); /* #2a2a2f */
+    --low-fg: oklch(0.823 0.011 286.2); /* #c4c4cc */
+    --low-border: oklch(0.404 0.01 285.9); /* #48484e, added: 22 % fg over bg */
+    --low-fill: oklch(0.519 0.012 58); /* #6e6762, added */
+    --success-bg: oklch(0.259 0.034 163.1); /* #13291f */
+    --success-fg: oklch(0.845 0.13 165); /* #6ee7b7 */
+    --success-border: oklch(0.389 0.055 164.7); /* #254e3d, added: 22 % fg over bg */
+    --success-fill: oklch(0.76 0.13 164.8); /* #4fcb9c, added */
+    --info-bg: oklch(0.247 0.029 249); /* #16222e, added */
+    --info-fg: oklch(0.82 0.057 248.5); /* #a8c8e8, added */
+    --info-border: oklch(0.372 0.035 248.8); /* #324252, added: 22 % fg over bg */
+    --info-fill: oklch(0.66 0.09 245); /* #6198c6, added */
+    /* Heat-table steps above the bg (statistics): fixed mixes of fill over bg, text stays the text colour. */
+    --critical-heat-1: oklch(0.297 0.059 22.8); /* #46201f, added: 12 % fill over bg */
+    --critical-heat-2: oklch(0.343 0.076 26.4); /* #5a2723, added: 24 % fill over bg */
+    --critical-heat-3: oklch(0.391 0.094 28.3); /* #6f2e27, added: 36 % fill over bg */
+    --high-heat-1: oklch(0.337 0.057 62.6); /* #4c3015, added: 12 % fill over bg */
+    --high-heat-2: oklch(0.395 0.07 62.4); /* #613d1a, added: 24 % fill over bg */
+    --high-heat-3: oklch(0.451 0.082 61.6); /* #764a20, added: 36 % fill over bg */
+    --medium-heat-1: oklch(0.359 0.059 98); /* #453d15, added: 12 % fill over bg */
+    --medium-heat-2: oklch(0.43 0.071 98.2); /* #5a501d, added: 24 % fill over bg */
+    --medium-heat-3: oklch(0.5 0.083 96.5); /* #716325, added: 36 % fill over bg */
+    --low-heat-1: oklch(0.316 0.007 297.4); /* #323135, added: 12 % fill over bg */
+    --low-heat-2: oklch(0.343 0.005 301.2); /* #39383b, added: 24 % fill over bg */
+    --low-heat-3: oklch(0.37 0.004 325.7); /* #413f41, added: 36 % fill over bg */
     --shadow-xs: none;
-    --sidebar: oklch(0.205 0.014 15);
-    --sidebar-accent: oklch(0.3 0.05 12);
-    --sidebar-accent-foreground: oklch(0.8 0.09 10);
-    --sidebar-hover: oklch(0.27 0.016 15);
-    --chart-critical: oklch(0.66 0.2 30);
-    --chart-high: oklch(0.76 0.16 58);
-    --chart-medium: oklch(0.84 0.13 85);
-    --chart-low: oklch(0.6 0.01 20);
+    --shadow-overlay: 0 20px 50px oklch(0 0 0 / 55%);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: oklch(0.185 0.012 15);
-  --foreground: oklch(0.965 0.004 20);
-  --card: oklch(0.225 0.015 15);
-  --card-foreground: oklch(0.965 0.004 20);
-  --primary: oklch(0.5 0.15 12);
-  --primary-foreground: oklch(1 0 0);
-  --primary-text: oklch(0.78 0.1 10);
-  --muted: oklch(0.27 0.016 15);
-  --muted-foreground: oklch(0.75 0.015 20);
-  --accent: oklch(0.27 0.016 15);
-  --accent-foreground: oklch(0.965 0.004 20);
-  --border: oklch(0.97 0.005 20 / 9%);
-  --input: oklch(0.97 0.005 20 / 16%);
-  --ring: oklch(0.7 0.12 10);
-  --destructive: oklch(0.7 0.18 32);
-  --destructive-text: oklch(0.76 0.16 32);
-  --success: oklch(0.66 0.12 165);
-  --success-text: oklch(0.76 0.117 166);
-  --info: oklch(0.75 0.08 245);
-  --info-text: oklch(0.77 0.08 245);
-  --high: oklch(0.76 0.15 58);
-  --high-text: oklch(0.8 0.13 60);
-  --warning: oklch(0.76 0.14 82);
-  --warning-text: oklch(0.81 0.122 81);
-  --mark-hold: oklch(0.965 0.004 20);
-  --mark-beam: oklch(0.64 0.15 12);
+  /* Surfaces and text. */
+  --bg: oklch(0.181 0.005 39.3); /* #141110 */
+  --sidebar: oklch(0.191 0.007 34.3); /* #171312 */
+  --surface: oklch(0.213 0.007 48.4); /* #1c1816 */
+  --surface-2: oklch(0.231 0.009 43.1); /* #211c1a */
+  --border: oklch(0.282 0.01 48.3); /* #2e2825 */
+  --input-border: oklch(0.359 0.013 48.3); /* #433b37, added */
+  --text: oklch(0.952 0.006 43.3); /* #f3eeec */
+  --text-muted: oklch(0.711 0.011 48.6); /* #a8a09c */
+  --nav-active-bg: oklch(0.275 0.01 39.3); /* #2c2624 */
+  --row-selected-bg: oklch(0.266 0.01 39.3); /* #2a2422 */
+  --hover-bg: oklch(0.247 0.008 59.3); /* #24201d, added */
+  --neutral-bg: oklch(0.269 0.008 43.1); /* #2a2523, added */
+  --ring: var(--text);
+  /* Brand: the logo and the one primary action of a page, nothing else. */
+  --primary: oklch(0.707 0.138 9.8); /* #e8798d */
+  --primary-fg: oklch(0.181 0.037 3.4); /* #1f0a10 */
+  --primary-hover: oklch(0.765 0.108 8.3); /* #ee95a5, added */
+  --brand-mark: oklch(0.707 0.138 9.8); /* #e8798d */
+  /* States and severities: bg, fg (text and icons), border, fill (charts, meters, swatches). Never decorative. */
+  --critical-bg: oklch(0.25 0.042 18); /* #33191a */
+  --critical-fg: oklch(0.839 0.089 25.1); /* #ffb4ad */
+  --critical-border: oklch(0.353 0.074 23.9); /* #5c2a28 */
+  --critical-fill: oklch(0.64 0.189 32.2); /* #e85339, added */
+  --high-bg: oklch(0.28 0.045 65.4); /* #38240f */
+  --high-fg: oklch(0.837 0.117 66.3); /* #fdba74 */
+  --high-border: oklch(0.402 0.061 64.6); /* #5f4123, added: 22 % fg over bg */
+  --high-fill: oklch(0.759 0.15 59.7); /* #f59740, added */
+  --medium-bg: oklch(0.287 0.045 99.6); /* #302b0e */
+  --medium-fg: oklch(0.8841 0.1584 97.87); /* #f5d94a */
+  --medium-border: oklch(0.418 0.071 99.3); /* #564d1a, added: 22 % fg over bg */
+  --medium-fill: oklch(0.88 0.15 95.3); /* #f6d653, added */
+  --low-bg: oklch(0.287 0.009 285.8); /* #2a2a2f */
+  --low-fg: oklch(0.823 0.011 286.2); /* #c4c4cc */
+  --low-border: oklch(0.404 0.01 285.9); /* #48484e, added: 22 % fg over bg */
+  --low-fill: oklch(0.519 0.012 58); /* #6e6762, added */
+  --success-bg: oklch(0.259 0.034 163.1); /* #13291f */
+  --success-fg: oklch(0.845 0.13 165); /* #6ee7b7 */
+  --success-border: oklch(0.389 0.055 164.7); /* #254e3d, added: 22 % fg over bg */
+  --success-fill: oklch(0.76 0.13 164.8); /* #4fcb9c, added */
+  --info-bg: oklch(0.247 0.029 249); /* #16222e, added */
+  --info-fg: oklch(0.82 0.057 248.5); /* #a8c8e8, added */
+  --info-border: oklch(0.372 0.035 248.8); /* #324252, added: 22 % fg over bg */
+  --info-fill: oklch(0.66 0.09 245); /* #6198c6, added */
+  /* Heat-table steps above the bg (statistics): fixed mixes of fill over bg, text stays the text colour. */
+  --critical-heat-1: oklch(0.297 0.059 22.8); /* #46201f, added: 12 % fill over bg */
+  --critical-heat-2: oklch(0.343 0.076 26.4); /* #5a2723, added: 24 % fill over bg */
+  --critical-heat-3: oklch(0.391 0.094 28.3); /* #6f2e27, added: 36 % fill over bg */
+  --high-heat-1: oklch(0.337 0.057 62.6); /* #4c3015, added: 12 % fill over bg */
+  --high-heat-2: oklch(0.395 0.07 62.4); /* #613d1a, added: 24 % fill over bg */
+  --high-heat-3: oklch(0.451 0.082 61.6); /* #764a20, added: 36 % fill over bg */
+  --medium-heat-1: oklch(0.359 0.059 98); /* #453d15, added: 12 % fill over bg */
+  --medium-heat-2: oklch(0.43 0.071 98.2); /* #5a501d, added: 24 % fill over bg */
+  --medium-heat-3: oklch(0.5 0.083 96.5); /* #716325, added: 36 % fill over bg */
+  --low-heat-1: oklch(0.316 0.007 297.4); /* #323135, added: 12 % fill over bg */
+  --low-heat-2: oklch(0.343 0.005 301.2); /* #39383b, added: 24 % fill over bg */
+  --low-heat-3: oklch(0.37 0.004 325.7); /* #413f41, added: 36 % fill over bg */
   --shadow-xs: none;
-  --sidebar: oklch(0.205 0.014 15);
-  --sidebar-accent: oklch(0.3 0.05 12);
-  --sidebar-accent-foreground: oklch(0.8 0.09 10);
-  --sidebar-hover: oklch(0.27 0.016 15);
-  --chart-critical: oklch(0.66 0.2 30);
-  --chart-high: oklch(0.76 0.16 58);
-  --chart-medium: oklch(0.84 0.13 85);
-  --chart-low: oklch(0.6 0.01 20);
+  --shadow-overlay: 0 20px 50px oklch(0 0 0 / 55%);
 }
 
 @theme inline {
   --font-sans: "Inter Tight", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary-text: var(--primary-text);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-destructive: var(--destructive);
-  --color-destructive-text: var(--destructive-text);
-  --color-success: var(--success);
-  --color-success-text: var(--success-text);
-  --color-info: var(--info);
-  --color-info-text: var(--info-text);
-  --color-high: var(--high);
-  --color-high-text: var(--high-text);
-  --color-warning: var(--warning);
-  --color-warning-text: var(--warning-text);
+  /* Tailwind names on the semantic tokens; bg-card, text-muted-foreground and the like keep their shadcn names. */
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-surface-2: var(--surface-2);
   --color-sidebar: var(--sidebar);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-hover: var(--sidebar-hover);
-  --color-chart-critical: var(--chart-critical);
-  --color-chart-high: var(--chart-high);
-  --color-chart-medium: var(--chart-medium);
-  --color-chart-low: var(--chart-low);
+  --color-muted: var(--neutral-bg);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--hover-bg);
+  --color-accent-foreground: var(--text);
+  --color-nav-active: var(--nav-active-bg);
+  --color-row-selected: var(--row-selected-bg);
+  --color-border: var(--border);
+  --color-input: var(--input-border);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-fg);
+  --color-primary-hover: var(--primary-hover);
+  --color-brand-mark: var(--brand-mark);
+  /* text-critical is the fg colour; bg-critical-bg, border-critical-border and fill-critical-fill the others. */
+  --color-critical: var(--critical-fg);
+  --color-critical-bg: var(--critical-bg);
+  --color-critical-border: var(--critical-border);
+  --color-critical-fill: var(--critical-fill);
+  --color-high: var(--high-fg);
+  --color-high-bg: var(--high-bg);
+  --color-high-border: var(--high-border);
+  --color-high-fill: var(--high-fill);
+  --color-medium: var(--medium-fg);
+  --color-medium-bg: var(--medium-bg);
+  --color-medium-border: var(--medium-border);
+  --color-medium-fill: var(--medium-fill);
+  --color-low: var(--low-fg);
+  --color-low-bg: var(--low-bg);
+  --color-low-border: var(--low-border);
+  --color-low-fill: var(--low-fill);
+  --color-success: var(--success-fg);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-success-fill: var(--success-fill);
+  --color-info: var(--info-fg);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+  --color-info-fill: var(--info-fill);
+  --color-critical-heat-1: var(--critical-heat-1);
+  --color-critical-heat-2: var(--critical-heat-2);
+  --color-critical-heat-3: var(--critical-heat-3);
+  --color-high-heat-1: var(--high-heat-1);
+  --color-high-heat-2: var(--high-heat-2);
+  --color-high-heat-3: var(--high-heat-3);
+  --color-medium-heat-1: var(--medium-heat-1);
+  --color-medium-heat-2: var(--medium-heat-2);
+  --color-medium-heat-3: var(--medium-heat-3);
+  --color-low-heat-1: var(--low-heat-1);
+  --color-low-heat-2: var(--low-heat-2);
+  --color-low-heat-3: var(--low-heat-3);
   /* Layout steps on the content container (AGENTS.md rule 5): base, wide from 1450 px, xwide from 1900 px. */
   --container-wide: 90.625rem;
   --container-xwide: 118.75rem;
@@ -186,6 +284,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --shadow-xs: var(--shadow-xs);
+  --shadow-overlay: var(--shadow-overlay);
 }
 
 @layer base {
@@ -202,8 +301,8 @@
   body {
     margin: 0;
     min-height: 100dvh;
-    background: var(--background);
-    color: var(--foreground);
+    background: var(--bg);
+    color: var(--text);
     font-family: var(--font-sans);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
@@ -218,20 +317,45 @@
 @layer components {
   /* Table rows tint on hover (mockup); rows that open something also show the pointer. */
   tbody tr:hover {
-    background: color-mix(in oklch, var(--muted) 60%, transparent);
+    background: var(--hover-bg);
   }
   tbody tr.row-link {
     cursor: pointer;
   }
+  /* A selected row is neutral (AGENTS.md rule 6): its own surface, the full text colour and weight 600, no tint. */
   tbody tr[aria-selected="true"],
   tbody tr[aria-selected="true"]:hover {
-    background: var(--sidebar-accent);
+    background: var(--row-selected-bg);
+    color: var(--text);
+  }
+  tbody tr[aria-selected="true"] > :is(td, th) {
+    font-weight: 600;
+  }
+  /*
+   * Links are neutral: the text colour, underlined (AGENTS.md rule 6). Burgundy stays for the logo and the primary
+   * action; the underline is what tells a link from text, so colour is never the only signal.
+   */
+  .link {
+    color: var(--text);
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .link:hover {
+    text-decoration-thickness: 2px;
+  }
+  /*
+   * The dimmed page behind a modal dialog or drawer. A literal here, not a token: older browsers do not let ::backdrop
+   * inherit custom properties from :root. Neutral and the same in both themes.
+   */
+  dialog::backdrop {
+    background-color: oklch(0.15 0.006 56 / 55%);
   }
   /* A relative time whose exact value is in its tooltip. */
   .dash-time {
     text-decoration: underline dotted;
     text-underline-offset: 3px;
-    text-decoration-color: var(--input);
+    text-decoration-color: var(--input-border);
   }
 }
 
@@ -305,9 +429,9 @@
       max-block-size: min(22rem, 60dvh);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
-      background: var(--card);
-      color: var(--card-foreground);
-      box-shadow: 0 8px 24px -6px oklch(0.21 0.02 15 / 18%);
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow-overlay);
     }
     .ui-select option {
       gap: 0.5rem;
@@ -317,18 +441,18 @@
     }
     .ui-select option:hover,
     .ui-select option:focus-visible {
-      background: var(--accent);
-      color: var(--accent-foreground);
+      background: var(--hover-bg);
+      color: var(--text);
       outline: none;
     }
     .ui-select option:checked {
       font-weight: 500;
     }
     .ui-select option::checkmark {
-      color: var(--primary);
+      color: var(--text);
     }
     .ui-select option:disabled {
-      color: var(--muted-foreground);
+      color: var(--text-muted);
       cursor: default;
     }
   }

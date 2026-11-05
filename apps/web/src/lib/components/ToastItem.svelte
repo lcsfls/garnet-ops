@@ -4,6 +4,7 @@
   import { goto } from "$app/navigation";
   import { cn } from "../cn.ts";
   import { t } from "../i18n.svelte.ts";
+  import { TONE_CLASSES } from "../severity-meta.ts";
   import { toast as store } from "../toast.svelte.ts";
   import type { Toast, ToastKind } from "../toast-queue.ts";
 
@@ -13,14 +14,14 @@
    * proof only (AGENTS.md rule 6), and a saved setting proves nothing.
    */
   const TONE: Record<ToastKind, string> = {
-    success: "border-border",
-    error: "border-destructive/50",
-    info: "border-info/50",
+    success: "border-border bg-card",
+    error: TONE_CLASSES.critical.callout,
+    info: TONE_CLASSES.info.callout,
   };
   const ICON_TONE: Record<ToastKind, string> = {
     success: "text-foreground",
-    error: "text-destructive-text",
-    info: "text-info-text",
+    error: TONE_CLASSES.critical.text,
+    info: TONE_CLASSES.info.text,
   };
 
   /**
@@ -85,7 +86,7 @@
   role={toast.kind === "error" ? "alert" : "status"}
   aria-live={toast.kind === "error" ? "assertive" : "polite"}
   class={cn(
-    "toast-in pointer-events-auto flex items-start gap-2.5 rounded-lg border bg-card p-3 text-sm text-card-foreground shadow-xs",
+    "toast-in pointer-events-auto flex items-start gap-2.5 rounded-lg border p-3 text-sm text-foreground shadow-xs",
     TONE[toast.kind],
   )}
 >
@@ -102,7 +103,7 @@
           void goto(href);
           store.dismiss(toast.id);
         }}
-        class="mt-1 block w-fit font-medium text-primary-text underline underline-offset-4"
+        class="link mt-1 block w-fit font-medium"
       >
         {toast.action.label}
       </a>

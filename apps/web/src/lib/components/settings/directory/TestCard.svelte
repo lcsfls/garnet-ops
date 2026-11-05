@@ -78,7 +78,7 @@
             {result.ok ? t("directory.testOk") : t("directory.testFailed")}
           </Badge>
           {#if !result.ok && result.problem}
-            <span class="text-sm text-destructive-text">{problemText(result.problem)}</span>
+            <span class="text-sm text-critical">{problemText(result.problem)}</span>
           {/if}
           <span class="ml-auto text-sm text-muted-foreground">
             {t("directory.testLatency", { ms: result.latencyMs })}
@@ -93,7 +93,7 @@
                 {s.ok ? t("directory.serverOk") : t("directory.serverFailed")}
               </Badge>
               {#if !s.ok}
-                <span class="text-destructive-text">{problemText(s.problem, s.detail)}</span>
+                <span class="text-critical">{problemText(s.problem, s.detail)}</span>
               {/if}
             </li>
           {/each}
@@ -119,7 +119,7 @@
                 {#if result.user.role}
                   <Badge tone="neutral">{t(`team.roles.${result.user.role}`)}</Badge>
                 {:else}
-                  <span class="text-destructive-text">{t("directory.testNoRole")}</span>
+                  <span class="text-critical">{t("directory.testNoRole")}</span>
                 {/if}
               </dd>
             </dl>

@@ -10,7 +10,7 @@
   <div class="flex min-w-0 items-center gap-2">
     <code
       data-testid={id}
-      class="min-w-0 flex-1 rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm break-all select-all"
+      class="min-w-0 flex-1 rounded-md border bg-surface-2 px-3 py-2 font-mono text-sm break-all select-all"
     >
       {value}
     </code>

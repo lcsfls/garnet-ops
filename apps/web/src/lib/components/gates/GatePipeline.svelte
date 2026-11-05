@@ -52,7 +52,7 @@
         href={GATES_DOCS}
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-1.5 text-sm text-primary-text underline-offset-4 hover:underline"
+        class="link inline-flex items-center gap-1.5 text-sm"
       >
         {t("gates.pipelineDocs")}
         <ExternalLink aria-hidden="true" class="size-3.5" />

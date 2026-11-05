@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { cn } from "../../cn.ts";
   import { formatDateTime, formatRelative } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import { ruleText } from "../../website-rules.ts";
@@ -9,12 +8,11 @@
   import Segmented from "../Segmented.svelte";
   import Badge from "../ui/Badge.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
-  import { SEVERITY_EDGE } from "../ui/tones.ts";
 
   type State = "open" | "resolved" | "all";
   /**
-   * What looks wrong from the outside, in plain sentences, worst first; each with its severity's word, icon and a strip in its
-   * colour. A rule this version does not know shows as its id.
+   * What looks wrong from the outside, in plain sentences, worst first; each with its severity pill (word and level). No coloured
+   * edge (AGENTS.md rule 6). A rule this version does not know shows as its id.
    */
   let {
     detail,
@@ -63,13 +61,7 @@
     <ul data-testid="websites-findings">
       {#each shown as f (f.id)}
         {@const text = ruleText(f)}
-        <li
-          class={cn(
-            "border-t border-l-4 py-3 pr-5 pl-4 first:border-t-0",
-            f.state === "open" ? SEVERITY_EDGE[f.severity] : "border-l-transparent",
-          )}
-          data-severity={f.severity}
-        >
+        <li class="border-t px-5 py-3 first:border-t-0" data-severity={f.severity}>
           <div class="flex flex-wrap items-center gap-2">
             <SeverityBadge severity={f.severity} />
             <b class="font-semibold">{text.title}</b>

@@ -22,7 +22,7 @@
 <Card class="h-full">
   <CardHeader title={t("gates.recentTitle")} description={t("gates.recentDescription")}>
     {#snippet actions()}
-      <a href="/gates" class="inline-flex items-center gap-1.5 text-sm font-medium text-primary-text hover:underline">
+      <a href="/gates" class="link inline-flex items-center gap-1.5 text-sm font-medium">
         {t("gates.allRuns")}
         <ArrowRight aria-hidden="true" class="size-4" />
       </a>

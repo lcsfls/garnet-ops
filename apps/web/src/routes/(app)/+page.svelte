@@ -45,7 +45,7 @@
 <PageHeader icon={LayoutGrid} title={t("overview.title")} description={t("overview.description")}>
   {#snippet actions()}
     {#if scanAll.isError}
-      <span role="alert" class="text-sm text-destructive-text">
+      <span role="alert" class="text-sm text-critical">
         {t("errors.actionFailed")}
       </span>
     {:else if queued !== null}

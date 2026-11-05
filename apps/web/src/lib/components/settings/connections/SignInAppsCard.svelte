@@ -161,14 +161,14 @@
           {/each}
         </Select>
       </div>
-      <p class="rounded-md border bg-muted/40 px-3 py-2.5 text-sm">
+      <p class="rounded-md border bg-surface-2 px-3 py-2.5 text-sm">
         {forge === "github" ? t("connections.apps.githubSteps") : t("connections.apps.giteaSteps")}
       </p>
       {#if forge !== "github" && list.data}
         <div class="grid gap-1.5">
           <span class="text-sm font-medium">{t("connections.apps.redirectUri")}</span>
           <div class="flex items-center gap-2">
-            <code class="min-w-0 flex-1 truncate rounded-md border bg-muted/40 px-3 py-2 text-sm">{list.data.redirectUri}</code>
+            <code class="min-w-0 flex-1 truncate rounded-md border bg-surface-2 px-3 py-2 text-sm">{list.data.redirectUri}</code>
             <CopyButton text={list.data.redirectUri} />
           </div>
         </div>

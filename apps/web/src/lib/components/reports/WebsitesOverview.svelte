@@ -15,7 +15,6 @@
   import SortHeader, { type SortDir } from "../SortHeader.svelte";
   import Badge from "../ui/Badge.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
-  import { SEVERITY_EDGE } from "../ui/tones.ts";
 
   /**
    * Every website at a glance (ADR 0047): the state of its daily look, worst first, sortable, each row opening the site's
@@ -193,7 +192,7 @@
           data-website={w.value}
           onclick={rowClick(() => void goto(reportHref(w)))}
         >
-          <td class="max-w-0 border-l-4 px-5 py-3 @wide:max-w-none {w.worst ? SEVERITY_EDGE[w.worst] : 'border-l-transparent'}">
+          <td class="max-w-0 px-5 py-3 @wide:max-w-none">
             <div class="flex min-w-0 items-start gap-2.5">
               <Globe aria-hidden="true" class="mt-1 size-4 flex-none text-muted-foreground" />
               <div class="min-w-0">

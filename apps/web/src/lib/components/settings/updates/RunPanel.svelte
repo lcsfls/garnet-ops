@@ -79,18 +79,14 @@
           max={100}
           value={run.progress}
           aria-label={texts.progressLabel}
-          class="h-2 w-full overflow-hidden rounded-full bg-muted [&::-moz-progress-bar]:bg-info [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-info"
+          class="h-2 w-full overflow-hidden rounded-full bg-muted [&::-moz-progress-bar]:bg-info-fill [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-info-fill"
         ></progress>
         <ol class="flex flex-wrap gap-1.5">
           {#each run.steps.filter((step) => step.status !== "skipped") as step (step.id)}
             <li>
               <Badge
-                class={cn(
-                  step.status === "done" && "bg-muted text-foreground",
-                  step.status === "running" && "bg-info/15 text-info-text",
-                  step.status === "failed" && "bg-destructive/15 text-destructive-text",
-                  step.status === "pending" && "bg-muted text-muted-foreground",
-                )}
+                tone={step.status === "running" ? "info" : step.status === "failed" ? "critical" : "neutral"}
+                class={cn(step.status === "done" && "text-foreground")}
               >
                 {messages.steps[step.id]}
               </Badge>

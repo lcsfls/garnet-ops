@@ -158,7 +158,7 @@
 
 {#snippet headerActions()}
   {#if scan.isError}
-    <span role="alert" class="text-sm text-destructive-text">{t("errors.actionFailed")}</span>
+    <span role="alert" class="text-sm text-critical">{t("errors.actionFailed")}</span>
   {:else if queued !== null}
     <span role="status" class="text-sm text-muted-foreground">{t("overview.scansQueued", { count: queued })}</span>
   {/if}
@@ -197,7 +197,7 @@
         onclick={() => toggleSeverity(s)}
         class={cn(
           "rounded-md border p-0.5",
-          selected.has(s) ? "border-ring" : "border-transparent opacity-70 hover:opacity-100",
+          selected.has(s) ? "border-foreground" : "border-transparent opacity-70 hover:opacity-100",
         )}
       >
         <SeverityBadge severity={s} />
@@ -246,7 +246,7 @@
     disabled={!hasFilters}
     aria-hidden={!hasFilters}
     tabindex={hasFilters ? undefined : -1}
-    class={cn("text-sm font-medium text-primary-text hover:underline", !hasFilters && "invisible")}
+    class={cn("link text-sm font-medium", !hasFilters && "invisible")}
   >
     {t("findings.clearFilters")}
   </button>
@@ -348,7 +348,7 @@
               >
                 {f.vulnerabilityId}
               </button>
-              {#if f.knownExploited}<div class="text-sm text-destructive-text">{t("findings.kev")}</div>{/if}
+              {#if f.knownExploited}<div class="text-sm text-critical">{t("findings.kev")}</div>{/if}
             </td>
             <td class="px-3 py-2.5 text-right font-mono text-sm tabular-nums">
               {#if f.cvssScore !== null}{f.cvssScore.toFixed(1)}{:else}{@render missing()}{/if}

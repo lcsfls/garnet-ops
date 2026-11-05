@@ -2,8 +2,8 @@
   import { cn } from "../../cn.ts";
   import { formatNumber } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
+  import { BADGE_TONE } from "../../severity-meta.ts";
   import type { ExposureSeverity } from "../../websites.ts";
-  import { BADGE_TONE } from "../ui/tones.ts";
 
   /** One number of open findings of a severity, in the fixed severity colour when it is above zero. */
   let { severity, n }: { severity: ExposureSeverity; n: number } = $props();

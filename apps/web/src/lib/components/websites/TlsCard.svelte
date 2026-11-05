@@ -112,7 +112,7 @@
               <ul class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
                 {#each others.slice(0, 12) as other (other.id)}
                   <li>
-                    <a href={`/websites/${encodeURIComponent(other.id)}?tab=tls`} class="break-all text-primary-text hover:underline"
+                    <a href={`/websites/${encodeURIComponent(other.id)}?tab=tls`} class="link break-all"
                       >{other.value}</a
                     >
                   </li>
@@ -120,7 +120,7 @@
               </ul>
               <a
                 href={href("/websites/certificates", { certificate: tls.cert.fingerprint })}
-                class="mt-1 inline-block text-primary-text hover:underline">{t("websites.tlsAllNames")}</a
+                class="link mt-1 inline-block">{t("websites.tlsAllNames")}</a
               >
             </div>
           {/if}

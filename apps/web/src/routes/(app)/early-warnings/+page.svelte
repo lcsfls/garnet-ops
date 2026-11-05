@@ -164,7 +164,7 @@
           <td class="px-3 py-2.5">
             <a
               href={href("/findings", { q: w.vulnerabilityId, state: "all" })}
-              class="font-mono text-sm break-all text-primary-text hover:underline">{w.vulnerabilityId}</a
+              class="link font-mono text-sm break-all">{w.vulnerabilityId}</a
             >
             {#if w.knownExploited}
               <div class="mt-1"><Badge tone="critical">{t("earlyWarnings.knownExploited")}</Badge></div>

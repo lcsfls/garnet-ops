@@ -30,7 +30,7 @@
     <path
       {d}
       fill="none"
-      class="stroke-muted-foreground/70"
+      class="stroke-muted-foreground"
       stroke-width="2"
       stroke-linejoin="round"
       stroke-linecap="round"

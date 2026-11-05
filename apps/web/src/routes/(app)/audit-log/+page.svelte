@@ -93,11 +93,7 @@
     <td class="px-3 py-2.5">
       <div>{actionLabel(entry)}</div>
       {#if outcomeKey && hasKey(outcomeKey)}
-        <Badge
-          class={outcome === "failure"
-            ? "mt-1 bg-destructive/15 text-destructive-text"
-            : "mt-1 bg-muted text-muted-foreground"}
-        >
+        <Badge class="mt-1" tone={outcome === "failure" ? "critical" : "neutral"}>
           {t(outcomeKey as never)}
         </Badge>
       {/if}

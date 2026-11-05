@@ -28,7 +28,7 @@
   bind:this={dialog}
   onclose={onClose}
   aria-labelledby={titleId}
-  class="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-dvh w-[min(36rem,100vw)] max-w-none overflow-hidden border-l bg-background p-0 text-foreground shadow-[0_0_40px_oklch(0_0_0/25%)] backdrop:bg-[oklch(0.12_0.02_15/50%)]"
+  class="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-dvh w-[min(36rem,100vw)] max-w-none overflow-hidden border-l bg-background p-0 text-foreground shadow-overlay"
 >
   {#if open}
     <div class="flex h-full min-h-0 flex-col">

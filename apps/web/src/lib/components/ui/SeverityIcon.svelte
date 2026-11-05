@@ -1,27 +1,19 @@
 <script lang="ts">
-  import { CircleAlert, Flame, Info, TriangleAlert } from "@lucide/svelte";
   import { cn } from "../../cn.ts";
+  import { severityMeta, TONE_CLASSES } from "../../severity-meta.ts";
   import type { Severity } from "../../types.ts";
-  import { SEVERITY_TEXT } from "./tones.ts";
+  import StateIcon from "./StateIcon.svelte";
 
   /**
    * One shape per severity, so it is told apart without colour (WCAG 1.4.1): critical a flame, high a triangle, medium a
-   * circle with a mark, low an "i". Decorative: the severity's word is always next to it or in its label.
+   * circle with a mark, low an "i". For places that show the icon alone (a tab); the severity's word is in its label.
    */
   let {
     severity,
     colored = false,
     class: className,
   }: { severity: Severity; colored?: boolean; class?: string } = $props();
-  const Icon = $derived(
-    severity === "critical"
-      ? Flame
-      : severity === "high"
-        ? TriangleAlert
-        : severity === "medium"
-          ? CircleAlert
-          : Info,
-  );
+  const meta = $derived(severityMeta(severity));
 </script>
 
-<Icon aria-hidden="true" class={cn("flex-none", colored && SEVERITY_TEXT[severity], className)} />
+<StateIcon name={meta.icon} class={cn("flex-none", colored && TONE_CLASSES[meta.tone].text, className)} />

@@ -116,7 +116,7 @@
       <section class="border-t @wide:col-span-2 @xwide:col-span-1 @xwide:border-t-0 @xwide:border-l">
         <div class="flex items-baseline justify-between gap-3 px-5 pt-3 pb-2">
           <h3 class="text-sm font-medium text-muted-foreground">{t("reports.worstTitle")}</h3>
-          <a class="text-sm text-primary-text hover:underline" href={href("/findings", { repositoryId: id })}
+          <a class="link text-sm" href={href("/findings", { repositoryId: id })}
             >{t("reports.allFindings")}</a
           >
         </div>

@@ -87,7 +87,7 @@
         <span>
           <a
             href="/settings"
-            class="text-primary-text underline-offset-4 hover:underline"
+            class="link"
             data-testid="settings-link-scanning"
           >
             {t("systemStatus.settingsLink")}

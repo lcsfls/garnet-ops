@@ -152,7 +152,7 @@
       maxlength={500}
       class="font-mono"
     />
-    <div class="grid gap-1.5 rounded-md border bg-muted/40 px-3 py-2.5 text-sm">
+    <div class="grid gap-1.5 rounded-md border bg-surface-2 px-3 py-2.5 text-sm">
       <b>{t("connections.scopesTitle")}</b>
       {#if (replacing?.forgeKind ?? forge) === "github"}
         <p>{t("connections.scopesGithub")}</p>

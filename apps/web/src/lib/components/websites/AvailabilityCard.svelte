@@ -2,8 +2,10 @@
   import { UPTIME_INTERVALS, UPTIME_SLOW_MS, type UptimeError } from "@garnetops/core/uptime";
   import { createMutation, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "../../api.ts";
+  import { cn } from "../../cn.ts";
   import { formatDateTime, formatNumber, formatRelative } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
+  import { TONE_CLASSES } from "../../severity-meta.ts";
   import { toast } from "../../toast.svelte.ts";
   import type { ExposureDetail } from "../../websites.ts";
   import Card from "../Card.svelte";
@@ -91,8 +93,8 @@
                 class={h.checks === 0
                   ? "flex-1 rounded-sm bg-muted"
                   : h.failures > 0
-                    ? "flex-1 rounded-sm bg-high"
-                    : "flex-1 rounded-sm bg-muted-foreground/40"}
+                    ? cn("flex-1 rounded-sm", TONE_CLASSES.high.swatch)
+                    : "flex-1 rounded-sm bg-input"}
                 title={h.checks === 0
                   ? `${formatDateTime(h.from)} · ${t("websites.uptimeNoChecks")}`
                   : h.failures > 0

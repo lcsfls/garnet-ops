@@ -70,7 +70,7 @@
                 {t("overview.scanSummary", { added: s.newFindings ?? 0, resolved: s.resolvedFindings ?? 0 })}
               </a>
             {:else if s.error}
-              <div class="mt-1 text-sm text-destructive-text">{scanErrorText(s.error)}</div>
+              <div class="mt-1 text-sm text-critical">{scanErrorText(s.error)}</div>
             {/if}
           </td>
           <td class="hidden px-3 py-2.5 text-right tabular-nums @xl:table-cell">

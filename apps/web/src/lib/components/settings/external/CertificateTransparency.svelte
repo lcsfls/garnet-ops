@@ -83,7 +83,7 @@
         </Notice>
         <div class="grid gap-1">
           <span class="text-sm font-medium">{t("websites.ctRequest")}</span>
-          <code data-testid="ct-url" class="rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm break-all">
+          <code data-testid="ct-url" class="rounded-md border bg-surface-2 px-3 py-2 font-mono text-sm break-all">
             {ct.provider.urlTemplate}
           </code>
           <span class="text-sm text-muted-foreground">{t("websites.ctRequestHint")}</span>
@@ -133,7 +133,7 @@
       <Notice title={t("websites.ctLeavesTitle", { provider: ct.provider.name })}>
         {t("websites.ctLeavesText", { provider: ct.provider.name, operator: ct.provider.operator })}
       </Notice>
-      <code class="rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm break-all">{ct.provider.urlTemplate}</code>
+      <code class="rounded-md border bg-surface-2 px-3 py-2 font-mono text-sm break-all">{ct.provider.urlTemplate}</code>
       <p class="text-sm text-muted-foreground">{t("websites.ctTermsNote", { provider: ct.provider.name })}</p>
       <label class="flex items-start gap-2.5 rounded-md border p-3">
         <Checkbox class="mt-1" bind:checked={acknowledged} />

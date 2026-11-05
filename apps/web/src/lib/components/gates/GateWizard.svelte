@@ -83,7 +83,7 @@
             href={secretsUrl(location)}
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex items-center gap-1.5 text-sm font-medium text-primary-text hover:underline"
+            class="link inline-flex items-center gap-1.5 text-sm font-medium"
           >
             {t("gates.wizard.openSecrets")}
             <ExternalLink aria-hidden="true" class="size-3.5" />
@@ -108,7 +108,7 @@
             href={fileLink}
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex items-center gap-1.5 text-sm font-medium text-primary-text hover:underline"
+            class="link inline-flex items-center gap-1.5 text-sm font-medium"
           >
             {t("gates.wizard.createOnGithub")}
             <ExternalLink aria-hidden="true" class="size-3.5" />

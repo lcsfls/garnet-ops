@@ -58,7 +58,7 @@
     <p class="px-5 pb-4 text-sm">
       <a
         href={href("/settings", { section: "updates" })}
-        class="text-primary-text underline-offset-4 hover:underline"
+        class="link"
         data-testid="settings-link-updates"
       >
         {t("systemStatus.settingsLink")}

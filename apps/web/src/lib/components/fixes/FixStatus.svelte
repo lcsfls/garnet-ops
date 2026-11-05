@@ -32,7 +32,7 @@
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-1 text-sm font-medium text-primary-text hover:underline"
+        class="link inline-flex items-center gap-1 text-sm font-medium"
       >
         {t("fixes.prNumber", { number: p.pr.number })}
         <ExternalLink aria-hidden="true" class="size-3.5" />
@@ -52,7 +52,7 @@
 {:else}
   <div class="grid justify-items-start gap-1.5">
     {#if p.pr?.state === "failed"}
-      <span class="text-sm text-destructive-text"
+      <span class="text-sm text-critical"
         >{t(`fixes.prState.failed`)}{p.pr.reason
           ? `: ${t(`fixes.failure.${camelCode(p.pr.reason)}` as MessageKey)}`
           : ""}</span
@@ -79,7 +79,7 @@
       <span class="text-sm text-muted-foreground"
         >{t("fixes.writeOff")}{#if admin}{" · "}<a
             href="/repositories/{encodeURIComponent(p.repositoryId)}"
-            class="font-medium text-primary-text hover:underline">{t("fixes.turnOnWriteAccess")}</a
+            class="link font-medium">{t("fixes.turnOnWriteAccess")}</a
           >{/if}</span
       >
     {/if}

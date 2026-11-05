@@ -1,8 +1,8 @@
 <script lang="ts">
   import { Clock } from "@lucide/svelte";
   import { cn } from "../../cn.ts";
+  import { BADGE_TONE } from "../../severity-meta.ts";
   import type { Grade } from "../../types.ts";
-  import { BADGE_TONE } from "../ui/tones.ts";
   import { GRADE_TONE } from "./grade-badge.ts";
 
   /** The letter in its colour, with a clock when the grade is from an earlier run. */

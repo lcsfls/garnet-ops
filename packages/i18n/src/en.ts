@@ -2220,6 +2220,8 @@ export const en = {
     chartKeysWeeks: "Use the left and right arrow keys to move through the weeks.",
     foundResolvedSelect:
       "Enter opens the findings found in that period. The table links to the resolved ones too.",
+    axisFound: "Found ↑",
+    axisResolved: "Resolved ↓",
   },
   setupChecklist: {
     title: "Getting started",

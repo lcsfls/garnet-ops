@@ -34,7 +34,7 @@
                 })}
               </a>
             {:else if s.error}
-              <div class="text-sm text-destructive-text">{scanErrorText(s.error)}</div>
+              <div class="text-sm text-critical">{scanErrorText(s.error)}</div>
             {/if}
           </div>
           <div class="flex flex-none flex-col items-end gap-1">

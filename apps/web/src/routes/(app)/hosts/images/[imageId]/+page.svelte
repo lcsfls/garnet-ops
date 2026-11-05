@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { ArrowLeft, Flame, Layers } from "@lucide/svelte";
+  import { ArrowLeft, Layers } from "@lucide/svelte";
   import { createQuery } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
+  import { cn } from "#lib/cn.ts";
   import Card from "#lib/components/Card.svelte";
   import CardHeader from "#lib/components/CardHeader.svelte";
   import SyncNote from "#lib/components/hosts/SyncNote.svelte";
@@ -11,11 +12,13 @@
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import RepositoryLink from "#lib/components/RepositoryLink.svelte";
   import SeverityBadge from "#lib/components/ui/SeverityBadge.svelte";
+  import StateIcon from "#lib/components/ui/StateIcon.svelte";
   import Facts from "#lib/components/websites/Facts.svelte";
   import { formatDateTime, formatRelative } from "#lib/format.ts";
   import { type ImageDetail, shortId } from "#lib/hosts.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
+  import { TONE_CLASSES } from "#lib/severity-meta.ts";
   import { page } from "$app/state";
   import type { PageData } from "./$types";
 
@@ -74,7 +77,7 @@
         <ul class="grid gap-1.5 px-5 pb-5 text-sm" data-testid="image-running">
           {#each image.running as r (`${r.hostId}-${r.containerId}`)}
             <li>
-              <a href={`/hosts/${encodeURIComponent(r.hostId)}`} class="font-medium text-primary-text hover:underline">{r.hostName}</a>
+              <a href={`/hosts/${encodeURIComponent(r.hostId)}`} class="link font-medium">{r.hostName}</a>
               <span class="text-muted-foreground">· {r.name}</span>
             </li>
           {/each}
@@ -117,8 +120,8 @@
                   <td class="px-3 py-2.5">
                     <span class="font-mono">{f.vulnerabilityId}</span>
                     {#if f.knownExploited}
-                      <span class="ml-1 inline-flex items-center gap-1 text-destructive-text">
-                        <Flame aria-hidden="true" class="size-3.5" />{t("hosts.knownExploited")}
+                      <span class={cn("ml-1 inline-flex items-center gap-1", TONE_CLASSES.critical.text)}>
+                        <StateIcon name="flame" class="size-3.5" />{t("hosts.knownExploited")}
                       </span>
                     {/if}
                   </td>

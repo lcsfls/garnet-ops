@@ -1,12 +1,13 @@
 <script lang="ts" module>
   export const BUTTON_VARIANTS = {
-    primary: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+    /** The one primary action of a view: the only burgundy besides the logo (AGENTS.md rule 6). */
+    primary: "bg-primary text-primary-foreground shadow-xs hover:bg-primary-hover",
     outline: "border border-input bg-card shadow-xs hover:bg-accent",
     ghost: "hover:bg-accent",
     /** Irreversible actions; vermilion text on the card surface keeps the contrast in both themes. */
-    destructive:
-      "border border-destructive/50 bg-card text-destructive-text shadow-xs hover:bg-destructive/10",
-    link: "h-auto px-0 text-primary-text underline-offset-4 hover:underline",
+    destructive: "border border-critical-border bg-card text-critical shadow-xs hover:bg-critical-bg",
+    /** A neutral link that looks like the other links (.link in app.css): text colour, underlined. */
+    link: "link h-auto px-0",
   } as const;
   export type ButtonVariant = keyof typeof BUTTON_VARIANTS;
 </script>

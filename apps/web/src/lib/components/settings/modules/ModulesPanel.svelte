@@ -28,7 +28,7 @@
 </Card>
 
 <p class="mt-4 text-sm text-muted-foreground">
-  {t("settings.modulesExternalHint")} <a href="/settings?section=external" class="text-primary-text hover:underline"
+  {t("settings.modulesExternalHint")} <a href="/settings?section=external" class="link"
     >{t("settings.sectionExternal")}</a
   >
 </p>

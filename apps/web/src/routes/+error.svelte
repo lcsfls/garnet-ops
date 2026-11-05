@@ -25,7 +25,7 @@
   <AuthLayout title={t("notFound.title")}>
     <div class="grid gap-4">
       <p>{t("notFound.text")}</p>
-      <a href="/" class="text-primary-text underline-offset-4 hover:underline">{t("notFound.back")}</a>
+      <a href="/" class="link">{t("notFound.back")}</a>
     </div>
   </AuthLayout>
 {:else}

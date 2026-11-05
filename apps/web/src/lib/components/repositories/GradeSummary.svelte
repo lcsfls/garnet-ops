@@ -18,7 +18,7 @@
     <GradeLetter grade={row.grade} stale={row.gradeStale} large />
     <span class="min-w-0 break-words">{text}</span>
     {#if gradeFindingFilter(row.gradeReason.rule)}
-      <GradeLink {id} reason={row.gradeReason} class="text-sm text-primary-text underline-offset-2 hover:underline">
+      <GradeLink {id} reason={row.gradeReason} class="link text-sm">
         {t("grades.show")}
       </GradeLink>
     {/if}

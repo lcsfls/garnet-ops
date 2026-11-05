@@ -29,7 +29,7 @@
         href={VULNDB_BUILD_DOCS}
         target="_blank"
         rel="noopener noreferrer"
-        class="text-primary-text underline-offset-4 hover:underline"
+        class="link"
         >{t("systemStatus.localBuild.howTo")}<ExternalLink aria-hidden="true" class="ml-1 inline size-3.5" /></a
       >
     </p>

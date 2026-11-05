@@ -145,7 +145,7 @@
 
 {#if failing.length > 0}
   <div class="mb-4 rounded-xl border bg-card px-5 py-3 text-sm" data-testid="pull-request-sources">
-    <div class="flex items-center gap-2 font-medium text-warning-text">
+    <div class="flex items-center gap-2 font-medium text-medium">
       <TriangleAlert aria-hidden="true" class="size-4" />{t("pullRequests.sourcesTitle")}
     </div>
     <ul class="mt-1 grid gap-0.5 text-muted-foreground">
@@ -177,7 +177,7 @@
                 href={p.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="min-w-0 font-medium break-words text-primary-text hover:underline"
+                class="link min-w-0 font-medium break-words"
               >
                 <span class="text-muted-foreground">#{p.number}</span>
                 {p.title}

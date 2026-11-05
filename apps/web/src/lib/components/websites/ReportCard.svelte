@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { ChevronRight, CircleCheck, CircleDashed } from "@lucide/svelte";
-  import { cn } from "../../cn.ts";
+  import { ChevronRight } from "@lucide/svelte";
   import { formatDate, formatNumber, formatRelative } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import type { WebsiteTab } from "../../search.ts";
@@ -12,14 +11,12 @@
   import CardHeader from "../CardHeader.svelte";
   import Badge from "../ui/Badge.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
-  import SeverityIcon from "../ui/SeverityIcon.svelte";
-  import { SEVERITY_EDGE } from "../ui/tones.ts";
 
   /**
    * Everything checked for one website in one list (the report): each area with a plain state and one sentence, problems with the
    * worst finding's title. A row opens the tab with the details. Nothing here is new data; fine is neutral, not green.
-   * What needs a look comes first, worst first, with its severity's icon and a strip in its colour; then what is fine, then what
-   * was not checked. Each state has its own icon, so none of it depends on colour alone.
+   * What needs a look comes first, worst first, with its severity pill (word and level, no coloured edge: AGENTS.md rule 6);
+   * then what is fine, then what was not checked. Each state is written out, so none of it depends on colour.
    */
   let {
     detail,
@@ -114,21 +111,11 @@
       <li class="border-b @wide:odd:border-r @xwide:border-r @xwide:[&:nth-child(3n)]:border-r-0">
         <button
           type="button"
-          class={cn(
-            "flex h-full w-full items-start gap-3 border-l-4 px-4 py-3 text-left hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
-            row.state.kind === "problem" ? SEVERITY_EDGE[row.state.severity] : "border-l-transparent",
-          )}
+          class="flex h-full w-full items-start gap-3 px-5 py-3 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
           data-area={row.area}
           data-state={row.state.kind}
           onclick={() => onTab(row.tab)}
         >
-          {#if row.state.kind === "problem"}
-            <SeverityIcon severity={row.state.severity} colored class="mt-0.5 size-5" />
-          {:else if row.state.kind === "ok"}
-            <CircleCheck aria-hidden="true" class="mt-0.5 size-5 flex-none text-muted-foreground" />
-          {:else}
-            <CircleDashed aria-hidden="true" class="mt-0.5 size-5 flex-none text-muted-foreground/70" />
-          {/if}
           <span class="min-w-0 flex-1">
             <span class="flex flex-wrap items-center gap-2">
               <span class="font-medium">{t(`websites.report.area.${row.area}`)}</span>

@@ -238,7 +238,7 @@
       <div>
         <button
           type="button"
-          class="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          class="link text-sm font-medium"
           onclick={() => switchMode(!many)}
         >
           {many ? t("repositories.addOne") : t("repositories.addSeveral")}

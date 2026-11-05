@@ -9,7 +9,6 @@
   import CardHeader from "../CardHeader.svelte";
   import RepositoryLink from "../RepositoryLink.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
-  import SeverityDot from "../ui/SeverityDot.svelte";
 
   let { items }: { items: Overview["fixFirst"] } = $props();
 </script>
@@ -17,7 +16,7 @@
 <Card class="h-full">
   <CardHeader title={t("overview.fixFirst")} description={t("overview.fixFirstDescription")}>
     {#snippet actions()}
-      <a href="/findings" class="inline-flex items-center gap-1.5 text-sm font-medium text-primary-text hover:underline">
+      <a href="/findings" class="link inline-flex items-center gap-1.5 text-sm font-medium">
         {t("overview.allFindings")}
         <ArrowRight aria-hidden="true" class="size-4" />
       </a>
@@ -43,16 +42,11 @@
           {@const link = href("/findings", { id: f.id, state: "all" })}
           <tr class="row-link border-b last:border-0" onclick={rowClick(() => void goto(link))}>
             <td class="px-5 py-2.5">
-              <div class="flex items-start gap-2.5">
-                <SeverityDot severity={f.severity} class="mt-2" />
-                <div class="min-w-0">
-                  <a href={link} class="font-medium hover:underline">
-                    {f.vulnerabilityId}
-                  </a>
-                  <div class="font-mono text-sm text-muted-foreground">
-                    {f.packageName} {f.packageVersion}
-                  </div>
-                </div>
+              <a href={link} class="font-medium hover:underline">
+                {f.vulnerabilityId}
+              </a>
+              <div class="font-mono text-sm text-muted-foreground">
+                {f.packageName} {f.packageVersion}
               </div>
             </td>
             <td class="px-3 py-2.5">
@@ -65,7 +59,7 @@
               <div class="flex flex-wrap gap-1">
                 <SeverityBadge severity={f.severity} />
                 {#if f.knownExploited}
-                  <span class="text-sm text-destructive-text">{t("findings.kev")}</span>
+                  <span class="text-sm text-critical">{t("findings.kev")}</span>
                 {/if}
               </div>
             </td>

@@ -25,7 +25,7 @@
     <dd>
       {formatDate(facts.validFrom)} – {formatDate(facts.validTo)}
       {#if new Date(facts.validTo) < new Date()}
-        <span class="ml-2 text-destructive-text">{t("directory.certExpired")}</span>
+        <span class="ml-2 text-critical">{t("directory.certExpired")}</span>
       {/if}
     </dd>
   </dl>

@@ -75,7 +75,7 @@
           <GradeLink
             {id}
             reason={row.gradeReason}
-            class="mt-1.5 inline-block text-primary-text underline-offset-2 hover:underline"
+            class="link mt-1.5 inline-block"
           >
             {t("grades.show")}
           </GradeLink>

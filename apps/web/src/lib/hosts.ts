@@ -10,7 +10,7 @@ import type {
   PhpLineJudgement,
   ThirdPartyOrigin,
 } from "@garnetops/core/apt";
-import type { BadgeTone } from "./components/ui/tones.ts";
+import type { BadgeTone } from "./severity-meta.ts";
 
 export type SeverityCounts = { critical: number; high: number; medium: number; low: number };
 

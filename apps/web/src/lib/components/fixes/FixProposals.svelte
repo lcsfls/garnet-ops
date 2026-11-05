@@ -118,7 +118,7 @@
         onclick={() => toggleSeverity(s)}
         class={cn(
           "rounded-md border p-0.5",
-          selectedSeverities.has(s) ? "border-ring" : "border-transparent opacity-70 hover:opacity-100",
+          selectedSeverities.has(s) ? "border-foreground" : "border-transparent opacity-70 hover:opacity-100",
         )}
       >
         <SeverityBadge severity={s} />
@@ -170,7 +170,7 @@
     disabled={!hasFilters}
     aria-hidden={!hasFilters}
     tabindex={hasFilters ? undefined : -1}
-    class={cn("text-sm font-medium text-primary-text hover:underline", !hasFilters && "invisible")}
+    class={cn("link text-sm font-medium", !hasFilters && "invisible")}
   >
     {t("fixes.clearFilters")}
   </button>

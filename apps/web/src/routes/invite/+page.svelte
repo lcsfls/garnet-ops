@@ -72,7 +72,7 @@
         <Alert tone="info">{t("invite.done", { organization: info.organizationName })}</Alert>
         <a
           href="/sign-in"
-          class="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground shadow-xs hover:bg-primary/90"
+          class="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground shadow-xs hover:bg-primary-hover"
           >{t("invite.signIn")}</a
         >
       </div>

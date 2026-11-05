@@ -84,7 +84,7 @@
       class={cn(
         "-mb-px inline-flex h-10 items-center gap-1.5 border-b-2 px-3 text-sm whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
         selected
-          ? "border-primary font-medium text-foreground"
+          ? "border-foreground font-semibold text-foreground"
           : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
       )}
     >

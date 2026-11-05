@@ -111,7 +111,7 @@
               href={current.notesUrl}
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 text-primary-text underline-offset-4 hover:underline"
+              class="link inline-flex items-center gap-1.5"
             >
               {texts.notes}
               <ExternalLink aria-hidden="true" class="size-3.5" />

@@ -96,7 +96,7 @@
         {t("websites.certificates.showingOne")}
         <a
           href={href(page.url.pathname, { q: search.q })}
-          class="ml-1 text-primary-text hover:underline">{t("websites.certificates.showAll")}</a
+          class="link ml-1">{t("websites.certificates.showAll")}</a
         >
       </p>
     {:else if query.data}
@@ -171,10 +171,10 @@
                   <li class="min-w-0">
                     <a
                       href={`/websites/${encodeURIComponent(server.id)}?tab=tls`}
-                      class="break-all text-primary-text hover:underline">{server.value}</a
+                      class="link break-all">{server.value}</a
                     >
                     {#if server.nameMatches === false}
-                      <span class="block text-sm text-warning-text" data-testid="certificate-miss">{missText(server)}</span>
+                      <span class="block text-sm text-medium" data-testid="certificate-miss">{missText(server)}</span>
                     {/if}
                   </li>
                 {/each}

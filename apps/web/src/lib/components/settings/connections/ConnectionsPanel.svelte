@@ -150,11 +150,11 @@
                   {#if c.lastCheckedAt}· {t("connections.lastChecked", { when: formatRelative(c.lastCheckedAt) })}{/if}
                 </span>
               {:else}
-                <span class="text-destructive-text">{t("connections.stateFailed")}: {problemText(c.problem)}</span>
+                <span class="text-critical">{t("connections.stateFailed")}: {problemText(c.problem)}</span>
               {/if}
             </div>
             {#if c.broadToken}
-              <div class="mt-1 flex items-start gap-1.5 text-[13px] text-warning-text">
+              <div class="mt-1 flex items-start gap-1.5 text-[13px] text-medium">
                 <TriangleAlert aria-hidden="true" class="mt-0.5 size-3.5 flex-none" />{c.pullRequests
                   ? t("connections.broadTokenWrite")
                   : t("connections.broadToken")}

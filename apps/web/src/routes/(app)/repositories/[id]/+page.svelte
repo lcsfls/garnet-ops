@@ -86,7 +86,7 @@
 {/snippet}
 
 {#snippet flame()}
-  <Flame aria-hidden="true" class="size-4 text-destructive-text" />
+  <Flame aria-hidden="true" class="size-4 text-critical" />
 {/snippet}
 
 <a
@@ -110,7 +110,7 @@
 {:else}
   <div class="grid gap-4">
     {#if scan.isError}
-      <p role="alert" class="text-sm text-destructive-text">{t("errors.actionFailed")}</p>
+      <p role="alert" class="text-sm text-critical">{t("errors.actionFailed")}</p>
     {/if}
     <ActivityCard repo={data} {me} />
     <SharingCard repo={data} {me} />

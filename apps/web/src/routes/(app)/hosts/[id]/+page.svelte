@@ -131,7 +131,7 @@
                   </div>
                   <a
                     href={`/hosts/images/${encodeURIComponent(c.imageId)}`}
-                    class="block font-mono text-sm break-all text-primary-text hover:underline"
+                    class="link block font-mono text-sm break-all"
                     title={shortId(c.imageId)}
                   >
                     {c.imageRef}

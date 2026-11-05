@@ -215,7 +215,7 @@
 </script>
 
 {#snippet externalBadge()}
-  <Badge class="bg-warning/18 text-warning-text">
+  <Badge tone="medium">
     <TriangleAlert aria-hidden="true" />
     {t("ai.externalBadge")}
   </Badge>
@@ -261,10 +261,10 @@
 
     {#if external}
       <div
-        class="grid gap-2 rounded-md border border-warning/45 bg-[color-mix(in_srgb,var(--warning)_9%,var(--card))] px-3.5 py-3"
+        class="grid gap-2 rounded-md border border-medium-border bg-medium-bg px-3.5 py-3"
       >
         <p class="flex items-center gap-2 font-semibold">
-          <TriangleAlert aria-hidden="true" class="size-4 flex-none text-warning-text" />
+          <TriangleAlert aria-hidden="true" class="size-4 flex-none text-medium" />
           {t("ai.externalTitle")}
         </p>
         <p class="text-sm">{t("ai.externalText", { host: host || "…" })}</p>
@@ -273,7 +273,7 @@
           <span>{t("ai.externalAck", { host: host || "…" })}</span>
         </label>
         {#if fieldErrors.acknowledgeExternal}
-          <p role="alert" class="text-sm text-destructive-text">
+          <p role="alert" class="text-sm text-critical">
             {fieldErrors.acknowledgeExternal}
           </p>
         {/if}
@@ -294,7 +294,7 @@
           spellcheck={false}
           aria-describedby="ai-model-hint"
           aria-invalid={fieldErrors.model ? true : undefined}
-          class="h-10 min-w-0 flex-[1_1_14rem] rounded-md border border-input bg-card px-3 font-mono text-sm shadow-xs aria-invalid:border-destructive"
+          class="h-10 min-w-0 flex-[1_1_14rem] rounded-md border border-input bg-card px-3 font-mono text-sm shadow-xs aria-invalid:border-critical"
         />
         <datalist id="ai-models">
           {#each models ?? [] as name (name)}

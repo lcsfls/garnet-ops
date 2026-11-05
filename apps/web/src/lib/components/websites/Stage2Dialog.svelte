@@ -116,7 +116,7 @@
         <li>{t("websites.stage2DoesOnce")}</li>
       </ul>
       <details class="text-sm">
-        <summary class="cursor-pointer text-primary-text">{t("websites.stage2PortList")}</summary>
+        <summary class="cursor-pointer">{t("websites.stage2PortList")}</summary>
         <ul class="mt-2 flex flex-wrap gap-1.5" data-testid="stage2-ports">
           {#each EXPOSURE_PORTS as p (p.port)}
             <li class="rounded-md border px-2 py-0.5 text-muted-foreground">

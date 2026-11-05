@@ -47,7 +47,7 @@
         <!-- Unkeyed: the references are model output, and a duplicate key would stop the page. -->
         {#each links as link}
           <li>
-            <a href={link.href} target="_blank" rel="noopener noreferrer nofollow" class="break-all text-primary-text hover:underline"
+            <a href={link.href} target="_blank" rel="noopener noreferrer nofollow" class="link break-all"
               >{link.href}</a
             >
           </li>

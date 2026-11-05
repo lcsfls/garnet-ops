@@ -30,7 +30,7 @@
   } = $props();
 </script>
 
-<a {href} class="block rounded-xl border bg-card px-[18px] py-4 shadow-xs transition-colors hover:border-primary/40">
+<a {href} class="block rounded-xl border bg-card px-[18px] py-4 shadow-xs transition-colors hover:border-input">
   <div class="flex items-center justify-between gap-2 text-[15px] text-muted-foreground">
     <span>{label}</span>
     {@render icon?.()}

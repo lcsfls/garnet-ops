@@ -42,7 +42,7 @@
 
 {#snippet actions()}
   {#if refresh.isError}
-    <span role="alert" class="text-sm text-destructive-text">
+    <span role="alert" class="text-sm text-critical">
       {t("errors.actionFailed")}
     </span>
   {:else if queued}

@@ -97,7 +97,7 @@
     {/if}
     {#if idle.length > 0}
       <details class="mt-2" data-testid="worker-idle-queues">
-        <summary class="cursor-pointer text-sm text-primary-text underline-offset-4 hover:underline">
+        <summary class="cursor-pointer text-sm hover:underline">
           {t("systemStatus.worker.showIdle", { count: idle.length })}
         </summary>
         <div class="mt-1.5">

@@ -93,7 +93,7 @@
       <Alert tone="info">{t("hosts.snippetCodeNote", { when: formatDateTime(enrolment.expiresAt) })}</Alert>
       <pre
         data-testid="host-compose"
-        class="max-h-[50vh] overflow-auto rounded-md border bg-muted/50 p-3 font-mono text-xs leading-relaxed whitespace-pre select-all">{file}</pre>
+        class="max-h-[50vh] overflow-auto rounded-md border bg-surface-2 p-3 font-mono text-xs leading-relaxed whitespace-pre select-all">{file}</pre>
       <p class="text-sm text-muted-foreground">{t("hosts.snippetHttpsNote", { url: enrolment.serverUrl })}</p>
       <DialogFooter>
         <CopyButton text={file} />

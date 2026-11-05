@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import { cn } from "../cn.ts";
   import { formatNumber } from "../format.ts";
-  import { heatStep, SEVERITY_HEAT } from "./ui/tones.ts";
+  import { heatStep, SEVERITY_META } from "../severity-meta.ts";
 
   type Severity = "critical" | "high" | "medium" | "low";
   /**
@@ -65,7 +65,7 @@
           <td
             class={cn(
               "rounded-md px-2 py-1.5 text-right tabular-nums",
-              step === null ? "text-muted-foreground" : cn("font-semibold", SEVERITY_HEAT[severityOf(row, column.key)][step]),
+              step === null ? "text-muted-foreground" : cn("font-semibold", SEVERITY_META[severityOf(row, column.key)].heat[step]),
             )}
           >
             {#if link}

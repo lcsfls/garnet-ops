@@ -79,7 +79,7 @@
       <p class="text-sm">
         <a
           href={href("/settings", { section: "notifications" })}
-          class="font-medium text-primary-text underline underline-offset-4"
+          class="link font-medium"
         >
           {t("account.notifications.settingsLink")}
         </a>

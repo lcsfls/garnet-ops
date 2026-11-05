@@ -118,7 +118,7 @@
         {#each shown as r (r.forgeId)}
           <li class="border-t first:border-t-0">
             <label
-              class="flex cursor-pointer items-start gap-3 px-3 py-2.5 has-[:disabled]:cursor-default hover:bg-muted/50"
+              class="flex cursor-pointer items-start gap-3 px-3 py-2.5 has-[:disabled]:cursor-default hover:bg-accent"
             >
               <Checkbox
                 class="mt-0.5"

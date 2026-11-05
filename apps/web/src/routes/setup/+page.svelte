@@ -100,7 +100,7 @@
   <AuthLayout title={t("setup.title")}>
     <div class="grid gap-4">
       <Alert tone="info">{t("setup.alreadyDone")}</Alert>
-      <a href="/sign-in" class="font-medium text-primary-text underline-offset-4 hover:underline">{t("signIn.title")}</a>
+      <a href="/sign-in" class="link font-medium">{t("signIn.title")}</a>
     </div>
   </AuthLayout>
 {:else if restored}
@@ -111,7 +111,7 @@
         <Alert tone="error">{t("setup.restore.secretsNotOpened", { count: restored.secretsNotOpened })}</Alert>
       {/if}
       <p class="text-sm text-muted-foreground">{t("setup.restore.signInHint")}</p>
-      <a href="/sign-in" class="font-medium text-primary-text underline-offset-4 hover:underline">{t("signIn.title")}</a>
+      <a href="/sign-in" class="link font-medium">{t("signIn.title")}</a>
     </div>
   </AuthLayout>
 {:else if mode === "choose"}

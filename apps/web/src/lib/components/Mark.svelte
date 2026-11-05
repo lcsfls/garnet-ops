@@ -1,5 +1,8 @@
 <script lang="ts">
-  /** Mark draft from the mockup: a cut garnet, hexagonal outline with an inner facet in the brand colour. */
+  /**
+   * Mark draft from the mockup: a cut garnet, hexagonal outline in the text colour with an inner facet in the brand colour
+   * (--brand-mark: with the primary action the only burgundy, AGENTS.md rule 6).
+   */
   let { class: className }: { class?: string } = $props();
 </script>
 
@@ -9,7 +12,7 @@
     fill="none"
     stroke-width="4.5"
     stroke-linejoin="round"
-    class="stroke-[var(--mark-hold)]"
+    class="stroke-foreground"
   />
-  <path d="M24 15 L32 24 L24 33 L16 24 Z" class="fill-[var(--mark-beam)]" />
+  <path d="M24 15 L32 24 L24 33 L16 24 Z" class="fill-brand-mark" />
 </svg>

@@ -86,7 +86,7 @@
     {t("settings.notificationsRelation")}
     <a
       href={href("/account", { section: "notifications" })}
-      class="font-medium text-primary-text underline underline-offset-4"
+      class="link font-medium"
     >
       {t("settings.notificationsPersonalLink")}
     </a>
@@ -127,7 +127,7 @@
                     {t("settings.lastSent", { when: formatRelative(channel.lastDelivery.createdAt) })}
                   </span>
                 {:else}
-                  <span class="text-destructive-text">
+                  <span class="text-critical">
                     {t("settings.lastFailed", {
                       when: formatRelative(channel.lastDelivery.createdAt),
                       reason: channel.lastDelivery.error ?? "",
