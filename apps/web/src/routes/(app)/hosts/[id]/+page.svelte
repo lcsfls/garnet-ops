@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, Server, Trash2 } from "@lucide/svelte";
+  import { ArrowLeft, Trash2 } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -58,11 +58,11 @@
 <a href="/hosts" class="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground hover:underline">
   <ArrowLeft aria-hidden="true" class="size-4" />{t("hosts.back")}
 </a>
-<PageHeader icon={Server} title={host?.name ?? (on ? t("common.loading") : t("hosts.title"))} description={host?.hostname ?? ""}>
+<PageHeader title={host?.name ?? (on ? t("common.loading") : t("hosts.title"))} description={host?.hostname ?? ""}>
   {#snippet actions()}
     {#if host && canEdit}
       <Button
-        variant="outline"
+        variant="secondary"
         onclick={() => {
           remove.reset();
           confirmRemove = true;
@@ -80,7 +80,7 @@
   <Card><QueryStatus {query} /></Card>
 {:else}
   <div class="mb-4"><HostReportCard {id} /></div>
-  <div class="grid gap-4 @wide:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+  <div class="grid items-start gap-4 @wide:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
     <div class="grid content-start gap-4">
     <Card>
       <CardHeader title={host.name} />

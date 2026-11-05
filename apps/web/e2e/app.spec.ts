@@ -1886,7 +1886,7 @@ test.describe("System status", () => {
     await expect(build.getByRole("row", { name: /debian.*Failed/ })).toBeVisible();
   });
 
-  test("looks again every minute while it is open, and a button looks now", async ({ page }) => {
+  test("looks again every minute while it is open, without a refresh button", async ({ page }) => {
     await page.clock.install();
     let calls = 0;
     page.on("request", (request) => {
@@ -1904,9 +1904,11 @@ test.describe("System status", () => {
     await expect(page.getByTestId("worker-heartbeat")).toContainText("Late");
     expect(calls).toBeGreaterThan(first);
 
+    // It reloads by itself, so there is nothing to press (0.1.1): the next minute shows the worker running again.
+    await expect(page.getByRole("button", { name: "Refresh now" })).toHaveCount(0);
     await setWorkerBeat(0);
     const before = calls;
-    await page.getByRole("button", { name: "Refresh now" }).click();
+    await page.clock.runFor(61_000);
     await expect(page.getByTestId("worker-heartbeat")).toContainText("Running");
     expect(calls).toBeGreaterThan(before);
   });

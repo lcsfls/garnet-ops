@@ -15,7 +15,7 @@
   <input
     type="checkbox"
     bind:checked
-    class="peer col-start-1 row-start-1 size-4 appearance-none rounded-[4px] border border-input bg-card shadow-xs checked:border-foreground checked:bg-foreground disabled:opacity-50"
+    class="peer col-start-1 row-start-1 size-4 appearance-none rounded-[4px] border border-control bg-card shadow-xs checked:border-foreground checked:bg-foreground disabled:opacity-50"
     {...rest}
   />
   <Check

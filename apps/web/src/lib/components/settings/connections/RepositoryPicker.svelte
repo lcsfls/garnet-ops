@@ -167,8 +167,8 @@
       </span>
     </label>
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
-      <Button type="submit" disabled={add.isPending || chosen.size === 0}>
+      <Button variant="secondary" onclick={onClose}>{t("common.cancel")}</Button>
+      <Button variant="primary" type="submit" disabled={add.isPending || chosen.size === 0}>
         {add.isPending ? t("connections.adding") : t("connections.addSelected", { count: chosen.size })}
       </Button>
     </DialogFooter>

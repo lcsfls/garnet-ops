@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GitPullRequest, RefreshCw } from "@lucide/svelte";
+  import { RefreshCw } from "@lucide/svelte";
   import { createMutation, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import { cn } from "#lib/cn.ts";
@@ -51,14 +51,14 @@
     </span>
   {/if}
   {#if data.me.role !== "viewer"}
-    <Button variant="outline" disabled={refresh.isPending} onclick={() => refresh.mutate()}>
+    <Button variant="secondary" disabled={refresh.isPending} onclick={() => refresh.mutate()}>
       <RefreshCw aria-hidden="true" class={cn("size-4", refresh.isPending && "motion-safe:animate-spin")} />
       {refresh.isPending ? t("fixes.refreshing") : t("fixes.refresh")}
     </Button>
   {/if}
 {/snippet}
 
-<PageHeader icon={GitPullRequest} title={t("fixes.title")} description={t("fixes.description")} {actions} />
+<PageHeader title={t("fixes.title")} description={t("fixes.description")} {actions} />
 <div class="mb-4">
   <Segmented
     label={t("fixes.viewLabel")}

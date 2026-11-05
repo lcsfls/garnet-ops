@@ -66,10 +66,10 @@
     {#if changed && pin}<Facts label={t("directory.certPinned")} facts={pin} />{/if}
     <p class="text-sm text-muted-foreground">{t("directory.certCompare")}</p>
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>
+      <Button variant="secondary" onclick={onClose}>
         {t("common.cancel")}
       </Button>
-      <Button
+      <Button variant="primary"
         disabled={!candidate || confirm.isPending}
         onclick={() => {
           if (candidate) confirm.mutate(candidate.fingerprint);

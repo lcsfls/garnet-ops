@@ -1,22 +1,12 @@
 <script lang="ts">
   import type { SystemStatus } from "@garnetops/core/system-status-view";
-  import { RefreshCw } from "@lucide/svelte";
-  import { cn } from "../../cn.ts";
   import { formatRelative } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import Card from "../Card.svelte";
-  import Button from "../ui/Button.svelte";
   import StatusBadge from "./StatusBadge.svelte";
 
-  let {
-    status,
-    fetching,
-    onRefresh,
-  }: {
-    status: SystemStatus;
-    fetching: boolean;
-    onRefresh: () => void;
-  } = $props();
+  /** The overall state and when it was checked. The page looks again every minute by itself, so it has no refresh button. */
+  let { status }: { status: SystemStatus } = $props();
 
   const level = $derived(status.overall.level);
   const text = $derived.by(() => {
@@ -43,9 +33,5 @@
         <span>{t("systemStatus.legend")}</span>
       </p>
     </div>
-    <Button variant="outline" class="h-9 px-3" disabled={fetching} onclick={onRefresh}>
-      <RefreshCw aria-hidden="true" class={cn("size-4", fetching && "motion-safe:animate-spin")} />
-      {fetching ? t("systemStatus.summary.refreshing") : t("systemStatus.summary.refresh")}
-    </Button>
   </div>
 </Card>

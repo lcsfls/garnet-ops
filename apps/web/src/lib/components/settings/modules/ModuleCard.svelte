@@ -6,6 +6,7 @@
   import { refreshMe } from "../../account/refresh-me.ts";
   import Badge from "../../ui/Badge.svelte";
   import Button from "../../ui/Button.svelte";
+  import ButtonLink from "../../ui/ButtonLink.svelte";
   import ConfirmDialog from "../../ui/ConfirmDialog.svelte";
 
   /** One module (ADR 0033): what it does, whether it is on, and the switch for owners and admins. */
@@ -43,13 +44,10 @@
   {#if canEdit}
     <div class="flex flex-wrap gap-2">
       {#if on}
-        <a
-          href={openHref}
-          class="inline-flex h-10 items-center justify-center rounded-md border border-input bg-card px-4 font-medium shadow-xs hover:bg-accent"
-        >
+        <ButtonLink href={openHref}>
           {module === "websites" ? t("settings.moduleOpen") : t("settings.moduleHostsOpen")}
-        </a>
-        <Button variant="outline" disabled={save.isPending} onclick={() => (confirmOff = true)}>
+        </ButtonLink>
+        <Button variant="secondary" disabled={save.isPending} onclick={() => (confirmOff = true)}>
           {t("settings.moduleSwitchOff")}
         </Button>
       {:else}

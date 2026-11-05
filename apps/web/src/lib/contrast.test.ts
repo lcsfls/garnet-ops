@@ -6,9 +6,10 @@ import { GATE_META, SEVERITY_LEVELS, TOKEN_TONES, type TokenTone } from "./sever
 /**
  * The colour tokens of app.css against WCAG 2.2 AA (AGENTS.md rule 6: every text pair is tested in CI). The test reads the
  * tokens of both themes from the stylesheet, turns each oklch() value into 8-bit sRGB as a browser shows it, and checks the
- * pairs the components use: 4.5:1 for text, 3:1 for the focus ring and the level bars of the severity pill. It also checks
- * that each value is exactly the hex colour in its comment, that the severities differ in lightness where the chart fills
- * and gate results carry them, and that the PDF report uses the same severity colours as the app.
+ * pairs the components use: 4.5:1 for text, 3:1 for the focus ring, the borders of form controls and the level bars of
+ * the severity pill. It also checks that each value is exactly the hex colour in its comment, that the severities differ
+ * in lightness where the chart fills and gate results carry them, and that the PDF report uses the same severity colours
+ * as the app.
  */
 
 const css = readFileSync(new URL("../app.css", import.meta.url), "utf8");
@@ -140,6 +141,8 @@ function pairs(): Pair[] {
     add(`${s}-fg`, "input-border", 3, `${s} pill, filled against empty level bars`);
   }
   for (const bg of SURFACES) add("ring", bg, 3, "focus ring");
+  // WCAG 1.4.11: the border of a text field, select, checkbox or radio is what shows it is there, on any surface it sits on.
+  for (const bg of SURFACES) add("control-border", bg, 3, "form control border");
   return out;
 }
 
@@ -155,7 +158,7 @@ describe.each(["light", "dark"] as const)("%s theme", (theme) => {
     expect(wrong).toEqual([]);
   });
 
-  it("meets WCAG AA for every text pair, the focus ring and the level bars", () => {
+  it("meets WCAG AA for every text pair, the focus ring, form control borders and the level bars", () => {
     const failing = pairs()
       .map((p) => ({ ...p, ratio: contrast(rgb(theme, p.fg), rgb(theme, p.bg)) }))
       .filter((p) => p.ratio < p.min)

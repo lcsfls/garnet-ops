@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { Siren } from "@lucide/svelte";
   import { createMutation, createQuery, keepPreviousData, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -100,7 +99,7 @@
   });
 </script>
 
-<PageHeader icon={Siren} title={t("earlyWarnings.title")} description={t("earlyWarnings.description")} />
+<PageHeader title={t("earlyWarnings.title")} description={t("earlyWarnings.description")} />
 <div class="mb-4 flex flex-wrap items-center gap-3">
   {#if sources.length > 1}
     <Segmented
@@ -185,7 +184,7 @@
               <span class="text-muted-foreground">{t("earlyWarnings.cleared")}</span>
             {:else if canScan && firstOfRepository.has(w.id)}
               <Button
-                variant="outline"
+                variant="secondary"
                 class="h-8 whitespace-nowrap"
                 aria-label={t("earlyWarnings.scanNowFor", { repository: w.repositoryName })}
                 disabled={scan.isPending}

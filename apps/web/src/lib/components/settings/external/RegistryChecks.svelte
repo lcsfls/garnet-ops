@@ -87,7 +87,7 @@
         {#if canEdit}
           <div>
             {#if rc.enabled}
-              <Button variant="outline" disabled={save.isPending} onclick={() => save.mutate(false)}>
+              <Button variant="secondary" disabled={save.isPending} onclick={() => save.mutate(false)}>
                 {t("hosts.registrySwitchOff")}
               </Button>
             {:else}
@@ -117,8 +117,8 @@
         <span>{t("hosts.registryAcknowledge")}</span>
       </label>
       <DialogFooter>
-        <Button variant="outline" onclick={() => (asking = false)}>{t("common.cancel")}</Button>
-        <Button disabled={!acknowledged || save.isPending} onclick={() => save.mutate(true)}>
+        <Button variant="secondary" onclick={() => (asking = false)}>{t("common.cancel")}</Button>
+        <Button variant="primary" disabled={!acknowledged || save.isPending} onclick={() => save.mutate(true)}>
           {save.isPending ? t("common.loading") : t("hosts.registrySwitchOn")}
         </Button>
       </DialogFooter>

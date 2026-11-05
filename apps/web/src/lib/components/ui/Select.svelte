@@ -14,7 +14,7 @@
 <span class={cn("relative inline-flex h-10 text-base", className as string)}>
   <select
     bind:value
-    class="ui-select peer h-full w-full truncate rounded-md border border-input bg-card py-0 pr-9 pl-3 text-[length:inherit] shadow-xs hover:bg-accent"
+    class="ui-select peer h-full w-full truncate rounded-md border border-control bg-card py-0 pr-9 pl-3 text-[length:inherit] shadow-xs hover:bg-accent"
     {...rest}
   >
     {@render children?.()}

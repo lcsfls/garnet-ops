@@ -137,7 +137,7 @@
         {#if app}
           <div>
             <Button
-              variant="outline"
+              variant="secondary"
               disabled={signInWithWrite.isPending || redirecting}
               onclick={() => signInWithWrite.mutate(app.id)}
             >
@@ -164,13 +164,13 @@
     {/if}
 
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>{t("common.close")}</Button>
+      <Button variant="secondary" onclick={onClose}>{t("common.close")}</Button>
       {#if c.pullRequests}
         <Button variant="destructive" disabled={disable.isPending} onclick={() => disable.mutate()}>
           {t("connections.pullRequests.turnOff")}
         </Button>
       {:else if !c.needsWriteSignIn}
-        <Button disabled={!acknowledged || enable.isPending} onclick={() => enable.mutate()}>
+        <Button variant="primary" disabled={!acknowledged || enable.isPending} onclick={() => enable.mutate()}>
           {enable.isPending ? t("common.loading") : t("connections.pullRequests.turnOn")}
         </Button>
       {/if}

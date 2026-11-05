@@ -67,7 +67,7 @@
 </script>
 
 <div class="mx-auto max-w-[72rem] @wide:max-w-[96rem]">
-  <PageHeader icon={Settings} title={t("settings.title")} description={t("settings.description")} />
+  <PageHeader title={t("settings.title")} description={t("settings.description")} />
   <div
     class="grid items-start gap-4 @3xl:grid-cols-[12.5rem_minmax(0,1fr)] @wide:grid-cols-[12.5rem_minmax(0,46rem)_minmax(16rem,1fr)]"
   >

@@ -34,6 +34,6 @@
     aria-label={label}
     placeholder={label}
     bind:value={draft}
-    class="h-10 w-full rounded-lg border border-input bg-card pr-3 pl-8 text-base shadow-xs placeholder:text-muted-foreground"
+    class="h-10 w-full rounded-lg border border-control bg-card pr-3 pl-8 text-base shadow-xs placeholder:text-muted-foreground"
   />
 </div>

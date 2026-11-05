@@ -14,14 +14,14 @@
   {#if group === undefined}
     <input
       type="radio"
-      class="peer col-start-1 row-start-1 size-4 appearance-none rounded-full border border-input bg-card shadow-xs checked:border-foreground checked:bg-foreground disabled:opacity-50"
+      class="peer col-start-1 row-start-1 size-4 appearance-none rounded-full border border-control bg-card shadow-xs checked:border-foreground checked:bg-foreground disabled:opacity-50"
       {...rest}
     />
   {:else}
     <input
       type="radio"
       bind:group
-      class="peer col-start-1 row-start-1 size-4 appearance-none rounded-full border border-input bg-card shadow-xs checked:border-foreground checked:bg-foreground disabled:opacity-50"
+      class="peer col-start-1 row-start-1 size-4 appearance-none rounded-full border border-control bg-card shadow-xs checked:border-foreground checked:bg-foreground disabled:opacity-50"
       {...rest}
     />
   {/if}

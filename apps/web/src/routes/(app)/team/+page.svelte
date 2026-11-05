@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { UserPlus, Users } from "@lucide/svelte";
+  import { UserPlus } from "@lucide/svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import InviteDialog from "#lib/components/team/InviteDialog.svelte";
   import TeamInvitations from "#lib/components/team/TeamInvitations.svelte";
@@ -14,9 +14,9 @@
 </script>
 
 <div class="mx-auto max-w-[72rem] @wide:max-w-[96rem]">
-  <PageHeader icon={Users} title={t("team.title")} description={t("team.description")}>
+  <PageHeader title={t("team.title")} description={t("team.description")}>
     {#snippet actions()}
-      <Button onclick={() => (inviting = true)}>
+      <Button variant="primary" onclick={() => (inviting = true)}>
         <UserPlus aria-hidden="true" class="size-4" />
         {t("team.invite")}
       </Button>

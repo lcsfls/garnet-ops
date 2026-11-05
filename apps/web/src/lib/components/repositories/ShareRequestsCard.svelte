@@ -43,7 +43,7 @@
             </div>
           </div>
           <Button
-            variant="outline"
+            variant="secondary"
             class="h-9"
             disabled={decide.isPending}
             onclick={() => decide.mutate({ id: r.id, decision: "approve" })}
@@ -51,7 +51,7 @@
             {t("connections.approve")}
           </Button>
           <Button
-            variant="ghost"
+            variant="secondary"
             class="h-9"
             disabled={decide.isPending}
             onclick={() => decide.mutate({ id: r.id, decision: "decline" })}

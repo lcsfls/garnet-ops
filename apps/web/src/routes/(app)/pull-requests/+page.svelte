@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { GitPullRequestArrow, RefreshCw, TriangleAlert } from "@lucide/svelte";
+  import { RefreshCw, TriangleAlert } from "@lucide/svelte";
   import { createMutation, createQuery, keepPreviousData, useQueryClient } from "@tanstack/svelte-query";
   import { ApiError, api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -96,10 +96,10 @@
   }
 </script>
 
-<PageHeader icon={GitPullRequestArrow} title={t("pullRequests.title")} description={t("pullRequests.description")}>
+<PageHeader title={t("pullRequests.title")} description={t("pullRequests.description")}>
   {#snippet actions()}
     {#if canCheck}
-      <Button variant="outline" disabled={refresh.isPending} onclick={() => refresh.mutate()}>
+      <Button variant="secondary" disabled={refresh.isPending} onclick={() => refresh.mutate()}>
         <RefreshCw aria-hidden="true" class="size-4" />
         {t("pullRequests.refresh")}
       </Button>
@@ -210,7 +210,7 @@
               {/if}
               {#if canCheck && !p.checking}
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   class="h-8 whitespace-nowrap"
                   aria-label={t("pullRequests.checkNowFor", { number: p.number, repository: p.repositoryName })}
                   disabled={check.isPending}

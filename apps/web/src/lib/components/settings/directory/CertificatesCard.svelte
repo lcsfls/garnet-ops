@@ -28,7 +28,7 @@
 <Card>
   <CardHeader title={t("directory.certificatesTitle")} description={t("directory.certificatesDescription")}>
     {#snippet actions()}
-      <Button variant="outline" disabled={scan.isPending} onclick={() => scan.mutate(null)}>
+      <Button variant="secondary" disabled={scan.isPending} onclick={() => scan.mutate(null)}>
         <Fingerprint aria-hidden="true" class="size-4" />
         {scan.isPending ? t("common.loading") : t("directory.readCertificates")}
       </Button>

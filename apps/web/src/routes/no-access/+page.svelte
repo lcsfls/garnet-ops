@@ -10,6 +10,6 @@
 <AuthLayout title={t("signIn.title")}>
   <div class="grid gap-4">
     <Alert tone="info">{t("errors.noOrganization")}</Alert>
-    <Button variant="outline" onclick={() => signOutAndLeave(() => authClient.signOut())}>{t("common.signOut")}</Button>
+    <Button variant="secondary" onclick={() => signOutAndLeave(() => authClient.signOut())}>{t("common.signOut")}</Button>
   </div>
 </AuthLayout>

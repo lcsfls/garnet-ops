@@ -137,7 +137,7 @@
             {#if canEdit}
               <span class="ml-auto flex gap-1.5">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   class="h-8 px-3 text-sm"
                   disabled={addName.isPending}
                   onclick={() => addName.mutate(s.id)}
@@ -146,7 +146,7 @@
                   {t("websites.suggestionAdd")}
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   class="h-8 px-3 text-sm"
                   disabled={dismiss.isPending}
                   onclick={() => dismiss.mutate(s.id)}

@@ -101,7 +101,7 @@
         {#if canEdit}
           <div>
             {#if ct.enabled}
-              <Button variant="outline" disabled={save.isPending} onclick={() => save.mutate(false)}>
+              <Button variant="secondary" disabled={save.isPending} onclick={() => save.mutate(false)}>
                 {t("websites.ctSwitchOff")}
               </Button>
             {:else}
@@ -140,8 +140,8 @@
         <span>{t("websites.ctAcknowledge", { provider: ct.provider.name })}</span>
       </label>
       <DialogFooter>
-        <Button variant="outline" onclick={() => (asking = false)}>{t("common.cancel")}</Button>
-        <Button disabled={!acknowledged || save.isPending} onclick={() => save.mutate(true)}>
+        <Button variant="secondary" onclick={() => (asking = false)}>{t("common.cancel")}</Button>
+        <Button variant="primary" disabled={!acknowledged || save.isPending} onclick={() => save.mutate(true)}>
           {save.isPending ? t("common.loading") : t("websites.ctSwitchOn")}
         </Button>
       </DialogFooter>

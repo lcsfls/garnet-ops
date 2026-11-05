@@ -13,7 +13,6 @@
 
 <script lang="ts">
   import {
-    ChartColumn,
     CircleCheck,
     CircleX,
     GitPullRequest,
@@ -480,7 +479,7 @@
   </Card>
 {/snippet}
 
-<PageHeader icon={ChartColumn} title={t("statistics.title")} description={t("statistics.description")}>
+<PageHeader title={t("statistics.title")} description={t("statistics.description")}>
   {#snippet actions()}
     <OrganizationReportButton />
     <Segmented

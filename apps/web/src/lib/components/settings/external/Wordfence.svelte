@@ -92,7 +92,7 @@
       {#if canEdit}
         <div class="flex flex-wrap gap-2">
           <Button
-            variant={wf.configured ? "outline" : "primary"}
+            variant="secondary"
             onclick={() => {
               error = null;
               asking = true;
@@ -101,7 +101,7 @@
             {wf.configured ? t("websites.wordfenceReplace") : t("websites.wordfenceSet")}
           </Button>
           {#if wf.configured}
-            <Button variant="outline" disabled={remove.isPending} onclick={() => remove.mutate()}>
+            <Button variant="secondary" disabled={remove.isPending} onclick={() => remove.mutate()}>
               {t("websites.wordfenceRemove")}
             </Button>
           {/if}
@@ -139,8 +139,8 @@
         <span>{t("websites.wordfenceAcknowledge", { host: wf.host })}</span>
       </label>
       <DialogFooter>
-        <Button type="button" variant="outline" onclick={() => (asking = false)}>{t("common.cancel")}</Button>
-        <Button type="submit" disabled={!acknowledged || key.trim().length < 20 || save.isPending}>
+        <Button type="button" variant="secondary" onclick={() => (asking = false)}>{t("common.cancel")}</Button>
+        <Button variant="primary" type="submit" disabled={!acknowledged || key.trim().length < 20 || save.isPending}>
           {save.isPending ? t("common.loading") : t("settings.save")}
         </Button>
       </DialogFooter>

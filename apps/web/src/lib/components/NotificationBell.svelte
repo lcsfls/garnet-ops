@@ -236,7 +236,7 @@
         {#if query.hasNextPage}
           <div class="px-4 py-2">
             <Button
-              variant="outline"
+              variant="secondary"
               class="h-8 w-full text-sm"
               disabled={query.isFetchingNextPage}
               onclick={() => void query.fetchNextPage()}

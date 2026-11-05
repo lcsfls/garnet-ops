@@ -80,7 +80,7 @@
           class="font-mono"
         />
       {/if}
-      <Button type="submit" disabled={busy}>{busy ? t("common.loading") : t("twoFactor.submit")}</Button>
+      <Button variant="primary" type="submit" disabled={busy}>{busy ? t("common.loading") : t("twoFactor.submit")}</Button>
       <Button
         variant="link"
         onclick={() => {

@@ -35,6 +35,6 @@
     class="font-mono text-sm"
   />
   <div>
-    <Button type="submit" variant="outline" disabled={pending}>{t("gates.saveLicenses")}</Button>
+    <Button type="submit" variant="secondary" disabled={pending}>{t("gates.saveLicenses")}</Button>
   </div>
 </form>

@@ -100,20 +100,20 @@
 
   <div class="flex flex-wrap items-center gap-2">
     {#if live && canAsk}
-      <Button variant="outline" class="h-8 px-3 text-sm" onclick={onStop}>
+      <Button variant="secondary" class="h-8 px-3 text-sm" onclick={onStop}>
         <Square aria-hidden="true" class="size-3.5" />
         {t("ai.stop")}
       </Button>
     {/if}
     {#if !live && message.content}<CopyAction {text} />{/if}
     {#if !live && canAsk && isLast && !busy}
-      <Button variant="outline" class="h-8 px-3 text-sm" onclick={onRegenerate}>
+      <Button variant="secondary" class="h-8 px-3 text-sm" onclick={onRegenerate}>
         <RefreshCw aria-hidden="true" class="size-3.5" />
         {t("ai.regenerate")}
       </Button>
     {/if}
     {#if message.status === "complete" && canAsk && !message.noted}
-      <Button variant="outline" class="h-8 px-3 text-sm" disabled={accepting} onclick={onAccept}>
+      <Button variant="secondary" class="h-8 px-3 text-sm" disabled={accepting} onclick={onAccept}>
         {t("ai.acceptNote")}
       </Button>
     {/if}

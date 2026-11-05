@@ -59,7 +59,7 @@
       >
     {/if}
     {#if viaConnection}
-      <Button variant="outline" class="h-8 px-3 text-sm" onclick={() => onCreate("connection")}>
+      <Button variant="secondary" class="h-8 px-3 text-sm" onclick={() => onCreate("connection")}>
         <GitPullRequest aria-hidden="true" class="size-4" />
         {p.connection?.accountLogin
           ? t("fixes.createPrAs", { login: p.connection.accountLogin })
@@ -67,7 +67,7 @@
       </Button>
     {/if}
     {#if p.writeAccess === "on" && canCreate}
-      <Button variant="outline" class="h-8 px-3 text-sm" onclick={() => onCreate("repository")}>
+      <Button variant="secondary" class="h-8 px-3 text-sm" onclick={() => onCreate("repository")}>
         <GitPullRequest aria-hidden="true" class="size-4" />
         {viaConnection ? t("fixes.createPrWithToken") : t("fixes.createPr")}
       </Button>

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { ShieldCheck } from "@lucide/svelte";
   import { cn } from "#lib/cn.ts";
   import GatePipeline from "#lib/components/gates/GatePipeline.svelte";
   import GateRules from "#lib/components/gates/GateRules.svelte";
@@ -23,7 +22,7 @@
   }
 </script>
 
-<PageHeader icon={ShieldCheck} title={t("gates.title")} description={t("gates.description")} />
+<PageHeader title={t("gates.title")} description={t("gates.description")} />
 <div
   class={cn(
     "grid items-start gap-4",

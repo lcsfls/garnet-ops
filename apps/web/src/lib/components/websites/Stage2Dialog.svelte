@@ -169,16 +169,16 @@
     {/if}
     <p class="text-sm text-muted-foreground">{t("websites.notLegalAdvice")}</p>
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>{t("common.close")}</Button>
+      <Button variant="secondary" onclick={onClose}>{t("common.close")}</Button>
       {#if on}
-        <Button variant="outline" disabled={!canRunNow || runNow.isPending} onclick={() => runNow.mutate()}>
+        <Button variant="secondary" disabled={!canRunNow || runNow.isPending} onclick={() => runNow.mutate()}>
           {t("websites.stage2RunNow")}
         </Button>
         <Button variant="destructive" disabled={disable.isPending} onclick={() => disable.mutate()}>
           {t("websites.stage2SwitchOff")}
         </Button>
       {:else}
-        <Button disabled={!verified || !acknowledged || enable.isPending} onclick={() => enable.mutate()}>
+        <Button variant="primary" disabled={!verified || !acknowledged || enable.isPending} onclick={() => enable.mutate()}>
           {enable.isPending ? t("common.loading") : t("websites.stage2SwitchOn")}
         </Button>
       {/if}

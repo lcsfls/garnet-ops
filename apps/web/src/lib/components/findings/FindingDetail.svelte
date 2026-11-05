@@ -203,7 +203,7 @@
         {/if}
       </div>
       {#if onAskAi}
-        <Button variant="outline" class="h-8 flex-none px-3 text-sm" onclick={onAskAi}>
+        <Button variant="secondary" class="h-8 flex-none px-3 text-sm" onclick={onAskAi}>
           <Sparkles aria-hidden="true" class="size-3.5" />
           {t("ai.askAi")}
         </Button>

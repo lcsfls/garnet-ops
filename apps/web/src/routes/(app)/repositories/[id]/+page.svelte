@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, Flame, GitBranch, RefreshCw } from "@lucide/svelte";
+  import { ArrowLeft, Flame, RefreshCw } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import { cn } from "#lib/cn.ts";
@@ -77,7 +77,7 @@
   {#if data}
     <ExportMenu filters={{ repositoryId: id, state: "all" }} />
     {#if me.role !== "viewer"}
-      <Button disabled={busy || scan.isPending} onclick={() => scan.mutate()}>
+      <Button variant="primary" disabled={busy || scan.isPending} onclick={() => scan.mutate()}>
         <RefreshCw aria-hidden="true" class={cn("size-4", busy && "motion-safe:animate-spin")} />
         {busy && data.lastScan ? t(`scanState.${data.lastScan.state}`) : t("repositories.scanNow")}
       </Button>
@@ -97,7 +97,6 @@
   {t("repository.back")}
 </a>
 <PageHeader
-  icon={GitBranch}
   title={data?.name ?? t("common.loading")}
   description={data?.url ?? ""}
   meta={data ? meta : undefined}
@@ -115,7 +114,7 @@
     <ActivityCard repo={data} {me} />
     <SharingCard repo={data} {me} />
     <RepositoryReportCard {id} />
-    <div class="grid gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+    <div class="grid items-start gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <RepositoryFacts repo={data} />
       <div class="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
         {#each SEVERITIES as severity (severity)}
@@ -133,7 +132,7 @@
       <WebhookCard repositoryId={id} {me} />
     </div>
     {#if me.organization.modules?.hosts}<RunningCard repositoryId={id} />{/if}
-    <div class="grid gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <div class="grid items-start gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <RepositoryTrend {id} />
       <ScanHistory
         {id}

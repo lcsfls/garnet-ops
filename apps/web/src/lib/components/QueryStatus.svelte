@@ -25,7 +25,7 @@
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span>{query.data === undefined ? t("errors.loadFailed") : t("errors.refreshFailed")}</span>
         <Button
-          variant="outline"
+          variant="secondary"
           class="h-8 px-3 text-sm"
           disabled={query.isFetching}
           onclick={() => void query.refetch()}

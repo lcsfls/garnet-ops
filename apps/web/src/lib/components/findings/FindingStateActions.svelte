@@ -75,13 +75,13 @@
       </span>
       {#if data.acceptedReason}<span class="mt-1 block whitespace-pre-line">{data.acceptedReason}</span>{/if}
     </p>
-    <Button variant="outline" class="justify-self-start" disabled={reopen.isPending} onclick={() => reopen.mutate()}>
+    <Button variant="secondary" class="justify-self-start" disabled={reopen.isPending} onclick={() => reopen.mutate()}>
       {t("findings.reopen")}
     </Button>
   </div>
 {:else if data.state === "open"}
   <div class="border-t pt-4">
-    <Button variant="ghost" onclick={() => (accepting = true)}>{t("findings.acceptOpen")}</Button>
+    <Button variant="secondary" onclick={() => (accepting = true)}>{t("findings.acceptOpen")}</Button>
     <Dialog
       open={accepting}
       onClose={() => (accepting = false)}
@@ -99,7 +99,7 @@
             maxlength={1000}
             rows={3}
             aria-describedby="accept-reason-hint"
-            class="rounded-md border border-input bg-card px-3 py-2 text-base shadow-xs"
+            class="rounded-md border border-control bg-card px-3 py-2 text-base shadow-xs"
           ></textarea>
           <p id="accept-reason-hint" class="text-sm text-muted-foreground">
             {errors.reason ?? t("findings.acceptReasonHint")}
@@ -117,8 +117,8 @@
           max={days.maxUntil}
         />
         <DialogFooter>
-          <Button variant="outline" onclick={() => (accepting = false)}>{t("common.cancel")}</Button>
-          <Button type="submit" disabled={accept.isPending}>{t("findings.accept")}</Button>
+          <Button variant="secondary" onclick={() => (accepting = false)}>{t("common.cancel")}</Button>
+          <Button variant="primary" type="submit" disabled={accept.isPending}>{t("findings.accept")}</Button>
         </DialogFooter>
       </form>
     </Dialog>

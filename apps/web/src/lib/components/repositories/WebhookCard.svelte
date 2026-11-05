@@ -223,14 +223,14 @@
             </Button>
           {/if}
           <Button
-            variant={data.enabled || registerWith ? "outline" : "primary"}
+            variant="secondary"
             disabled={create.isPending}
             onclick={() => create.mutate()}
           >
             {data.enabled ? t("repository.webhook.replace") : t("repository.webhook.enable")}
           </Button>
           {#if data.enabled}
-            <Button variant="outline" onclick={() => (turningOff = true)}>{t("repository.webhook.disable")}</Button>
+            <Button variant="secondary" onclick={() => (turningOff = true)}>{t("repository.webhook.disable")}</Button>
           {/if}
         </div>
       {/if}
@@ -258,7 +258,7 @@
         </ul>
       </div>
       <DialogFooter>
-        <Button onclick={() => (created = null)}>{t("repository.webhook.done")}</Button>
+        <Button variant="primary" onclick={() => (created = null)}>{t("repository.webhook.done")}</Button>
       </DialogFooter>
     </div>
   </Dialog>
@@ -291,8 +291,8 @@
         </span>
       </label>
       <DialogFooter>
-        <Button variant="outline" onclick={() => (confirmingRegister = false)}>{t("common.cancel")}</Button>
-        <Button disabled={!acknowledged || register.isPending} onclick={() => register.mutate()}>
+        <Button variant="secondary" onclick={() => (confirmingRegister = false)}>{t("common.cancel")}</Button>
+        <Button variant="primary" disabled={!acknowledged || register.isPending} onclick={() => register.mutate()}>
           {register.isPending ? t("common.loading") : t("repository.webhook.registerConfirm")}
         </Button>
       </DialogFooter>

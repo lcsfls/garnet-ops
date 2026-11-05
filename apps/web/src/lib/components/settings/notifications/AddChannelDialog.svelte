@@ -202,10 +202,10 @@
       </Select>
     </label>
     <DialogFooter>
-      <Button variant="outline" onclick={close}>
+      <Button variant="secondary" onclick={close}>
         {t("common.cancel")}
       </Button>
-      <Button
+      <Button variant="primary"
         type="submit"
         disabled={create.isPending || events.length === 0 || repositoryIds?.length === 0}
       >

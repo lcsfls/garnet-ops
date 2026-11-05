@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, Globe, Play, Trash2 } from "@lucide/svelte";
+  import { ArrowLeft, Play, Trash2 } from "@lucide/svelte";
   import { createMutation, createQuery, keepPreviousData, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -223,12 +223,12 @@
 
 {#snippet actions()}
   {#if data && canEdit}
-    <Button disabled={run.isPending || running} onclick={() => run.mutate()}>
+    <Button variant="primary" disabled={run.isPending || running} onclick={() => run.mutate()}>
       <Play aria-hidden="true" class="size-4" />
       {t("websites.checkNow")}
     </Button>
     <Button
-      variant="outline"
+      variant="secondary"
       onclick={() => {
         remove.reset();
         confirmRemove = true;
@@ -264,7 +264,6 @@
   {t("websites.back")}
 </a>
 <PageHeader
-  icon={Globe}
   title={data?.value ?? (on ? t("common.loading") : t("websites.title"))}
   description={data ? t(`websites.kind.${data.kind}`) : ""}
   meta={data ? meta : undefined}
@@ -282,14 +281,13 @@
       <Alert tone="error">{t("websites.stage1Failed", { reason: errorText(data.stage1.error) })}</Alert>
     {/if}
 
-    <!-- One card, three parts side by side from 2xl on: how it is verified, stage 1, stage 2. -->
-    <div data-testid="websites-summary">
-    <Card class="grid divide-y @2xl:grid-cols-3 @2xl:divide-x @2xl:divide-y-0">
-      <div class="min-w-0">
+    <!-- Three cards side by side from 2xl on: how it is verified, stage 1, stage 2. Each as tall as its content. -->
+    <div data-testid="websites-summary" class="grid items-start gap-4 @2xl:grid-cols-3">
+      <Card>
         <CardHeader title={t("websites.summaryVerification")}>
           {#snippet actions()}
             {#if canEdit}
-              <Button variant="outline" class="h-9 px-3 text-sm" onclick={() => setSearch({ verify: "1" })}>
+              <Button variant="secondary" class="h-9 px-3 text-sm" onclick={() => setSearch({ verify: "1" })}>
                 {t("websites.verifyOpen")}
               </Button>
             {/if}
@@ -310,9 +308,9 @@
             </span>
           </label>
         {/if}
-      </div>
+      </Card>
 
-      <div class="min-w-0">
+      <Card>
         <CardHeader title={t("websites.summaryStage1")} description={t("websites.summaryStage1Text")} />
         <Facts rows={stage1Rows} />
         {#if canEdit}
@@ -325,21 +323,20 @@
             {t("websites.stage1Daily")}
           </label>
         {/if}
-      </div>
+      </Card>
 
-      <div class="min-w-0">
+      <Card>
         <CardHeader title={t("websites.summaryStage2")} description={t("websites.summaryStage2Text")}>
           {#snippet actions()}
             {#if canEdit}
-              <Button variant="outline" class="h-9 px-3 text-sm" onclick={() => setSearch({ stage2: "1" })}>
+              <Button variant="secondary" class="h-9 px-3 text-sm" onclick={() => setSearch({ stage2: "1" })}>
                 {data?.stage2.enabled ? t("websites.stage2Manage") : t("websites.stage2Open")}
               </Button>
             {/if}
           {/snippet}
         </CardHeader>
         <Facts rows={stage2Rows} />
-      </div>
-    </Card>
+      </Card>
     </div>
 
     <Tabs

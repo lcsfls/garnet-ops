@@ -161,8 +161,8 @@
       {/if}
     </div>
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
-      <Button type="submit" disabled={save.isPending || token.trim().length < 8}>
+      <Button variant="secondary" onclick={onClose}>{t("common.cancel")}</Button>
+      <Button variant="primary" type="submit" disabled={save.isPending || token.trim().length < 8}>
         {save.isPending ? t("connections.connecting") : replacing ? t("connections.saveToken") : t("connections.connect")}
       </Button>
     </DialogFooter>

@@ -536,8 +536,6 @@ export const de: Messages = {
       failed: "{count, plural, one {# Punkt ist fehlgeschlagen.} other {# Punkte sind fehlgeschlagen.}}",
       both: "{failed, plural, one {# Punkt ist fehlgeschlagen} other {# Punkte sind fehlgeschlagen}}, {attention, plural, one {# weiterer braucht einen Blick.} other {# weitere brauchen einen Blick.}}",
       checked: "Geprüft {when}.",
-      refresh: "Jetzt aktualisieren",
-      refreshing: "Wird aktualisiert …",
     },
     settingsLink: "Einstellungen öffnen",
     never: "nie",

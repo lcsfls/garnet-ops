@@ -23,7 +23,7 @@
   }
 </script>
 
-<Button variant="outline" onclick={copy}>
+<Button variant="secondary" onclick={copy}>
   {#if copied}<Check aria-hidden="true" class="size-4" />{:else}<Copy aria-hidden="true" class="size-4" />{/if}
   {copied ? t("common.copied") : t("common.copy")}
 </Button>

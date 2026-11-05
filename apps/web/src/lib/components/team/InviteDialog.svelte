@@ -79,7 +79,7 @@
         {t("team.inviteLinkHint", { email: result.email, date: formatDate(result.expiresAt) })}
       </p>
       <DialogFooter>
-        <Button onclick={close}>{t("common.close")}</Button>
+        <Button variant="primary" onclick={close}>{t("common.close")}</Button>
       </DialogFooter>
     </div>
   {:else}
@@ -108,10 +108,10 @@
         {/each}
       </fieldset>
       <DialogFooter>
-        <Button variant="outline" onclick={close}>
+        <Button variant="secondary" onclick={close}>
           {t("common.cancel")}
         </Button>
-        <Button type="submit" disabled={create.isPending}>
+        <Button variant="primary" type="submit" disabled={create.isPending}>
           {create.isPending ? t("common.loading") : t("team.inviteSubmit")}
         </Button>
       </DialogFooter>

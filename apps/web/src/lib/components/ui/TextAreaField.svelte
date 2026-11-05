@@ -22,7 +22,7 @@
       bind:value
       {...c}
       class={cn(
-        "min-h-24 w-full rounded-md border border-input bg-card px-3 py-2 text-base shadow-xs placeholder:text-muted-foreground aria-invalid:border-critical",
+        "min-h-24 w-full rounded-md border border-control bg-card px-3 py-2 text-base shadow-xs placeholder:text-muted-foreground aria-invalid:border-critical",
         className as string,
       )}
       {...rest}

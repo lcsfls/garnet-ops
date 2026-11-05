@@ -123,10 +123,10 @@
         class="font-mono tracking-widest"
       />
       <DialogFooter>
-        <Button variant="outline" onclick={close}>
+        <Button variant="secondary" onclick={close}>
           {t("common.cancel")}
         </Button>
-        <Button type="submit" disabled={confirm.isPending}>
+        <Button variant="primary" type="submit" disabled={confirm.isPending}>
           {confirm.isPending ? t("common.loading") : t("account.authenticator.confirm")}
         </Button>
       </DialogFooter>
@@ -140,10 +140,10 @@
         <Field label={t("common.password")} name="password" type="password" required autocomplete="current-password" />
       {/if}
       <DialogFooter>
-        <Button variant="outline" onclick={close}>
+        <Button variant="secondary" onclick={close}>
           {t("common.cancel")}
         </Button>
-        <Button type="submit" disabled={begin.isPending}>
+        <Button variant="primary" type="submit" disabled={begin.isPending}>
           {begin.isPending ? t("common.loading") : t("account.authenticator.start")}
         </Button>
       </DialogFooter>

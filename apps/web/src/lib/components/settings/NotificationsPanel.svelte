@@ -76,7 +76,7 @@
 <Card>
   <CardHeader title={t("settings.notificationsTitle")} description={t("settings.notificationsDescription")}>
     {#snippet actions()}
-      <Button variant="outline" onclick={() => (adding = true)}>
+      <Button variant="primary" onclick={() => (adding = true)}>
         <Plus aria-hidden="true" class="size-4" />
         {t("settings.addChannel")}
       </Button>
@@ -147,7 +147,7 @@
               onChange={(enabled) => patch.mutate({ id: channel.id, body: { enabled } })}
             />
           {/key}
-          <Button variant="outline" class="h-9" disabled={test.isPending} onclick={() => test.mutate(channel.id)}>
+          <Button variant="secondary" class="h-9" disabled={test.isPending} onclick={() => test.mutate(channel.id)}>
             <Send aria-hidden="true" class="size-4" />
             {t("settings.sendTest")}
           </Button>
@@ -160,7 +160,7 @@
             <Pencil aria-hidden="true" class="size-4" />
           </Button>
           <Button
-            variant="ghost"
+            variant="destructive"
             class="h-9 px-2.5"
             aria-label={`${t("settings.deleteChannel")}: ${channel.name}`}
             onclick={() => (deleting = channel)}

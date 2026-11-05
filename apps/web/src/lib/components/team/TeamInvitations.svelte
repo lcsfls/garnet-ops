@@ -40,7 +40,7 @@
           </div>
         </div>
         <Button
-          variant="ghost"
+          variant="destructive"
           class="h-9 px-2.5"
           disabled={revoke.isPending}
           aria-label={t("team.revokeAction", { email: invitation.email })}

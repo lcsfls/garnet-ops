@@ -45,9 +45,9 @@
     </div>
     {#if repo.mine && me.role !== "viewer"}
       {#if repo.shareRequested && !admin}
-        <Button variant="outline" disabled>{t("connections.shareRequested")}</Button>
+        <Button variant="secondary" disabled>{t("connections.shareRequested")}</Button>
       {:else}
-        <Button variant="outline" disabled={change.isPending} onclick={() => change.mutate("share")}>
+        <Button variant="secondary" disabled={change.isPending} onclick={() => change.mutate("share")}>
           <Users aria-hidden="true" class="size-4" />
           {admin ? t("connections.share") : t("connections.askToShare")}
         </Button>
@@ -56,7 +56,7 @@
   </div>
 {:else if admin && repo.authKind === "connection"}
   <div class="flex justify-end">
-    <Button variant="ghost" class="h-9" disabled={change.isPending} onclick={() => change.mutate("unshare")}>
+    <Button variant="secondary" class="h-9" disabled={change.isPending} onclick={() => change.mutate("unshare")}>
       <Lock aria-hidden="true" class="size-4" />
       {t("connections.unshare")}
     </Button>

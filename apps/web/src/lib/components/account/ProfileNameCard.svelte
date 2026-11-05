@@ -63,7 +63,7 @@
     />
     {#if !directory}
       <div class="flex items-center gap-3">
-        <Button type="submit" disabled={save.isPending || name.trim() === "" || name.trim() === profile.name}>
+        <Button variant="primary" type="submit" disabled={save.isPending || name.trim() === "" || name.trim() === profile.name}>
           {save.isPending ? t("common.loading") : t("account.profile.save")}
         </Button>
       </div>

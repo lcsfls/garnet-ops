@@ -55,10 +55,10 @@
       value={passkey?.name ?? ""}
     />
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>
+      <Button variant="secondary" onclick={onClose}>
         {t("common.cancel")}
       </Button>
-      <Button type="submit" disabled={rename.isPending}>
+      <Button variant="primary" type="submit" disabled={rename.isPending}>
         {rename.isPending ? t("common.loading") : t("account.passkeys.renameSave")}
       </Button>
     </DialogFooter>

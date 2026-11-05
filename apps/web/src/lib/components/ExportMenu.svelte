@@ -2,6 +2,7 @@
   import { Download, FileSpreadsheet, FileText, FileType } from "@lucide/svelte";
   import { language, t } from "../i18n.svelte.ts";
   import { toQuery } from "../search.ts";
+  import { buttonClass } from "./ui/Button.svelte";
 
   const FORMATS = [
     { format: "csv", icon: FileSpreadsheet },
@@ -53,7 +54,7 @@
     aria-expanded={open}
     aria-controls={panelId}
     onclick={() => (open = !open)}
-    class="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-card px-4 font-medium shadow-xs hover:bg-accent"
+    class={buttonClass("secondary")}
   >
     <Download aria-hidden="true" class="size-4" />
     {t("export.button")}

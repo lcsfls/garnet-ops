@@ -116,7 +116,7 @@
   {#if canEdit}
     <div class="flex flex-wrap gap-2">
       <Button
-        variant="outline"
+        variant="secondary"
         onclick={() => {
           error = null;
           asking = true;
@@ -125,7 +125,7 @@
         {info.configured ? t(`settings.vulnDbBuild.${kind}.replace`) : t(`settings.vulnDbBuild.${kind}.set`)}
       </Button>
       {#if info.configured}
-        <Button variant="outline" disabled={remove.isPending} onclick={() => remove.mutate()}>
+        <Button variant="secondary" disabled={remove.isPending} onclick={() => remove.mutate()}>
           {t(`settings.vulnDbBuild.${kind}.remove`)}
         </Button>
       {/if}
@@ -168,8 +168,8 @@
         <span>{t(`settings.vulnDbBuild.${kind}.acknowledge`, { host: config.host })}</span>
       </label>
       <DialogFooter>
-        <Button type="button" variant="outline" onclick={close}>{t("common.cancel")}</Button>
-        <Button type="submit" disabled={!acknowledged || value.trim() === "" || save.isPending}>
+        <Button type="button" variant="secondary" onclick={close}>{t("common.cancel")}</Button>
+        <Button variant="primary" type="submit" disabled={!acknowledged || value.trim() === "" || save.isPending}>
           {save.isPending ? t("common.loading") : t("settings.save")}
         </Button>
       </DialogFooter>

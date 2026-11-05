@@ -42,7 +42,7 @@
     {/if}
     <DialogFooter>
       {#if query.data}<CopyButton text={query.data.json} />{/if}
-      <Button variant="outline" onclick={onClose}>{t("common.close")}</Button>
+      <Button variant="secondary" onclick={onClose}>{t("common.close")}</Button>
     </DialogFooter>
   </div>
 </Dialog>

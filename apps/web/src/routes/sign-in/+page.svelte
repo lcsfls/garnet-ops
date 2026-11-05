@@ -104,17 +104,17 @@
           autocomplete="current-password"
           maxlength={512}
         />
-        <Button type="submit" disabled={busy}>{busy ? t("common.loading") : t("signIn.submitDirectory")}</Button>
+        <Button variant="primary" type="submit" disabled={busy}>{busy ? t("common.loading") : t("signIn.submitDirectory")}</Button>
       {:else}
         <Field label={t("common.email")} name="email" type="email" required autocomplete="username" />
         <Field label={t("common.password")} name="password" type="password" required autocomplete="current-password" />
-        <Button type="submit" disabled={busy}>{busy ? t("common.loading") : t("signIn.submit")}</Button>
+        <Button variant="primary" type="submit" disabled={busy}>{busy ? t("common.loading") : t("signIn.submit")}</Button>
       {/if}
     </form>
   {/key}
   {#if passkeysSupported()}
     <div class="mt-5 grid gap-3 border-t pt-5">
-      <Button variant="outline" disabled={busy} onclick={() => void withPasskey()}>
+      <Button variant="secondary" disabled={busy} onclick={() => void withPasskey()}>
         <Fingerprint aria-hidden="true" class="size-4" />
         {t("signIn.passkey")}
       </Button>

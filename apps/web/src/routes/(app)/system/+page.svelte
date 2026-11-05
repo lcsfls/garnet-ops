@@ -1,7 +1,6 @@
 <script lang="ts">
   import { STATUS_REFRESH_SECONDS } from "@garnetops/core/system-status";
   import type { SystemStatus } from "@garnetops/core/system-status-view";
-  import { Activity } from "@lucide/svelte";
   import { createQuery } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import PageHeader from "#lib/components/PageHeader.svelte";
@@ -35,9 +34,9 @@
 
 <!-- A card in the columns (the cells below) stays whole: a card is never split between two columns. -->
 <div class="mx-auto max-w-[72rem] @wide:max-w-none" data-testid="system-status-page">
-  <PageHeader icon={Activity} title={t("systemStatus.title")} description={t("systemStatus.description")} />
+  <PageHeader title={t("systemStatus.title")} description={t("systemStatus.description")} />
   {#if status}
-    <SummaryCard {status} fetching={query.isFetching} onRefresh={() => void query.refetch()} />
+    <SummaryCard {status} />
     <div class="columns-1 gap-4 @wide:columns-2 @xwide:columns-3">
       <div data-testid="system-vulndb" class="mb-4 break-inside-avoid">
         <VulnDbCard vulnDb={status.vulnDb} />

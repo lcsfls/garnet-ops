@@ -102,7 +102,7 @@
 <Card>
   <CardHeader title={t("connections.apps.title")} description={t("connections.apps.description")}>
     {#snippet actions()}
-      <Button variant="outline" onclick={open}>
+      <Button variant="secondary" onclick={open}>
         <Plus aria-hidden="true" class="size-4" />
         {t("connections.apps.add")}
       </Button>
@@ -126,7 +126,7 @@
           </div>
         </div>
         <Button
-          variant="ghost"
+          variant="destructive"
           class="h-9 px-2.5"
           aria-label={`${t("connections.apps.remove")}: ${a.webBaseUrl}`}
           onclick={() => (removing = a)}
@@ -202,8 +202,8 @@
         class="font-mono"
       />
       <DialogFooter>
-        <Button variant="outline" onclick={() => (adding = false)}>{t("common.cancel")}</Button>
-        <Button type="submit" disabled={add.isPending || clientId.trim().length < 4 || !webBaseUrl.trim()}>
+        <Button variant="secondary" onclick={() => (adding = false)}>{t("common.cancel")}</Button>
+        <Button variant="primary" type="submit" disabled={add.isPending || clientId.trim().length < 4 || !webBaseUrl.trim()}>
           {add.isPending ? t("common.loading") : t("connections.apps.save")}
         </Button>
       </DialogFooter>

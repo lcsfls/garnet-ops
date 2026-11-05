@@ -42,7 +42,7 @@
           autocapitalize="off"
           autocomplete="off"
           spellcheck={false}
-          class="h-10 min-w-0 flex-[1_1_16rem] rounded-md border border-input bg-card px-3 font-mono text-sm shadow-xs aria-invalid:border-critical"
+          class="h-10 min-w-0 flex-[1_1_16rem] rounded-md border border-control bg-card px-3 font-mono text-sm shadow-xs aria-invalid:border-critical"
         />
         <Select
           aria-label={t("directory.groupRole", { number: index + 1 })}
@@ -54,7 +54,7 @@
           {/each}
         </Select>
         <Button
-          variant="ghost"
+          variant="destructive"
           class="h-9 px-2.5"
           disabled={rows.length <= 1}
           aria-label={t("directory.removeGroup", { number: index + 1 })}
@@ -67,7 +67,7 @@
   </ul>
   <div>
     <Button
-      variant="outline"
+      variant="secondary"
       class="h-9"
       disabled={rows.length >= DIRECTORY_LIMITS.maxGroupRoles}
       onclick={() => onChange([...rows, { dn: "", role: "member" }])}

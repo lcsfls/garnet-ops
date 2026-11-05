@@ -39,7 +39,7 @@
 <Card>
   <CardHeader title={t("gates.pipelineTitle")} description={t("gates.pipelineDescription")}>
     {#snippet actions()}
-      {#if admin}<Button onclick={onWizard}>{t("gates.wizard.open")}</Button>{/if}
+      {#if admin}<Button variant="primary" onclick={onWizard}>{t("gates.wizard.open")}</Button>{/if}
     {/snippet}
   </CardHeader>
   <div class="grid gap-4 px-5 pb-5">

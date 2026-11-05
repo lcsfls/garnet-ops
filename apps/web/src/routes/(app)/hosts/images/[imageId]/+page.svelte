@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, Layers } from "@lucide/svelte";
+  import { ArrowLeft } from "@lucide/svelte";
   import { createQuery } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import { cn } from "#lib/cn.ts";
@@ -45,7 +45,7 @@
 <a href="/hosts" class="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground hover:underline">
   <ArrowLeft aria-hidden="true" class="size-4" />{t("hosts.back")}
 </a>
-<PageHeader icon={Layers} {title} description={image ? `${t("hosts.imageTitle")} ${shortId(image.imageId)}` : ""} />
+<PageHeader {title} description={image ? `${t("hosts.imageTitle")} ${shortId(image.imageId)}` : ""} />
 
 {#if !on}
   <ModuleOff module="hosts" canSwitch={isAdmin(me)} />

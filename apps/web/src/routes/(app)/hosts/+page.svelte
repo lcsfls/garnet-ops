@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus, Server, TriangleAlert, X } from "@lucide/svelte";
+  import { Plus, TriangleAlert, X } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -52,10 +52,10 @@
   }));
 </script>
 
-<PageHeader icon={Server} title={t("hosts.title")} description={t("hosts.description")}>
+<PageHeader title={t("hosts.title")} description={t("hosts.description")}>
   {#snippet actions()}
     {#if on && canEdit}
-      <Button onclick={() => setAdding(true)}><Plus aria-hidden="true" class="size-4" />{t("hosts.add")}</Button>
+      <Button variant="primary" onclick={() => setAdding(true)}><Plus aria-hidden="true" class="size-4" />{t("hosts.add")}</Button>
     {/if}
   {/snippet}
 </PageHeader>

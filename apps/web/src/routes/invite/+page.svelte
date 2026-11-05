@@ -4,6 +4,7 @@
   import AuthLayout from "#lib/components/AuthLayout.svelte";
   import Alert from "#lib/components/ui/Alert.svelte";
   import Button from "#lib/components/ui/Button.svelte";
+  import ButtonLink from "#lib/components/ui/ButtonLink.svelte";
   import Field from "#lib/components/ui/Field.svelte";
   import { t } from "#lib/i18n.svelte.ts";
 
@@ -70,11 +71,7 @@
     <AuthLayout {title}>
       <div class="grid gap-4">
         <Alert tone="info">{t("invite.done", { organization: info.organizationName })}</Alert>
-        <a
-          href="/sign-in"
-          class="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground shadow-xs hover:bg-primary-hover"
-          >{t("invite.signIn")}</a
-        >
+        <ButtonLink variant="primary" href="/sign-in">{t("invite.signIn")}</ButtonLink>
       </div>
     </AuthLayout>
   {:else}
@@ -112,7 +109,7 @@
           />
           <input type="email" name="username" value={info.email} autocomplete="username" readonly hidden />
         {/if}
-        <Button type="submit" disabled={accept.isPending}>
+        <Button variant="primary" type="submit" disabled={accept.isPending}>
           {accept.isPending ? t("common.loading") : t("invite.submit")}
         </Button>
       </form>

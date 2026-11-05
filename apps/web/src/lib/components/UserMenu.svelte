@@ -10,6 +10,7 @@
   import LanguagePicker from "./LanguagePicker.svelte";
   import Segmented from "./Segmented.svelte";
   import Button from "./ui/Button.svelte";
+  import ButtonLink from "./ui/ButtonLink.svelte";
 
   /**
    * The avatar in the top bar opens a panel with who is signed in, language, theme and sign-out. It is a disclosure, not
@@ -64,14 +65,10 @@
         <div class="truncate text-sm text-muted-foreground">{me.user.email}</div>
         <div class="mt-1 text-sm text-muted-foreground">{me.organization.name} · {t(`shell.role.${me.role}`)}</div>
       </div>
-      <a
-        href="/account"
-        onclick={() => (open = false)}
-        class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-input bg-card px-4 text-base font-medium shadow-xs hover:bg-accent"
-      >
+      <ButtonLink href="/account" onclick={() => (open = false)}>
         <UserRound aria-hidden="true" class="size-4" />
         {t("shell.accountLink")}
-      </a>
+      </ButtonLink>
       <div class="grid gap-1.5">
         <span class="text-sm font-medium">{t("common.language")}</span>
         <!-- The choice is kept on the account too, so it follows the user to other browsers (ADR 0017). -->
@@ -93,7 +90,7 @@
           onChange={setTheme}
         />
       </div>
-      <Button variant="outline" onclick={signOut}>
+      <Button variant="secondary" onclick={signOut}>
         <LogOut aria-hidden="true" class="size-4" />
         {t("common.signOut")}
       </Button>

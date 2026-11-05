@@ -82,7 +82,7 @@
       {#if !managed}
         <Field label={t("common.password")} name="password" type="password" required autocomplete="current-password" />
       {/if}
-      <Button type="submit" disabled={busy || account.isLoading}>{busy ? t("common.loading") : t("enroll.start")}</Button>
+      <Button variant="primary" type="submit" disabled={busy || account.isLoading}>{busy ? t("common.loading") : t("enroll.start")}</Button>
     </form>
   </AuthLayout>
 {:else if step.kind === "scan"}
@@ -111,7 +111,7 @@
         maxlength={7}
         class="font-mono tracking-widest"
       />
-      <Button type="submit" disabled={busy}>{busy ? t("common.loading") : t("enroll.confirm")}</Button>
+      <Button variant="primary" type="submit" disabled={busy}>{busy ? t("common.loading") : t("enroll.confirm")}</Button>
     </form>
   </AuthLayout>
 {:else}
@@ -125,7 +125,7 @@
         <Checkbox class="mt-0.5" bind:checked={saved} />
         {t("enroll.backupConfirm")}
       </label>
-      <Button disabled={!saved} onclick={finish}>{t("enroll.finish")}</Button>
+      <Button variant="primary" disabled={!saved} onclick={finish}>{t("enroll.finish")}</Button>
     </div>
   </AuthLayout>
 {/if}

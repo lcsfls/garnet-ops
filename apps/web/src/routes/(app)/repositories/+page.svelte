@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Clock, GitBranch, ListChecks, Plus } from "@lucide/svelte";
+  import { Clock, ListChecks, Plus } from "@lucide/svelte";
   import { createQuery, keepPreviousData } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -15,6 +15,7 @@
   import Segmented from "#lib/components/Segmented.svelte";
   import SortHeader, { type SortDir } from "#lib/components/SortHeader.svelte";
   import Button from "#lib/components/ui/Button.svelte";
+  import ButtonLink from "#lib/components/ui/ButtonLink.svelte";
   import { formatWallClock } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { refreshWhenScansFinish } from "#lib/scan-follow.svelte.ts";
@@ -78,17 +79,14 @@
     setSearch({ sort: sort as RepositorySearch["sort"], dir });
 </script>
 
-<PageHeader icon={GitBranch} title={t("repositories.title")} description={t("repositories.description")}>
+<PageHeader title={t("repositories.title")} description={t("repositories.description")}>
   {#snippet actions()}
     {#if canEdit}
-      <a
-        href={href("/settings", { section: "accounts" })}
-        class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-input bg-card px-4 font-medium whitespace-nowrap shadow-xs transition-colors hover:bg-accent"
-      >
+      <ButtonLink href={href("/settings", { section: "accounts" })}>
         <ListChecks aria-hidden="true" class="size-4" />
         {t("connections.fromAccount")}
-      </a>
-      <Button onclick={() => setSearch({ add: "1" })}>
+      </ButtonLink>
+      <Button variant="primary" onclick={() => setSearch({ add: "1" })}>
         <Plus aria-hidden="true" class="size-4" />
         {t("repositories.add")}
       </Button>

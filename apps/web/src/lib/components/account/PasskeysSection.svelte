@@ -58,7 +58,7 @@
     <CardHeader title={t("account.passkeys.title")} description={t("account.passkeys.description")}>
       {#snippet actions()}
         {#if usable}
-          <Button onclick={() => (adding = true)}>
+          <Button variant="primary" onclick={() => (adding = true)}>
             <Plus aria-hidden="true" class="size-4" />
             {t("account.passkeys.add")}
           </Button>
@@ -92,7 +92,7 @@
                 {p.backedUp ? t("account.passkeys.synced") : t("account.passkeys.deviceBound")}
               </Badge>
               <div class="flex gap-1.5">
-                <Button variant="outline" class="h-9 px-3 text-sm" onclick={() => (renaming = p)}>
+                <Button variant="secondary" class="h-9 px-3 text-sm" onclick={() => (renaming = p)}>
                   <Pencil aria-hidden="true" class="size-3.5" />
                   {t("account.passkeys.rename")}
                 </Button>

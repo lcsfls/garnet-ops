@@ -55,7 +55,7 @@
 <Card>
   <CardHeader title={t("repository.writeAccess.title")} description={t("repository.writeAccess.description")}>
     {#snippet actions()}
-      <Button variant="outline" onclick={() => (renovate = true)}>{t("repository.renovate.button")}</Button>
+      <Button variant="secondary" onclick={() => (renovate = true)}>{t("repository.renovate.button")}</Button>
     {/snippet}
   </CardHeader>
   <div class="grid gap-3 px-5 pb-5">
@@ -112,8 +112,8 @@
     {#if admin}
       <div class="flex flex-wrap gap-2">
         {#if wa.enabled}
-          <Button variant="outline" onclick={() => (dialog = "replace")}>{t("repository.writeAccess.replace")}</Button>
-          <Button variant="outline" disabled={check.isPending} onclick={() => check.mutate()}>
+          <Button variant="secondary" onclick={() => (dialog = "replace")}>{t("repository.writeAccess.replace")}</Button>
+          <Button variant="secondary" disabled={check.isPending} onclick={() => check.mutate()}>
             <RefreshCw aria-hidden="true" class="size-4" />
             {check.isPending ? t("repository.writeAccess.checking") : t("repository.writeAccess.check")}
           </Button>

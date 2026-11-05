@@ -17,7 +17,7 @@
   }
 </script>
 
-<Button variant="outline" class="h-8 px-3 text-sm" onclick={copy}>
+<Button variant="secondary" class="h-8 px-3 text-sm" onclick={copy}>
   {#if copied}
     <Check aria-hidden="true" class="size-3.5" />
   {:else}

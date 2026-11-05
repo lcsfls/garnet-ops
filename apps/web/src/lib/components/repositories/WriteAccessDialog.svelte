@@ -155,8 +155,8 @@
       <p class="text-muted-foreground">{t("repository.writeAccess.scopesPlain")}</p>
     </div>
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
-      <Button type="submit" disabled={save.isPending || !forge || token.length < 8}>
+      <Button variant="secondary" onclick={onClose}>{t("common.cancel")}</Button>
+      <Button variant="primary" type="submit" disabled={save.isPending || !forge || token.length < 8}>
         {save.isPending ? t("repository.writeAccess.saving") : t("repository.writeAccess.save")}
       </Button>
     </DialogFooter>

@@ -29,7 +29,7 @@
   >
     {#snippet actions()}
       {#if canEdit}
-        <Button variant="outline" class="h-9 px-3 text-sm" onclick={onStage2}>{t("websites.stage2Manage")}</Button>
+        <Button variant="secondary" class="h-9 px-3 text-sm" onclick={onStage2}>{t("websites.stage2Manage")}</Button>
       {/if}
     {/snippet}
   </CardHeader>

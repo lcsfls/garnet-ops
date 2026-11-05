@@ -64,7 +64,7 @@
       class="max-w-96"
     />
     <div>
-      <Button type="submit" variant="outline" disabled={run.isPending} data-testid="directory-test">
+      <Button type="submit" variant="secondary" disabled={run.isPending} data-testid="directory-test">
         {run.isPending ? t("directory.testing") : t("directory.testRun")}
       </Button>
     </div>

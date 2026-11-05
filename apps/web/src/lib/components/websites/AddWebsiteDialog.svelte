@@ -216,8 +216,8 @@
       {@render subdomainsBox(t("websites.addSubdomainsHint"))}
       <p class="text-sm text-muted-foreground">{t("websites.addStage1Note")}</p>
       <DialogFooter>
-        <Button variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
-        <Button type="submit" disabled={add.isPending || value.trim() === ""}>
+        <Button variant="secondary" onclick={onClose}>{t("common.cancel")}</Button>
+        <Button variant="primary" type="submit" disabled={add.isPending || value.trim() === ""}>
           {add.isPending ? t("common.loading") : t("websites.addSubmit")}
         </Button>
       </DialogFooter>
@@ -241,8 +241,8 @@
       {@render subdomainsBox(t("websites.listSubdomainsHint"))}
       <p class="text-sm text-muted-foreground">{t("websites.listCoverNote")}</p>
       <DialogFooter>
-        <Button variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
-        <Button type="submit" disabled={check.isPending || lines.length === 0 || tooMany}>
+        <Button variant="secondary" onclick={onClose}>{t("common.cancel")}</Button>
+        <Button variant="primary" type="submit" disabled={check.isPending || lines.length === 0 || tooMany}>
           {check.isPending ? t("common.loading") : t("websites.listCheck", { count: lines.length })}
         </Button>
       </DialogFooter>
@@ -295,13 +295,13 @@
       <p class="text-sm text-muted-foreground">{t("websites.addStage1Note")}</p>
       <DialogFooter>
         <Button
-          variant="outline"
+          variant="secondary"
           onclick={() => {
             checked = null;
             error = null;
           }}>{t("websites.listBack")}</Button
         >
-        <Button
+        <Button variant="primary"
           disabled={addList.isPending || check.isPending || accepted.length === 0}
           onclick={() => addList.mutate(accepted.map((item) => item.value))}
         >

@@ -147,9 +147,9 @@
       </section>
       <p class="text-sm text-muted-foreground">{t("websites.verifyNote")}</p>
       <DialogFooter>
-        <Button variant="outline" onclick={() => (confirmRotate = true)}>{t("websites.verifyNewCode")}</Button>
-        <Button variant="outline" onclick={onClose}>{t("common.close")}</Button>
-        <Button disabled={check.isPending || waiting} onclick={() => check.mutate()}>
+        <Button variant="secondary" onclick={() => (confirmRotate = true)}>{t("websites.verifyNewCode")}</Button>
+        <Button variant="secondary" onclick={onClose}>{t("common.close")}</Button>
+        <Button variant="primary" disabled={check.isPending || waiting} onclick={() => check.mutate()}>
           {#if waiting}
             <Loader aria-hidden="true" class="size-4 animate-spin motion-reduce:animate-none" />
             {t("websites.verifyChecking")}

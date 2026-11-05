@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { UserRound } from "@lucide/svelte";
   import AuthenticatorSection from "#lib/components/account/AuthenticatorSection.svelte";
   import NotificationsSection from "#lib/components/account/NotificationsSection.svelte";
   import PasskeysSection from "#lib/components/account/PasskeysSection.svelte";
@@ -35,7 +34,7 @@
 </script>
 
 <div class="mx-auto max-w-[60rem]">
-  <PageHeader icon={UserRound} title={t("account.title")} description={t("account.description")} />
+  <PageHeader title={t("account.title")} description={t("account.description")} />
   <div class="grid items-start gap-4 @3xl:grid-cols-[12.5rem_minmax(0,1fr)]">
     <SectionNav label={t("account.sections")}>
       {#each ACCOUNT_SECTIONS as s (s)}

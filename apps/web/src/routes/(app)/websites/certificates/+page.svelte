@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Globe, ListPlus } from "@lucide/svelte";
+  import { ListPlus } from "@lucide/svelte";
   import { createQuery } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -70,10 +70,10 @@
     void goto(href(page.url.pathname, { ...search, q: q || undefined }), { replace: true, reset: false });
 </script>
 
-<PageHeader icon={Globe} title={t("websites.title")} description={t("websites.certificates.description")}>
+<PageHeader title={t("websites.title")} description={t("websites.certificates.description")}>
   {#snippet actions()}
     {#if on && canEdit}
-      <Button variant="outline" onclick={() => void goto(href("/websites", { add: "1", list: "1" }))}>
+      <Button variant="secondary" onclick={() => void goto(href("/websites", { add: "1", list: "1" }))}>
         <ListPlus aria-hidden="true" class="size-4" />
         {t("websites.addList")}
       </Button>

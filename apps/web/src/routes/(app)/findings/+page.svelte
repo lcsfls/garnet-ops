@@ -9,7 +9,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { Bug, ScanSearch, X } from "@lucide/svelte";
+  import { ScanSearch, X } from "@lucide/svelte";
   import { createMutation, createQuery, keepPreviousData, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import { cn } from "#lib/cn.ts";
@@ -164,14 +164,14 @@
   {/if}
   <ExportMenu filters={{ ...search, id: undefined, ai: undefined, cursor: undefined, pageSize: undefined }} />
   {#if me.role !== "viewer"}
-    <Button disabled={scan.isPending} onclick={() => scan.mutate()}>
+    <Button variant="primary" disabled={scan.isPending} onclick={() => scan.mutate()}>
       <ScanSearch aria-hidden="true" class="size-4" />
       {search.repositoryId ? t("findings.scanFiltered") : t("repositories.scanNow")}
     </Button>
   {/if}
 {/snippet}
 
-<PageHeader icon={Bug} title={t("findings.title")} description={t("findings.description")} actions={headerActions} />
+<PageHeader title={t("findings.title")} description={t("findings.description")} actions={headerActions} />
 
 <div class="mb-4 flex flex-wrap items-center gap-3">
   <Segmented

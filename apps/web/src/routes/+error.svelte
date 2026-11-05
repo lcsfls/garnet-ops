@@ -33,7 +33,7 @@
     <div class="grid gap-4">
       <Alert tone="error">{t("errors.network")}</Alert>
       <p class="text-sm text-muted-foreground">{t("errors.reconnects")}</p>
-      <Button onclick={() => window.location.reload()}>{t("common.continue")}</Button>
+      <Button variant="primary" onclick={() => window.location.reload()}>{t("common.continue")}</Button>
     </div>
   </AuthLayout>
 {/if}

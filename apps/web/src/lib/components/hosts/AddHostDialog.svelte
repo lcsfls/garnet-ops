@@ -82,8 +82,8 @@
         {/each}
       </fieldset>
       <DialogFooter>
-        <Button variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
-        <Button type="submit" disabled={create.isPending}>
+        <Button variant="secondary" onclick={onClose}>{t("common.cancel")}</Button>
+        <Button variant="primary" type="submit" disabled={create.isPending}>
           {create.isPending ? t("common.loading") : t("hosts.addSubmit")}
         </Button>
       </DialogFooter>
@@ -97,7 +97,7 @@
       <p class="text-sm text-muted-foreground">{t("hosts.snippetHttpsNote", { url: enrolment.serverUrl })}</p>
       <DialogFooter>
         <CopyButton text={file} />
-        <Button onclick={onClose}>{t("hosts.snippetDone")}</Button>
+        <Button variant="primary" onclick={onClose}>{t("hosts.snippetDone")}</Button>
       </DialogFooter>
     </div>
   {/if}

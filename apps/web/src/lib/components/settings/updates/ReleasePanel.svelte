@@ -67,7 +67,7 @@
 <Card>
   <CardHeader title={texts.available}>
     {#snippet actions()}
-      <Button variant="outline" class="h-9" disabled={busy || checking} onclick={onRefresh}>
+      <Button variant="secondary" class="h-9" disabled={busy || checking} onclick={onRefresh}>
         <RefreshCw aria-hidden="true" class={cn("size-4", checking && "motion-safe:animate-spin")} />
         {texts.checkAgain}
       </Button>
@@ -124,7 +124,7 @@
           {/if}
         </p>
         <div class="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={busy || blockedReason !== null}>
+          <Button variant="primary" type="submit" disabled={busy || blockedReason !== null}>
             {texts.schedule}
           </Button>
           {#if blockedReason}<span class="text-sm text-muted-foreground">{blockedReason}</span>{/if}

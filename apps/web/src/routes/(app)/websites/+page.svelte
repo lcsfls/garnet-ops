@@ -61,10 +61,10 @@
   const tileHref = (patch: Partial<WebsiteSearch>) => href("/websites", patch);
 </script>
 
-<PageHeader icon={Globe} title={t("websites.title")} description={t("websites.description")}>
+<PageHeader title={t("websites.title")} description={t("websites.description")}>
   {#snippet actions()}
     {#if on && canEdit}
-      <Button onclick={() => setSearch({ add: "1" })}>
+      <Button variant="primary" onclick={() => setSearch({ add: "1" })}>
         <Plus aria-hidden="true" class="size-4" />
         {t("websites.add")}
       </Button>

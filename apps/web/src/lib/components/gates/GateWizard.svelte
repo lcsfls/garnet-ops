@@ -93,7 +93,7 @@
         <p class="text-sm">{t("gates.wizard.tokenText", { name: repo?.name ?? "" })}</p>
         {#if create.isError}<Alert tone="error">{t("errors.actionFailed")}</Alert>{/if}
         <div>
-          <Button disabled={create.isPending} onclick={() => create.mutate()}>{t("gates.wizard.createToken")}</Button>
+          <Button variant="primary" disabled={create.isPending} onclick={() => create.mutate()}>{t("gates.wizard.createToken")}</Button>
         </div>
       {/if}
     {:else}
@@ -120,14 +120,14 @@
 
     <DialogFooter>
       {#if step > 0}
-        <Button variant="outline" onclick={() => (step -= 1)}>{t("gates.wizard.back")}</Button>
+        <Button variant="secondary" onclick={() => (step -= 1)}>{t("gates.wizard.back")}</Button>
       {/if}
       {#if step < 2}
-        <Button disabled={(step === 0 && !repositoryId) || (step === 1 && !token)} onclick={() => (step += 1)}>
+        <Button variant={step === 1 && !token ? "secondary" : "primary"} disabled={(step === 0 && !repositoryId) || (step === 1 && !token)} onclick={() => (step += 1)}>
           {t("gates.wizard.next")}
         </Button>
       {:else}
-        <Button onclick={onClose}>{t("gates.wizard.done")}</Button>
+        <Button variant="primary" onclick={onClose}>{t("gates.wizard.done")}</Button>
       {/if}
     </DialogFooter>
     {#if step === 1 && !token}

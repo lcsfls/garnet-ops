@@ -137,7 +137,7 @@
           </Select>
         </label>
         <Button
-          variant={u.enabled ? "outline" : "primary"}
+          variant="secondary"
           disabled={save.isPending}
           onclick={() =>
             save.mutate({ enabled: !u.enabled, intervalMinutes: Number(interval || u.intervalMinutes) })}

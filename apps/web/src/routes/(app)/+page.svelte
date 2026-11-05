@@ -4,7 +4,7 @@
 </script>
 
 <script lang="ts">
-  import { LayoutGrid, RefreshCw, ScanSearch } from "@lucide/svelte";
+  import { RefreshCw, ScanSearch } from "@lucide/svelte";
   import { createMutation, createQuery, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -42,7 +42,7 @@
   const canScan = $derived(me.role !== "viewer" && (data?.repositories.total ?? 0) > 0);
 </script>
 
-<PageHeader icon={LayoutGrid} title={t("overview.title")} description={t("overview.description")}>
+<PageHeader title={t("overview.title")} description={t("overview.description")}>
   {#snippet actions()}
     {#if scanAll.isError}
       <span role="alert" class="text-sm text-critical">
@@ -58,7 +58,7 @@
       </span>
     {/if}
     <Button
-      variant="outline"
+      variant="secondary"
       class="size-10 px-0"
       aria-label={t("overview.refresh")}
       title={t("overview.refresh")}
@@ -68,7 +68,7 @@
       <RefreshCw aria-hidden="true" class={cn("size-4", query.isFetching && "motion-safe:animate-spin")} />
     </Button>
     {#if canScan}
-      <Button disabled={scanAll.isPending} onclick={() => scanAll.mutate()}>
+      <Button variant="primary" disabled={scanAll.isPending} onclick={() => scanAll.mutate()}>
         <ScanSearch aria-hidden="true" class="size-4" />
         {t("overview.scanAll")}
       </Button>

@@ -55,7 +55,7 @@
         <Badge tone={totp.enrolled ? "neutral" : "critical"}>
           {totp.enrolled ? t("account.authenticator.statusOn") : t("account.authenticator.statusOff")}
         </Badge>
-        <Button variant="outline" onclick={() => (replacing = true)}>
+        <Button variant="secondary" onclick={() => (replacing = true)}>
           <RefreshCw aria-hidden="true" class="size-4" />
           {t("account.authenticator.replace")}
         </Button>
@@ -73,7 +73,7 @@
         {t("account.authenticator.codesLeft", { count: totp.backupCodesRemaining })}
       </span>
       <Button
-        variant="outline"
+        variant="secondary"
         class="ml-auto"
         onclick={() => {
           error = null;

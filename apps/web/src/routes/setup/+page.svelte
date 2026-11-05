@@ -173,8 +173,8 @@
       />
       <Alert tone="info">{t("setup.restore.replaces")}</Alert>
       <div class="flex flex-wrap gap-2">
-        <Button type="submit" disabled={busy}>{busy ? t("setup.restore.busy") : t("setup.restore.submit")}</Button>
-        <Button type="button" variant="outline" disabled={busy} onclick={() => ((mode = "choose"), (error = null))}>
+        <Button variant="primary" type="submit" disabled={busy}>{busy ? t("setup.restore.busy") : t("setup.restore.submit")}</Button>
+        <Button type="button" variant="secondary" disabled={busy} onclick={() => ((mode = "choose"), (error = null))}>
           {t("common.back")}
         </Button>
       </div>
@@ -207,8 +207,8 @@
         autocomplete="new-password"
       />
       <div class="flex flex-wrap gap-2">
-        <Button type="submit" disabled={busy}>{busy ? t("common.loading") : t("setup.submit")}</Button>
-        <Button type="button" variant="outline" disabled={busy} onclick={() => ((mode = "choose"), (error = null))}>
+        <Button variant="primary" type="submit" disabled={busy}>{busy ? t("common.loading") : t("setup.submit")}</Button>
+        <Button type="button" variant="secondary" disabled={busy} onclick={() => ((mode = "choose"), (error = null))}>
           {t("common.back")}
         </Button>
       </div>

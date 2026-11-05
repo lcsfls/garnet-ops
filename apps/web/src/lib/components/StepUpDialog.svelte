@@ -125,11 +125,11 @@
       pattern={"[0-9 ]{6,7}"}
     />
     <DialogFooter>
-      <Button variant="outline" onclick={() => void close()}>{t("common.cancel")}</Button>
-      <Button type="submit" disabled={busy}>{busy ? t("common.loading") : t("stepUp.confirm")}</Button>
+      <Button variant="secondary" onclick={() => void close()}>{t("common.cancel")}</Button>
+      <Button variant="primary" type="submit" disabled={busy}>{busy ? t("common.loading") : t("stepUp.confirm")}</Button>
     </DialogFooter>
     {#if hasPasskey && stage === "password"}
-      <Button variant="outline" disabled={busy} onclick={() => void withPasskey()}>{t("stepUp.passkey")}</Button>
+      <Button variant="secondary" disabled={busy} onclick={() => void withPasskey()}>{t("stepUp.passkey")}</Button>
     {/if}
   </form>
 </Dialog>

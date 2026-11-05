@@ -179,7 +179,7 @@
     {#if canCreate && p.pr?.state !== "merged" && (p.creatableViaConnection || p.creatable)}
       <div class="flex flex-wrap gap-2">
         {#if p.creatableViaConnection && p.connection}
-          <Button onclick={() => onCreate("connection")}>
+          <Button variant="primary" onclick={() => onCreate("connection")}>
             <GitPullRequest aria-hidden="true" class="size-4" />
             {p.connection.accountLogin
               ? t("fixes.createPrAs", { login: p.connection.accountLogin })
@@ -188,7 +188,7 @@
         {/if}
         {#if p.creatable}
           <Button
-            variant={p.creatableViaConnection ? "outline" : "primary"}
+            variant={p.creatableViaConnection ? "secondary" : "primary"}
             onclick={() => onCreate("repository")}
           >
             <GitPullRequest aria-hidden="true" class="size-4" />

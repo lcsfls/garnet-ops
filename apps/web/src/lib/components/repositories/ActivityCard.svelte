@@ -49,7 +49,7 @@
         {t("repository.activity.since", { when: formatDateTime(repo.inactive.since) })}
       </p>
       {#if canChange}
-        <Button variant="outline" class="ml-auto h-9" disabled={change.isPending} onclick={() => change.mutate(true)}>
+        <Button variant="secondary" class="ml-auto h-9" disabled={change.isPending} onclick={() => change.mutate(true)}>
           {t("repository.activity.reactivate")}
         </Button>
       {/if}
@@ -61,7 +61,7 @@
   </div>
 {:else if canChange}
   <div class="flex justify-end">
-    <Button variant="ghost" class="h-9 text-sm text-muted-foreground" onclick={() => (asking = true)}>
+    <Button variant="secondary" class="h-9 text-sm" onclick={() => (asking = true)}>
       <Archive aria-hidden="true" class="size-4" />
       {t("repository.activity.deactivate")}
     </Button>
@@ -90,8 +90,8 @@
         maxlength={200}
       />
       <DialogFooter>
-        <Button type="button" variant="outline" onclick={() => (asking = false)}>{t("common.cancel")}</Button>
-        <Button type="submit" disabled={change.isPending}>{t("repository.activity.deactivate")}</Button>
+        <Button type="button" variant="secondary" onclick={() => (asking = false)}>{t("common.cancel")}</Button>
+        <Button variant="primary" type="submit" disabled={change.isPending}>{t("repository.activity.deactivate")}</Button>
       </DialogFooter>
     </form>
   </Dialog>

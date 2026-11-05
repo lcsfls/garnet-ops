@@ -1,6 +1,5 @@
 <script lang="ts">
   import { SEVERITIES, SEVERITY_RANK, type Severity } from "@garnetops/core";
-  import { Package } from "@lucide/svelte";
   import { createQuery, keepPreviousData } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
@@ -58,7 +57,7 @@
   });
 </script>
 
-<PageHeader icon={Package} title={t("packages.title")} description={t("packages.description")} />
+<PageHeader title={t("packages.title")} description={t("packages.description")} />
 <div class="mb-4 flex flex-wrap items-center gap-3">
   <Select
     aria-label={t("findings.repository")}

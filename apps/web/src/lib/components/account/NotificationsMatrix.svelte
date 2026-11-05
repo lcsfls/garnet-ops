@@ -172,10 +172,10 @@
     </table>
 
     <div class="flex flex-wrap items-center gap-3">
-      <Button disabled={save.isPending || !dirty} onclick={() => save.mutate()}>
+      <Button variant="primary" disabled={save.isPending || !dirty} onclick={() => save.mutate()}>
         {save.isPending ? t("common.loading") : t("account.notifications.save")}
       </Button>
-      <Button variant="outline" onclick={restoreDefaults}>
+      <Button variant="secondary" onclick={restoreDefaults}>
         {t("account.notifications.restore")}
       </Button>
       <span class="text-sm text-muted-foreground">{t("account.notifications.restoreHint")}</span>

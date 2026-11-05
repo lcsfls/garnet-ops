@@ -202,7 +202,7 @@
   type="button"
   onclick={() => (open = true)}
   aria-keyshortcuts="Control+K Meta+K"
-  class="flex h-9 w-[clamp(12rem,16vw,20rem)] items-center gap-2 overflow-hidden rounded-md border border-input bg-card px-2.5 text-sm whitespace-nowrap text-muted-foreground shadow-xs hover:bg-accent"
+  class="flex h-9 w-[clamp(12rem,16vw,20rem)] items-center gap-2 overflow-hidden rounded-md border border-control bg-card px-2.5 text-sm whitespace-nowrap text-muted-foreground shadow-xs hover:bg-accent"
 >
   <Search aria-hidden="true" class="size-4 flex-none" />
   <span class="min-w-0 truncate">{t("shell.searchPlaceholder")}</span>
@@ -224,7 +224,7 @@
         active = 0;
       }}
       onkeydown={onKeyDown}
-      class="h-10 w-full rounded-md border border-input bg-card px-3 text-base shadow-xs placeholder:text-muted-foreground"
+      class="h-10 w-full rounded-md border border-control bg-card px-3 text-base shadow-xs placeholder:text-muted-foreground"
     />
     <div id={listId} role="listbox" aria-label={t("shell.searchTitle")} class="grid gap-0.5">
       <!-- Not keyed by option id: two packages of different types can share a name. -->

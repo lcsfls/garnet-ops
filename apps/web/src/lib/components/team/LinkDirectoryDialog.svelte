@@ -135,7 +135,7 @@
           spellcheck={false}
         />
       </div>
-      <Button type="submit" variant="outline" disabled={lookup.isPending || username.trim() === ""}>
+      <Button type="submit" variant="secondary" disabled={lookup.isPending || username.trim() === ""}>
         {lookup.isPending ? t("common.loading") : t("directory.linkLookup")}
       </Button>
     </form>
@@ -177,10 +177,10 @@
       </div>
     {/if}
     <DialogFooter>
-      <Button variant="outline" onclick={close}>
+      <Button variant="secondary" onclick={close}>
         {t("common.cancel")}
       </Button>
-      <Button disabled={!ready || link.isPending} onclick={() => link.mutate(username.trim())}>
+      <Button variant="primary" disabled={!ready || link.isPending} onclick={() => link.mutate(username.trim())}>
         {link.isPending ? t("common.loading") : t("directory.linkConfirm")}
       </Button>
     </DialogFooter>

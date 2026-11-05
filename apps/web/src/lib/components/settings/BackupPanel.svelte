@@ -14,6 +14,7 @@
   import Alert from "../ui/Alert.svelte";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
+  import ButtonLink from "../ui/ButtonLink.svelte";
   import Field from "../ui/Field.svelte";
 
   /**
@@ -137,7 +138,7 @@
       error={confirm.length > 0 && !same ? t("backup.mismatch") : undefined}
     />
     <div>
-      <Button type="submit" disabled={!long || !same || busy || create.isPending}>
+      <Button variant="primary" type="submit" disabled={!long || !same || busy || create.isPending}>
         {busy ? t("backup.building") : t("backup.create")}
       </Button>
     </div>
@@ -158,15 +159,15 @@
                 <span class="text-sm text-muted-foreground">{t("backup.by", { name: item.requestedBy })}</span>
               {/if}
               {#if item.canDownload}
-                <a
-                  class="ml-auto inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                <ButtonLink
+                  class="ml-auto h-9 text-sm"
                   href={`/api/v1/backup/${item.id}/download`}
                   download={item.fileName}
                   data-testid="backup-download"
                   onclick={() => setTimeout(() => queryClient.invalidateQueries({ queryKey: ["backup"] }), 1500)}
                 >
                   {t("backup.download")}
-                </a>
+                </ButtonLink>
               {/if}
             </div>
             {#if item.state === "ready" && item.sizeBytes !== null}

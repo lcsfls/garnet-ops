@@ -64,10 +64,10 @@
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     <ChannelEventsFields bind:events bind:minSeverity bind:repositoryIds error={filtersError} />
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>
+      <Button variant="secondary" onclick={onClose}>
         {t("common.cancel")}
       </Button>
-      <Button type="submit" disabled={save.isPending || events.length === 0 || repositoryIds?.length === 0}>
+      <Button variant="primary" type="submit" disabled={save.isPending || events.length === 0 || repositoryIds?.length === 0}>
         {save.isPending ? t("common.loading") : t("settings.channelUpdate")}
       </Button>
     </DialogFooter>

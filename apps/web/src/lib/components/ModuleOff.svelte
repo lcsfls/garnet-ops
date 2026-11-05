@@ -35,7 +35,7 @@
     <p class="text-muted-foreground">{t(`settings.module${key}Text`)}</p>
     <p class="text-muted-foreground">{t(`${module}.moduleOffText`)}</p>
     {#if canSwitch}
-      <Button class="mt-2 w-fit" disabled={switchOn.isPending} onclick={() => switchOn.mutate()}>
+      <Button variant="primary" class="mt-2 w-fit" disabled={switchOn.isPending} onclick={() => switchOn.mutate()}>
         {t("settings.moduleSwitchOn")}
       </Button>
     {/if}

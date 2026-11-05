@@ -185,7 +185,7 @@
               {/if}
               {#if manageable}
                 <Button
-                  variant="ghost"
+                  variant="destructive"
                   class="h-9 px-2.5"
                   aria-label={t("team.removeAction", { name: member.name })}
                   title={t("team.remove")}

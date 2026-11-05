@@ -42,9 +42,9 @@
       rows={2}
       placeholder={t("ai.askPlaceholder")}
       aria-describedby="ai-question-hint"
-      class="max-h-40 min-h-12 flex-1 resize-y rounded-md border border-input bg-card px-3 py-2 text-base shadow-xs placeholder:text-muted-foreground"
+      class="max-h-40 min-h-12 flex-1 resize-y rounded-md border border-control bg-card px-3 py-2 text-base shadow-xs placeholder:text-muted-foreground"
     ></textarea>
-    <Button type="submit" variant="outline" disabled={disabled || text.trim() === ""} aria-label={t("ai.send")}>
+    <Button type="submit" variant="secondary" disabled={disabled || text.trim() === ""} aria-label={t("ai.send")}>
       <Send aria-hidden="true" class="size-4" />
       <span class="hidden @xl:inline">{pending ? t("common.loading") : t("ai.send")}</span>
     </Button>

@@ -23,8 +23,7 @@
 </script>
 
 <script lang="ts">
-  import { ScrollText } from "@lucide/svelte";
-  import { createQuery, keepPreviousData } from "@tanstack/svelte-query";
+    import { createQuery, keepPreviousData } from "@tanstack/svelte-query";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import Card from "#lib/components/Card.svelte";
@@ -124,7 +123,7 @@
   {/if}
 {/snippet}
 
-<PageHeader icon={ScrollText} title={t("audit.title")} description={t("audit.description")} />
+<PageHeader title={t("audit.title")} description={t("audit.description")} />
 <div class="mb-4">
   <Segmented
     label={t("audit.filterLabel")}

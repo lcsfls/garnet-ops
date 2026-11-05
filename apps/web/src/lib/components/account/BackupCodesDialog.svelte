@@ -38,7 +38,7 @@
       {t("account.authenticator.codesSaved")}
     </label>
     <DialogFooter>
-      <Button disabled={!saved} onclick={close}>
+      <Button variant="primary" disabled={!saved} onclick={close}>
         {t("account.authenticator.codesDone")}
       </Button>
     </DialogFooter>

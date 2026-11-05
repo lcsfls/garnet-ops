@@ -3,6 +3,7 @@
   import { t } from "../../i18n.svelte.ts";
   import { REPORT_RANGES, reportPdfHref } from "../../reports.ts";
   import Button from "../ui/Button.svelte";
+  import ButtonLink from "../ui/ButtonLink.svelte";
   import Dialog from "../ui/Dialog.svelte";
   import DialogFooter from "../ui/DialogFooter.svelte";
   import Radio from "../ui/Radio.svelte";
@@ -17,7 +18,7 @@
   const id = $props.id();
 </script>
 
-<Button variant="outline" onclick={() => (open = true)} data-testid="organization-report-open">
+<Button variant="secondary" onclick={() => (open = true)} data-testid="organization-report-open">
   <FileText aria-hidden="true" class="size-4" />
   {t("reports.organization.button")}
 </Button>
@@ -38,16 +39,16 @@
     {/each}
   </fieldset>
   <DialogFooter>
-    <Button variant="outline" onclick={() => (open = false)}>{t("common.cancel")}</Button>
-    <a
+    <Button variant="secondary" onclick={() => (open = false)}>{t("common.cancel")}</Button>
+    <ButtonLink
+      variant="primary"
       href={reportPdfHref("/reports/organization", { days })}
       download
       onclick={() => (open = false)}
       data-testid="organization-report-download"
-      class="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 font-medium text-primary-foreground shadow-xs hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Download aria-hidden="true" class="size-4" />
       {t("reports.download")}
-    </a>
+    </ButtonLink>
   </DialogFooter>
 </Dialog>

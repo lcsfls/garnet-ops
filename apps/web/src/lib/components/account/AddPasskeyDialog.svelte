@@ -70,10 +70,10 @@
       autocomplete="off"
     />
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>
+      <Button variant="secondary" onclick={onClose}>
         {t("common.cancel")}
       </Button>
-      <Button type="submit" disabled={busy}>
+      <Button variant="primary" type="submit" disabled={busy}>
         {busy ? t("common.loading") : t("account.passkeys.create")}
       </Button>
     </DialogFooter>

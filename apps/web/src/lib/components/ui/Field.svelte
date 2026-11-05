@@ -29,7 +29,7 @@
       bind:value
       {...c}
       class={cn(
-        "h-10 w-full rounded-md border border-input bg-card px-3 text-base shadow-xs placeholder:text-muted-foreground aria-invalid:border-critical disabled:opacity-50",
+        "h-10 w-full rounded-md border border-control bg-card px-3 text-base shadow-xs placeholder:text-muted-foreground aria-invalid:border-critical disabled:opacity-50",
         className as string,
       )}
       {...rest}

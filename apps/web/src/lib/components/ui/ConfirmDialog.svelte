@@ -40,7 +40,7 @@
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     {@render children?.()}
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
+      <Button variant="secondary" onclick={onClose}>{t("common.cancel")}</Button>
       <Button variant="destructive" disabled={pending} onclick={onConfirm}>
         {pending ? t("common.loading") : confirmLabel}
       </Button>

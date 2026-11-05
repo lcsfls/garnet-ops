@@ -55,7 +55,7 @@
   <CardHeader title={t("account.sessions.title")} description={t("account.sessions.description")}>
     {#snippet actions()}
       <Button
-        variant="outline"
+        variant="secondary"
         disabled={others === 0}
         onclick={() => {
           error = null;
@@ -93,7 +93,7 @@
             </div>
             {#if !s.current}
               <Button
-                variant="outline"
+                variant="secondary"
                 class="h-9 px-3 text-sm"
                 onclick={() => {
                   error = null;

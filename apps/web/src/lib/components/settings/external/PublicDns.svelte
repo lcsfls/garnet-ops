@@ -137,7 +137,7 @@
           <Button disabled={save.isPending || (selectedProvider !== null && !acknowledged)} onclick={() => save.mutate()}>
             {save.isPending ? t("common.loading") : t("settings.save")}
           </Button>
-          <Button variant="outline" onclick={() => (choice = undefined)}>{t("common.cancel")}</Button>
+          <Button variant="secondary" onclick={() => (choice = undefined)}>{t("common.cancel")}</Button>
         </div>
       {/if}
     {/if}

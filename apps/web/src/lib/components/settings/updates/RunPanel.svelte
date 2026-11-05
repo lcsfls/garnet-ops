@@ -106,7 +106,7 @@
           </Button>
         {/if}
         {#if finished}
-          <Button variant="outline" disabled={busy} onclick={() => onAcknowledge(run.id)}>
+          <Button variant="secondary" disabled={busy} onclick={() => onAcknowledge(run.id)}>
             {texts.acknowledge}
           </Button>
         {/if}

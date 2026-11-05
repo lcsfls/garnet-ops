@@ -514,8 +514,6 @@ export const en = {
       failed: "{count, plural, one {# thing has failed.} other {# things have failed.}}",
       both: "{failed, plural, one {# thing has failed} other {# things have failed}}, {attention, plural, one {# more needs a look.} other {# more need a look.}}",
       checked: "Checked {when}.",
-      refresh: "Refresh now",
-      refreshing: "Refreshing…",
     },
     settingsLink: "Open settings",
     never: "never",

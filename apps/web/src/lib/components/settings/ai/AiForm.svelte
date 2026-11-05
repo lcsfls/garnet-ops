@@ -294,14 +294,14 @@
           spellcheck={false}
           aria-describedby="ai-model-hint"
           aria-invalid={fieldErrors.model ? true : undefined}
-          class="h-10 min-w-0 flex-[1_1_14rem] rounded-md border border-input bg-card px-3 font-mono text-sm shadow-xs aria-invalid:border-critical"
+          class="h-10 min-w-0 flex-[1_1_14rem] rounded-md border border-control bg-card px-3 font-mono text-sm shadow-xs aria-invalid:border-critical"
         />
         <datalist id="ai-models">
           {#each models ?? [] as name (name)}
             <option value={name}></option>
           {/each}
         </datalist>
-        <Button variant="outline" disabled={probeBusy || baseUrl.trim() === ""} onclick={() => probe.mutate("models")}>
+        <Button variant="secondary" disabled={probeBusy || baseUrl.trim() === ""} onclick={() => probe.mutate("models")}>
           {probe.isPending && probe.variables === "models" ? t("ai.loadingModels") : t("ai.loadModels")}
         </Button>
       </div>
@@ -374,11 +374,11 @@
     {#if probeNote}<Alert tone={probeNote.tone}>{probeNote.text}</Alert>{/if}
 
     <div class="flex flex-wrap items-center gap-3">
-      <Button type="submit" disabled={save.isPending}>
+      <Button variant="primary" type="submit" disabled={save.isPending}>
         {save.isPending ? t("ai.saving") : t("ai.save")}
       </Button>
       <Button
-        variant="outline"
+        variant="secondary"
         disabled={probeBusy || baseUrl.trim() === "" || model.trim() === ""}
         onclick={() => probe.mutate("test")}
       >
@@ -386,7 +386,7 @@
         {probe.isPending && probe.variables === "test" ? t("ai.testing") : t("ai.test")}
       </Button>
       {#if stored}
-        <Button variant="ghost" class="ml-auto" onclick={() => (removing = true)}>
+        <Button variant="destructive" class="ml-auto" onclick={() => (removing = true)}>
           <Trash2 aria-hidden="true" class="size-4" />
           {t("ai.remove")}
         </Button>

@@ -102,7 +102,7 @@
       </span>
     </label>
     <div>
-      <Button type="submit" disabled={change.isPending}>
+      <Button variant="primary" type="submit" disabled={change.isPending}>
         {change.isPending ? t("common.loading") : t("account.password.submit")}
       </Button>
     </div>

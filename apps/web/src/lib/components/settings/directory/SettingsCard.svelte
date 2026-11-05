@@ -375,7 +375,7 @@
         </span>
       </label>
       <div class="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={save.isPending}>
+        <Button variant="primary" type="submit" disabled={save.isPending}>
           {save.isPending ? t("common.loading") : t("directory.save")}
         </Button>
         {#if view.testedAt}

@@ -111,7 +111,7 @@
     {#snippet actions()}
       {#if canEdit}
         <Button
-          variant="outline"
+          variant="primary"
           onclick={() => {
             if ((apps.data ?? []).length > 0) choosing = true;
             else adding = true;
@@ -167,7 +167,7 @@
           {#if canEdit || c.pullRequests}
             <!-- Viewers may still switch their own pull requests off. -->
             <Button
-              variant="outline"
+              variant="secondary"
               class="h-9"
               aria-label={t("connections.pullRequests.manageLabel", { account: c.accountLogin ?? c.webBaseUrl })}
               onclick={() => (managingPullRequests = c)}
@@ -182,7 +182,7 @@
               {t("connections.choose")}
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               class="h-9"
               disabled={refresh.isPending || c.state === "unchecked"}
               onclick={() => refresh.mutate(c.id)}
@@ -191,7 +191,7 @@
               {t("connections.refresh")}
             </Button>
             {#if c.authMethod === "sign-in" && c.state === "failed" && (apps.data ?? []).length > 0}
-              <Button variant="outline" class="h-9" onclick={() => (choosing = true)}>
+              <Button variant="secondary" class="h-9" onclick={() => (choosing = true)}>
                 {t("connections.signIn.again")}
               </Button>
             {/if}
@@ -206,7 +206,7 @@
             </Button>
           {/if}
           <Button
-            variant="ghost"
+            variant="destructive"
             class="h-9 px-2.5"
             aria-label={`${t("connections.remove")}: ${c.webBaseUrl}`}
             title={t("connections.remove")}

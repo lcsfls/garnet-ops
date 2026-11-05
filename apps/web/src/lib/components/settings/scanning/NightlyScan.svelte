@@ -84,7 +84,7 @@
     <p class="text-sm text-muted-foreground">{t("settings.timeHint")}</p>
     {#if canEdit}
       <div class="flex items-center gap-3">
-        <Button type="submit" disabled={save.isPending}>
+        <Button variant="primary" type="submit" disabled={save.isPending}>
           {save.isPending ? t("common.loading") : t("settings.save")}
         </Button>
       </div>

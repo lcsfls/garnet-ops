@@ -95,14 +95,14 @@
       {#if canEdit && verified}
         <div class="flex flex-wrap gap-2">
           <Button
-            variant={detail.wordpressPlugin.connected ? "outline" : "primary"}
+            variant="secondary"
             disabled={connect.isPending}
             onclick={() => connect.mutate()}
           >
             {detail.wordpressPlugin.connected ? t("websites.wpPlugin.newToken") : t("websites.wpPlugin.connect")}
           </Button>
           {#if detail.wordpressPlugin.connected}
-            <Button variant="outline" disabled={disconnect.isPending} onclick={() => disconnect.mutate()}>
+            <Button variant="secondary" disabled={disconnect.isPending} onclick={() => disconnect.mutate()}>
               {t("websites.wpPlugin.disconnect")}
             </Button>
           {/if}
@@ -132,7 +132,7 @@
       <CopyRow label={t("websites.wpPlugin.token")} value={token} id="websites-wordpress-token" />
       <Alert tone="info">{t("websites.wpPlugin.tokenOnce")}</Alert>
       <DialogFooter>
-        <Button onclick={() => (token = null)}>{t("websites.wpPlugin.done")}</Button>
+        <Button variant="primary" onclick={() => (token = null)}>{t("websites.wpPlugin.done")}</Button>
       </DialogFooter>
     </div>
   </Dialog>

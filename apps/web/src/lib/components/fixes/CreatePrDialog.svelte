@@ -109,10 +109,10 @@
       <li class="text-muted-foreground">{t("fixes.create.never")}</li>
     </ul>
     <DialogFooter>
-      <Button variant="outline" onclick={onClose}>
+      <Button variant="secondary" onclick={onClose}>
         {t("common.cancel")}
       </Button>
-      <Button disabled={create.isPending || create.isSuccess} onclick={() => create.mutate()}>
+      <Button variant="primary" disabled={create.isPending || create.isSuccess} onclick={() => create.mutate()}>
         {create.isPending ? t("fixes.create.working") : t("fixes.create.confirm")}
       </Button>
     </DialogFooter>

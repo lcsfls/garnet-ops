@@ -38,7 +38,7 @@
       {#if canReset}
         <div>
           <Button
-            variant="outline"
+            variant="secondary"
             disabled={reset.isPending}
             onclick={() => {
               reset.reset();

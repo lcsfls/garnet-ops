@@ -75,7 +75,7 @@
             {token.lastUsedAt ? t("gates.lastUsed", { when: formatRelative(token.lastUsedAt) }) : t("gates.neverUsed")}
           </div>
         </div>
-        <Button variant="ghost" onclick={() => (revoking = token)} aria-label={`${t("gates.revoke")}: ${token.label}`}>
+        <Button variant="destructive" onclick={() => (revoking = token)} aria-label={`${t("gates.revoke")}: ${token.label}`}>
           <Trash2 aria-hidden="true" class="size-4" />
           {t("gates.revoke")}
         </Button>
@@ -85,7 +85,7 @@
   <form class="grid gap-2" onsubmit={submit}>
     <Field label={t("gates.tokenLabel")} hint={t("gates.tokenLabelHint")} name="label" required maxlength={80} />
     <div>
-      <Button type="submit" variant="outline" disabled={create.isPending}>{t("gates.createToken")}</Button>
+      <Button type="submit" variant="secondary" disabled={create.isPending}>{t("gates.createToken")}</Button>
     </div>
     {#if create.isError}<Alert tone="error">{t("errors.actionFailed")}</Alert>{/if}
   </form>

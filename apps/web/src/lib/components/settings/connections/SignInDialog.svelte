@@ -89,7 +89,7 @@
         {#each apps as a (a.id)}
           <li>
             <Button
-              variant="outline"
+              variant="secondary"
               class="h-auto w-full justify-start py-2.5 text-left"
               disabled={start.isPending || redirecting}
               onclick={() => {
@@ -146,7 +146,7 @@
       {/if}
     {/if}
     <DialogFooter>
-      <Button variant="outline" onclick={() => void cancel()}>
+      <Button variant="secondary" onclick={() => void cancel()}>
         {signInId ? t("connections.signIn.cancel") : t("common.cancel")}
       </Button>
     </DialogFooter>

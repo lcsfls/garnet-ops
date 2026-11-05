@@ -187,8 +187,8 @@
       {#if error}<Alert tone="error">{error}</Alert>{/if}
       <DeployKeyInstructions publicKey={added.deployPublicKey} />
       <DialogFooter>
-        <Button variant="outline" onclick={onClose}>{t("repositories.later")}</Button>
-        <Button disabled={firstScan.isPending} onclick={() => firstScan.mutate(added.id)}>
+        <Button variant="secondary" onclick={onClose}>{t("repositories.later")}</Button>
+        <Button variant="primary" disabled={firstScan.isPending} onclick={() => firstScan.mutate(added.id)}>
           {firstScan.isPending ? t("common.loading") : t("repositories.startFirstScan")}
         </Button>
       </DialogFooter>
@@ -285,8 +285,8 @@
         />
       {/if}
       <DialogFooter>
-        <Button variant="outline" onclick={onClose}>{t("repositories.cancel")}</Button>
-        <Button type="submit" disabled={pending}>
+        <Button variant="secondary" onclick={onClose}>{t("repositories.cancel")}</Button>
+        <Button variant="primary" type="submit" disabled={pending}>
           {pending
             ? t("common.loading")
             : many
