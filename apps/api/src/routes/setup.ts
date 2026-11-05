@@ -1,13 +1,18 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { newId } from "@garnetops/core";
+import { BACKUP_PASSPHRASE_MAX } from "@garnetops/core/backup";
 import { isTimeZone, schema } from "@garnetops/db";
 import { count, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { auth } from "../auth.ts";
 import { db, pool } from "../db.ts";
+import { env, vaultPublicKey } from "../env.ts";
 import { audit } from "../lib/audit.ts";
+import { clientIp } from "../lib/ip.ts";
 import { ProblemError } from "../lib/problem.ts";
+import { rateLimit } from "../lib/rate-limit.ts";
+import { RestoreFailure, restoreBackup } from "../lib/restore.ts";
 
 /**
  * First-run setup: creates the first organisation and its owner.
@@ -47,6 +52,26 @@ const body = z.object({
   password: z.string().min(12).max(256),
   /** The owner's IANA zone (from the browser); the nightly scan runs at 04:00 in it (ADR 0005). */
   timeZone: z.string().refine(isTimeZone, "Unknown time zone").optional(),
+});
+
+/**
+ * A restore (ADR 0046) in two steps, so the passphrase never travels in a header or a URL and the file can stream: the first
+ * request checks the setup token and keeps the passphrase in this process's memory for ten minutes; the second sends the file.
+ */
+const RESTORE_WINDOW_MS = 10 * 60_000;
+const restores = new Map<string, { passphrase: string; expires: number }>();
+
+function takeRestore(id: string) {
+  const now = Date.now();
+  for (const [key, value] of restores) if (value.expires < now) restores.delete(key);
+  const entry = restores.get(id);
+  restores.delete(id);
+  return entry ?? null;
+}
+
+const restoreBody = z.object({
+  token: z.string().min(1).max(200),
+  passphrase: z.string().min(1).max(BACKUP_PASSPHRASE_MAX),
 });
 
 export const setupRoutes = new Hono()
@@ -97,5 +122,47 @@ export const setupRoutes = new Hono()
     } finally {
       await client.query("select pg_advisory_unlock(hashtext('garnetops.setup'))").catch(() => {});
       client.release();
+    }
+  })
+  /** Restoring instead of setting up: checks the setup token and keeps the passphrase for the upload that follows. */
+  .post("/restore", async (c) => {
+    const ip = clientIp(c.req.raw.headers) ?? "unknown";
+    await rateLimit(`setup-restore:${ip}`, 10, 15 * 60_000);
+    const input = restoreBody.parse(await c.req.json());
+    if (!(await setupNeeded())) throw new ProblemError(409, "already-set-up", "GarnetOps is already set up");
+    if (!tokenMatches(input.token)) {
+      await audit({ organizationId: null, userId: null, ip }, "setup.restore_refused", undefined, {
+        reason: "invalid-setup-token",
+      });
+      throw new ProblemError(403, "invalid-setup-token", "The setup token is not valid");
+    }
+    const id = randomBytes(18).toString("base64url");
+    restores.set(id, { passphrase: input.passphrase, expires: Date.now() + RESTORE_WINDOW_MS });
+    return c.json({ id }, 201);
+  })
+  /** The backup file itself, as the request body. Restores it in one transaction, or changes nothing. */
+  .put("/restore/:id", async (c) => {
+    const entry = takeRestore(c.req.param("id"));
+    if (!entry) throw new ProblemError(404, "restore-expired", "Start the restore again");
+    if (!(await setupNeeded())) throw new ProblemError(409, "already-set-up", "GarnetOps is already set up");
+    const body = c.req.raw.body;
+    if (!body) throw new ProblemError(400, "restore-not-a-backup", "No file was sent");
+    try {
+      const summary = await restoreBackup(body, entry.passphrase, {
+        pool,
+        vaultPublicKey,
+        authKey: (await auth.$context).secretConfig,
+        authSecret: env.BETTER_AUTH_SECRET,
+      });
+      setupToken = null;
+      console.log(`restored a backup: ${summary.rows} rows in ${summary.tables} tables`);
+      return c.json(summary, 201);
+    } catch (error) {
+      const code = error instanceof RestoreFailure ? error.code : "failed";
+      throw new ProblemError(
+        code === "not-empty" ? 409 : 422,
+        `restore-${code}`,
+        "The backup was not restored",
+      );
     }
   });

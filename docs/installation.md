@@ -49,6 +49,8 @@ database ([ADR 0028](adr/0028-scanner-isolation.md)).
 `deploy/install.sh` writes `.env` (mode 0600) with a random database password and session
 secret. Keep a copy of `.env` in your password manager: the backup of the database is of
 no use without it, and the vault key (the `vault` volume) belongs to the same backup set.
+A backup made under **Settings → Backup** carries both and can be restored on a fresh installation
+([backup and restore](backup.md)).
 
 Open `https://garnetops.example.lan`, enter the setup token, create the first account and
 set up its second factor.

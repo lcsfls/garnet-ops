@@ -29,6 +29,8 @@ const schema = z.object({
   AGENT_BINARIES_DIR: z.string().min(1).default("/opt/garnetops/agent"),
   /** The GarnetOps WordPress plugin (ADR 0042, part 4), served as a zip; a development checkout falls back to the repository's. */
   WORDPRESS_PLUGIN_DIR: z.string().min(1).default("/opt/garnetops/wordpress-plugin"),
+  /** The largest backup file a restore accepts, in MiB (ADR 0046). */
+  GARNETOPS_MAX_RESTORE_MB: z.coerce.number().int().min(16).max(65_536).default(4096),
 });
 
 const parsed = schema.safeParse(process.env);

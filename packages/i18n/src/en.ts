@@ -82,6 +82,82 @@ export const en = {
     invalidToken: "The setup token is not valid.",
     alreadyDone: "GarnetOps is already set up. Sign in instead.",
     done: "Setup is complete. Sign in with your new account; you will set up two-factor authentication next.",
+    chooseDescription: "Start a new installation, or bring back an existing one from a backup.",
+    chooseNew: "Set up a new installation",
+    chooseNewText: "Create the first organisation and its owner account.",
+    chooseRestore: "Restore from a backup",
+    chooseRestoreText:
+      "You are moving GarnetOps to a new server or coming back: restore everything from a backup file made under Settings, Backup.",
+    restore: {
+      title: "Restore from a backup",
+      description:
+        "Everything comes back: organisations, accounts, repositories, findings, settings and stored access data.",
+      file: "Backup file",
+      fileHint: "The .age file downloaded under Settings, Backup.",
+      passphrase: "Passphrase of the backup",
+      replaces:
+        "This installation is still empty. The backup replaces it in one step: if anything does not fit, nothing is changed.",
+      submit: "Restore",
+      busy: "Restoring…",
+      doneTitle: "Restored",
+      done: "The backup was restored ({rows} rows). Everyone signs in again with their account and second factor as before.",
+      signInHint:
+        "Passkeys work only if GarnetOps has the same address as before; otherwise sign in with the authenticator app or a backup code.",
+      secretsNotOpened:
+        "{count} stored access secrets could not be opened with the backup's key. Enter them again where they are used.",
+      errorNoFile: "Choose the backup file.",
+      errorPassphrase: "The passphrase does not open this file, or it is not a backup file.",
+      errorNotABackup: "This file is not a GarnetOps backup.",
+      errorIncomplete: "The file is incomplete or was changed. Download the backup again.",
+      errorNewer:
+        "The backup was made by a newer GarnetOps. Install that version or a newer one first, then restore.",
+      errorExpired: "The restore took too long to start. Try again.",
+      errorFailed: "The backup could not be restored. Nothing was changed; the API log has the reason.",
+      errorRateLimited: "Too many attempts. Wait a few minutes and try again.",
+    },
+  },
+  backup: {
+    sectionName: "Backup",
+    title: "Backup of the whole installation",
+    description:
+      "Every organisation, account, repository, finding and setting, with all stored access data, in one encrypted file.",
+    contains:
+      "The file holds every stored secret (forge tokens, keys, passwords of services). Only your passphrase protects it: keep both apart, and the file somewhere only you can reach.",
+    passphrase: "Passphrase",
+    passphraseHint:
+      "At least {min} characters. A few unrelated words are easy to type and hard to guess. Without it the backup cannot be opened, not even by GarnetOps.",
+    confirm: "Passphrase again",
+    mismatch: "The two passphrases differ.",
+    create: "Create backup",
+    building: "Being made…",
+    requested: "The backup is being made. It can be downloaded here in a moment.",
+    listTitle: "Recent backups",
+    none: "No backup yet.",
+    by: "by {name}",
+    download: "Download",
+    readyFacts: "{size} MB, {rows} rows. Can be downloaded until {until}; then it is deleted here.",
+    downloadedAt: "Downloaded {when}.",
+    statePending: "Waiting",
+    stateBuilding: "Being made",
+    stateReady: "Ready",
+    stateFailed: "Failed",
+    stateExpired: "Deleted",
+    errorRunning: "A backup is being made already. Wait until it is ready.",
+    errorSeveral: "Backups are only possible on an installation with one organisation.",
+    errorRateLimited: "Three backups an hour at most. Try again later.",
+    errorSecretMissing: "The worker could not read the passphrase. Create the backup again.",
+    errorBuildFailed: "The worker could not make the backup. Its log has the reason.",
+    errorExpired: "The worker did not finish within an hour.",
+    passphraseTooShort: "The passphrase is too short.",
+    helpPassphraseTitle: "Keep the passphrase",
+    helpPassphraseText:
+      "GarnetOps does not keep it. A lost passphrase means a backup nobody can open; a leaked one means everything in it is exposed.",
+    helpRestoreTitle: "Restoring",
+    helpRestoreText:
+      "Install GarnetOps on the new server (the same version or newer), open it and choose Restore from a backup in the setup.",
+    helpAgeTitle: "An open format",
+    helpAgeText:
+      "The file is an age file (age-encryption.org) of compressed JSON lines, so it can be opened without GarnetOps: age -d file | gunzip.",
   },
   signIn: {
     title: "Sign in",
@@ -208,6 +284,10 @@ export const en = {
         systemUpdateFinished: {
           label: "An update finished or failed",
           hint: "An update of GarnetOps was installed or did not work.",
+        },
+        systemBackupCreated: {
+          label: "A backup was downloaded",
+          hint: "Someone downloaded a backup of the whole installation, with every stored secret.",
         },
       },
       scopes: {
@@ -3563,6 +3643,9 @@ export const en = {
       update_acknowledged: "Update result acknowledged",
       update_request_refused: "Update request refused",
       update_journal_gap: "Entries of the update log are missing",
+      backup_requested: "Backup requested",
+      backup_downloaded: "Backup downloaded",
+      backup_restored: "Installation restored from a backup",
       gate_rule_changed: "Gate rule changed",
       gate_token_created: "Gate token created",
       gate_token_revoked: "Gate token revoked",
@@ -4150,6 +4233,10 @@ export const en = {
       updateFailed: {
         title: "Update to {version} failed",
         text: "The journal in the audit log has the details.",
+      },
+      backupDownloaded: {
+        title: "Backup downloaded by {person}",
+        text: "A backup of the whole installation, with every stored secret, was downloaded. The audit log has the details.",
       },
     },
     roles: { owner: "an owner", admin: "an admin", member: "a member", viewer: "a viewer" },

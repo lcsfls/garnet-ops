@@ -24,6 +24,14 @@ test("first-run setup, mandatory TOTP, backup code and TOTP sign-in", async ({ p
   await expect(page.getByRole("heading", { name: "Set up GarnetOps" })).toBeVisible();
   expect(await hasNoHorizontalScroll(page)).toBe(true);
 
+  // A new installation, or a restore from a backup (ADR 0046). The restore form asks for token, file and passphrase.
+  await page.getByTestId("setup-choose-restore").click();
+  await expect(page.getByRole("heading", { name: "Restore from a backup" })).toBeVisible();
+  await expect(page.getByLabel("Backup file")).toBeVisible();
+  await expect(page.getByLabel("Passphrase of the backup")).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByTestId("setup-choose-new").click();
+
   // Setup without the one-time token is refused.
   await page.getByLabel("Setup token").fill("not-the-token");
   await page.getByLabel("Organisation name").fill(OWNER.organization);

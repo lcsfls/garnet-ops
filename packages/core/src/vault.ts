@@ -79,7 +79,12 @@ export type SecretPurpose =
    * A copy of a repository webhook's shared secret (ADR 0045), sealed by the API for the worker while the webhook is being
    * registered in the forge through a connected account; the worker deletes it as soon as it has tried.
    */
-  | "webhook-secret";
+  | "webhook-secret"
+  /**
+   * What the worker needs for one backup (ADR 0046): the passphrase the owner chose and the API's session secret, which the
+   * backup carries so a restore can re-encrypt the second factors. Sealed by the API, opened and deleted by the worker at once.
+   */
+  | "backup-request";
 
 export interface SecretBinding {
   organizationId: string;

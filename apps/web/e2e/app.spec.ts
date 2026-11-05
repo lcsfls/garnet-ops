@@ -601,6 +601,39 @@ test("scan on push: switched on with a fresh sign-in, shown once, and a signed p
   expect(problems).toEqual([]);
 });
 
+test("an owner makes an encrypted backup and downloads it once it is ready (ADR 0046)", async ({ page }) => {
+  const problems = watchForProblems(page);
+  await signedInAt("now");
+  await page.goto("/settings?section=backup");
+  const form = page.getByTestId("backup-form");
+  const create = form.getByRole("button", { name: "Create backup" });
+  await form.getByLabel("Passphrase", { exact: true }).fill("too short");
+  await form.getByLabel("Passphrase again").fill("too short");
+  await expect(create).toBeDisabled();
+  const passphrase = "e2e backup passphrase, not a secret";
+  await form.getByLabel("Passphrase", { exact: true }).fill(passphrase);
+  await form.getByLabel("Passphrase again").fill(`${passphrase}!`);
+  await expect(form).toContainText("The two passphrases differ.");
+  await form.getByLabel("Passphrase again").fill(passphrase);
+  await create.click();
+
+  // The worker builds it; the list shows it ready with size and checksum, and only the owner who asked can download it.
+  const item = page.getByTestId("backup-item").first();
+  await expect(item).toContainText("Ready", { timeout: 60_000 });
+  await expect(item).toContainText("SHA-256");
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    item.getByTestId("backup-download").click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^garnetops-backup-\d{4}-\d{2}-\d{2}\.age$/);
+  const file = readFileSync((await download.path()) as string);
+  // An age file starts with its own header; nothing of the database is readable in it.
+  expect(file.subarray(0, 21).toString()).toBe("age-encryption.org/v1");
+  expect(file.toString("latin1")).not.toContain(OWNER.email);
+  await expect(item).toContainText("Downloaded");
+  expect(problems).toEqual([]);
+});
+
 test("a finished scan reloads what it changed on the repository page", async ({ page }) => {
   const problems = watchForProblems(page);
   const id = "repo_e2eseeded000000001";

@@ -27,6 +27,7 @@ export const USER_EVENTS = [
   "team.invitation_accepted",
   "team.role_changed",
   "system.update_finished",
+  "system.backup_created",
 ] as const;
 export type UserEvent = (typeof USER_EVENTS)[number];
 
@@ -150,6 +151,14 @@ export const EVENT_CATALOG: Record<UserEvent, EventDefinition> = {
     defaultScope: "all",
     channelEvent: false,
   },
+  /** A backup of the whole installation was made (ADR 0046): every owner is told, because it holds every secret. */
+  "system.backup_created": {
+    group: "system",
+    minRole: "owner",
+    scoped: false,
+    defaultScope: "all",
+    channelEvent: false,
+  },
 };
 
 /** The sentence a notification shows; one per variant of an event. The texts live in the i18n files (`inapp.items`). */
@@ -172,6 +181,7 @@ export const TITLE_EVENTS = {
   roleChanged: "team.role_changed",
   updateSucceeded: "system.update_finished",
   updateFailed: "system.update_finished",
+  backupDownloaded: "system.backup_created",
 } as const satisfies Record<string, UserEvent>;
 export type TitleKey = keyof typeof TITLE_EVENTS;
 

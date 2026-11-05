@@ -8,6 +8,16 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Backup of the whole installation** ([ADR 0046](docs/adr/0046-backup-and-restore.md), `docs/backup.md`): under **Settings → Backup** an owner makes one encrypted file with everything, including every stored access secret, protected by a passphrase of their choice (age format, so it also opens without GarnetOps). The worker builds it; the owner who asked can download it for an hour.
+- **Restore in the setup**: the first start of a new installation asks whether to set up a new installation or restore from a backup. The restore runs in one step or not at all, and moves every secret, second factor and webhook secret to the new installation's keys. Backups of older versions are brought up to date on the way. New setting `GARNETOPS_MAX_RESTORE_MB` (default 4096).
+- A notification for owners when a backup is downloaded.
+
+### Security
+
+- Backups are for owners only, after a recent sign-in, at most three an hour; asking and every download are audited and every owner is told. The vault's private key never reaches the API: the worker builds the file, and the passphrase reaches it sealed and is deleted at once. A restore is only possible before the first account exists and with the setup token.
+
 ## [0.0.18] - 2026-11-02
 <!-- title: Getting started, a gate wizard, webhooks registered for you, and new statistics -->
 

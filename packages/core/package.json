@@ -37,7 +37,8 @@
     "./system-status": "./src/system-status.ts",
     "./system-status-view": "./src/system-status-view.ts",
     "./vulndb-build": "./src/vulndb-build.ts",
-    "./webhook": "./src/webhook.ts"
+    "./webhook": "./src/webhook.ts",
+    "./backup": "./src/backup.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

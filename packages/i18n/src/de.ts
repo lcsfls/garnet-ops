@@ -88,6 +88,85 @@ export const de: Messages = {
     invalidToken: "Das Einrichtungstoken ist nicht gültig.",
     alreadyDone: "GarnetOps ist bereits eingerichtet. Bitte melden Sie sich an.",
     done: "Die Einrichtung ist abgeschlossen. Melden Sie sich mit dem neuen Konto an; als Nächstes richten Sie die Zwei-Faktor-Authentifizierung ein.",
+    chooseDescription:
+      "Richten Sie eine neue Installation ein oder holen Sie eine bestehende aus einem Backup zurück.",
+    chooseNew: "Neue Installation einrichten",
+    chooseNewText: "Die erste Organisation und ihr Eigentümerkonto anlegen.",
+    chooseRestore: "Aus einem Backup wiederherstellen",
+    chooseRestoreText:
+      "Sie ziehen GarnetOps auf einen neuen Server um oder kommen zurück: alles aus einer Backup-Datei wiederherstellen, die unter Einstellungen, Backup erstellt wurde.",
+    restore: {
+      title: "Aus einem Backup wiederherstellen",
+      description:
+        "Alles kommt zurück: Organisationen, Konten, Repositories, Funde, Einstellungen und gespeicherte Zugangsdaten.",
+      file: "Backup-Datei",
+      fileHint: "Die .age-Datei, heruntergeladen unter Einstellungen, Backup.",
+      passphrase: "Passphrase des Backups",
+      replaces:
+        "Diese Installation ist noch leer. Das Backup ersetzt sie in einem Schritt: Passt etwas nicht, wird nichts geändert.",
+      submit: "Wiederherstellen",
+      busy: "Wird wiederhergestellt…",
+      doneTitle: "Wiederhergestellt",
+      done: "Das Backup wurde wiederhergestellt ({rows} Zeilen). Alle melden sich wie bisher mit ihrem Konto und zweiten Faktor neu an.",
+      signInHint:
+        "Passkeys funktionieren nur, wenn GarnetOps dieselbe Adresse hat wie vorher; sonst mit der Authenticator-App oder einem Backup-Code anmelden.",
+      secretsNotOpened:
+        "{count} gespeicherte Zugangsdaten ließen sich mit dem Schlüssel des Backups nicht öffnen. Geben Sie sie dort, wo sie genutzt werden, neu ein.",
+      errorNoFile: "Wählen Sie die Backup-Datei aus.",
+      errorPassphrase: "Die Passphrase öffnet diese Datei nicht, oder es ist keine Backup-Datei.",
+      errorNotABackup: "Diese Datei ist kein GarnetOps-Backup.",
+      errorIncomplete:
+        "Die Datei ist unvollständig oder wurde verändert. Laden Sie das Backup erneut herunter.",
+      errorNewer:
+        "Das Backup stammt von einem neueren GarnetOps. Installieren Sie zuerst diese oder eine neuere Version und stellen Sie dann wieder her.",
+      errorExpired: "Die Wiederherstellung hat zu lange nicht begonnen. Versuchen Sie es erneut.",
+      errorFailed:
+        "Das Backup konnte nicht wiederhergestellt werden. Nichts wurde geändert; das API-Log nennt den Grund.",
+      errorRateLimited: "Zu viele Versuche. Warten Sie einige Minuten und versuchen Sie es erneut.",
+    },
+  },
+  backup: {
+    sectionName: "Backup",
+    title: "Backup der ganzen Installation",
+    description:
+      "Alle Organisationen, Konten, Repositories, Funde und Einstellungen mit allen gespeicherten Zugangsdaten in einer verschlüsselten Datei.",
+    contains:
+      "Die Datei enthält alle gespeicherten Geheimnisse (Forge-Tokens, Schlüssel, Passwörter von Diensten). Nur Ihre Passphrase schützt sie: Bewahren Sie beides getrennt auf und die Datei dort, wo nur Sie herankommen.",
+    passphrase: "Passphrase",
+    passphraseHint:
+      "Mindestens {min} Zeichen. Einige zusammenhanglose Wörter sind leicht zu tippen und schwer zu erraten. Ohne sie lässt sich das Backup nicht öffnen, auch nicht von GarnetOps.",
+    confirm: "Passphrase wiederholen",
+    mismatch: "Die beiden Passphrasen sind verschieden.",
+    create: "Backup erstellen",
+    building: "Wird erstellt…",
+    requested: "Das Backup wird erstellt. Gleich kann es hier heruntergeladen werden.",
+    listTitle: "Letzte Backups",
+    none: "Noch kein Backup.",
+    by: "von {name}",
+    download: "Herunterladen",
+    readyFacts: "{size} MB, {rows} Zeilen. Herunterladbar bis {until}; danach wird es hier gelöscht.",
+    downloadedAt: "Heruntergeladen {when}.",
+    statePending: "Wartet",
+    stateBuilding: "Wird erstellt",
+    stateReady: "Bereit",
+    stateFailed: "Fehlgeschlagen",
+    stateExpired: "Gelöscht",
+    errorRunning: "Es wird bereits ein Backup erstellt. Warten Sie, bis es bereit ist.",
+    errorSeveral: "Backups sind nur bei einer Installation mit einer Organisation möglich.",
+    errorRateLimited: "Höchstens drei Backups pro Stunde. Versuchen Sie es später erneut.",
+    errorSecretMissing: "Der Worker konnte die Passphrase nicht lesen. Erstellen Sie das Backup erneut.",
+    errorBuildFailed: "Der Worker konnte das Backup nicht erstellen. Sein Log nennt den Grund.",
+    errorExpired: "Der Worker ist nicht innerhalb einer Stunde fertig geworden.",
+    passphraseTooShort: "Die Passphrase ist zu kurz.",
+    helpPassphraseTitle: "Passphrase aufbewahren",
+    helpPassphraseText:
+      "GarnetOps speichert sie nicht. Eine verlorene Passphrase heißt: Niemand kann das Backup öffnen. Eine bekannt gewordene heißt: Alles darin liegt offen.",
+    helpRestoreTitle: "Wiederherstellen",
+    helpRestoreText:
+      "Installieren Sie GarnetOps auf dem neuen Server (dieselbe Version oder neuer), öffnen Sie es und wählen Sie im Setup „Aus einem Backup wiederherstellen“.",
+    helpAgeTitle: "Ein offenes Format",
+    helpAgeText:
+      "Die Datei ist eine age-Datei (age-encryption.org) mit komprimierten JSON-Zeilen und lässt sich auch ohne GarnetOps öffnen: age -d Datei | gunzip.",
   },
   signIn: {
     title: "Anmelden",
@@ -221,6 +300,10 @@ export const de: Messages = {
         systemUpdateFinished: {
           label: "Ein Update ist fertig oder fehlgeschlagen",
           hint: "Ein Update von GarnetOps wurde installiert oder hat nicht funktioniert.",
+        },
+        systemBackupCreated: {
+          label: "Ein Backup wurde heruntergeladen",
+          hint: "Jemand hat ein Backup der ganzen Installation heruntergeladen, mit allen gespeicherten Geheimnissen.",
         },
       },
       scopes: {
@@ -3661,6 +3744,9 @@ export const de: Messages = {
       update_acknowledged: "Ergebnis des Updates bestätigt",
       update_request_refused: "Update-Anfrage abgelehnt",
       update_journal_gap: "Einträge des Update-Protokolls fehlen",
+      backup_requested: "Backup angefordert",
+      backup_downloaded: "Backup heruntergeladen",
+      backup_restored: "Installation aus einem Backup wiederhergestellt",
       gate_rule_changed: "Gate-Regel geändert",
       gate_token_created: "Gate-Token erstellt",
       gate_token_revoked: "Gate-Token widerrufen",
@@ -4256,6 +4342,10 @@ export const de: Messages = {
       updateFailed: {
         title: "Update auf {version} fehlgeschlagen",
         text: "Das Journal im Audit-Log nennt die Einzelheiten.",
+      },
+      backupDownloaded: {
+        title: "Backup heruntergeladen von {person}",
+        text: "Ein Backup der ganzen Installation mit allen gespeicherten Geheimnissen wurde heruntergeladen. Das Audit-Log nennt die Einzelheiten.",
       },
     },
     roles: { owner: "Owner", admin: "Admin", member: "Mitglied", viewer: "Betrachter" },

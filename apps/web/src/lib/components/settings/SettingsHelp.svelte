@@ -44,6 +44,11 @@
       { title: "settings.helpUpdatesBackupTitle", text: "settings.helpUpdatesBackupText" },
       { title: "settings.helpUpdatesManualTitle", text: "settings.helpUpdatesManualText" },
     ],
+    backup: [
+      { title: "backup.helpPassphraseTitle", text: "backup.helpPassphraseText" },
+      { title: "backup.helpRestoreTitle", text: "backup.helpRestoreText" },
+      { title: "backup.helpAgeTitle", text: "backup.helpAgeText" },
+    ],
     about: [{ title: "settings.helpSourceTitle", text: "settings.helpSourceText" }],
   };
 </script>

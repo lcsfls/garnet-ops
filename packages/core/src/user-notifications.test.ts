@@ -114,7 +114,11 @@ describe("roles", () => {
     expect(preferenceEvents("viewer")).not.toContain("infra.certificate_changed");
     expect(preferenceEvents("viewer")).not.toContain("scan.failed");
     expect(preferenceEvents("viewer")).toContain("team.role_changed");
-    expect(preferenceEvents("admin")).toEqual([...USER_EVENTS]);
+    // A downloaded backup is news for owners only (ADR 0046).
+    expect(preferenceEvents("admin")).toEqual(
+      USER_EVENTS.filter((event) => event !== "system.backup_created"),
+    );
+    expect(preferenceEvents("owner")).toEqual([...USER_EVENTS]);
     expect(roleReceives("member", "team.invitation_accepted")).toBe(false);
   });
 });

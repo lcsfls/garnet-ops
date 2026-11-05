@@ -6,6 +6,7 @@
   import { sectionLinkClass } from "#lib/components/section-nav.ts";
   import AboutSection from "#lib/components/settings/AboutSection.svelte";
   import AiSettingsPanel from "#lib/components/settings/AiSettingsPanel.svelte";
+  import BackupPanel from "#lib/components/settings/BackupPanel.svelte";
   import ConnectionsPanel from "#lib/components/settings/connections/ConnectionsPanel.svelte";
   import DirectoryPanel from "#lib/components/settings/directory/DirectoryPanel.svelte";
   import ExternalPanel from "#lib/components/settings/external/ExternalPanel.svelte";
@@ -34,6 +35,7 @@
     notifications: "settings.sectionNotifications",
     ai: "ai.sectionName",
     updates: "settings.sectionUpdates",
+    backup: "backup.sectionName",
     about: "settings.sectionAbout",
   } as const satisfies Record<SettingsSection, MessageKey>;
 
@@ -47,11 +49,11 @@
   const me = $derived(data.me);
   const admin = $derived(isAdmin(me));
   // Updates, notifications and AI are an installation matter: only owners and admins see them. Sign-in (the
-  // directory) is for owners alone (ADR 0020).
+  // directory, ADR 0020) and backups (ADR 0046) are for owners alone.
   const sections = $derived(
     SETTINGS_SECTIONS.filter(
       (s) =>
-        (s === "signin" ? me.role === "owner" : true) &&
+        (s === "signin" || s === "backup" ? me.role === "owner" : true) &&
         ((s !== "updates" && s !== "notifications" && s !== "ai") || admin),
     ),
   );
@@ -97,6 +99,7 @@
       {#if section === "notifications"}<NotificationsPanel {me} />{/if}
       {#if section === "ai"}<AiSettingsPanel {me} />{/if}
       {#if section === "updates"}<UpdatesPanel {me} />{/if}
+      {#if section === "backup"}<BackupPanel {me} />{/if}
       {#if section === "about"}<AboutSection />{/if}
     </div>
     <SettingsHelp {section} />

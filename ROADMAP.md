@@ -152,6 +152,8 @@ paginated findings, and every number on the overview leads to its details.
       releases, backup first, step-up sign-in, banner, journal in the audit log (ADR 0007, ADR 0026).
       The sidecar image is built, smoke-tested and signed with each release. Still open: the first
       release that publishes it, making its package public, branch and tag protection
+- [x] Backup of the whole installation, encrypted with a passphrase (age), and restore in the setup of a new
+      installation, secrets moved to the new keys (ADR 0046)
 - [~] Upgrade test harness: the release smoke test upgrades from the previous release
       through the sidecar; a real 0.0.3 to 0.0.4 update was run by hand (ADR 0007)
 

@@ -12,6 +12,7 @@ import { accountRoutes } from "./routes/account.ts";
 import { agentRoutes } from "./routes/agent.ts";
 import { aiRoutes } from "./routes/ai.ts";
 import { auditRoutes } from "./routes/audit.ts";
+import { backupRoutes } from "./routes/backup.ts";
 import { directoryRoutes } from "./routes/directory.ts";
 import { earlyWarningRoutes } from "./routes/early-warnings.ts";
 import { exposureRoutes } from "./routes/exposure.ts";
@@ -144,7 +145,8 @@ const v1 = new Hono<AppEnv>()
   .route("/notifications", notificationRoutes)
   .route("/maintenance", maintenanceRoutes)
   .route("/updates", updateRoutes)
-  .route("/vulndb-build", vulnDbBuildRoutes);
+  .route("/vulndb-build", vulnDbBuildRoutes)
+  .route("/backup", backupRoutes);
 
 app.route("/api/v1", v1);
 app.notFound((c) => c.json({ type: "about:blank", title: "Not found", status: 404 }, 404));

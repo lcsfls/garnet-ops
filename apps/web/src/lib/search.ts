@@ -207,6 +207,7 @@ export const SETTINGS_SECTIONS = [
   "notifications",
   "ai",
   "updates",
+  "backup",
   "about",
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];

@@ -367,6 +367,7 @@ export const secret = pgTable(
         "vulndb-github-token",
         "vulndb-nvd-api-key",
         "webhook-secret",
+        "backup-request",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -3426,4 +3427,56 @@ export const imageUpdateCheck = pgTable(
     error: text("error"),
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.ref] })],
+);
+
+/* -------------------------------------------------------------------------- */
+/* Backup and restore (ADR 0046)                                               */
+/* -------------------------------------------------------------------------- */
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+/**
+ * One encrypted backup of the whole installation, asked for by an owner (ADR 0046). The worker builds it, because only the worker
+ * holds the vault's private key; the passphrase reaches it sealed in the vault (purpose "backup-request") and is deleted as soon as
+ * the worker has read it. The encrypted file lives in `backup_chunk` until it expires (one hour after it was ready); then the
+ * worker deletes the chunks and keeps this row as the record. Never holds a passphrase, a key or anything readable of the backup.
+ */
+export const backupRun = pgTable(
+  "backup_run",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    requestedBy: text("requested_by").references(() => user.id, { onDelete: "set null" }),
+    state: text("state", { enum: ["pending", "building", "ready", "failed", "expired"] }).notNull(),
+    /** A short code when the build failed; never a message of a library. */
+    error: text("error"),
+    /** The vault copy of the passphrase while the worker has not read it yet. */
+    secretId: text("secret_id"),
+    /** Size and SHA-256 of the encrypted file, shown so the person can compare the download. */
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    sha256: text("sha256"),
+    /** Rows in the backup, for the record. */
+    rowCount: integer("row_count"),
+    appVersion: text("app_version"),
+    createdAt: createdAt(),
+    readyAt: timestamp("ready_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    downloadedAt: timestamp("downloaded_at", { withTimezone: true }),
+  },
+  (t) => [index("backup_run_org_created_idx").on(t.organizationId, t.createdAt)],
+);
+
+/** The encrypted file of a backup in pieces of at most 4 MiB, in order; deleted when the backup expires. */
+export const backupChunk = pgTable(
+  "backup_chunk",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => backupRun.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    data: bytea("data").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.runId, t.seq] })],
 );

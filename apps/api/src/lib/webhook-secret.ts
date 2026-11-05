@@ -10,10 +10,13 @@ import { env } from "../env.ts";
 const VERSION = "v1";
 let cached: Buffer | null = null;
 
+/** The key for webhook secrets derived from a session secret; a restore (ADR 0046) needs the one of the old installation. */
+export function webhookKeyFrom(authSecret: string): Buffer {
+  return Buffer.from(hkdfSync("sha256", authSecret, "garnetops", "repository webhook secrets v1", 32));
+}
+
 function key(): Buffer {
-  cached ??= Buffer.from(
-    hkdfSync("sha256", env.BETTER_AUTH_SECRET, "garnetops", "repository webhook secrets v1", 32),
-  );
+  cached ??= webhookKeyFrom(env.BETTER_AUTH_SECRET);
   return cached;
 }
 
@@ -22,22 +25,22 @@ export function newWebhookSecret(): string {
   return randomBytes(32).toString("base64url");
 }
 
-export function sealWebhookSecret(secret: string, webhookId: string): string {
+export function sealWebhookSecret(secret: string, webhookId: string, withKey: Buffer = key()): string {
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key(), iv);
+  const cipher = createCipheriv("aes-256-gcm", withKey, iv);
   cipher.setAAD(Buffer.from(webhookId));
   const sealed = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
   return `${VERSION}.${Buffer.concat([iv, sealed, cipher.getAuthTag()]).toString("base64url")}`;
 }
 
 /** The secret, or null when it does not open (another key, another row, or damaged). */
-export function openWebhookSecret(sealed: string, webhookId: string): string | null {
+export function openWebhookSecret(sealed: string, webhookId: string, withKey: Buffer = key()): string | null {
   const [version, data] = sealed.split(".");
   if (version !== VERSION || !data) return null;
   const raw = Buffer.from(data, "base64url");
   if (raw.length < 12 + 16 + 1) return null;
   try {
-    const decipher = createDecipheriv("aes-256-gcm", key(), raw.subarray(0, 12));
+    const decipher = createDecipheriv("aes-256-gcm", withKey, raw.subarray(0, 12));
     decipher.setAAD(Buffer.from(webhookId));
     decipher.setAuthTag(raw.subarray(raw.length - 16));
     return Buffer.concat([decipher.update(raw.subarray(12, raw.length - 16)), decipher.final()]).toString(

@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import type { WebhookRegisterJob, WebhookUnregisterJob } from "@garnetops/core/webhook";
 import { PgBoss } from "pg-boss";
 import { AI_PROBE_QUEUE, AI_QUEUE, runGeneration, runProbe, sweepAi } from "./ai.ts";
+import { BACKUP_QUEUE, type BackupJob, runBackupBuild, sweepBackups } from "./backup.ts";
 import { pool } from "./db.ts";
 import {
   DIRECTORY_QUEUE,
@@ -71,6 +72,7 @@ await boss.createQueue(EXPOSURE_VERIFY_QUEUE);
 await boss.createQueue(EXPOSURE_RUN_QUEUE);
 await boss.createQueue(WEBHOOK_REGISTER_QUEUE);
 await boss.createQueue(WEBHOOK_UNREGISTER_QUEUE);
+await boss.createQueue(BACKUP_QUEUE);
 // Queues and schedules of the modules removed in 0.0.4 (ADR 0025) would otherwise stay in the database.
 const retired = await removeRetiredQueues(boss);
 if (retired.length > 0) console.log(`worker: removed ${retired.length} retired queues`);
@@ -176,6 +178,15 @@ const webhookSweep = setInterval(
   5 * 60_000,
 );
 sweepWebhookRegistrations().catch((error: Error) => console.error("webhook sweep:", error.name));
+// Backups (ADR 0046): one at a time, never retried (a new backup is one click); the file is deleted an hour after it is ready.
+await boss.work<BackupJob>(BACKUP_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await runBackupBuild(job.data);
+});
+const backupSweep = setInterval(
+  () => sweepBackups().catch((error: Error) => console.error("backup sweep:", error.name)),
+  5 * 60_000,
+);
+sweepBackups().catch((error: Error) => console.error("backup sweep:", error.name));
 // Website monitoring (ADR 0023, a module since ADR 0033): the proof of control, stage 1 (passive) and stage 2 (light active).
 // Every outbound connection to an asset is made here, after the address was checked, and only for organisations that
 // switched the module on.
@@ -216,6 +227,7 @@ async function shutdown() {
   clearInterval(aiSweep);
   clearInterval(directorySweep);
   clearInterval(webhookSweep);
+  clearInterval(backupSweep);
   await boss.stop({ graceful: true, timeout: 30_000 }).catch(() => {});
   await pool.end().catch(() => {});
   process.exit(0);

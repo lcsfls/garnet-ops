@@ -13,6 +13,7 @@
 import { createServer } from "node:http";
 import type { WebhookRegisterJob, WebhookUnregisterJob } from "@garnetops/core/webhook";
 import { PgBoss } from "pg-boss";
+import { BACKUP_QUEUE, type BackupJob, runBackupBuild } from "../src/backup.ts";
 import { env } from "../src/env.ts";
 import {
   checkWriteAccess,
@@ -122,6 +123,11 @@ await boss.createQueue(FORGE_SIGN_IN_QUEUE);
 await boss.createQueue(PULL_REQUEST_QUEUE);
 await boss.createQueue(WEBHOOK_REGISTER_QUEUE);
 await boss.createQueue(WEBHOOK_UNREGISTER_QUEUE);
+// Backups (ADR 0046) need nothing from the forge; they run here so the end-to-end tests can download one.
+await boss.createQueue(BACKUP_QUEUE);
+await boss.work<BackupJob>(BACKUP_QUEUE, { batchSize: 1 }, async ([job]) => {
+  if (job) await runBackupBuild(job.data);
+});
 await boss.work<WebhookRegisterJob>(WEBHOOK_REGISTER_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await runWebhookRegister(job.data);
 });

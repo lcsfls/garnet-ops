@@ -14,6 +14,7 @@
     "@garnetops/core": "workspace:*",
     "@garnetops/db": "workspace:*",
     "@garnetops/i18n": "workspace:*",
+    "age-encryption": "0.3.1",
     "dns-packet": "5.6.1",
     "drizzle-orm": "^0.45.4",
     "ldapts": "9.2.0",
