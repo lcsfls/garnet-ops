@@ -511,14 +511,18 @@
       </Card>
     {/if}
     {@render keyFigures(data)}
-    <div class="grid items-start gap-4 @wide:grid-cols-2 @xwide:grid-cols-3">
-      {@render openCard(data)}
-      {@render foundResolvedCard(data)}
-      {@render gatesCard(data)}
-      {@render timeToFixCard(data)}
-      {@render repositoriesCard(data.repositories)}
-      {@render ageCard(data.openAge)}
-      {@render packagesCard(data.packages)}
+    <!--
+      The cards differ a lot in height. In a grid every row is as tall as its tallest card, which leaves holes under the
+      short ones; columns stack the cards one under the other instead, in reading order down each column.
+    -->
+    <div class="gap-4 @wide:columns-2 @xwide:columns-3" data-testid="statistics-cards">
+      <div class="mb-4 break-inside-avoid">{@render openCard(data)}</div>
+      <div class="mb-4 break-inside-avoid">{@render foundResolvedCard(data)}</div>
+      <div class="mb-4 break-inside-avoid">{@render gatesCard(data)}</div>
+      <div class="mb-4 break-inside-avoid">{@render timeToFixCard(data)}</div>
+      <div class="mb-4 break-inside-avoid">{@render repositoriesCard(data.repositories)}</div>
+      <div class="mb-4 break-inside-avoid">{@render ageCard(data.openAge)}</div>
+      <div class="mb-4 break-inside-avoid">{@render packagesCard(data.packages)}</div>
     </div>
     {@render oldestCard(data.oldest)}
   </div>
