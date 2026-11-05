@@ -14,6 +14,7 @@
   import Button from "#lib/components/ui/Button.svelte";
   import AddWebsiteDialog from "#lib/components/websites/AddWebsiteDialog.svelte";
   import WebsiteRow from "#lib/components/websites/WebsiteRow.svelte";
+  import WebsitesNav from "#lib/components/websites/WebsitesNav.svelte";
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
   import { toQuery, WEBSITE_STATUSES, type WebsiteSearch, websiteSearch } from "#lib/search.ts";
@@ -36,7 +37,7 @@
 
   const query = createQuery(() => ({
     queryKey: ["websites", "list", search],
-    queryFn: () => api<Page<WebsiteAsset>>(`/exposure${toQuery(search, ["add"])}`),
+    queryFn: () => api<Page<WebsiteAsset>>(`/exposure${toQuery(search, ["add", "list"])}`),
     enabled: on,
     placeholderData: keepPreviousData,
     // Follow the worker until the first look at a new website is done.
@@ -73,6 +74,8 @@
 {#if !on}
   <ModuleOff module="websites" canSwitch={canEdit} />
 {:else}
+  <WebsitesNav current="websites" />
+
   <details class="mb-4 rounded-xl border bg-card px-5 py-3 text-sm shadow-xs" data-testid="websites-help">
     <summary class="cursor-pointer font-medium">{t("websites.helpSummary")}</summary>
     <div class="mt-3 grid gap-3 text-muted-foreground @wide:grid-cols-3">
@@ -225,6 +228,9 @@
   {/if}
 
   {#if canEdit && search.add === "1"}
-    <AddWebsiteDialog onClose={() => setSearch({ add: undefined }, true)} />
+    <AddWebsiteDialog
+      list={search.list === "1"}
+      onClose={() => setSearch({ add: undefined, list: undefined }, true)}
+    />
   {/if}
 {/if}

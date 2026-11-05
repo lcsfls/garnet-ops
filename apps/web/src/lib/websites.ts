@@ -15,6 +15,11 @@ import {
 } from "@garnetops/core/exposure";
 import type { BadgeTone } from "./components/ui/tones.ts";
 
+export type {
+  CertificateGroup,
+  CertificateServer,
+  WildcardMiss,
+} from "@garnetops/core/exposure-certificates";
 export type { ActiveSnapshot, AssetKind, ExposureSeverity, PassiveSnapshot, VerifyMethod, VerifyState };
 
 export interface ExposureRunSummary {
@@ -128,6 +133,11 @@ export interface ExposureDetail extends WebsiteAsset {
   wordpressOrg:
     | { kind: "plugin" | "theme"; slug: string; listed: boolean; latest: string | null; checkedAt: string }[]
     | null;
+  /**
+   * Per certificate of the latest stage 1 look, the other websites that served the same certificate (one wildcard certificate on
+   * many names). Absent from an API before this field existed.
+   */
+  sharedCertificates?: { fingerprint: string; others: { id: string; value: string }[] }[];
   /** Only for owners and admins. */
   instructions: {
     value: string;

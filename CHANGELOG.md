@@ -13,6 +13,20 @@ Security-relevant changes are listed under **Security** in every release.
 - **Backup of the whole installation** ([ADR 0046](docs/adr/0046-backup-and-restore.md), `docs/backup.md`): under **Settings → Backup** an owner makes one encrypted file with everything, including every stored access secret, protected by a passphrase of their choice (age format, so it also opens without GarnetOps). The worker builds it; the owner who asked can download it for an hour.
 - **Restore in the setup**: the first start of a new installation asks whether to set up a new installation or restore from a backup. The restore runs in one step or not at all, and moves every secret, second factor and webhook secret to the new installation's keys. Backups of older versions are brought up to date on the way. New setting `GARNETOPS_MAX_RESTORE_MB` (default 4096).
 - A notification for owners when a backup is downloaded.
+- **Websites → Certificates**: every certificate your websites serve, once per certificate, with its names (wildcards marked),
+  issuer, expiry with the days left, key, and the websites that serve it. A wildcard certificate on twelve names is one row. The
+  TLS section of a website says on how many other names its certificate is served, and where a wildcard does not cover a name
+  (the domain itself, or two levels below) it says why (`docs/websites.md`).
+- **Add a list of names**: **Add asset → A list of names** takes up to 200 host names or addresses, one per line, for the
+  subdomains behind a wildcard certificate that Certificate Transparency cannot show. Every line is checked first and refused
+  lines are listed with the reason; the rest are added in one go, each audited and looked at like a single add. API:
+  `POST /api/v1/exposure/list`, `GET /api/v1/exposure/certificates`, and `sharedCertificates` in a website's detail.
+
+### Changed
+
+- **Certificate expiry notifications go out once per certificate**: when several websites serve the same certificate, one
+  message names the first of them and their number, with a link to the certificate, instead of one message per name. A
+  certificate on a single name is told as before. The findings stay per website, so reports and gates do not change.
 
 ### Security
 

@@ -56,6 +56,33 @@ default, because once it is on the installation connects to public hosts that an
   the record verifies, so networks that block outgoing DNS behave as before. No new data leaves: the challenge name was already asked
   through the resolver.
 
+## Amendment: certificates by certificate, and names as a list
+
+- **Certificates are grouped by certificate.** One wildcard or multi-name certificate served on many names gave one expiry warning
+  per name and no view of which names use it. `GET /api/v1/exposure/certificates` groups the TLS handshakes of the latest stage 1
+  look of every asset by SHA-256 fingerprint (`@garnetops/core/exposure-certificates`); the web app shows them under
+  **Websites → Certificates**, and each website's TLS section names the others that serve its certificate
+  (`sharedCertificates` in `GET /api/v1/exposure/{id}`). It is computed from the stored snapshots on each request: no table, no
+  migration.
+- **Findings stay per asset.** `tlsExpiring`, `tlsExpired` and the other TLS rules keep firing per asset, with the same subjects,
+  severities and meaning; reports and gates do not change (AGENTS.md rule 2).
+- **The expiry notification goes out once per certificate and step.** After a look, an asset whose soonest certificate reached a
+  step (30, 14, 7 days, expired) does not tell again when another asset of the organisation whose soonest certificate is the same
+  one already told this step or a more urgent one (`cert_notified_level`, stored together with the snapshot). The decision runs
+  under a transaction-scoped advisory lock per organisation and fingerprint, so two names looked at together cannot both tell. A
+  certificate on one name is told exactly as before (same title, parameters and link); one on several names uses the new titles
+  `exposureCertificateSharedExpiring` and `exposureCertificateSharedExpired` of the same event, with the first name, the number
+  of names and a link to the certificate. This is the default for every installation, not only new ones: the event was always
+  described as a warning about a certificate ("once at 30, 14 and 7 days"), every certificate still gets every warning, and only
+  the copies of one message for the same certificate are dropped. A wildcard that does not cover a name (the domain itself, or
+  more than one level below) is explained where it is shown; the name check itself is unchanged.
+- **Names can be added as a list.** Certificate Transparency cannot show the names behind a wildcard certificate, and names are
+  never guessed. `POST /api/v1/exposure/list` takes up to 200 values: with `dryRun` it returns each line's verdict (the rules of a
+  single add, already watched, repeated, past the limit, and the verified domain that covers it); without, it adds all of them in
+  one transaction or none (422 `validation` per line, 409 `limit-reached`), under an advisory lock per organisation. Each asset is
+  audited (`exposure.asset_added`, source `list`) and queued like a single add; the list counts as one request of the same rate
+  limit. Roles are those of a single add.
+
 ## Threat model
 
 Everything in the threat model of ADR 0023 applies unchanged (hostile remote text, address policy and rebinding, no payloads, rate
@@ -68,6 +95,9 @@ limits, proof of control as an accountability control, Certificate Transparency 
 | Stage 2 resumes silently after switching the module off and on | switching off switches stage 2 off and voids the acknowledgements |
 | Old `exposure.*` jobs in a database restored from 0.0.3 | the worker keeps removing those queues on start; the new queues have other names |
 | A member switches the module on | owners and admins only (403 otherwise), audited |
+| A pasted list is used to add many assets at once, or to probe what another organisation watches | owners and admins only; 200 lines at most and the 200-asset limit; the same rate limit as single adds; every value passes the address policy; "already watched" only compares with the caller's own organisation |
+| Hostile certificate text in the certificates view | the snapshot text was cleaned by the worker and is rendered as text; names that link are the organisation's own assets |
+| Fewer notifications hide an expiring certificate | each certificate still gets each step once; findings, reports and gates stay per name |
 
 ## Consequences
 

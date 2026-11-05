@@ -263,7 +263,7 @@ export const de: Messages = {
         },
         exposureCertificateExpiring: {
           label: "Ein Zertifikat einer öffentlichen Ressource läuft bald ab",
-          hint: "Ein Zertifikat eines Ihrer öffentlichen Assets hat noch 30, 14 oder 7 Tage oder ist abgelaufen. Sie erfahren es einmal je Stufe.",
+          hint: "Ein Zertifikat eines Ihrer öffentlichen Assets hat noch 30, 14 oder 7 Tage oder ist abgelaufen. Sie erfahren es einmal je Stufe und Zertifikat, auch wenn es unter mehreren Namen ausgeliefert wird.",
         },
         exposureVerificationLost: {
           label: "Ein Asset hat seine Verifizierung verloren",
@@ -1327,7 +1327,41 @@ export const de: Messages = {
         "Das ist keine öffentliche Adresse. Private, Loopback-, Link-Local-, Dokumentations- und reservierte Adressen werden abgelehnt.",
       duplicate: "Dieses Asset steht schon in der Liste.",
       limit: "Sie haben die Anzahl Assets erreicht, die eine Organisation beobachten darf (200).",
+      rateLimited: "Zu viele Hinzufügungen in der letzten Stunde. Versuchen Sie es später erneut.",
       invalid: "Das ist nicht gültig.",
+    },
+    viewsLabel: "Ansichten der Website-Überwachung",
+    viewWebsites: "Websites",
+    viewCertificates: "Zertifikate",
+    addList: "Eine Liste von Namen hinzufügen",
+    addMode: "Hinzufügen",
+    addModeOne: "Ein Name",
+    addModeList: "Eine Liste von Namen",
+    listValue: "Hostnamen oder Adressen, einer pro Zeile",
+    listValueHint:
+      "Bis zu {max} Zeilen. Jede Zeile wird wie ein einzelner Name geprüft. Certificate Transparency kann die Namen hinter einem Wildcard-Zertifikat nicht zeigen, darum fügen Sie sie hier ein.",
+    listTooMany: "{count} Zeilen: Eine Liste fasst höchstens {max}.",
+    listSubdomainsHint: "Für die Domains in der Liste. Standardmäßig aus.",
+    listCoverNote:
+      "Namen unter einer verifizierten Domain mit Subdomains gelten als verifiziert, wie wenn Sie sie einzeln hinzufügen.",
+    listCheck: "{count, plural, =0 {Liste prüfen} one {# Zeile prüfen} other {# Zeilen prüfen}}",
+    listSummary: "{valid} von {total} Zeilen können hinzugefügt werden. Noch wurde nichts hinzugefügt.",
+    listRefused: "{count, plural, one {# Zeile bleibt außen vor} other {# Zeilen bleiben außen vor}}",
+    listRefusedNote:
+      "Um sie hinzuzufügen, gehen Sie zurück, korrigieren die Zeilen und prüfen die Liste erneut.",
+    listLine: "Zeile {line}",
+    listAccepted: "{count, plural, one {# Name wird hinzugefügt} other {# Namen werden hinzugefügt}}",
+    listCoveredBy: "verifiziert über {domain}",
+    listBack: "Zurück zur Liste",
+    listAdd: "{count, plural, one {# Namen hinzufügen} other {# Namen hinzufügen}}",
+    listAdded:
+      "{count, plural, one {# Website hinzugefügt.} other {# Websites hinzugefügt.}} Die ersten Prüfungen laufen.",
+    listChanged:
+      "Seit der Prüfung hat sich etwas geändert, darum wurde nichts hinzugefügt. Die Liste wurde erneut geprüft.",
+    listProblem: {
+      duplicate: "Wird bereits überwacht.",
+      repeated: "Schon in Zeile {line} genannt.",
+      limit: "Über der Grenze von 200 Websites je Organisation.",
     },
     helpSummary: "So funktioniert es, und was nie geschieht",
     helpStage1Title: "Stufe 1: ein Blick von außen",
@@ -1784,6 +1818,34 @@ export const de: Messages = {
     suggestionAddNamed: "{name} als Asset hinzufügen",
     suggestionDismiss: "Verwerfen",
     suggestionDismissNamed: "{name} verwerfen",
+    tlsAlsoServed:
+      "{count, plural, one {Dieses Zertifikat wird auch unter einem weiteren Namen ausgeliefert:} other {Dieses Zertifikat wird auch unter # weiteren Namen ausgeliefert:}}",
+    tlsAllNames: "Alle Namen dieses Zertifikats",
+    certificates: {
+      description: "Jedes Zertifikat Ihrer Websites, einmal je Zertifikat, mit den Namen, die es ausliefern.",
+      help: "Eine Zeile je Zertifikat aus der letzten Prüfung jeder Website. Ein Wildcard-Zertifikat (*.example.com) deckt genau eine Ebene ab: www.example.com, aber weder example.com selbst noch a.b.example.com. Certificate Transparency kann die Namen hinter einem Wildcard-Zertifikat nicht zeigen, fügen Sie sie darum als Liste hinzu. Ablaufwarnungen gehen einmal je Zertifikat und Stufe hinaus, Befunde bleiben bei jeder Website.",
+      showingOne: "Ein Zertifikat wird angezeigt.",
+      showAll: "Alle Zertifikate anzeigen",
+      summary:
+        "{certificates, plural, one {# Zertifikat} other {# Zertifikate}} auf {names, plural, one {# Website} other {# Websites}}.",
+      search: "Zertifikate und Namen durchsuchen",
+      columnCertificate: "Zertifikat",
+      columnValidUntil: "Gültig bis",
+      columnIssuer: "Aussteller",
+      columnKey: "Schlüssel",
+      columnWebsites: "Ausgeliefert auf",
+      wildcard: "Wildcard",
+      servedOn: "{count, plural, one {# Website} other {# Websites}}",
+      notCovered: "Das Zertifikat nennt diesen Namen nicht.",
+      miss: {
+        apex: "{wildcard} deckt die Namen eine Ebene darunter ab, nicht {name} selbst. Nehmen Sie {name} in das Zertifikat auf.",
+        deeper:
+          "{wildcard} deckt genau eine Ebene ab, nicht {name}. Nehmen Sie {name} oder eine Wildcard eine Ebene tiefer in das Zertifikat auf.",
+      },
+      empty:
+        "Noch kein Zertifikat gesehen. Zertifikate erscheinen hier nach der ersten Prüfung einer Website, die über HTTPS antwortet.",
+      noMatch: "Kein Zertifikat passt.",
+    },
     tlsTitle: "TLS",
     tlsDescription: "Der Handshake auf Port 443 für jede Adresse, so wie ihn jeder Browser macht.",
     tlsNone: "Auf Port 443 hat nichts geantwortet.",
@@ -4298,6 +4360,14 @@ export const de: Messages = {
       exposureCertificateExpired: {
         title: "Zertifikat abgelaufen: {asset}",
         text: "Das Zertifikat dieses öffentlichen Assets ist abgelaufen.",
+      },
+      exposureCertificateSharedExpiring: {
+        title: "Zertifikat läuft bald ab für {count} Namen, darunter {asset}",
+        text: "Verbleibende Tage des Zertifikats: {days}. Websites, Zertifikate listet jeden Namen auf, der es ausliefert.",
+      },
+      exposureCertificateSharedExpired: {
+        title: "Zertifikat abgelaufen für {count} Namen, darunter {asset}",
+        text: "Das Zertifikat ist abgelaufen. Websites, Zertifikate listet jeden Namen auf, der es ausliefert.",
       },
       exposureVerificationLost: {
         title: "Verifizierung verloren: {asset}",

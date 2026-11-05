@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { isVerifyToken } from "./exposure.ts";
-import { addressAllowed, checkAsset, isExternalAddress, newVerifyToken } from "./exposure-assets.ts";
+import {
+  addressAllowed,
+  checkAsset,
+  checkAssetList,
+  isExternalAddress,
+  MAX_ASSET_LIST,
+  newVerifyToken,
+} from "./exposure-assets.ts";
 
 describe("checkAsset: host names", () => {
   it("accepts public host names and normalises them", () => {
@@ -168,5 +175,56 @@ describe("verification tokens", () => {
     expect(a).not.toEqual(b);
     expect(isVerifyToken(a)).toBe(true);
     expect(Buffer.from(a, "base64url")).toHaveLength(32);
+  });
+});
+
+describe("checkAssetList: a pasted list of names", () => {
+  it("gives every line a verdict with the reason, before anything is added", () => {
+    const lines = checkAssetList(
+      [
+        "www.example.com",
+        "API.example.com.",
+        "*.example.com",
+        "https://shop.example.com",
+        "router.lan",
+        "10.0.0.1",
+      ],
+      new Set(),
+      200,
+    );
+    expect(lines).toEqual([
+      { line: 1, input: "www.example.com", ok: true, kind: "domain", value: "www.example.com" },
+      { line: 2, input: "API.example.com.", ok: true, kind: "domain", value: "api.example.com" },
+      { line: 3, input: "*.example.com", ok: false, problem: "wildcard" },
+      { line: 4, input: "https://shop.example.com", ok: false, problem: "url" },
+      { line: 5, input: "router.lan", ok: false, problem: "reservedName" },
+      { line: 6, input: "10.0.0.1", ok: false, problem: "notPublic" },
+    ]);
+  });
+
+  it("refuses names already watched and names repeated in the list, also in another notation", () => {
+    const lines = checkAssetList(
+      ["a.example.com", "b.example.com", "A.EXAMPLE.COM.", "b.example.com"],
+      new Set(["b.example.com"]),
+      200,
+    );
+    expect(lines.map((l) => (l.ok ? "ok" : l.problem))).toEqual(["ok", "duplicate", "repeated", "duplicate"]);
+    expect(lines[2]).toMatchObject({ firstLine: 1, value: "a.example.com" });
+  });
+
+  it("keeps to the room left under the organisation's limit, in the order of the list", () => {
+    const lines = checkAssetList(
+      ["a.example.com", "bad name", "b.example.com", "c.example.com"],
+      new Set(),
+      2,
+    );
+    expect(lines.map((l) => (l.ok ? "ok" : l.problem))).toEqual(["ok", "url", "ok", "limit"]);
+    expect(checkAssetList(["a.example.com"], new Set(), 0)[0]).toMatchObject({ ok: false, problem: "limit" });
+  });
+
+  it("allows a whole organisation's worth of names in one list", () => {
+    expect(MAX_ASSET_LIST).toBe(200);
+    const names = Array.from({ length: MAX_ASSET_LIST }, (_, i) => `host${i}.example.com`);
+    expect(checkAssetList(names, new Set(), MAX_ASSET_LIST).every((l) => l.ok)).toBe(true);
   });
 });

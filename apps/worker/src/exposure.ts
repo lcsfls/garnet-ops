@@ -20,14 +20,11 @@ import {
   challengeName,
   countBySeverity,
   type DnsSnapshot,
-  daysToExpiry,
   EXPOSURE_PORTS,
   type ExposureErrorCode,
   effectiveVerification,
   evaluateActive,
   evaluatePassive,
-  expiryLevel,
-  expiryWarningDue,
   type FindingDraft,
   fileMatchesToken,
   isRiskyService,
@@ -57,6 +54,7 @@ import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import { db } from "./db.ts";
 import { readDnssec } from "./dnssec.ts";
+import { announceCertificateExpiry } from "./exposure-certificates.ts";
 import { CtError, type CtFetch, crtShFetch } from "./exposure-ct.ts";
 import {
   fetchHomepage,
@@ -599,12 +597,6 @@ async function lookUpCertificateTransparency(
 /* Stage 1                                                                     */
 /* -------------------------------------------------------------------------- */
 
-/** The earliest certificate expiry across the handshakes of a snapshot, in days; null if no certificate was seen. */
-function soonestExpiry(tls: TlsSnapshot[], now: Date): number | null {
-  const days = tls.flatMap((t) => (t.cert ? [daysToExpiry(t.cert.validTo, now)] : []));
-  return days.length > 0 ? Math.min(...days) : null;
-}
-
 /** Stage 1 of one run: DNS, TLS, the home page, discoveries; findings and notifications. */
 export async function runPassive(runId: string, deps: ExposureDeps = {}): Promise<void> {
   const now = nowOf(deps);
@@ -719,21 +711,8 @@ export async function runPassive(runId: string, deps: ExposureDeps = {}): Promis
     await syncFindings(asset, "passive", drafts, new Set(unjudgedRules(snapshot)), now);
     const counts = countBySeverity(drafts);
 
-    // Certificate expiry warnings: once per step (30, 14, 7 days, expired), again after a renewal.
-    const days = soonestExpiry(tls, now);
-    let notifiedLevel = asset.certNotifiedLevel;
-    if (days !== null) {
-      const level = expiryLevel(days);
-      if (expiryWarningDue(level, asset.certNotifiedLevel)) {
-        await tellUsers({
-          organizationId: asset.organizationId,
-          titleKey: level === 0 ? "exposureCertificateExpired" : "exposureCertificateExpiring",
-          params: { asset: asset.value, days: Math.max(days, 0) },
-          link: `/websites/${asset.id}`,
-        });
-      }
-      notifiedLevel = level;
-    }
+    // Certificate expiry warnings: once per step (30, 14, 7 days, expired), again after a renewal, once per certificate.
+    const notifiedLevel = await announceCertificateExpiry(asset, snapshot, now);
 
     await db
       .update(schema.exposureAsset)

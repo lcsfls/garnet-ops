@@ -250,7 +250,7 @@ export const en = {
         },
         exposureCertificateExpiring: {
           label: "An exposed certificate expires soon",
-          hint: "A certificate on one of your public assets has 30, 14 or 7 days left, or has expired. You are told once per step.",
+          hint: "A certificate on one of your public assets has 30, 14 or 7 days left, or has expired. You are told once per step and certificate, even when it is served on several names.",
         },
         exposureVerificationLost: {
           label: "An asset lost its verification",
@@ -1281,7 +1281,39 @@ export const en = {
         "This is not a public address. Private, loopback, link-local, documentation and reserved addresses are refused.",
       duplicate: "This asset is already on the list.",
       limit: "You have reached the number of assets an organisation may watch (200).",
+      rateLimited: "Too many additions in the last hour. Try again later.",
       invalid: "This is not valid.",
+    },
+    viewsLabel: "Website monitoring views",
+    viewWebsites: "Websites",
+    viewCertificates: "Certificates",
+    addList: "Add a list of names",
+    addMode: "Add",
+    addModeOne: "One name",
+    addModeList: "A list of names",
+    listValue: "Host names or addresses, one per line",
+    listValueHint:
+      "Up to {max} lines. Each line is checked like a single name. Certificate Transparency cannot show the names behind a wildcard certificate, so paste them here.",
+    listTooMany: "{count} lines: at most {max} fit in one list.",
+    listSubdomainsHint: "For the domains in the list. Off by default.",
+    listCoverNote:
+      "Names below a verified domain that includes subdomains count as verified, as when you add them one by one.",
+    listCheck: "{count, plural, =0 {Check the list} one {Check # line} other {Check # lines}}",
+    listSummary: "{valid} of {total} lines can be added. Nothing has been added yet.",
+    listRefused: "{count, plural, one {# line is left out} other {# lines are left out}}",
+    listRefusedNote: "To add them, go back, correct the lines and check the list again.",
+    listLine: "Line {line}",
+    listAccepted: "{count, plural, one {# name to add} other {# names to add}}",
+    listCoveredBy: "verified through {domain}",
+    listBack: "Back to the list",
+    listAdd: "{count, plural, one {Add # name} other {Add # names}}",
+    listAdded:
+      "{count, plural, one {# website added.} other {# websites added.}} The first looks are running.",
+    listChanged: "Something changed since the check, so nothing was added. The list was checked again.",
+    listProblem: {
+      duplicate: "Already watched.",
+      repeated: "Named before, on line {line}.",
+      limit: "Past the limit of 200 websites per organisation.",
     },
     helpSummary: "How this works, and what it never does",
     helpStage1Title: "Stage 1: a look from outside",
@@ -1731,6 +1763,35 @@ export const en = {
     suggestionAddNamed: "Add {name} as an asset",
     suggestionDismiss: "Dismiss",
     suggestionDismissNamed: "Dismiss {name}",
+    tlsAlsoServed:
+      "{count, plural, one {This certificate is also served on one other name:} other {This certificate is also served on # other names:}}",
+    tlsAllNames: "All names of this certificate",
+    certificates: {
+      description:
+        "Every certificate your websites serve, once per certificate, with the names that serve it.",
+      help: "One row per certificate seen in the latest look at each website. A wildcard certificate (*.example.com) covers exactly one level: www.example.com, but not example.com itself and not a.b.example.com. Certificate Transparency cannot show the names behind a wildcard certificate, so add them as a list. Expiry warnings go out once per certificate and step, findings stay with each website.",
+      showingOne: "Showing one certificate.",
+      showAll: "Show all certificates",
+      summary:
+        "{certificates, plural, one {# certificate} other {# certificates}} on {names, plural, one {# website} other {# websites}}.",
+      search: "Search certificates and names",
+      columnCertificate: "Certificate",
+      columnValidUntil: "Valid until",
+      columnIssuer: "Issuer",
+      columnKey: "Key",
+      columnWebsites: "Served on",
+      wildcard: "Wildcard",
+      servedOn: "{count, plural, one {# website} other {# websites}}",
+      notCovered: "The certificate does not list this name.",
+      miss: {
+        apex: "{wildcard} covers the names one level below, not {name} itself. Add {name} to the certificate.",
+        deeper:
+          "{wildcard} covers exactly one level, not {name}. Add {name} or a wildcard one level deeper to the certificate.",
+      },
+      empty:
+        "No certificate seen yet. Certificates appear here after the first look at a website that answers on HTTPS.",
+      noMatch: "No certificate matches.",
+    },
     tlsTitle: "TLS",
     tlsDescription: "The handshake on port 443 for each address, as any browser makes it.",
     tlsNone: "Nothing answered on port 443.",
@@ -4189,6 +4250,14 @@ export const en = {
       exposureCertificateExpired: {
         title: "Certificate expired: {asset}",
         text: "The certificate of this public asset has expired.",
+      },
+      exposureCertificateSharedExpiring: {
+        title: "Certificate expires soon on {count} names, including {asset}",
+        text: "Days left on the certificate: {days}. Websites, Certificates lists every name that serves it.",
+      },
+      exposureCertificateSharedExpired: {
+        title: "Certificate expired on {count} names, including {asset}",
+        text: "The certificate has expired. Websites, Certificates lists every name that serves it.",
       },
       exposureVerificationLost: {
         title: "Verification lost: {asset}",

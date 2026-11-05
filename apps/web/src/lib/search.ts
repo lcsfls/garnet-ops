@@ -265,8 +265,17 @@ export const websiteSearch = z.object({
   dir,
   /** Opens the "Add asset" dialog. */
   add: flag,
+  /** Opens it on the list of names (several subdomains at once). */
+  list: flag,
 });
 export type WebsiteSearch = z.infer<typeof websiteSearch>;
+
+/** The certificates of website monitoring: one row per certificate; `certificate` shows one (a link from a notification). */
+export const websiteCertificatesSearch = z.object({
+  certificate: text(200),
+  q: text(100),
+});
+export type WebsiteCertificatesSearch = z.infer<typeof websiteCertificatesSearch>;
 
 /** The list of agents (ADR 0034); `add` opens the "Add agent" dialog, as the "+" in the navigation does. */
 export const hostsSearch = z.object({ add: flag });

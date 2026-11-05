@@ -254,7 +254,9 @@ async function seedExposure(client: Client, orgId: string, now: Date) {
     sans: [name],
     validFrom: iso(days(60)),
     validTo: iso(validTo),
-    fingerprint: fingerprintOfCertificate(`exposure-${name}`),
+    // One fingerprint per certificate: two websites share one only when they serve the same certificate (grouping by
+    // certificate relies on it).
+    fingerprint: fingerprintOfCertificate(`exposure-${name}-${String(over.subject ?? name)}-${iso(validTo)}`),
     keyType: "ec",
     keyBits: 256,
     selfSigned: false,

@@ -54,6 +54,23 @@ no raw-socket or SYN scanning and no third-party scanner. Subdomains are never g
 
 Adding an asset starts stage 1 at once, and then every day.
 
+### Add a list of names
+
+Certificate Transparency cannot show the names behind a wildcard certificate (`*.example.com`), and subdomains are never guessed,
+so the names behind one are added by hand. **Add asset → A list of names** takes up to 200 host names or addresses, one per line
+(blank lines are left out):
+
+1. **Check the list.** Every line is checked with the rules above, before anything is added. The dialog lists each line that is
+   left out, with its line number and the reason: not a public name or address, already watched, named twice in the list, or past
+   the limit of 200 assets per organisation (the first lines that fit count). The names that can be added are listed below it; a
+   name below a verified domain with **Include subdomains** says "verified through" that domain, as it would when added alone.
+2. **Add.** All names that passed are added in one go, or none if something changed in between (a name was added elsewhere, the
+   limit was reached): then the list is checked again. Each one is in the audit log as **Website added to monitoring** (source
+   `list`) and gets its first look at once, exactly like a single add.
+
+**Include subdomains** in the list applies to the domains in it. A list counts as one request against the same limit as single
+adds (60 an hour per organisation).
+
 ## Verify an asset
 
 Stage 2 only runs for assets whose control you proved. Right after you add an asset, its page opens with this dialog; later you
@@ -194,6 +211,23 @@ For each asset, daily:
 
 If a name resolves to an address that is not public, GarnetOps **connects to nothing for that name** and says so.
 
+### Certificates
+
+**Websites → Certificates** lists every certificate the latest look at your websites saw on port 443, **once per certificate**
+(by its SHA-256 fingerprint), soonest expiry first: the subject and alternative names (wildcards marked), the issuer, until when it
+is valid with the days left, the key, and the websites that served it, each a link to its TLS section. A wildcard or multi-name
+certificate served on twelve names is one row with twelve names. Everyone in the organisation sees it.
+
+The TLS section of a website says **"This certificate is also served on N other names"** with links, and leads to the certificate's
+row.
+
+**Wildcards cover exactly one level.** `*.example.com` covers `www.example.com`, but neither `example.com` itself nor
+`a.b.example.com`. The name check of stage 1 already refuses such a certificate (the finding **Certificate for another name**);
+where a wildcard is the reason, the TLS section and the certificates view say so and what to add to the certificate.
+
+The findings stay per website: each name keeps its own **Certificate expires soon** finding, in its report and its gates, as before.
+Only the notification is sent once per certificate (below).
+
 ### Findings
 
 Plain rules. The severity says how unusual or risky a finding is, not that you are being attacked.
@@ -312,6 +346,10 @@ Switching it on and off is in the audit log.
 Under **Account → Notifications** (owners and admins; in the app and, if you want, by mail):
 
 - **An exposed certificate expires soon**: once at 30, 14 and 7 days, and when it has expired. A renewed certificate starts again.
+  It is sent **once per certificate**: when several of your websites serve the same certificate (a wildcard, or one certificate
+  for several names), the first website whose look reaches a step sends one message that names the certificate's first name and the
+  number of names, with a link to the certificate in **Websites → Certificates**; the others of that certificate send nothing for
+  that step. A certificate on a single name is told as before, with a link to the website.
 - **An asset lost its verification**: once.
 - **A new port is open on an asset**: ports open now that were not open in the previous successful stage 2 run.
 - **A risky service is reachable from the internet**: a high or critical port, once while it stays open.
@@ -332,7 +370,7 @@ They link to the asset. They carry the asset name, counts and a list of ports, n
 | Switch stage 2, Certificate Transparency or the wordpress.org lookup off | no | yes |
 | Switch the availability check on or off | no | yes |
 
-The audit log (filter **Websites**) has: asset added and removed, verified, verification lost and restored, verification code
+The audit log (filter **Websites**) has: asset added (also from a list, one entry per asset) and removed, verified, verification lost and restored, verification code
 replaced, stage 2 switched on (with the acknowledgement), off, stopped and run by hand, subdomain coverage changed, Certificate
 Transparency switched on and off, wordpress.org lookup switched on and off, Wordfence key set, replaced and removed,
 WordPress plugin connected, token replaced and disconnected, availability check switched on (or its interval
@@ -355,6 +393,8 @@ changed) and off.
 `module-off` while the module is off). The switch itself is `GET /api/v1/organization/modules` and
 `PUT /api/v1/organization/modules/websites` (`{ enabled }`, owners and admins). `GET /` (filters `q`, `status`, sort and cursor),
 `GET /counts`, `GET /:id`, `POST /` (`{ value, includeSubdomains }`), `PATCH /:id`, `DELETE /:id`, `POST /:id/verify`,
-`POST /:id/verify/rotate`, `POST /:id/run`, `PUT /:id/uptime` (`{ enabled, intervalMinutes }`), `PUT /:id/stage2`, `POST /:id/stage2/run`, `GET` and `PUT /settings`,
+`POST /:id/verify/rotate`, `POST /:id/run`, `POST /list` (`{ values, includeSubdomains, dryRun }`: with `dryRun` each line's verdict,
+without it all or none are added), `GET /certificates` (one entry per certificate with the websites that served it; the detail of a
+website has `sharedCertificates`), `PUT /:id/uptime` (`{ enabled, intervalMinutes }`), `PUT /:id/stage2`, `POST /:id/stage2/run`, `GET` and `PUT /settings`,
 `POST /discoveries/:id/add` and `/dismiss`. Errors are RFC 9457 problem documents (`duplicate`, `limit-reached`, `not-verified`,
 `too-soon`, `step-up-required`, `validation` with the reason of each refused field).

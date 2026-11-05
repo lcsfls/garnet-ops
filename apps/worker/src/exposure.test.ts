@@ -980,6 +980,42 @@ describe.skipIf(!openssl || !adminUrl)(
         ).toBeGreaterThan(2);
       });
 
+      it("warns once per certificate when several names serve it, and keeps the findings per name", async () => {
+        resetZone();
+        Object.assign(web, freshWeb(), { headers: TIDY_HEADERS });
+        const org = await newOrg();
+        const apex = await addAsset(org.id, { value: SITE });
+        const www = await addAsset(org.id, { value: `www.${SITE}` });
+        tidyZone(SITE);
+        tidyZone(`www.${SITE}`);
+        const t0 = new Date();
+        // A month earlier both names were looked at once: no step was due, and each knows the certificate.
+        const before = new Date(t0.getTime() - 30 * DAY);
+        await passive(apex, { httpsPort: ports.expiring }, before);
+        await passive(www, { httpsPort: ports.expiring }, before);
+        await passive(apex, { httpsPort: ports.expiring }, t0);
+        await passive(www, { httpsPort: ports.expiring }, t0);
+        const shared = await told(org.id, "exposureCertificateSharedExpiring");
+        const owner = shared.filter((n) => n.userId === org.users.owner);
+        expect(owner).toHaveLength(1);
+        expect(owner[0]?.params).toMatchObject({ asset: SITE, count: 2, days: expect.any(Number) });
+        expect(owner[0]?.link).toMatch(/^\/websites\/certificates\?certificate=/);
+        expect(await told(org.id, "exposureCertificateExpiring")).toEqual([]);
+        // Both names keep their own finding and the same step.
+        expect(await rules(apex.id)).toContain("tlsExpiring:443");
+        expect(await rules(www.id)).toContain("tlsExpiring:443");
+        expect((await asset(www.id)).certNotifiedLevel).toBe(14);
+        // The next step is told once again, whichever name gets there first.
+        const later = new Date(t0.getTime() + 4 * DAY);
+        await passive(www, { httpsPort: ports.expiring }, later);
+        await passive(apex, { httpsPort: ports.expiring }, later);
+        expect(
+          (await told(org.id, "exposureCertificateSharedExpiring")).filter(
+            (n) => n.userId === org.users.owner,
+          ),
+        ).toHaveLength(2);
+      });
+
       it("reports a server that still accepts TLS 1.0 and 1.1", async () => {
         resetZone();
         Object.assign(web, freshWeb(), { headers: TIDY_HEADERS });

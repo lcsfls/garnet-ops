@@ -170,6 +170,9 @@ export const TITLE_EVENTS = {
   fixPrFailed: "fix_pr.failed",
   exposureCertificateExpiring: "exposure.certificate_expiring",
   exposureCertificateExpired: "exposure.certificate_expiring",
+  /** One certificate served on several names: told once for all of them (ADR 0033 amendment). */
+  exposureCertificateSharedExpiring: "exposure.certificate_expiring",
+  exposureCertificateSharedExpired: "exposure.certificate_expiring",
   exposureVerificationLost: "exposure.verification_lost",
   exposureNewOpenPort: "exposure.new_open_port",
   exposureRiskyService: "exposure.risky_service",

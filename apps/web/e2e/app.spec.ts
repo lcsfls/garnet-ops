@@ -2942,6 +2942,193 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     expect(problems).toEqual([]);
   });
 
+  test("a pasted list is checked line by line first, then added in one go", async ({ page }) => {
+    const problems = watchForProblems(page);
+    const names = ["list-a.example.net", "list-b.example.net", "www.list-c.example.com"];
+    try {
+      await page.goto("/websites");
+      await page.getByRole("button", { name: "Add asset" }).first().click();
+      const dialog = page.getByRole("dialog", { name: "Add an asset" });
+      await dialog.getByRole("button", { name: "A list of names" }).click();
+      await dialog
+        .getByLabel("Host names or addresses, one per line")
+        .fill(
+          [
+            "list-a.example.net",
+            "LIST-B.example.net",
+            "",
+            "list-a.example.net",
+            "router.lan",
+            "*.example.net",
+            EXPOSURE.main.value,
+            "www.list-c.example.com",
+          ].join("\n"),
+        );
+      // Blank lines do not count.
+      await dialog.getByRole("button", { name: "Check 7 lines" }).click();
+      const review = dialog.getByTestId("list-review");
+      await expect(review).toContainText("3 of 7 lines can be added. Nothing has been added yet.");
+      const refused = review.getByTestId("list-refused");
+      await expect(refused.locator("li")).toHaveCount(4);
+      // Line numbers are those of the text as pasted, the blank line included.
+      for (const [line, reason] of [
+        ["Line 4", "Named before, on line 1."],
+        ["Line 5", "not used on the public internet"],
+        ["Line 6", "Wildcards are not supported"],
+        ["Line 7", "Already watched."],
+      ] as const) {
+        await expect(refused.locator("li", { hasText: line })).toContainText(reason);
+      }
+      const accepted = review.getByTestId("list-accepted");
+      await expect(accepted.locator("li")).toHaveCount(3);
+      await expect(accepted).toContainText("list-b.example.net");
+      // A name below a verified domain that includes subdomains counts as verified, as when added alone.
+      await expect(accepted.locator("li", { hasText: "www.list-c.example.com" })).toContainText(
+        `verified through ${EXPOSURE.main.value}`,
+      );
+      expect(await sql("select id from exposure_asset where value = any($1::text[])", [names])).toHaveLength(
+        0,
+      );
+
+      await review.getByRole("button", { name: "Add 3 names" }).click();
+      await expect(dialog).toBeHidden();
+      await expect(page.getByText("3 websites added. The first looks are running.")).toBeVisible();
+      for (const name of names) await expect(row(page, name)).toBeVisible();
+      await expect(row(page, "www.list-c.example.com")).toContainText("Verified by parent");
+      const audited = await sql<{ n: number }>(
+        `select count(*)::int as n from audit_log where action = 'exposure.asset_added' and data->>'source' = 'list'
+           and data->>'value' = any($1::text[])`,
+        [names],
+      );
+      expect(audited[0]?.n).toBe(3);
+      expect(problems).toEqual([]);
+    } finally {
+      await sql("delete from exposure_asset where value = any($1::text[])", [names]);
+    }
+  });
+
+  test("certificates are listed once per certificate with the names that serve it, and a wildcard miss is explained", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    const fingerprint = Array.from({ length: 32 }, (_, i) => (i * 7 + 17).toString(16).padStart(2, "0"))
+      .join(":")
+      .toUpperCase();
+    const validTo = new Date(Date.now() + (40 * 24 + 6) * 3600 * 1000).toISOString();
+    const served = (name: string, nameMatches: boolean) => ({
+      version: 1,
+      takenAt: new Date().toISOString(),
+      kind: "domain",
+      name,
+      addresses: ["203.0.113.40"],
+      nonPublic: [],
+      dns: null,
+      ptr: [],
+      tls: [
+        {
+          address: "203.0.113.40",
+          port: 443,
+          ok: true,
+          error: null,
+          protocol: "TLSv1.3",
+          cipher: "TLS_AES_256_GCM_SHA384",
+          trusted: nameMatches,
+          trustError: nameMatches ? null : "ERR_TLS_CERT_ALTNAME_INVALID",
+          nameMatches,
+          cert: {
+            subject: "*.example.org",
+            issuer: "Example Test CA",
+            sans: ["DNS:*.example.org"],
+            validFrom: new Date(Date.now() - 50 * 24 * 3600 * 1000).toISOString(),
+            validTo,
+            fingerprint,
+            keyType: "ec",
+            keyBits: 256,
+            selfSigned: false,
+          },
+          chainLength: 2,
+          legacy: { tls10: false, tls11: false },
+        },
+      ],
+      http: null,
+      plain: null,
+      resolves: true,
+      httpsOpen: true,
+    });
+    const assets = [
+      { id: "exa_e2ecertificate00001", value: "app.example.org", matches: true },
+      { id: "exa_e2ecertificate00002", value: "api.example.org", matches: true },
+      { id: "exa_e2ecertificate00003", value: "example.org", matches: false },
+    ];
+    try {
+      for (const [i, asset] of assets.entries()) {
+        await sql(
+          `insert into exposure_asset (id, organization_id, kind, value, verify_token, last_passive_at, passive)
+           values ($1, $2, 'domain', $3, $4, now(), $5)`,
+          [
+            asset.id,
+            org?.id,
+            asset.value,
+            `e2eCertificateGroupToken${i}`.padEnd(43, "c"),
+            JSON.stringify(served(asset.value, asset.matches)),
+          ],
+        );
+      }
+      await page.goto("/websites");
+      const views = page.getByRole("navigation", { name: "Website monitoring views" });
+      await views.getByRole("link", { name: "Certificates" }).click();
+      await expect(page).toHaveURL(/\/websites\/certificates$/);
+      await expect(page.getByRole("heading", { name: "Websites", level: 1 })).toBeVisible();
+      await expect(views.getByRole("link", { name: "Certificates" })).toHaveAttribute("aria-current", "page");
+      await expect(page.getByTestId("certificates-help")).toContainText("not example.com itself");
+
+      // One row for the certificate, whatever the number of names that serve it.
+      const wildcard = page.locator(`tr[data-fingerprint="${fingerprint}"]`);
+      await expect(wildcard).toHaveCount(1);
+      await expect(wildcard).toContainText("Wildcard");
+      await expect(wildcard).toContainText("*.example.org");
+      await expect(wildcard).toContainText("3 websites");
+      for (const asset of assets)
+        await expect(wildcard.getByRole("link", { name: asset.value, exact: true })).toBeVisible();
+      await expect(wildcard.getByTestId("certificate-miss")).toHaveText(
+        "*.example.org covers the names one level below, not example.org itself. Add example.org to the certificate.",
+      );
+      // Five seeded certificates (every seeded website but the lost one served its own) and this one; the hostile one as text.
+      await expect(page.locator("tbody tr")).toHaveCount(EXPOSURE.total);
+      await expect(page.getByTestId("certificates-table")).toContainText(EXPOSURE.hostileBanner);
+      expect(await page.title()).not.toBe("pwned");
+
+      await page.getByLabel("Search certificates and names").fill("api.example.org");
+      await expect(page).toHaveURL(/q=api\.example\.org/);
+      await expect(page.locator("tbody tr")).toHaveCount(1);
+      await page.getByLabel("Search certificates and names").fill("nothing-like-this");
+      await expect(page.getByText("No certificate matches.")).toBeVisible();
+
+      // Each website's TLS section names the others that serve its certificate, and leads to the certificate.
+      await page.goto(`/websites/${assets[0]?.id}?tab=tls`);
+      const shared = page.getByTestId("tls-shared");
+      await expect(shared).toContainText("This certificate is also served on 2 other names:");
+      await expect(shared.getByRole("link", { name: "api.example.org" })).toBeVisible();
+      await shared.getByRole("link", { name: "All names of this certificate" }).click();
+      await expect(page).toHaveURL(/\/websites\/certificates\?certificate=/);
+      await expect(page.getByText("Showing one certificate.")).toBeVisible();
+      await expect(page.locator("tbody tr")).toHaveCount(1);
+      await page.getByRole("link", { name: "Show all certificates" }).click();
+      await expect(page.locator(`tr[data-fingerprint="${fingerprint}"]`)).toHaveCount(1);
+
+      // The apex says why the wildcard does not cover it.
+      await page.goto(`/websites/${assets[2]?.id}?tab=tls`);
+      await expect(page.getByRole("heading", { name: "example.org", level: 1 })).toBeVisible();
+      await expect(
+        page.getByText("*.example.org covers the names one level below, not example.org itself."),
+      ).toBeVisible();
+      expect(problems).toEqual([]);
+    } finally {
+      await sql("delete from exposure_asset where id = any($1::text[])", [assets.map((a) => a.id)]);
+    }
+  });
+
   test("the verification dialog shows the record and the file, checks with the worker and says why a check fails", async ({
     context,
     page,

@@ -695,6 +695,8 @@ test.describe("signed in, with website monitoring on", () => {
       heading: "Websites",
       name: "websites-filtered",
     },
+    { path: "/websites/certificates", heading: "Websites", name: "websites-certificates" },
+    { path: "/websites?add=1&list=1", heading: "Websites", name: "websites-add-list" },
     { path: `/websites/${EXPOSURE.main.id}`, heading: EXPOSURE.main.value, name: "website" },
     { path: `/websites/${EXPOSURE.main.id}?tab=ports`, heading: EXPOSURE.main.value, name: "website-ports" },
     { path: `/websites/${EXPOSURE.main.id}?tab=tls`, heading: EXPOSURE.main.value, name: "website-tls" },

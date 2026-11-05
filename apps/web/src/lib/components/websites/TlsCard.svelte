@@ -1,15 +1,31 @@
 <script lang="ts">
   import type { TlsSnapshot } from "@garnetops/core/exposure";
+  import { wildcardMiss } from "@garnetops/core/exposure-certificates";
   import { formatDateTime, formatNumber } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
+  import { href } from "../../url.ts";
   import { daysUntil, type ExposureDetail } from "../../websites.ts";
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
   import Facts, { type Fact } from "./Facts.svelte";
 
-  /** The TLS handshake on port 443 of each looked-at address, as any browser makes it. */
+  /**
+   * The TLS handshake on port 443 of each looked-at address, as any browser makes it. Under each certificate: the other websites
+   * that serve the same one (a wildcard or multi-name certificate), and why a wildcard does not cover this name where it does not.
+   */
   let { detail, class: className = "" }: { detail: ExposureDetail; class?: string } = $props();
   const p = $derived(detail.passive);
+  const othersOf = (fingerprint: string) =>
+    detail.sharedCertificates?.find((x) => x.fingerprint === fingerprint)?.others ?? [];
+
+  /** Why the name check failed, when a wildcard of the certificate is the reason (it covers exactly one level). */
+  function nameNote(tls: TlsSnapshot): string | null {
+    if (tls.nameMatches !== false || !tls.cert) return null;
+    const miss = wildcardMiss(detail.value, tls.cert.sans);
+    return miss
+      ? t(`websites.certificates.miss.${miss.reason}`, { wildcard: miss.wildcard, name: detail.value })
+      : null;
+  }
 
   function expiryText(validTo: string): string {
     const days = daysUntil(validTo) ?? 0;
@@ -43,6 +59,7 @@
           : tls.nameMatches
             ? t("websites.tlsNameMatches")
             : t("websites.tlsNameDiffers"),
+      note: nameNote(tls),
     });
     if (tls.cert) {
       const cert = tls.cert;
@@ -87,6 +104,27 @@
       <section class="border-t first:border-t-0" aria-label={tls.address}>
         <h3 class="px-5 pt-4 pb-2 font-mono text-sm font-medium">{tls.address}:{tls.port}</h3>
         <Facts rows={rowsOf(tls)} />
+        {#if tls.cert}
+          {@const others = othersOf(tls.cert.fingerprint)}
+          {#if others.length > 0}
+            <div class="px-5 pb-5 text-sm" data-testid="tls-shared">
+              <p>{t("websites.tlsAlsoServed", { count: others.length })}</p>
+              <ul class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                {#each others.slice(0, 12) as other (other.id)}
+                  <li>
+                    <a href={`/websites/${encodeURIComponent(other.id)}?tab=tls`} class="break-all text-primary-text hover:underline"
+                      >{other.value}</a
+                    >
+                  </li>
+                {/each}
+              </ul>
+              <a
+                href={href("/websites/certificates", { certificate: tls.cert.fingerprint })}
+                class="mt-1 inline-block text-primary-text hover:underline">{t("websites.tlsAllNames")}</a
+              >
+            </div>
+          {/if}
+        {/if}
       </section>
     {/each}
   {/if}

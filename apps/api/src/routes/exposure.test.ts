@@ -182,11 +182,13 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
         ["GET", "/api/v1/exposure"],
         ["GET", "/api/v1/exposure/counts"],
         ["GET", "/api/v1/exposure/settings"],
+        ["GET", "/api/v1/exposure/certificates"],
         ["POST", "/api/v1/exposure"],
+        ["POST", "/api/v1/exposure/list"],
       ] as const) {
         const r = await call(method, path, {
           org: "org_ex_off",
-          ...(method === "POST" ? { body: { value: "new.example.com" } } : {}),
+          ...(method === "POST" ? { body: { value: "new.example.com", values: ["new.example.com"] } } : {}),
         });
         expect(r.status, path).toBe(409);
         expect(problemCode(r)).toBe("module-off");
@@ -209,6 +211,7 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
           "/api/v1/exposure",
           "/api/v1/exposure/counts",
           "/api/v1/exposure/settings",
+          "/api/v1/exposure/certificates",
           `/api/v1/exposure/${id}`,
         ]) {
           expect((await call("GET", path, { role })).status, `${role} ${path}`).toBe(200);
@@ -227,6 +230,8 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
       const id = await addAsset();
       const writes: [string, string, unknown][] = [
         ["POST", "/api/v1/exposure", { value: "new.example.com" }],
+        ["POST", "/api/v1/exposure/list", { values: ["new.example.com"] }],
+        ["POST", "/api/v1/exposure/list", { values: ["new.example.com"], dryRun: true }],
         ["PATCH", `/api/v1/exposure/${id}`, { includeSubdomains: true }],
         ["DELETE", `/api/v1/exposure/${id}`, undefined],
         ["POST", `/api/v1/exposure/${id}/verify`, undefined],
@@ -425,6 +430,256 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
         if (last === 429) break;
       }
       expect(last).toBe(429);
+    });
+  });
+
+  describe("adding a list of names", () => {
+    async function newOrg(id: string) {
+      await t.db.insert(schema.organization).values({ id, name: id });
+      await t.db.insert(schema.exposureSettings).values({ organizationId: id, enabled: true });
+      return id;
+    }
+    const orgAssets = async (org: string) =>
+      t.db.select().from(schema.exposureAsset).where(eq(schema.exposureAsset.organizationId, org));
+
+    it("checks every line first and says why a line is refused, without adding anything", async () => {
+      const org = await newOrg("org_ex_list_check");
+      await t.db.insert(schema.exposureAsset).values([
+        {
+          id: "exa_listcheck0000001",
+          organizationId: org,
+          kind: "domain",
+          value: "example.com",
+          verifyToken: `L1${"z".repeat(41)}`,
+          verifyState: "verified",
+          verifyMethod: "dns",
+          verifiedAt: new Date(),
+          includeSubdomains: true,
+        },
+        {
+          id: "exa_listcheck0000002",
+          organizationId: org,
+          kind: "domain",
+          value: "old.example.com",
+          verifyToken: `L2${"z".repeat(41)}`,
+        },
+      ]);
+      const r = await call("POST", "/api/v1/exposure/list", {
+        org,
+        body: {
+          dryRun: true,
+          values: [
+            "WWW.example.com",
+            "api.example.com",
+            "www.example.com",
+            "old.example.com",
+            "*.example.com",
+            "10.0.0.1",
+            "shop.example.org",
+          ],
+        },
+      });
+      expect(r.status).toBe(200);
+      expect(r.json).toMatchObject({ valid: 3, count: 2, limit: 200 });
+      expect(r.json?.items.map((x: Json) => (x.ok ? "ok" : x.problem))).toEqual([
+        "ok",
+        "ok",
+        "repeated",
+        "duplicate",
+        "wildcard",
+        "notPublic",
+        "ok",
+      ]);
+      // Names below a verified domain that includes subdomains count as verified, as with a single add.
+      expect(r.json?.items[0]).toMatchObject({
+        value: "www.example.com",
+        coveredBy: { id: "exa_listcheck0000001", value: "example.com" },
+      });
+      expect(r.json?.items[6].coveredBy).toBeNull();
+      expect(r.json?.items[2]).toMatchObject({ firstLine: 1 });
+      expect(await orgAssets(org)).toHaveLength(2);
+      expect(queue.sent).toEqual([]);
+    });
+
+    it("adds a clean list in one go, audited and queued per asset like a single add", async () => {
+      const org = await newOrg("org_ex_list_add");
+      const values = Array.from({ length: 12 }, (_, i) => `host${i}.example.com`);
+      const r = await call("POST", "/api/v1/exposure/list", {
+        org,
+        body: { values: [...values, "93.184.216.34"] },
+      });
+      expect(r.status).toBe(201);
+      expect(r.json?.added).toBe(13);
+      const rows = await orgAssets(org);
+      expect(rows.map((x) => x.value).sort()).toEqual([...values, "93.184.216.34"].sort());
+      expect(rows.every((x) => x.includeSubdomains === false && x.createdBy === "user_a")).toBe(true);
+      expect(new Set(rows.map((x) => x.verifyToken)).size).toBe(13);
+      const added = (await audits("exposure.asset_added")).filter((x) =>
+        rows.some((row) => row.id === x.targetId),
+      );
+      expect(added).toHaveLength(13);
+      expect(added[0]?.data).toMatchObject({ source: "list" });
+      expect(queue.sent.filter((x) => x.name === "websites.run")).toHaveLength(13);
+      expect(queue.sent.filter((x) => x.name === "websites.verify")).toHaveLength(13);
+    });
+
+    it("adds nothing when one line is refused", async () => {
+      const org = await newOrg("org_ex_list_bad");
+      const r = await call("POST", "/api/v1/exposure/list", {
+        org,
+        body: { values: ["a.example.com", "router.lan", "a.example.com"] },
+      });
+      expect([r.status, problemCode(r)]).toEqual([422, "validation"]);
+      expect(r.json?.errors).toEqual([
+        { path: "values.1", message: "reservedName" },
+        { path: "values.2", message: "repeated" },
+      ]);
+      expect(await orgAssets(org)).toEqual([]);
+      expect(queue.sent).toEqual([]);
+    });
+
+    it("keeps to the 200 assets of an organisation and to 200 lines", async () => {
+      const org = await newOrg("org_ex_list_full");
+      await t.db.insert(schema.exposureAsset).values(
+        Array.from({ length: 198 }, (_, i) => ({
+          id: `exa_lfull${String(i).padStart(11, "0")}`,
+          organizationId: org,
+          kind: "domain" as const,
+          value: `full${i}.example.com`,
+          verifyToken: `G${String(i).padStart(3, "0")}${"y".repeat(39)}`,
+        })),
+      );
+      const three = ["x1.example.com", "x2.example.com", "x3.example.com"];
+      const check = await call("POST", "/api/v1/exposure/list", {
+        org,
+        body: { values: three, dryRun: true },
+      });
+      expect(check.json?.items.map((x: Json) => (x.ok ? "ok" : x.problem))).toEqual(["ok", "ok", "limit"]);
+      const r = await call("POST", "/api/v1/exposure/list", { org, body: { values: three } });
+      expect([r.status, problemCode(r)]).toEqual([409, "limit-reached"]);
+      expect(await orgAssets(org)).toHaveLength(198);
+      expect(
+        (await call("POST", "/api/v1/exposure/list", { org, body: { values: three.slice(0, 2) } })).status,
+      ).toBe(201);
+      const tooMany = Array.from({ length: 201 }, (_, i) => `n${i}.example.com`);
+      expect((await call("POST", "/api/v1/exposure/list", { org, body: { values: tooMany } })).status).toBe(
+        422,
+      );
+      expect((await call("POST", "/api/v1/exposure/list", { org, body: { values: [] } })).status).toBe(422);
+    });
+
+    it("shares the rate limit of single adds", async () => {
+      const org = await newOrg("org_ex_list_rate");
+      let last = 0;
+      for (let i = 0; i < 62; i++) {
+        const path = i % 2 === 0 ? "/api/v1/exposure" : "/api/v1/exposure/list";
+        const body = i % 2 === 0 ? { value: `r${i}.example.com` } : { values: [`r${i}.example.com`] };
+        last = (await call("POST", path, { org, body })).status;
+        if (last === 429) break;
+      }
+      expect(last).toBe(429);
+    });
+  });
+
+  describe("certificates by certificate", () => {
+    const handshake = (fingerprint: string, address: string, nameMatches = true) => ({
+      address,
+      port: 443,
+      ok: true,
+      error: null,
+      trusted: nameMatches,
+      nameMatches,
+      cert: {
+        subject: "*.example.net",
+        issuer: "Example CA",
+        sans: ["DNS:*.example.net"],
+        validFrom: "2026-09-01T00:00:00.000Z",
+        validTo: new Date(Date.now() + 20 * 24 * HOUR).toISOString(),
+        fingerprint,
+        keyType: "ec",
+        keyBits: 256,
+        selfSigned: false,
+      },
+      chainLength: 2,
+      legacy: null,
+    });
+    const snapshot = (...tls: unknown[]) => ({
+      version: 1,
+      takenAt: new Date().toISOString(),
+      addresses: [],
+      tls,
+    });
+
+    it("lists each certificate once with every website that served it, to every member, per organisation", async () => {
+      const wildA = await addAsset({
+        value: "a.example.net",
+        passive: snapshot(handshake("AA:01", "93.184.216.34")),
+      });
+      const wildB = await addAsset({
+        value: "b.example.net",
+        passive: snapshot(handshake("AA:01", "93.184.216.34"), handshake("AA:01", "93.184.216.35")),
+      });
+      const apex = await addAsset({
+        value: "example.net",
+        passive: snapshot(handshake("AA:01", "93.184.216.34", false)),
+      });
+      const own = await addAsset({
+        value: "own.example.org",
+        passive: snapshot(handshake("BB:02", "93.184.216.36")),
+      });
+      // The same certificate in another organisation is not listed here.
+      await t.db.insert(schema.exposureAsset).values({
+        id: "exa_apitestother00001",
+        organizationId: OTHER,
+        kind: "domain",
+        value: "c.example.net",
+        verifyToken: `O1${"w".repeat(41)}`,
+        passive: snapshot(handshake("AA:01", "93.184.216.34")),
+      });
+
+      const r = await call("GET", "/api/v1/exposure/certificates", { role: "viewer" });
+      expect(r.status).toBe(200);
+      const wild = ((r.json?.items ?? []) as Json[]).find((x) => x.fingerprint === "AA:01");
+      expect(wild).toMatchObject({ wildcards: ["*.example.net"], level: 30, issuer: "Example CA" });
+      expect(wild?.assets.map((x: Json) => x.id)).toEqual(
+        [wildA, wildB, apex].sort((x, y) => {
+          const names: Record<string, string> = {
+            [wildA]: "a.example.net",
+            [wildB]: "b.example.net",
+            [apex]: "example.net",
+          };
+          return (names[x] as string).localeCompare(names[y] as string);
+        }),
+      );
+      expect(wild?.assets.find((x: Json) => x.id === wildB).addresses).toEqual([
+        "93.184.216.34",
+        "93.184.216.35",
+      ]);
+      expect(wild?.assets.find((x: Json) => x.id === apex).wildcardMiss).toEqual({
+        wildcard: "*.example.net",
+        reason: "apex",
+      });
+      expect(((r.json?.items ?? []) as Json[]).find((x) => x.fingerprint === "BB:02")?.assets).toHaveLength(
+        1,
+      );
+      expect(JSON.stringify(r.json)).not.toContain("c.example.net");
+
+      const detail = await call("GET", `/api/v1/exposure/${wildA}`, { role: "member" });
+      expect(detail.json?.sharedCertificates).toEqual([
+        {
+          fingerprint: "AA:01",
+          others: [
+            { id: wildB, value: "b.example.net" },
+            { id: apex, value: "example.net" },
+          ],
+        },
+      ]);
+      expect((await call("GET", `/api/v1/exposure/${own}`)).json?.sharedCertificates).toEqual([
+        { fingerprint: "BB:02", others: [] },
+      ]);
+      const other = await call("GET", "/api/v1/exposure/certificates", { org: OTHER });
+      const theirs = ((other.json?.items ?? []) as Json[]).find((x) => x.fingerprint === "AA:01");
+      expect(theirs?.assets.map((y: Json) => y.value)).toEqual(["c.example.net"]);
     });
   });
 

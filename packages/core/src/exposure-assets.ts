@@ -143,6 +143,52 @@ export function checkAsset(raw: string, options: { allowTestRanges?: boolean } =
   return { ok: true, kind: "domain", value: ascii };
 }
 
+/** At most this many lines in one list of assets: the per-organisation limit, so a full list fits in one go. */
+export const MAX_ASSET_LIST = 200;
+
+/** What happens to one line of a pasted list. */
+export type AssetListLine =
+  | { line: number; input: string; ok: true; kind: "domain" | "ip"; value: string }
+  | {
+      line: number;
+      input: string;
+      ok: false;
+      /** A reason of {@link checkAsset}, or: already watched, named twice in the list, or past the organisation's limit. */
+      problem: AssetProblem | "duplicate" | "repeated" | "limit";
+      /** For `repeated`: the line (1-based) that names it first. */
+      firstLine?: number;
+      value?: string;
+    };
+
+/**
+ * Checks a list of names and addresses (one per entry, as pasted, blank lines already removed) against the rules of
+ * {@link checkAsset}, the names the organisation already watches (`existing`, normalised values) and the room left under its
+ * limit (`room`). Every line gets a verdict, so the person sees all refusals before anything is added. Lines past the room are
+ * refused as `limit`, in order: the first `room` valid lines fit.
+ */
+export function checkAssetList(
+  inputs: readonly string[],
+  existing: ReadonlySet<string>,
+  room: number,
+  options: { allowTestRanges?: boolean } = {},
+): AssetListLine[] {
+  const seen = new Map<string, number>();
+  let accepted = 0;
+  return inputs.map((input, index): AssetListLine => {
+    const line = index + 1;
+    const checked = checkAsset(input, options);
+    if (!checked.ok) return { line, input, ok: false, problem: checked.problem };
+    const { value, kind } = checked;
+    if (existing.has(value)) return { line, input, ok: false, problem: "duplicate", value };
+    const first = seen.get(value);
+    if (first !== undefined) return { line, input, ok: false, problem: "repeated", firstLine: first, value };
+    seen.set(value, line);
+    if (accepted >= room) return { line, input, ok: false, problem: "limit", value };
+    accepted++;
+    return { line, input, ok: true, kind, value };
+  });
+}
+
 /** A fresh proof token: 256 random bits as 43 base64url characters. */
 export function newVerifyToken(): string {
   return randomBytes(32).toString("base64url");

@@ -27,7 +27,8 @@ import {
   verifyFileUrl,
   verifyRecordValue,
 } from "@garnetops/core/exposure";
-import { checkAsset, newVerifyToken } from "@garnetops/core/exposure-assets";
+import { checkAsset, checkAssetList, MAX_ASSET_LIST, newVerifyToken } from "@garnetops/core/exposure-assets";
+import { groupCertificates, sharedCertificates } from "@garnetops/core/exposure-certificates";
 import { pageSizeSchema } from "@garnetops/core/pagination";
 import { detectSoftware, judgeSoftware, SOFTWARE_NAMES } from "@garnetops/core/software";
 import {
@@ -513,6 +514,118 @@ async function createAsset(
   return { id, kind: checked.kind, value: checked.value };
 }
 
+const listBody = z.object({
+  /** One name or address per entry, as pasted (blank lines left out by the client). */
+  values: z.array(z.string().max(300)).min(1).max(MAX_ASSET_LIST),
+  includeSubdomains: z.boolean().optional(),
+  /** Only check the list and say what would happen to each line; nothing is added. */
+  dryRun: z.boolean().optional(),
+});
+
+/**
+ * Checks a pasted list against the rules of a single add, the names already watched and the room left under the limit; each line
+ * gets its verdict and, for a name below a verified domain that includes subdomains, the domain that covers it.
+ */
+async function checkList(actor: Actor, values: readonly string[], includeSubdomains: boolean) {
+  const rows = await db
+    .select({
+      id: a.id,
+      kind: a.kind,
+      value: a.value,
+      verifyState: a.verifyState,
+      includeSubdomains: a.includeSubdomains,
+    })
+    .from(a)
+    .where(eq(a.organizationId, actor.organizationId));
+  const all = rows.map(verifiable);
+  const room = Math.max(0, MAX_ASSETS - rows.length);
+  const lines = checkAssetList(values, new Set(rows.map((r) => r.value)), room, {
+    allowTestRanges: allowTestRanges(),
+  });
+  const items = lines.map((line) => {
+    if (!line.ok) return { ...line, coveredBy: null };
+    const effective = effectiveVerification(
+      { id: "", kind: line.kind, value: line.value, verifyState: "unverified", includeSubdomains },
+      all,
+    );
+    const parent = effective.parentId ? all.find((x) => x.id === effective.parentId) : undefined;
+    return { ...line, coveredBy: parent ? { id: parent.id, value: parent.value } : null };
+  });
+  return { items, count: rows.length };
+}
+
+/**
+ * Adds a checked list in one go: all lines or none. Every asset is audited and queued for a first look like a single add. A lock
+ * per organisation keeps two lists that arrive together from passing the limit or adding a name twice.
+ */
+async function createAssetList(
+  actor: Actor,
+  values: readonly string[],
+  includeSubdomains: boolean,
+): Promise<{ id: string; kind: AssetKind; value: string }[]> {
+  const created = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`exposure-add:${actor.organizationId}`}, 0))`,
+    );
+    const rows = await tx
+      .select({ value: a.value })
+      .from(a)
+      .where(eq(a.organizationId, actor.organizationId));
+    const lines = checkAssetList(values, new Set(rows.map((r) => r.value)), MAX_ASSETS - rows.length, {
+      allowTestRanges: allowTestRanges(),
+    });
+    const refused = lines.flatMap((line) => (line.ok ? [] : [line]));
+    if (refused.some((line) => line.problem === "limit")) {
+      throw new ProblemError(
+        409,
+        "limit-reached",
+        "The organisation has reached the number of assets it may have",
+      );
+    }
+    if (refused.length > 0) {
+      throw new ProblemError(422, "validation", "The request is not valid", undefined, {
+        errors: refused.map((line) => ({ path: `values.${line.line - 1}`, message: line.problem })),
+      });
+    }
+    const items = lines.flatMap((line) =>
+      line.ok
+        ? [
+            {
+              id: newId("exa"),
+              organizationId: actor.organizationId,
+              kind: line.kind,
+              value: line.value,
+              includeSubdomains: line.kind === "domain" ? includeSubdomains : false,
+              verifyToken: newVerifyToken(),
+              createdBy: actor.userId,
+            },
+          ]
+        : [],
+    );
+    await tx.insert(a).values(items);
+    return items.map((item) => ({ id: item.id, kind: item.kind, value: item.value }));
+  });
+  for (const item of created) {
+    await audit(
+      actor,
+      "exposure.asset_added",
+      { type: "exposure_asset", id: item.id },
+      { value: item.value, kind: item.kind, source: "list" },
+    );
+    await queueRun({ id: item.id, organizationId: actor.organizationId }, "passive", "manual", actor.userId);
+    await queueVerify(item.id);
+  }
+  return created;
+}
+
+/** The TLS handshakes of the latest stage 1 look of every asset of an organisation, for grouping by certificate. */
+async function certificateSources(organizationId: string) {
+  return db
+    .select({ id: a.id, value: a.value, tls: sql<unknown>`${a.passive} -> 'tls'` })
+    .from(a)
+    .where(eq(a.organizationId, organizationId));
+}
+
 /** What wordpress.org said about the plugins and themes of a snapshot, when the organisation switched the lookup on. */
 async function wordpressOrgOf(organizationId: string, passive: unknown) {
   const [settings] = await db
@@ -841,6 +954,29 @@ export const exposureRoutes = new Hono<AppEnv>()
     });
     return c.json({ id: created.id }, 201);
   })
+  /**
+   * A pasted list of names and addresses: with `dryRun`, each line's verdict (valid, refused with the reason, already watched,
+   * repeated, past the limit, covered by a verified domain); without, all of them are added in one go or none. One list counts
+   * as one request of the same limit as a single add.
+   */
+  .post("/list", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    const body = listBody.parse(await c.req.json());
+    await rateLimit(`exposure-add:${actor.organizationId}`, 60, 60 * 60_000);
+    const includeSubdomains = body.includeSubdomains ?? false;
+    if (body.dryRun) {
+      const checked = await checkList(actor, body.values, includeSubdomains);
+      return c.json({
+        items: checked.items,
+        valid: checked.items.filter((x) => x.ok).length,
+        count: checked.count,
+        limit: MAX_ASSETS,
+      });
+    }
+    const created = await createAssetList(actor, body.values, includeSubdomains);
+    return c.json({ ids: created.map((x) => x.id), added: created.length }, 201);
+  })
   .post("/discoveries/:id/add", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "admin");
@@ -896,6 +1032,16 @@ export const exposureRoutes = new Hono<AppEnv>()
       count: assets?.n ?? 0,
       worst: has("critical") ? "critical" : has("high") ? "high" : null,
     });
+  })
+
+  /**
+   * The certificates of the latest stage 1 looks, one entry per certificate (by fingerprint) with every website that served it:
+   * a wildcard certificate on twelve names is one row. Soonest expiry first.
+   */
+  .get("/certificates", async (c) => {
+    const actor = c.get("actor");
+    const sources = await certificateSources(actor.organizationId);
+    return c.json({ items: groupCertificates(sources, new Date()) });
   })
 
   /* ------------------------------ detail ------------------------------ */
@@ -980,6 +1126,12 @@ export const exposureRoutes = new Hono<AppEnv>()
       /** wordpress.org's answers for the site's plugins and themes; null while the lookup is off (ADR 0042). */
       wordpressOrg: await wordpressOrgOf(actor.organizationId, row.passive),
       availability: await uptimeOf(row.id),
+      /** Per certificate of the latest stage 1 look: the other websites that served the same certificate. */
+      sharedCertificates: sharedCertificates(
+        row.id,
+        await certificateSources(actor.organizationId),
+        new Date(),
+      ),
       findings: findings.map((x) => ({
         ...x,
         firstSeenAt: x.firstSeenAt.toISOString(),
