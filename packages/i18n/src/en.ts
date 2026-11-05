@@ -1084,6 +1084,42 @@ export const en = {
     packagesNone: "No known vulnerability in the packages of this host.",
     packagesAffected:
       "{count, plural, one {Affected by # known vulnerability} other {Affected by # known vulnerabilities}}",
+    patchTitle: "What can be patched now",
+    patchCounts: {
+      "patchable-now": "{count} patchable now",
+      "waiting-for-mirror": "{count} waiting for the mirror",
+      "lists-stale": "{count} waiting for apt update",
+      "pro-only": "{count} only with Ubuntu Pro",
+      "no-fix-yet": "{count} without a fix yet",
+    },
+    listsAge:
+      "{days, plural, =0 {apt lists updated today} one {apt lists # day old} other {apt lists # days old}}",
+    patchCommand: "Install every fix available now",
+    patchState: {
+      patchableNow: "Patchable now: {version} from {source}",
+      waitingForMirror: "Your sources do not offer {fixed} yet",
+      waitingForMirrorOffered: "Your sources offer {offered} so far ({source})",
+      listsStale: "Run apt update: the lists are {days} days old",
+      proOnly: "Fixed only in Ubuntu Pro (ESM)",
+    },
+    columnPatch: "Patch",
+    hintSecurityMirrorWaiting:
+      "Security updates come from the mirror {host}, which does not offer some fixes yet.",
+    hintSecurityMirrorLag:
+      "Security updates come from the mirror {host}, whose security index is {days} days older than the last apt update.",
+    hintSecurityAdvice:
+      "Ubuntu and Debian recommend taking the security pocket directly from their security servers, because mirrors can lag behind. Add this line to the host's apt sources, then run apt update.",
+    hintNoSecurity:
+      "No security pocket is configured, so security updates do not reach this host. Add this line to the host's apt sources, then run apt update.",
+    hintLine: "Sources line",
+    thirdPartyTitle: "Not covered by the distribution's security data",
+    thirdPartyText:
+      "These packages come from sources outside the distribution. The vulnerability database has no data for them, so no finding does not mean no flaw. Keep them updated from their source.",
+    thirdPartyOrigin: "{origin} ({host}), {count, plural, one {# package} other {# packages}}",
+    phpEndOfLife: "PHP {version}: the {line} line gets no security fixes any more.",
+    phpOutdated: "PHP {version} is behind the latest of its line, {latest}.",
+    phpCurrent: "PHP {version} is the latest of its line.",
+    phpUnknown: "PHP {version}: no end-of-life data for this line.",
     title: "Agents",
     description:
       "The servers that run the GarnetOps agent, their running containers and what is in the images.",

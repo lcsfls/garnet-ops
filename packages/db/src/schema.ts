@@ -3195,6 +3195,35 @@ export const agentHost = pgTable(
     hostPackagesMatchedAt: timestamp("host_packages_matched_at", { withTimezone: true }),
     hostPackagesMatchedDbBuilt: timestamp("host_packages_matched_db_built", { withTimezone: true }),
     hostPackagesMatchError: text("host_packages_match_error"),
+    /**
+     * What the host's apt lists offer for its installed packages (systemd agent on Debian and Ubuntu; `AptFacts` in
+     * @garnetops/core/apt): the sources with their Release fields and, for the packages that matter, the newer versions offered and
+     * where the installed version comes from. Replaced with every report; null for other hosts and older agents.
+     */
+    aptFacts: jsonb("apt_facts").$type<{
+      listsUpdatedAt: string | null;
+      arch: string | null;
+      sources: {
+        id: number;
+        host: string;
+        path: string;
+        suite: string;
+        components: string[];
+        origin: string | null;
+        label: string | null;
+        codename: string | null;
+        date: string | null;
+        fetchedAt: string | null;
+      }[];
+      packages: {
+        name: string;
+        arch: string;
+        installed: string;
+        from: number[];
+        offers: { source: number; version: string }[];
+      }[];
+    }>(),
+    aptFactsAt: timestamp("apt_facts_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("agent_host_org_idx").on(t.organizationId, t.name)],

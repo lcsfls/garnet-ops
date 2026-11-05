@@ -188,6 +188,64 @@ export const enrolBodySchema = z.object({
 });
 export type EnrolBody = z.infer<typeof enrolBodySchema>;
 
+export const MAX_APT_SOURCES = 200;
+export const MAX_APT_PACKAGES = 5000;
+export const MAX_APT_OFFERS = 8;
+
+/** A time the host reports, kept only if it reads as one. */
+const isoTime = z
+  .string()
+  .max(40)
+  .nullish()
+  .transform((v) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null));
+/** A host name of an apt source (as apt writes it into the list file names), with an optional port. */
+const aptHost = z
+  .string()
+  .max(300)
+  .regex(/^[A-Za-z0-9.-]{1,253}(?::\d{1,5})?$/)
+  .transform((v) => v.toLowerCase());
+const sourceId = z.number().int().min(0).max(100_000);
+
+/**
+ * What the host's apt lists say about its installed packages (systemd agent, `/var/lib/apt/lists`; see apt.ts). Bounded on every
+ * axis; the agent sends only packages with a newer version offered or a source outside the distribution.
+ */
+export const aptFactsSchema = z.object({
+  listsUpdatedAt: isoTime,
+  arch: optionalText(30),
+  sources: z
+    .array(
+      z.object({
+        id: sourceId,
+        host: aptHost,
+        path: text(200),
+        suite: text(100),
+        components: z.array(text(60)).max(30).default([]),
+        origin: optionalText(100),
+        label: optionalText(100),
+        codename: optionalText(60),
+        date: isoTime,
+        fetchedAt: isoTime,
+      }),
+    )
+    .max(MAX_APT_SOURCES),
+  packages: z
+    .array(
+      z.object({
+        name: text(100),
+        arch: text(30),
+        installed: text(200),
+        from: z.array(sourceId).max(MAX_APT_OFFERS).default([]),
+        offers: z
+          .array(z.object({ source: sourceId, version: text(200) }))
+          .max(MAX_APT_OFFERS)
+          .default([]),
+      }),
+    )
+    .max(MAX_APT_PACKAGES),
+});
+export type AptFactsInput = z.infer<typeof aptFactsSchema>;
+
 export const inventorySchema = z.object({
   hostname: text(253),
   agentVersion: text(40),
@@ -225,6 +283,11 @@ export const inventorySchema = z.object({
         .slice(0, 40);
       return name || null;
     }),
+  /**
+   * The host's apt sources and what they offer for its installed packages (systemd agent on Debian and Ubuntu; older agents and
+   * other package managers send none). A report that does not fit the schema is dropped, never the whole inventory.
+   */
+  apt: aptFactsSchema.optional().catch(undefined),
   /** SHA-256 (hex) over the sorted package URLs of the host itself (systemd agent); the answer says whether to send them. */
   hostPackagesDigest: z
     .string()

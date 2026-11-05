@@ -26,6 +26,8 @@
     "./exposure-assets": "./src/exposure-assets.ts",
     "./exposure-certificates": "./src/exposure-certificates.ts",
     "./agent": "./src/agent.ts",
+    "./apt": "./src/apt.ts",
+    "./deb-version": "./src/deb-version.ts",
     "./public-dns": "./src/public-dns.ts",
     "./software": "./src/software.ts",
     "./eol-data": "./src/eol-data.ts",

@@ -38,6 +38,8 @@ type Package struct {
 	Version string `json:"version"`
 	Type    string `json:"type"`
 	Purl    string `json:"purl"`
+	// Arch is dpkg's architecture of the package; it is part of the purl, and the apt facts need it on its own.
+	Arch string `json:"-"`
 }
 
 // Kernel is the running kernel and the distribution, as the inventory carries it.
@@ -236,6 +238,7 @@ func ParseDpkgStatus(text string, osr OSRelease) []Package {
 			Name:    fields["Package"],
 			Version: fields["Version"],
 			Type:    "deb",
+			Arch:    fields["Architecture"],
 			Purl: purl("deb", namespace, fields["Package"], fields["Version"], [][2]string{
 				{"arch", fields["Architecture"]}, {"upstream", upstream}, {"distro", distroQualifier(osr)},
 			}),

@@ -66,6 +66,28 @@ describe("software a website names about itself (ADR 0038)", () => {
     expect(detectSoftware({ headers: { "x-powered-by": "PHP/8.1.2" } })[0]?.distribution).toBeUndefined();
   });
 
+  it("judges a build from deb.sury.org (ondrej/php) by its upstream version: it follows upstream, without backports", () => {
+    for (const header of [
+      "PHP/8.3.14-1+ubuntu24.04.1+deb.sury.org+1",
+      "PHP/8.3.14-1+0~20241128.48+debian12~1.gbp9f38c3",
+    ]) {
+      const [php] = detectSoftware({ headers: { "x-powered-by": header } });
+      expect(php).toEqual({ product: "php", version: "8.3.14", source: "x-powered-by" });
+    }
+    // Next to a distribution's Apache in the same header, only the PHP build is sury's.
+    const both = detectSoftware({
+      headers: { server: "Apache/2.4.58 (Ubuntu) PHP/8.2.26-1+ubuntu24.04.1+deb.sury.org+1" },
+    });
+    expect(both.map((f) => [f.product, f.distribution ?? false])).toEqual([
+      ["apache-http-server", true],
+      ["php", false],
+    ]);
+    // Debian's and Ubuntu's own PHP stay distribution builds.
+    expect(detectSoftware({ headers: { "x-powered-by": "PHP/8.2.26-1~deb12u1" } })[0]?.distribution).toBe(
+      true,
+    );
+  });
+
   it("counts a CMS's own version fully and a server header one step lower", () => {
     const at = (source: "generator" | "server", product: "php" | "wordpress", version: string) =>
       softwareSeverity(judgeSoftware({ product, version, source }, NOW, DATA));

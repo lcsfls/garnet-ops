@@ -72,3 +72,15 @@ without installing Docker or a language runtime.
 - In a container the install script first runs a transient service with the unit's namespace and seccomp settings
   (`systemd-run --wait`) and stops with a next step (Proxmox VE: enable nesting, or use a VM) if systemd cannot set them up. The
   unit's hardening is not weakened. Without a running systemd (Alpine with OpenRC) the script names the alternatives.
+
+## Addendum (2026-11): what can be patched now (apt)
+
+- The agent reads `/var/lib/apt/lists` (world-readable; no apt run, no network request) and adds the optional inventory field `apt`:
+  the sources with their Release fields and the file modification times, and only the installed packages with a newer version
+  offered or from a source outside the distribution (bounded: 200 sources, 5 000 packages, 8 versions each). An invalid field is
+  dropped without failing the inventory; older servers ignore it.
+- GarnetOps stores it with the host (`agent_host.apt_facts`, additive migration) and computes per finding, when the host page is
+  read, whether it is patchable now, waiting for the mirror, waiting for `apt update`, only in Ubuntu Pro or without a fix
+  (`@garnetops/core/apt`, dpkg's version order in `@garnetops/core/deb-version`). Nothing changes findings, counts, grades or gates.
+- Packages from third-party sources are listed as not covered by the distribution's security data; PHP from them is judged by its
+  upstream version against the end-of-life data of ADR 0038. RPM and apk follow later.

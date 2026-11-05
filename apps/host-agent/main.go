@@ -163,6 +163,14 @@ func reportOnce(c config, client *Client) (int, error) {
 		"containers":   []any{},
 		"images":       []any{},
 	}
+	if len(packages) > 0 && packages[0].Type == "deb" {
+		// What the host's own apt sources offer (read from the lists, nothing fetched); a failure only leaves it out.
+		if facts, err := ReadAptFacts(root, packages, time.Now().Add(2*time.Minute)); err != nil {
+			fmt.Printf("agent: apt lists: %v\n", err)
+		} else if facts != nil {
+			inventory["apt"] = facts
+		}
+	}
 	if container := DetectContainer(root); container != "" {
 		inventory["insideContainer"] = container
 	}

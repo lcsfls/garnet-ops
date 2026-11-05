@@ -204,6 +204,10 @@ export const agentRoutes = new Hono<AgentEnv>()
           os: input.kernel?.osName ?? input.os,
           lastInventoryAt: now,
           ...(input.runtime ? { runtime: input.runtime } : {}),
+          // What the host's apt lists offer (systemd agent on Debian and Ubuntu); replaced with every report.
+          ...(input.runtime === "systemd"
+            ? { aptFacts: input.apt ?? null, aptFactsAt: input.apt ? now : null }
+            : {}),
           ...(input.kernel
             ? {
                 kernelRelease: input.kernel.release,

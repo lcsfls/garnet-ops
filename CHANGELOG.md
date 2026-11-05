@@ -31,6 +31,18 @@ Security-relevant changes are listed under **Security** in every release.
   points: another host ("redirects to www.example.com: verify www.example.com instead, or use the DNS record") or another page
   on the same site (often WordPress answering because the file is not there). Redirects are still never followed; only the
   target's host name is kept. Every other verification result also comes with a short next step (`docs/websites.md`).
+- **What can be patched now** on Debian and Ubuntu hosts (`docs/hosts.md`): the systemd agent reads what the host's own apt
+  sources offer (nothing is fetched), and the packages card says per finding whether it is patchable now (with the command), waiting
+  for the mirror, waiting for `apt update`, only fixed in Ubuntu Pro, or without a fix, with a summary such as "12 patchable now, 3
+  waiting for the mirror, apt lists 9 days old". When a mirror serves the security pocket and lags, the card shows the sources line
+  for the distribution's security server.
+- Packages from third-party sources (for example PHP from the ondrej/php PPA or packages.sury.org) are shown as not covered by the
+  distribution's security data; PHP from them is judged against its end-of-life data, like on websites.
+
+### Changed
+
+- Websites: a PHP build from deb.sury.org that a site names (`PHP/8.3.14-1+ubuntu24.04.1+deb.sury.org+1`) is judged by its
+  upstream version; it was skipped as a distribution build before, although these builds follow upstream releases.
 
 ### Changed
 

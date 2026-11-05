@@ -6,6 +6,17 @@ import {
   newEnrolmentCode,
   sourceKey,
 } from "@garnetops/core/agent";
+import {
+  type AptFacts,
+  aptHints,
+  classifyFinding,
+  isDistributionSource,
+  type PatchFindingInput,
+  patchSummary,
+  thirdPartyPackages,
+  thirdPartyPhp,
+  upgradeCommand,
+} from "@garnetops/core/apt";
 import { repositoryVisibleTo, schema } from "@garnetops/db";
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -91,6 +102,59 @@ async function hostPackageCounts(organizationId: string): Promise<Map<string, Co
     map.set(row.hostId, counts);
   }
   return map;
+}
+
+/**
+ * What can be patched now (apt hosts): each finding with its verdict from the host's own apt sources, a summary with the command
+ * that installs everything patchable, hints about where security updates come from, and the packages from third-party sources the
+ * distribution's security data does not cover (PHP from them judged against its end-of-life data). Computed when read, from the
+ * facts of the last report; nothing is asked of any mirror.
+ */
+function patchView<F extends PatchFindingInput>(facts: AptFacts | null, findings: F[], now = new Date()) {
+  const sourceOf = new Map((facts?.sources ?? []).map((s) => [s.id, s]));
+  const judged = findings.map((f) => {
+    const verdict = classifyFinding(f, facts, now);
+    const source = verdict.offered ? sourceOf.get(verdict.offered.source) : undefined;
+    return {
+      ...f,
+      verdict,
+      patch: {
+        state: verdict.state,
+        fixedIn: verdict.fixedIn,
+        offered: verdict.offered
+          ? {
+              version: verdict.offered.version,
+              host: source?.host ?? null,
+              suite: source?.suite ?? null,
+              date: source?.date ?? null,
+            }
+          : null,
+        command: verdict.state === "patchable-now" ? upgradeCommand([f.packageName]) : null,
+      },
+    };
+  });
+  const summary = patchSummary(judged, facts, now);
+  const thirdParty = thirdPartyPackages(facts);
+  return {
+    findings: judged.map(({ verdict: _verdict, ...f }) => f),
+    patch: facts
+      ? {
+          ...summary,
+          hints: aptHints(facts, summary.counts["waiting-for-mirror"]),
+          sources: facts.sources.map((s) => ({
+            host: s.host,
+            path: s.path,
+            suite: s.suite,
+            origin: s.origin,
+            date: s.date,
+            fetchedAt: s.fetchedAt,
+            distribution: isDistributionSource(s),
+          })),
+          thirdParty,
+          php: thirdPartyPhp(thirdParty, now),
+        }
+      : null,
+  };
 }
 
 /** What the page says about the packages of the host itself: how many, from which distribution, when matched. */
@@ -661,32 +725,35 @@ export const hostRoutes = new Hono<AppEnv>()
       runtime: host.runtime,
       hostPackages: {
         ...hostPackagesSummary(host),
-        findings: await db
-          .select({
-            id: schema.hostPackageFinding.id,
-            vulnerabilityId: schema.hostPackageFinding.vulnerabilityId,
-            packageName: schema.hostPackageFinding.packageName,
-            packageVersion: schema.hostPackageFinding.packageVersion,
-            packageType: schema.hostPackageFinding.packageType,
-            fixedIn: schema.hostPackageFinding.fixedIn,
-            fixState: schema.hostPackageFinding.fixState,
-            severity: schema.hostPackageFinding.severity,
-            severityRank: schema.hostPackageFinding.severityRank,
-            firstSeenAt: schema.hostPackageFinding.firstSeenAt,
-            cvssScore: schema.vulnerability.cvssScore,
-            knownExploited: schema.vulnerability.knownExploited,
-          })
-          .from(schema.hostPackageFinding)
-          .innerJoin(
-            schema.vulnerability,
-            eq(schema.vulnerability.id, schema.hostPackageFinding.vulnerabilityId),
-          )
-          .where(eq(schema.hostPackageFinding.hostId, host.id))
-          .orderBy(
-            desc(schema.hostPackageFinding.severityRank),
-            asc(schema.hostPackageFinding.vulnerabilityId),
-          )
-          .limit(2000),
+        ...patchView(
+          host.aptFacts,
+          await db
+            .select({
+              id: schema.hostPackageFinding.id,
+              vulnerabilityId: schema.hostPackageFinding.vulnerabilityId,
+              packageName: schema.hostPackageFinding.packageName,
+              packageVersion: schema.hostPackageFinding.packageVersion,
+              packageType: schema.hostPackageFinding.packageType,
+              fixedIn: schema.hostPackageFinding.fixedIn,
+              fixState: schema.hostPackageFinding.fixState,
+              severity: schema.hostPackageFinding.severity,
+              severityRank: schema.hostPackageFinding.severityRank,
+              firstSeenAt: schema.hostPackageFinding.firstSeenAt,
+              cvssScore: schema.vulnerability.cvssScore,
+              knownExploited: schema.vulnerability.knownExploited,
+            })
+            .from(schema.hostPackageFinding)
+            .innerJoin(
+              schema.vulnerability,
+              eq(schema.vulnerability.id, schema.hostPackageFinding.vulnerabilityId),
+            )
+            .where(eq(schema.hostPackageFinding.hostId, host.id))
+            .orderBy(
+              desc(schema.hostPackageFinding.severityRank),
+              asc(schema.hostPackageFinding.vulnerabilityId),
+            )
+            .limit(2000),
+        ),
       },
       kernel: {
         ...kernelSummary(host),

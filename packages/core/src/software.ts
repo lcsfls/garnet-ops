@@ -46,6 +46,12 @@ export interface DetectedSoftware {
 const DISTRIBUTION_NAME =
   /\((?:Debian|Ubuntu|Raspbian|Red Hat|CentOS|Rocky|AlmaLinux|Oracle|Fedora|SUSE|openSUSE|Amazon|Alpine)/i;
 const DISTRIBUTION_SUFFIX = /^[-~+.]\S*?(?:deb|ubuntu|el\d|fc\d|suse|amzn)/i;
+/**
+ * A build of the deb.sury.org repositories (the ondrej/php PPA, packages.sury.org): "8.3.14-1+ubuntu24.04.1+deb.sury.org+1",
+ * "8.3.14-1+0~20241128.48+debian12~1.gbp9f38c3". It names a distribution but follows upstream releases, without backported
+ * fixes, so its upstream version is judged like any other.
+ */
+const SURY_BUILD = /^[-~+.]\S*?(?:deb\.sury\.org|\+0~\d{8}(?:\.\d+)?\+(?:debian|ubuntu)\d)/i;
 
 const VERSION = String.raw`(\d+(?:\.\d+){0,3})`;
 const PATTERNS: {
@@ -112,7 +118,9 @@ export function detectSoftware(input: {
       if (m?.[1]) {
         const after = text.slice((m.index ?? 0) + m[0].length);
         const distribution =
-          source !== "generator" && (DISTRIBUTION_NAME.test(text) || DISTRIBUTION_SUFFIX.test(after));
+          source !== "generator" &&
+          !SURY_BUILD.test(after) &&
+          (DISTRIBUTION_NAME.test(text) || DISTRIBUTION_SUFFIX.test(after));
         found.set(product, { product, version: m[1], source, ...(distribution ? { distribution } : {}) });
         break;
       }

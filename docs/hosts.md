@@ -68,6 +68,53 @@ host**. A list is sent again only when it changed. It does not see Docker contai
 - Remove: `systemctl disable --now garnetops-agent`, then delete `/usr/local/bin/garnetops-agent`, `/etc/garnetops-agent`,
   `/etc/systemd/system/garnetops-agent.service` and `/var/lib/garnetops-agent`, and remove the host in GarnetOps.
 
+## What can be patched now
+
+The vulnerability database says in which version the distribution fixed a flaw. Whether this host can install that version today
+depends on its own apt sources: a local mirror may not have it yet, `apt update` may not have run for days, the fix may exist only in
+Ubuntu Pro, or a package may come from a source the distribution's security data does not cover at all. On Debian and Ubuntu the
+systemd agent therefore also reads what the host's apt lists offer, and the **Packages on the host** card says per finding what you
+can do now, with a summary such as "12 patchable now, 3 waiting for the mirror, apt lists 9 days old".
+
+| State | Meaning | What to do |
+| --- | --- | --- |
+| **Patchable now** | a configured source offers the fixed version or a newer one | run the command shown, e.g. `sudo apt install --only-upgrade openssl`; the card also shows one command for every patchable package |
+| **Waiting for the mirror** | the distribution has a fix, but the host's fresh lists do not offer it; the card shows what the sources offer so far | wait for the mirror, or take the security pocket from the distribution directly (below) |
+| **Waiting for apt update** | no source offers the fix and the lists are three days old or older | run `sudo apt update`, then look again after the next report |
+| **Only with Ubuntu Pro** | the fix exists only as an Ubuntu Pro (ESM, `+esm`) build and no ESM source is configured | attach Ubuntu Pro, or plan the upgrade to a supported release |
+| **No fix yet** | the distribution has no fixed version | nothing to install yet |
+
+Versions are compared with dpkg's own rules (epochs, `~`, `+esm`). The age of the lists comes from the host: apt's daily stamp
+(`/var/lib/apt/periodic/update-success-stamp`) where it exists, otherwise the newest Release file in `/var/lib/apt/lists`.
+
+**Security updates from a mirror.** Ubuntu and Debian recommend taking the `-security` pocket directly from their security servers,
+because mirrors can lag behind. When a mirror serves it and a fix waits for it, or its security index is two days or more older than
+the last `apt update`, the card says so and shows the exact sources line, for example:
+
+```text
+deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse
+deb http://deb.debian.org/debian-security bookworm-security main
+```
+
+(on Ubuntu for arm64: `http://ports.ubuntu.com/ubuntu-ports`). A host without any security pocket gets the same hint.
+
+**Packages from third-party sources.** A package whose installed version only a source outside the distribution offers (for example
+PHP from the `ondrej/php` PPA or `packages.sury.org`, or a vendor's repository) is not covered by the distribution's security data:
+no finding means nothing for it. The card lists such packages per source. PHP from such a source is judged by its upstream version
+(`8.3.14-1+ubuntu24.04.1+deb.sury.org+1` is PHP 8.3.14) against the end-of-life data GarnetOps ships for websites: a line without
+security fixes, or a version behind the latest of its line. The same applies on the websites page: a site that names a
+`deb.sury.org` PHP build is now judged by its upstream version, because these builds follow upstream releases.
+
+**What the agent reads and sends.** It reads `/var/lib/apt/lists` (readable by every user): per source the host, path and suite from
+the file name, and `Origin`, `Label`, `Codename` and `Date` from the Release file, plus the file's modification time; and from the
+`Packages` indexes (plain or gzip, at most 400 files, 512 MiB each) only the entries of installed packages. It sends the sources and
+only the installed packages for which a source offers a newer version or whose version comes from a source outside the
+distribution: at most 5 000 packages and 8 versions each. It never sends the lists, never runs apt and makes no network request for
+this; GarnetOps itself never asks a mirror anything, so this works air-gapped.
+
+Not yet: RPM (dnf, zypper) and Alpine (apk) hosts; the card says nothing about patching there. Indexes compressed with lz4, xz or
+zstd are skipped (apt keeps them uncompressed by default; Docker images use gzip).
+
 ## Proxmox VE and LXC containers
 
 Install the agent where the packages you want checked live:
@@ -105,7 +152,10 @@ Over HTTPS to this installation only:
   `.version`, `.title` and `.created`;
 - per image GarnetOps does not know yet: syft's package list (package URL, name, version, type);
 - systemd agent: the packages installed on the host (package URL, name, version, type), only when the list changed;
-- systemd agent: whether the host is itself a container, as a short name such as `lxc`.
+- systemd agent: whether the host is itself a container, as a short name such as `lxc`;
+- systemd agent on Debian and Ubuntu: its apt sources (host, path, suite, components, the Release file's `Origin`, `Label`,
+  `Codename` and `Date`) and, for installed packages with a newer version offered or from a third-party source, the versions offered
+  (see [What can be patched now](#what-can-be-patched-now)).
 
 Never: file contents, paths inside images, environment variables, command lines, secrets, or the images themselves.
 

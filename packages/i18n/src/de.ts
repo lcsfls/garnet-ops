@@ -1120,6 +1120,42 @@ export const de: Messages = {
     packagesNone: "Keine bekannte Schwachstelle in den Paketen dieses Hosts.",
     packagesAffected:
       "{count, plural, one {Betroffen von # bekannten Schwachstelle} other {Betroffen von # bekannten Schwachstellen}}",
+    patchTitle: "Was sich jetzt patchen lässt",
+    patchCounts: {
+      "patchable-now": "{count} jetzt patchbar",
+      "waiting-for-mirror": "{count} warten auf den Mirror",
+      "lists-stale": "{count} warten auf apt update",
+      "pro-only": "{count} nur mit Ubuntu Pro",
+      "no-fix-yet": "{count} noch ohne Fix",
+    },
+    listsAge:
+      "{days, plural, =0 {apt-Listen heute aktualisiert} one {apt-Listen # Tag alt} other {apt-Listen # Tage alt}}",
+    patchCommand: "Alle jetzt verfügbaren Fixes installieren",
+    patchState: {
+      patchableNow: "Jetzt patchbar: {version} aus {source}",
+      waitingForMirror: "Ihre Quellen bieten {fixed} noch nicht an",
+      waitingForMirrorOffered: "Ihre Quellen bieten bisher {offered} an ({source})",
+      listsStale: "apt update ausführen: Die Listen sind {days} Tage alt",
+      proOnly: "Nur in Ubuntu Pro (ESM) behoben",
+    },
+    columnPatch: "Patch",
+    hintSecurityMirrorWaiting:
+      "Sicherheitsupdates kommen vom Mirror {host}, der manche Fixes noch nicht anbietet.",
+    hintSecurityMirrorLag:
+      "Sicherheitsupdates kommen vom Mirror {host}, dessen Sicherheits-Index {days} Tage älter ist als das letzte apt update.",
+    hintSecurityAdvice:
+      "Ubuntu und Debian empfehlen, den Security-Pocket direkt von ihren Sicherheitsservern zu beziehen, weil Mirrors hinterherhinken können. Tragen Sie diese Zeile in die apt-Quellen des Hosts ein und führen Sie dann apt update aus.",
+    hintNoSecurity:
+      "Es ist kein Security-Pocket eingerichtet, deshalb erreichen Sicherheitsupdates diesen Host nicht. Tragen Sie diese Zeile in die apt-Quellen des Hosts ein und führen Sie dann apt update aus.",
+    hintLine: "Quellen-Zeile",
+    thirdPartyTitle: "Nicht von den Sicherheitsdaten der Distribution abgedeckt",
+    thirdPartyText:
+      "Diese Pakete stammen aus Quellen außerhalb der Distribution. Die Schwachstellen-Datenbank hat keine Daten zu ihnen, kein Finding heißt also nicht: keine Lücke. Halten Sie sie über ihre Quelle aktuell.",
+    thirdPartyOrigin: "{origin} ({host}), {count, plural, one {# Paket} other {# Pakete}}",
+    phpEndOfLife: "PHP {version}: Die Linie {line} erhält keine Sicherheitsfixes mehr.",
+    phpOutdated: "PHP {version} liegt hinter der neuesten Version seiner Linie, {latest}.",
+    phpCurrent: "PHP {version} ist die neueste Version seiner Linie.",
+    phpUnknown: "PHP {version}: Keine End-of-Life-Daten für diese Linie.",
     title: "Agents",
     description:
       "Die Server, auf denen der GarnetOps-Agent läuft, ihre laufenden Container und was in den Images steckt.",

@@ -3927,4 +3927,145 @@ test.describe("hosts and containers (ADR 0034)", () => {
     await sql("delete from runtime_early_warning");
     expect(problems).toEqual([]);
   });
+
+  /**
+   * What can be patched now: the real Go agent reads a fake host's apt lists (a mirror that serves the security pocket, and
+   * packages.sury.org for PHP) and the packages card says per finding what the host's own sources offer.
+   */
+  test("a Debian host's packages card says what can be patched now, what waits for the mirror, and what no security data covers", async ({
+    page,
+  }) => {
+    const go = ["/usr/local/go/bin/go", "/usr/bin/go"].find((p) => existsSync(p));
+    test.skip(!go, "Go is not installed");
+    const problems = watchForProblems(page);
+    await page.goto("/hosts");
+    await page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Add agent" })
+      .click();
+    const dialog = page.getByRole("dialog", { name: "Add an agent" });
+    await dialog.getByLabel("Name of the host").fill("Apt 1");
+    await dialog.getByLabel(/systemd service, without Docker/).check();
+    await dialog.getByRole("button", { name: "Create the code" }).click();
+    const code = /GARNETOPS_ENROLMENT_CODE='(goe_[A-Za-z0-9_-]{43})'/.exec(
+      (await page.getByTestId("host-compose").textContent()) ?? "",
+    )?.[1];
+    expect(code).toBeTruthy();
+    await page.getByRole("button", { name: "Done" }).click();
+
+    const root = join(work, "apt-host-root");
+    const file = (path: string, text: string) => {
+      mkdirSync(join(root, path, ".."), { recursive: true });
+      writeFileSync(join(root, path), text);
+    };
+    const sury = "8.3.13-1+0~20241025.45+debian12~1.gbp1a2b3c";
+    file("etc/os-release", 'PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"\nID=debian\nVERSION_ID="12"\n');
+    file("proc/sys/kernel/osrelease", "6.1.0-26-amd64\n");
+    file(
+      "var/lib/dpkg/status",
+      [
+        "Package: openssl\nStatus: install ok installed\nArchitecture: amd64\nVersion: 3.0.14-1~deb12u1",
+        "Package: bash\nStatus: install ok installed\nArchitecture: amd64\nVersion: 5.2.15-2+b7",
+        `Package: php8.3-cli\nStatus: install ok installed\nArchitecture: amd64\nVersion: ${sury}`,
+      ].join("\n\n"),
+    );
+    const lists = "var/lib/apt/lists/";
+    const release = (origin: string, suite: string, codename: string) =>
+      `Origin: ${origin}\nLabel: ${origin}\nSuite: ${suite}\nCodename: ${codename}\nDate: Mon, 02 Nov 2026 08:00:00 UTC\n`;
+    const m = `${lists}mirror.example.lan_debian`;
+    file(`${m}_dists_bookworm_InRelease`, release("Debian", "stable", "bookworm"));
+    file(
+      `${m}_dists_bookworm_main_binary-amd64_Packages`,
+      "Package: openssl\nArchitecture: amd64\nVersion: 3.0.14-1~deb12u1\n\nPackage: bash\nArchitecture: amd64\nVersion: 5.2.15-2+b7\n",
+    );
+    file(
+      `${m}-security_dists_bookworm-security_InRelease`,
+      release("Debian", "stable-security", "bookworm-security"),
+    );
+    file(
+      `${m}-security_dists_bookworm-security_main_binary-amd64_Packages`,
+      "Package: openssl\nArchitecture: amd64\nVersion: 3.0.15-1~deb12u1\n",
+    );
+    file(
+      `${lists}packages.sury.org_php_dists_bookworm_InRelease`,
+      release("deb.sury.org", "bookworm", "bookworm"),
+    );
+    file(
+      `${lists}packages.sury.org_php_dists_bookworm_main_binary-amd64_Packages`,
+      `Package: php8.3-cli\nArchitecture: amd64\nVersion: ${sury}\n`,
+    );
+
+    const binary = join(work, "garnetops-agent-e2e-apt");
+    await new Promise<void>((resolve, reject) =>
+      execFile(
+        go as string,
+        ["build", "-tags", "e2e", "-o", binary, "."],
+        {
+          cwd: fileURLToPath(new URL("../../host-agent/", import.meta.url)),
+          env: { ...process.env, CGO_ENABLED: "0" },
+        },
+        (error) => (error ? reject(error) : resolve()),
+      ),
+    );
+    const result = await new Promise<{ ok: boolean; output: string }>((resolve) =>
+      execFile(
+        binary,
+        ["once"],
+        {
+          env: {
+            GARNETOPS_URL: E2E.publicUrl,
+            GARNETOPS_ENROLMENT_CODE: code as string,
+            GARNETOPS_STATE_DIR: join(work, "apt-state"),
+            GARNETOPS_TEST_ROOT: root,
+            GARNETOPS_HOST_NAME: "apt-01.example.lan",
+          },
+          timeout: 60_000,
+        },
+        (error, stdout, stderr) => resolve({ ok: !error, output: `${stdout}${stderr}` }),
+      ),
+    );
+    expect(result.output).toContain("reported, 3 packages sent");
+    expect(result.ok).toBe(true);
+    const [host] = await sql<{ id: string; sources: number }>(
+      "select id, jsonb_array_length(apt_facts->'sources') as sources from agent_host where hostname = 'apt-01.example.lan'",
+    );
+    expect(host?.sources).toBe(3);
+
+    // No worker matches here: two findings as the worker would write them, one the security pocket fixes, one it does not offer yet.
+    await sql(
+      "insert into vulnerability (id, severity) values ('CVE-2026-0301', 'high'), ('CVE-2026-0302', 'medium') on conflict do nothing",
+    );
+    await sql(
+      `insert into host_package_finding (id, organization_id, host_id, vulnerability_id, package_name, package_version, package_type, fixed_in, fix_state, severity, severity_rank, first_seen_at, last_seen_at)
+       select 'hpf_apt_e2e_1', organization_id, id, 'CVE-2026-0301', 'openssl', '3.0.14-1~deb12u1', 'deb', '["3.0.15-1~deb12u1"]', 'fixed', 'high', 4, now(), now() from agent_host where id = $1
+       union all
+       select 'hpf_apt_e2e_2', organization_id, id, 'CVE-2026-0302', 'bash', '5.2.15-2+b7', 'deb', '["5.2.15-2+b8"]', 'fixed', 'medium', 3, now(), now() from agent_host where id = $1`,
+      [host?.id],
+    );
+    await sql("update agent_host set host_packages_matched_at = now() where id = $1", [host?.id]);
+    await page.goto("/hosts");
+    await page.locator('tr[data-host="Apt 1"]').getByRole("link", { name: "Apt 1" }).click();
+    await expect(page.getByTestId("host-patch-summary")).toHaveText(
+      "1 patchable now, 1 waiting for the mirror, apt lists updated today",
+    );
+    await expect(page.getByTestId("host-patch-command")).toHaveText(
+      "sudo apt install --only-upgrade openssl",
+    );
+    const rows = page.getByTestId("host-package-patch");
+    await expect(rows.and(page.locator('[data-state="patchable-now"]'))).toContainText(
+      "Patchable now: 3.0.15-1~deb12u1 from mirror.example.lan bookworm-security",
+    );
+    await expect(rows.and(page.locator('[data-state="waiting-for-mirror"]'))).toContainText(
+      "Your sources do not offer 5.2.15-2+b8 yet",
+    );
+    await expect(page.getByTestId("host-patch-line")).toHaveText(
+      "deb http://deb.debian.org/debian-security bookworm-security main",
+    );
+    const thirdParty = page.getByTestId("host-third-party");
+    await expect(thirdParty).toContainText("Not covered by the distribution's security data");
+    await expect(thirdParty).toContainText("deb.sury.org (packages.sury.org), 1 package");
+    await expect(page.getByTestId("host-third-party-php")).toContainText("PHP 8.3.13");
+    await sql("delete from host_package_finding where id like 'hpf_apt_e2e_%'");
+    expect(problems).toEqual([]);
+  });
 });

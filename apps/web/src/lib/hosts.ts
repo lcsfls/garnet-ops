@@ -3,6 +3,13 @@
  * decisions the screens share. Everything a host reported (names, labels, image references) is hostile text the API cleaned; the
  * screens still render it as text only.
  */
+import type {
+  AptHint,
+  PatchState,
+  PatchSummary,
+  PhpLineJudgement,
+  ThirdPartyOrigin,
+} from "@garnetops/core/apt";
 import type { BadgeTone } from "./components/ui/tones.ts";
 
 export type SeverityCounts = { critical: number; high: number; medium: number; low: number };
@@ -57,7 +64,39 @@ export interface HostPackagesSummary {
 
 export interface HostPackageFinding extends KernelFinding {
   packageType: string;
+  /** What the host's own apt sources offer for the fix (0.1.0; older servers send none). */
+  patch?: {
+    state: PatchState;
+    fixedIn: string | null;
+    offered: { version: string; host: string | null; suite: string | null; date: string | null } | null;
+    command: string | null;
+  };
 }
+
+/** What can be patched now on an apt host; null without apt facts (an older agent, another package manager). */
+export interface HostPatch extends PatchSummary {
+  hints: AptHint[];
+  sources: {
+    host: string;
+    path: string;
+    suite: string;
+    origin: string | null;
+    date: string | null;
+    fetchedAt: string | null;
+    distribution: boolean;
+  }[];
+  thirdParty: ThirdPartyOrigin[];
+  php: PhpLineJudgement[];
+}
+
+/** The summary line's parts, in the order they are said; states without findings are left out. */
+export const PATCH_SUMMARY_ORDER = [
+  "patchable-now",
+  "waiting-for-mirror",
+  "lists-stale",
+  "pro-only",
+  "no-fix-yet",
+] as const satisfies readonly PatchState[];
 
 export interface HostRow {
   id: string;
@@ -118,7 +157,7 @@ export interface HostDetail
   extends Omit<HostRow, "containers" | "images" | "open" | "updatesAvailable" | "kernel" | "hostPackages"> {
   containers: HostContainer[];
   kernel: KernelSummary & { findings: KernelFinding[] };
-  hostPackages: HostPackagesSummary & { findings: HostPackageFinding[] };
+  hostPackages: HostPackagesSummary & { findings: HostPackageFinding[]; patch?: HostPatch | null };
 }
 
 /** Open vulnerabilities of everything a host runs: its images and, for the systemd agent, its own packages. */

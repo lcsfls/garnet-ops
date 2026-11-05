@@ -453,6 +453,135 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     await t.db.delete(schema.hostPackageFinding);
   });
 
+  it("keeps what the host's apt lists offer and says per finding what can be patched now", async () => {
+    const recent = new Date(Date.now() - 3600_000).toISOString();
+    const apt = {
+      listsUpdatedAt: recent,
+      arch: "amd64",
+      sources: [
+        {
+          id: 0,
+          host: "mirror.example.lan",
+          path: "debian",
+          suite: "bookworm",
+          components: ["main"],
+          origin: "Debian",
+          codename: "bookworm",
+          date: recent,
+        },
+        {
+          id: 1,
+          host: "mirror.example.lan",
+          path: "debian-security",
+          suite: "bookworm-security",
+          components: ["main"],
+          origin: "Debian",
+          codename: "bookworm-security",
+          date: recent,
+        },
+        {
+          id: 2,
+          host: "packages.sury.org",
+          path: "php",
+          suite: "bookworm",
+          components: ["main"],
+          origin: "deb.sury.org",
+          date: recent,
+        },
+      ],
+      packages: [
+        {
+          name: "bash",
+          arch: "amd64",
+          installed: "5.2.15-2+b7",
+          from: [0],
+          offers: [{ source: 1, version: "5.2.15-2+b8" }],
+        },
+        {
+          name: "php8.2-cli",
+          arch: "amd64",
+          installed: "8.2.20-1+0~20240607.47+debian12~1.gbp1234",
+          from: [2],
+          offers: [],
+        },
+      ],
+    };
+    expect((await agent("/api/v1/agent/inventory", inventory({ runtime: "systemd", apt }))).status).toBe(200);
+    const [stored] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, hostId));
+    expect(stored?.aptFacts?.sources).toHaveLength(3);
+    expect(stored?.aptFactsAt).toBeInstanceOf(Date);
+
+    await t.db
+      .insert(schema.vulnerability)
+      .values([
+        { id: "CVE-2026-0201", severity: "high" },
+        { id: "CVE-2026-0202", severity: "medium" },
+      ])
+      .onConflictDoNothing();
+    const base = {
+      organizationId: ORG,
+      hostId,
+      packageType: "deb",
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+    };
+    await t.db.insert(schema.hostPackageFinding).values([
+      {
+        id: "hpf_apt_1",
+        ...base,
+        vulnerabilityId: "CVE-2026-0201",
+        packageName: "bash",
+        packageVersion: "5.2.15-2+b7",
+        fixedIn: ["5.2.15-2+b8"],
+        fixState: "fixed",
+        severity: "high",
+        severityRank: 4,
+      },
+      {
+        id: "hpf_apt_2",
+        ...base,
+        vulnerabilityId: "CVE-2026-0202",
+        packageName: "bash",
+        packageVersion: "5.2.15-2+b7",
+        fixedIn: ["5.2.15-2+b9"],
+        fixState: "fixed",
+        severity: "medium",
+        severityRank: 3,
+      },
+    ]);
+    const detail = await session("GET", `/api/v1/hosts/${hostId}`, { role: "viewer" });
+    const packages = (detail.json as unknown as { hostPackages: Record<string, unknown> }).hostPackages as {
+      findings: { vulnerabilityId: string; patch: { state: string; command: string | null } }[];
+      patch: Record<string, unknown>;
+    };
+    expect(packages.findings.map((f) => [f.vulnerabilityId, f.patch.state, f.patch.command])).toEqual([
+      ["CVE-2026-0201", "patchable-now", "sudo apt install --only-upgrade bash"],
+      ["CVE-2026-0202", "waiting-for-mirror", null],
+    ]);
+    expect(packages.patch).toMatchObject({
+      counts: { "patchable-now": 1, "waiting-for-mirror": 1 },
+      listsAgeDays: 0,
+      command: "sudo apt install --only-upgrade bash",
+      hints: [
+        {
+          kind: "securityFromMirror",
+          host: "mirror.example.lan",
+          line: "deb http://deb.debian.org/debian-security bookworm-security main",
+        },
+      ],
+      thirdParty: [{ origin: "deb.sury.org", packages: [{ name: "php8.2-cli" }] }],
+      php: [{ version: "8.2.20", packages: ["php8.2-cli"] }],
+    });
+    // A report without the field (an older agent) leaves nothing stale behind; a broken one does not break the inventory.
+    expect(
+      (await agent("/api/v1/agent/inventory", inventory({ runtime: "systemd", apt: { sources: "x" } })))
+        .status,
+    ).toBe(200);
+    const [cleared] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, hostId));
+    expect(cleared).toMatchObject({ aptFacts: null, aptFactsAt: null });
+    await t.db.delete(schema.hostPackageFinding);
+  });
+
   it("serves the install script and the binaries it was built with, and no code in either", async () => {
     const { mkdir, writeFile } = await import("node:fs/promises");
     const { createHash } = await import("node:crypto");

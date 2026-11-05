@@ -128,7 +128,9 @@ data is refreshed with every release, [ADR 0038](adr/0038-website-software-versi
 
 A CMS names its own version exactly, so it counts fully. A server header counts one step lower, and a header that names a
 distribution (`Apache/2.4.57 (Debian)`, `PHP/8.1.2-1ubuntu2.14`) is shown but not judged: distributions fix security problems
-without changing the number. The HTTP section of a website lists what was found and how it was judged.
+without changing the number. A PHP build from the deb.sury.org repositories (the `ondrej/php` PPA, packages.sury.org:
+`PHP/8.3.14-1+ubuntu24.04.1+deb.sury.org+1`) is the exception: it follows upstream releases without backports, so it is judged by
+its upstream version (8.3.14). The HTTP section of a website lists what was found and how it was judged.
 
 **WordPress themes and plugins** ([ADR 0042](adr/0042-wordpress-plugins-and-themes.md)): the HTTP section also lists the themes
 and plugins the home page's asset addresses name (`/wp-content/plugins/<slug>/…`), with the version the address carries. Plugins
