@@ -98,7 +98,7 @@ describe("scanners", () => {
   it("matches the pinned version, shows a different one and knows when it cannot tell", () => {
     expect(scannerMatch("grype", PINNED_SCANNERS.grype)).toBe("match");
     expect(scannerMatch("syft", `v${PINNED_SCANNERS.syft}`)).toBe("match");
-    expect(scannerMatch("grype", "0.1.0")).toBe("differs");
+    expect(scannerMatch("grype", "0.1.1")).toBe("differs");
     expect(scannerMatch("grype", null)).toBe("unknown");
     expect(scannerMatch("grype", "weird")).toBe("unknown");
   });
@@ -131,11 +131,11 @@ describe("scanners", () => {
 });
 
 describe("app version", () => {
-  it("takes a release version and falls back to the 0.1.0 beta", () => {
-    expect(appVersionOf("0.1.0")).toBe("0.1.0");
+  it("takes a release version and falls back to the 0.1.1 beta", () => {
+    expect(appVersionOf("0.1.1")).toBe("0.1.1");
     expect(appVersionOf("1.2.3-rc.1")).toBe("1.2.3-rc.1");
-    expect(appVersionOf("latest")).toBe("0.1.0");
-    expect(appVersionOf(undefined)).toBe("0.1.0");
+    expect(appVersionOf("latest")).toBe("0.1.1");
+    expect(appVersionOf(undefined)).toBe("0.1.1");
   });
 });
 
