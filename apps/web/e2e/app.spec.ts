@@ -641,11 +641,15 @@ test("a finished scan reloads what it changed on the repository page", async ({ 
   // The page sees the scan running twice, then finished: the history must load again, not only the header.
   let polls = 0;
   await page.route(`**${detail}`, async (route) => {
-    const res = await route.fetch();
-    const body = await res.json();
-    polls++;
-    if (polls <= 2) body.lastScan = { ...body.lastScan, state: "running", finishedAt: null };
-    await route.fulfill({ response: res, json: body });
+    try {
+      const res = await route.fetch();
+      const body = await res.json();
+      polls++;
+      if (polls <= 2) body.lastScan = { ...body.lastScan, state: "running", finishedAt: null };
+      await route.fulfill({ response: res, json: body });
+    } catch {
+      // The page dropped this request because a newer one replaced it; that request is answered on its own.
+    }
   });
   let historyLoads = 0;
   page.on("request", (req) => {
