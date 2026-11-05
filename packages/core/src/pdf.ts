@@ -1,4 +1,5 @@
 import { deflateSync } from "node:zlib";
+import { pdfRgb, SEVERITY_FILL_HEX } from "./severity-colours.ts";
 
 /**
  * A minimal PDF writer: the standard Helvetica fonts (no embedded font files), WinAnsi text, page numbers. Written here
@@ -160,13 +161,16 @@ export function assemblePdf(
 /* Documents: headings, text, facts, lists and tables on A4 portrait           */
 /* -------------------------------------------------------------------------- */
 
-/** The fixed severity colours (AGENTS.md rule 6): critical vermilion, high orange, medium amber, low grey. */
-export type PdfMark = "critical" | "high" | "medium" | "low";
+/**
+ * The fixed severity colours (AGENTS.md rule 6): critical vermilion, high orange, medium amber, low grey. The same values as
+ * the web app's light-theme fill tokens (severity-colours.ts), so the PDF and the app cannot drift.
+ */
+export type PdfMark = keyof typeof SEVERITY_FILL_HEX;
 const MARK_RGB: Record<PdfMark, string> = {
-  critical: "0.82 0.23 0.16",
-  high: "0.88 0.48 0.16",
-  medium: "0.85 0.65 0.18",
-  low: "0.62 0.61 0.61",
+  critical: pdfRgb(SEVERITY_FILL_HEX.critical),
+  high: pdfRgb(SEVERITY_FILL_HEX.high),
+  medium: pdfRgb(SEVERITY_FILL_HEX.medium),
+  low: pdfRgb(SEVERITY_FILL_HEX.low),
 };
 
 /** A table cell: text, optionally with a small square in a severity's colour before it (the text always names it too). */

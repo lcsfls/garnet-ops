@@ -43,6 +43,7 @@
     "./webhook": "./src/webhook.ts",
     "./backup": "./src/backup.ts",
     "./pdf": "./src/pdf.ts",
+    "./severity-colours": "./src/severity-colours.ts",
     "./reports": "./src/reports.ts",
     "./report-documents": "./src/report-documents.ts"
   },
