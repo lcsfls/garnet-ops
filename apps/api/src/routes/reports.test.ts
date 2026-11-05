@@ -22,6 +22,12 @@ vi.mock("../db.ts", async () => {
   holder.db = t;
   return { db: t.db, pool: t.pool };
 });
+// The host routes the reports reuse read the installation's settings when they are imported.
+vi.mock("../env.ts", () => ({
+  env: { PUBLIC_URL: "https://garnetops.example.test/", AGENT_BINARIES_DIR: "/nonexistent" },
+  isProduction: false,
+}));
+vi.mock("../auth.ts", () => ({ auth: { api: {} } }));
 
 // biome-ignore lint/suspicious/noExplicitAny: test helper for arbitrary response bodies
 type Json = Record<string, any>;
@@ -210,8 +216,8 @@ describe.skipIf(!adminUrl)("report API", () => {
     const res = await call("GET", "/api/v1/reports/organization?days=30&tz=Pacific/Kiritimati", SAM);
     expect(res.json?.period).toMatchObject({ days: 30, timeZone: "Pacific/Kiritimati" });
     expect(res.json?.findings.opened.high).toBe(0);
-    expect((await call("GET", "/api/v1/reports/organization?days=8", SAM)).status).toBe(400);
-    expect((await call("GET", "/api/v1/reports/organization?tz=Mars/Base", SAM)).status).toBe(400);
+    expect((await call("GET", "/api/v1/reports/organization?days=8", SAM)).status).toBe(422);
+    expect((await call("GET", "/api/v1/reports/organization?tz=Mars/Base", SAM)).status).toBe(422);
   });
 
   it("downloads the organisation report as PDF", async () => {

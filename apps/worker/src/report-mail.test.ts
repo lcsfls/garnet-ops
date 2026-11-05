@@ -133,6 +133,7 @@ describe.skipIf(!adminUrl)("report mail in the worker", () => {
 
   afterAll(async () => {
     vi.restoreAllMocks();
+    await (await import("./db.ts")).pool.end().catch(() => {});
     await t?.drop();
   });
 
