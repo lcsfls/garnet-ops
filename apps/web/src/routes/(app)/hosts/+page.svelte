@@ -11,7 +11,7 @@
   import Badge from "#lib/components/ui/Badge.svelte";
   import Button from "#lib/components/ui/Button.svelte";
   import { formatDateTime, formatRelative } from "#lib/format.ts";
-  import { type HostRow, hostOpen, kernelState } from "#lib/hosts.ts";
+  import { type HostRow, hostOpen, kernelState, serviceLabelKey } from "#lib/hosts.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
   import { rowClick } from "#lib/row-link.ts";
@@ -119,6 +119,7 @@
       <tbody>
         {#each hosts.data ?? [] as host (host.id)}
           {@const href = `/hosts/${encodeURIComponent(host.id)}`}
+          {@const serviceKey = serviceLabelKey(host)}
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
           <tr class="row-link border-b align-top last:border-0" data-host={host.name} onclick={rowClick(() => void goto(href))}>
             <td class="px-5 py-3">
@@ -150,7 +151,7 @@
                 >{/if}</td>
             <td class="hidden px-3 py-3 font-mono text-sm @wide:table-cell">
               {host.agentVersion ?? "–"}
-              {#if host.runtime === "systemd"}<div class="font-sans text-xs text-muted-foreground">{t("hosts.runtimeSystemdShort")}</div>{/if}
+              {#if serviceKey}<div class="font-sans text-xs text-muted-foreground">{t(serviceKey)}</div>{/if}
             </td>
             <td class="hidden px-5 py-3 text-sm @3xl:table-cell">
               {#if host.lastInventoryAt}

@@ -1105,10 +1105,93 @@ export const de: Messages = {
     runtimeDocker: "Docker (Compose)",
     runtimeDockerHint:
       "Zwei Container neben Docker: liest die laufenden Container, was in ihren Images steckt, und den Kernel des Hosts.",
-    runtimeSystemd: "systemd-Dienst, ohne Docker",
+    runtimeSystemd: "systemd- oder OpenRC-Dienst, ohne Docker",
     runtimeSystemdHint:
-      "Ein einzelnes kleines Programm (etwa 6 MB) als gehärteter systemd-Dienst: liest den Kernel des Hosts und seine installierten Pakete (dpkg, rpm oder apk).",
+      "Ein einzelnes kleines Programm (etwa 6 MB) als Dienst: von systemd gehärtet oder ohne Rechte unter OpenRC (Alpine). Liest den Kernel des Hosts, seine installierten Pakete (dpkg, rpm oder apk) und die Einstellungen seines SSH-Servers.",
     runtimeSystemdShort: "systemd-Dienst",
+    runtimeOpenrcShort: "OpenRC-Dienst",
+    sshTitle: "SSH-Server",
+    sshDescription:
+      "Die Einstellungen des SSH-Servers, gelesen aus seinen Konfigurationsdateien. Diese Befunde sind nur ein Bericht: Sie ändern keine Schwachstellen, Zählungen, Noten oder Gates.",
+    sshServer: "Server",
+    sshServerValue: {
+      openssh: "OpenSSH",
+      dropbear: "Dropbear",
+      none: "Keiner gefunden",
+    },
+    sshLibc: "C-Bibliothek",
+    sshLibcValue: {
+      musl: "musl",
+      glibc: "glibc",
+      unknown: "Nicht bekannt",
+    },
+    sshPam: "PAM",
+    sshPamUsed: "Verwendet",
+    sshPamNotBuilt: "Nicht verwendet: sshd ist ohne PAM gebaut",
+    sshPamOff: "Nicht verwendet (UsePAM no)",
+    sshPamUnknown: "Nicht bekannt",
+    sshPasswordAuthentication: "Anmeldung mit Passwort",
+    sshPermitRootLogin: "Anmeldung als root",
+    sshKbdInteractive: "Keyboard-interactive",
+    sshPubkey: "Anmeldung mit Schlüssel",
+    sshEmptyPasswords: "Leere Passwörter",
+    sshDefault: "Standard von OpenSSH",
+    sshInMatch: "In Match-Blöcken: {values}",
+    sshFiles: "{count, plural, one {# Konfigurationsdatei gelesen} other {# Konfigurationsdateien gelesen}}",
+    sshSkipped: "Nicht gelesen: {files}",
+    sshSkipReason: {
+      unreadable: "für den Agent nicht lesbar",
+      "too-large": "größer als 256 KiB",
+      "not-regular": "keine normale Datei",
+      outside: "außerhalb von /etc/ssh",
+      limit: "mehr als 32 Dateien",
+      depth: "zu tief verschachtelt",
+    },
+    sshConfigUnreadable:
+      "Der Agent konnte /etc/ssh/sshd_config nicht lesen ({problem}), deshalb werden die Einstellungen nicht bewertet. Auf manchen Distributionen darf nur root die Datei lesen.",
+    sshDropbear:
+      "Auf diesem Host läuft Dropbear. Seine Einstellungen werden noch nicht geprüft; die Schwachstellen von OpenSSH betreffen ihn nicht.",
+    sshNone: "Auf diesem Host wurde kein SSH-Server gefunden (weder /usr/sbin/sshd noch Dropbear).",
+    sshNoFindings: "Kein Befund in den geprüften Einstellungen.",
+    sshScopeMatch:
+      "Nur für die Verbindungen, die ein Match-Block erfasst (einzelne Benutzer, Gruppen oder Adressen).",
+    sshBasisVersion:
+      "Die Schwachstellen-Datenbank kennt diese Lücke noch nicht, daher zählt die Version von OpenSSH: unter 10.6p2.",
+    sshBasisFinding: "Die Schwachstellen-Datenbank führt das installierte openssh als betroffen.",
+    sshWhy: "Warum",
+    sshFix: "So beheben Sie es",
+    sshRules: {
+      sshole: {
+        title: "sshole (CVE-2026-123158): ein langes Passwort meldet an",
+        why: "Auf Systemen mit musl (etwa Alpine) nimmt OpenSSH ohne PAM und mit Passwort-Anmeldung jedes Passwort von 257 bis 1024 Byte für Konten ohne Passwort-Hash an, etwa ein gesperrtes root, sobald ein anderes Konto einen gültigen hat. Dieser Host erfüllt jede Bedingung.",
+        fix: "PasswordAuthentication no in /etc/ssh/sshd_config setzen (vorher die Anmeldung mit Schlüssel prüfen) und openssh auf eine korrigierte Version aktualisieren (upstream 10.6p2 oder die Korrektur Ihrer Distribution).",
+      },
+      "root-login": {
+        title: "root kann sich mit Passwort anmelden",
+        why: "PermitRootLogin yes lässt jeden, der das root-Passwort errät oder stiehlt, direkt hinein, ohne persönliches Konto dazwischen.",
+        fix: "PermitRootLogin prohibit-password (nur Schlüssel) oder no in /etc/ssh/sshd_config setzen und sshd neu laden.",
+      },
+      "empty-passwords": {
+        title: "Konten mit leerem Passwort können sich anmelden",
+        why: "PermitEmptyPasswords yes lässt ein Konto ohne Passwort über das Netz hinein, ganz ohne Geheimnis.",
+        fix: "PermitEmptyPasswords no (Standard von OpenSSH) in /etc/ssh/sshd_config setzen und sshd neu laden.",
+      },
+      "password-authentication": {
+        title: "Anmeldung mit Passwort ist erlaubt",
+        why: "Passwörter lassen sich erraten, wiederverwenden oder abfischen, Schlüssel nicht. Die Einstufung bleibt mittel, auch wenn die Anmeldung mit Schlüssel abgeschaltet ist, denn die Angriffsfläche ist dieselbe.",
+        fix: "Für jedes Konto, das SSH braucht, die Anmeldung mit Schlüssel einrichten und prüfen, dann PasswordAuthentication no in /etc/ssh/sshd_config setzen und sshd neu laden.",
+      },
+    },
+    sshNoteTitle: "Mit dieser Konfiguration nicht ausnutzbar",
+    sshNoteReasons: {
+      "no-openssh-server": "Auf diesem Host ist kein OpenSSH-Server installiert.",
+      dropbear: "Auf diesem Host läuft Dropbear, nicht der OpenSSH-Server.",
+      glibc: "OpenSSH nutzt hier glibc; die Lücke braucht musl.",
+      pam: "sshd nutzt hier PAM; die Lücke braucht OpenSSH ohne PAM.",
+      "password-authentication-off":
+        "Die Anmeldung mit Passwort ist abgeschaltet, auch in jedem Match-Block.",
+    },
+    sshNoteKeep: "Der Befund bleibt offen, bis openssh aktualisiert ist.",
     installTitle: "Agent auf dem Host installieren",
     installSteps:
       "Auf dem Host als root: das Installationsskript von dieser Installation laden, lesen und dann mit dem Einmal-Code ausführen. Es installiert den Agent für die Architektur des Servers, prüft seine Prüfsumme und startet den Dienst.",

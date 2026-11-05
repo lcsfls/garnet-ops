@@ -156,6 +156,19 @@
                       <StateIcon name="flame" class="size-3.5" />{t("hosts.knownExploited")}
                     </span>
                   {/if}
+                  {#if f.configurationNote}
+                    <!-- An explanation next to the finding; its severity and state stay as the vulnerability database has them. -->
+                    <div class="mt-1.5 flex gap-1.5 text-sm" data-testid="host-package-note">
+                      <StateIcon name="info" class={cn("mt-0.5 size-3.5 flex-none", TONE_CLASSES.info.text)} />
+                      <div>
+                        <span class="font-medium">{t("hosts.sshNoteTitle")}</span>
+                        {#each f.configurationNote.reasons as reason (reason)}
+                          <span class="block text-muted-foreground">{t(`hosts.sshNoteReasons.${reason}`)}</span>
+                        {/each}
+                        <span class="block text-muted-foreground">{t("hosts.sshNoteKeep")}</span>
+                      </div>
+                    </div>
+                  {/if}
                 </td>
                 <td class="px-3 py-2.5 font-mono break-all">{f.packageName} {f.packageVersion}</td>
                 <td class="px-3 py-2.5">

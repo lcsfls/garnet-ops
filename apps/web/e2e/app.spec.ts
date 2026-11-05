@@ -4000,7 +4000,7 @@ test.describe("hosts and containers (ADR 0034)", () => {
     await nav.getByRole("link", { name: "Add agent" }).click();
     const dialog = page.getByRole("dialog", { name: "Add an agent" });
     await dialog.getByLabel("Name of the host").fill("Db 1");
-    await dialog.getByLabel(/systemd service, without Docker/).check();
+    await dialog.getByLabel(/systemd or OpenRC service, without Docker/).check();
     await dialog.getByRole("button", { name: "Create the code" }).click();
     const commands = page.getByTestId("host-compose");
     await expect(commands).toContainText(
@@ -4135,7 +4135,7 @@ test.describe("hosts and containers (ADR 0034)", () => {
       .click();
     const dialog = page.getByRole("dialog", { name: "Add an agent" });
     await dialog.getByLabel("Name of the host").fill("Apt 1");
-    await dialog.getByLabel(/systemd service, without Docker/).check();
+    await dialog.getByLabel(/systemd or OpenRC service, without Docker/).check();
     await dialog.getByRole("button", { name: "Create the code" }).click();
     const code = /GARNETOPS_ENROLMENT_CODE='(goe_[A-Za-z0-9_-]{43})'/.exec(
       (await page.getByTestId("host-compose").textContent()) ?? "",
@@ -4256,6 +4256,150 @@ test.describe("hosts and containers (ADR 0034)", () => {
     await expect(thirdParty).toContainText("deb.sury.org (packages.sury.org), 1 package");
     await expect(page.getByTestId("host-third-party-php")).toContainText("PHP 8.3.13");
     await sql("delete from host_package_finding where id like 'hpf_apt_e2e_%'");
+    expect(problems).toEqual([]);
+  });
+
+  /**
+   * An Alpine host under OpenRC: the real Go agent reads a fake host's apk database, musl's loader and an sshd_config with an
+   * Include and a Match block. The SSH server card shows the facts and the report-only findings, including the sshole combination
+   * (CVE-2026-123158) judged by the OpenSSH version while the vulnerability database does not know it; once password logins are off,
+   * the CVE finding keeps its severity and gets the note that it cannot be used with this configuration.
+   */
+  test("an Alpine host: the SSH server card shows its settings and sshole, and the CVE finding says when it is not exploitable", async ({
+    page,
+  }) => {
+    const go = ["/usr/local/go/bin/go", "/usr/bin/go"].find((p) => existsSync(p));
+    test.skip(!go, "Go is not installed");
+    const problems = watchForProblems(page);
+    await page.goto("/hosts");
+    await page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Add agent" })
+      .click();
+    const dialog = page.getByRole("dialog", { name: "Add an agent" });
+    await dialog.getByLabel("Name of the host").fill("Alpine 1");
+    await dialog.getByLabel(/systemd or OpenRC service, without Docker/).check();
+    await dialog.getByRole("button", { name: "Create the code" }).click();
+    const code = /GARNETOPS_ENROLMENT_CODE='(goe_[A-Za-z0-9_-]{43})'/.exec(
+      (await page.getByTestId("host-compose").textContent()) ?? "",
+    )?.[1];
+    expect(code).toBeTruthy();
+    await page.getByRole("button", { name: "Done" }).click();
+    const script = await (await page.request.get("/api/v1/agent/install.sh")).text();
+    expect(script).toContain("rc-update add garnetops-agent default");
+    expect(script).toContain('supervisor="supervise-daemon"');
+
+    const root = join(work, "alpine-host-root");
+    const file = (path: string, text: string) => {
+      mkdirSync(join(root, path, ".."), { recursive: true });
+      writeFileSync(join(root, path), text);
+    };
+    file("etc/os-release", 'PRETTY_NAME="Alpine Linux v3.22"\nID=alpine\nVERSION_ID=3.22.2\n');
+    file("proc/sys/kernel/osrelease", "6.12.13-0-lts\n");
+    file(
+      "lib/apk/db/installed",
+      "P:musl\nV:1.2.5-r10\nA:x86_64\no:musl\n\nP:openssh-server\nV:10.0_p1-r9\nA:x86_64\no:openssh\n",
+    );
+    file("lib/ld-musl-x86_64.so.1", "");
+    file("usr/sbin/sshd", "stand-in for sshd");
+    mkdirSync(join(root, "run/openrc"), { recursive: true });
+    const sshdConfig = (password: string) => {
+      file(
+        "etc/ssh/sshd_config",
+        "Include /etc/ssh/sshd_config.d/*.conf\n#PermitRootLogin prohibit-password\n",
+      );
+      file(
+        "etc/ssh/sshd_config.d/10-local.conf",
+        `${password}Match Address 192.0.2.0/24\n  PermitRootLogin yes\n`,
+      );
+    };
+    sshdConfig("");
+
+    const binary = join(work, "garnetops-agent-e2e-alpine");
+    await new Promise<void>((resolve, reject) =>
+      execFile(
+        go as string,
+        ["build", "-tags", "e2e", "-o", binary, "."],
+        {
+          cwd: fileURLToPath(new URL("../../host-agent/", import.meta.url)),
+          env: { ...process.env, CGO_ENABLED: "0" },
+        },
+        (error) => (error ? reject(error) : resolve()),
+      ),
+    );
+    const run = () =>
+      new Promise<{ ok: boolean; output: string }>((resolve) =>
+        execFile(
+          binary,
+          ["once"],
+          {
+            env: {
+              GARNETOPS_URL: E2E.publicUrl,
+              GARNETOPS_ENROLMENT_CODE: code as string,
+              GARNETOPS_STATE_DIR: join(work, "alpine-state"),
+              GARNETOPS_TEST_ROOT: root,
+              GARNETOPS_HOST_NAME: "alpine-01.example.lan",
+            },
+            timeout: 60_000,
+          },
+          (error, stdout, stderr) => resolve({ ok: !error, output: `${stdout}${stderr}` }),
+        ),
+      );
+    const first = await run();
+    expect(first.output).toContain("reported, 2 packages sent");
+    expect(first.ok).toBe(true);
+    const [host] = await sql<{ id: string; manager: string; libc: string }>(
+      "select id, service_manager as manager, sshd_facts->>'libc' as libc from agent_host where hostname = 'alpine-01.example.lan'",
+    );
+    expect(host).toMatchObject({ manager: "openrc", libc: "musl" });
+
+    await page.goto("/hosts");
+    const row = page.locator('tr[data-host="Alpine 1"]');
+    await expect(row).toContainText("OpenRC service");
+    await row.getByRole("link", { name: "Alpine 1" }).click();
+    const card = page.getByTestId("host-ssh");
+    await expect(card.getByRole("heading", { name: "SSH server" })).toBeVisible();
+    await expect(card).toContainText("openssh-server 10.0_p1-r9");
+    await expect(card).toContainText("musl");
+    await expect(card).toContainText("Not used (UsePAM no)");
+    await expect(card).toContainText("In Match blocks: yes");
+    await expect(card).toContainText("2 configuration files read");
+    const findings = page.getByTestId("ssh-findings").locator("li");
+    await expect(findings).toHaveCount(3);
+    const sshole = findings.and(page.locator('[data-rule="sshole"]'));
+    await expect(sshole).toContainText("Critical");
+    await expect(sshole).toContainText("sshole (CVE-2026-123158)");
+    await expect(sshole).toContainText(
+      "Set PasswordAuthentication no in /etc/ssh/sshd_config (check key login first)",
+    );
+    await expect(sshole).toContainText("judged by the OpenSSH version: below 10.6p2");
+    await expect(findings.and(page.locator('[data-rule="root-login"]'))).toContainText(
+      "Only for the connections a Match block covers",
+    );
+    await expect(findings.and(page.locator('[data-rule="password-authentication"]'))).toContainText("Medium");
+
+    // Password logins off; the database now has the CVE and the worker found it on openssh-server (written as it would).
+    sshdConfig("PasswordAuthentication no\n");
+    expect((await run()).ok).toBe(true);
+    await sql(
+      "insert into vulnerability (id, severity) values ('CVE-2026-123158', 'critical') on conflict do nothing",
+    );
+    await sql(
+      `insert into host_package_finding (id, organization_id, host_id, vulnerability_id, package_name, package_version, package_type, fixed_in, fix_state, severity, severity_rank, first_seen_at, last_seen_at)
+       select 'hpf_sshole_e2e', organization_id, id, 'CVE-2026-123158', 'openssh-server', '10.0_p1-r9', 'apk', '["10.0_p1-r10"]'::jsonb, 'fixed', 'critical', 5, now(), now() from agent_host where id = $1`,
+      [host?.id],
+    );
+    await sql("update agent_host set host_packages_matched_at = now() where id = $1", [host?.id]);
+    await page.reload();
+    await expect(page.getByTestId("ssh-findings").locator("li")).toHaveCount(1);
+    await expect(page.locator('[data-rule="sshole"]')).toHaveCount(0);
+    const packages = page.getByTestId("host-package-findings");
+    await expect(packages).toContainText("CVE-2026-123158");
+    await expect(packages).toContainText("Critical");
+    const note = page.getByTestId("host-package-note");
+    await expect(note).toContainText("Not exploitable with this configuration");
+    await expect(note).toContainText("Password logins are switched off, also in every Match block.");
+    await sql("delete from host_package_finding where id = 'hpf_sshole_e2e'");
     expect(problems).toEqual([]);
   });
 });

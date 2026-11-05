@@ -10,6 +10,7 @@ import type {
   PhpLineJudgement,
   ThirdPartyOrigin,
 } from "@garnetops/core/apt";
+import type { SshdFacts, SshdFinding, SsholeSafeReason } from "@garnetops/core/sshd";
 import type { BadgeTone } from "./severity-meta.ts";
 
 export type SeverityCounts = { critical: number; high: number; medium: number; low: number };
@@ -71,6 +72,21 @@ export interface HostPackageFinding extends KernelFinding {
     offered: { version: string; host: string | null; suite: string | null; date: string | null } | null;
     command: string | null;
   };
+  /** Why a configuration-dependent flaw (CVE-2026-123158) cannot be used on this host as configured; null otherwise. */
+  configurationNote?: { kind: "not-exploitable"; reasons: SsholeSafeReason[] } | null;
+}
+
+/** The SSH server card: what the agent read and the report-only configuration findings (null for older agents). */
+export interface HostSsh {
+  reportedAt: string | null;
+  server: SshdFacts["server"];
+  package: SshdFacts["package"];
+  libc: SshdFacts["libc"];
+  pamLinked: boolean | null;
+  /** Whether sshd uses PAM: built with it and UsePAM yes. Null when unknown. */
+  pam: boolean | null;
+  config: SshdFacts["config"];
+  findings: SshdFinding[];
 }
 
 /** What can be patched now on an apt host; null without apt facts (an older agent, another package manager). */
@@ -111,6 +127,8 @@ export interface HostRow {
   reporting: boolean;
   /** How the agent runs; null for agents before 0.0.13 (all of them in a container). */
   runtime: "container" | "systemd" | null;
+  /** The service manager of an agent without Docker; null for older agents and the container agent. */
+  serviceManager?: "systemd" | "openrc" | null;
   containers: number;
   images: number;
   open: SeverityCounts;
@@ -158,6 +176,15 @@ export interface HostDetail
   containers: HostContainer[];
   kernel: KernelSummary & { findings: KernelFinding[] };
   hostPackages: HostPackagesSummary & { findings: HostPackageFinding[]; patch?: HostPatch | null };
+  ssh?: HostSsh | null;
+}
+
+/** How the agent runs, in short words for the host list and page; null for the container agent. */
+export function serviceLabelKey(host: Pick<HostRow, "runtime" | "serviceManager">) {
+  if (host.runtime !== "systemd") return null;
+  return host.serviceManager === "openrc"
+    ? ("hosts.runtimeOpenrcShort" as const)
+    : ("hosts.runtimeSystemdShort" as const);
 }
 
 /** Open vulnerabilities of everything a host runs: its images and, for the systemd agent, its own packages. */
@@ -265,7 +292,7 @@ export function installCommands(input: { serverUrl: string; code: string; hostNa
   const env = [`GARNETOPS_ENROLMENT_CODE=${sh(input.code)}`];
   if (input.hostName) env.push(`GARNETOPS_HOST_NAME=${sh(input.hostName)}`);
   return [
-    "# GarnetOps host agent as a systemd service (ADR 0037). On the host, as root:",
+    "# GarnetOps host agent as a systemd or OpenRC service (ADR 0037). On the host, as root (Alpine: apk add curl first):",
     `curl -fsSLo garnetops-agent-install.sh ${base}/api/v1/agent/install.sh`,
     "less garnetops-agent-install.sh   # read it before you run it",
     `${env.join(" ")} sh garnetops-agent-install.sh`,

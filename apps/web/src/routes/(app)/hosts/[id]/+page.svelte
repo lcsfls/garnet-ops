@@ -7,6 +7,7 @@
   import HostPackagesCard from "#lib/components/hosts/HostPackagesCard.svelte";
   import KernelCard from "#lib/components/hosts/KernelCard.svelte";
   import OpenCounts from "#lib/components/hosts/OpenCounts.svelte";
+  import SshServerCard from "#lib/components/hosts/SshServerCard.svelte";
   import SyncNote from "#lib/components/hosts/SyncNote.svelte";
   import UpdateBadge from "#lib/components/hosts/UpdateBadge.svelte";
   import ModuleOff from "#lib/components/ModuleOff.svelte";
@@ -19,7 +20,7 @@
   import ConfirmDialog from "#lib/components/ui/ConfirmDialog.svelte";
   import Facts from "#lib/components/websites/Facts.svelte";
   import { formatDateTime, formatRelative } from "#lib/format.ts";
-  import { type HostDetail, shortId } from "#lib/hosts.ts";
+  import { type HostDetail, serviceLabelKey, shortId } from "#lib/hosts.ts";
   import { t } from "#lib/i18n.svelte.ts";
   import { isAdmin } from "#lib/nav.ts";
   import { toast } from "#lib/toast.svelte.ts";
@@ -43,6 +44,7 @@
     refetchInterval: 30_000,
   }));
   const host = $derived(query.data);
+  const serviceKey = $derived(host ? serviceLabelKey(host) : null);
   const remove = createMutation(() => ({
     mutationFn: () => api(`/hosts/${encodeURIComponent(id)}`, { method: "DELETE" }),
     onSuccess: async () => {
@@ -92,7 +94,7 @@
           {
             label: t("hosts.agentVersion"),
             text: host.agentVersion,
-            note: host.runtime === "systemd" ? t("hosts.runtimeSystemdShort") : null,
+            note: serviceKey ? t(serviceKey) : null,
           },
           { label: t("hosts.enrolledAt"), text: when(host.enrolledAt) },
           {
@@ -105,6 +107,7 @@
     </Card>
     <KernelCard kernel={host.kernel} />
     {#if host.runtime === "systemd" || host.hostPackages.count !== null}<HostPackagesCard packages={host.hostPackages} />{/if}
+    {#if host.ssh}<SshServerCard ssh={host.ssh} />{/if}
     </div>
 
     <Card>
