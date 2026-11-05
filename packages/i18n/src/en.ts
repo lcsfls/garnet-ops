@@ -493,6 +493,9 @@ export const en = {
     updateAvailableBadge: "Update to {version} available",
     alpha: "Alpha",
     alphaHint: "Early version: features and screens can still change. Your data stays when you update.",
+    beta: "Beta",
+    betaHint:
+      "Feature-complete for everyday use and tested; details can still change before 1.0. Your data stays when you update.",
   },
   systemStatus: {
     title: "System status",

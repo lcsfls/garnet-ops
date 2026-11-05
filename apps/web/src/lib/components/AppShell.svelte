@@ -12,7 +12,7 @@
   import { findingCountsQuery, systemQuery } from "../shell.ts";
   import { resolvedTheme, setTheme } from "../theme.svelte.ts";
   import { availableUpdate, updatesStatusQuery } from "../updates.ts";
-  import { displayVersion } from "../version.ts";
+  import { displayVersion, releaseStage } from "../version.ts";
   import CommandSearch from "./CommandSearch.svelte";
   import MaintenanceBanner from "./MaintenanceBanner.svelte";
   import Mark from "./Mark.svelte";
@@ -78,9 +78,12 @@
     };
   }
   const trail = $derived(navTrail(page.url.pathname));
+  const stageLabels = $derived({ alpha: t("shell.alpha"), beta: t("shell.beta") });
   const versionText = $derived(
-    system.data ? t("shell.version", { version: displayVersion(system.data.version, t("shell.alpha")) }) : "",
+    system.data ? t("shell.version", { version: displayVersion(system.data.version, stageLabels) }) : "",
   );
+  // The badge beside the wordmark follows the running version: Alpha for 0.0.x, Beta for the other 0.x, none from 1.0.0.
+  const stage = $derived(system.data ? releaseStage(system.data.version) : null);
   const dark = $derived(resolvedTheme() === "dark");
 
   function isActive(to: string): boolean {
@@ -113,7 +116,11 @@
         <span class="sr-only">GarnetOps</span>
       {:else}
         <Wordmark />
-        <span title={t("shell.alphaHint")} class="ml-2"><Badge tone="info">{t("shell.alpha")}</Badge></span>
+        {#if stage}
+          <span title={t(stage === "alpha" ? "shell.alphaHint" : "shell.betaHint")} class="ml-2" data-testid="release-stage">
+            <Badge tone="info">{stageLabels[stage]}</Badge>
+          </span>
+        {/if}
       {/if}
     </div>
     <nav aria-label={t("shell.mainNavigation")}>

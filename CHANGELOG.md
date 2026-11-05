@@ -56,6 +56,8 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Changed
 
+- **GarnetOps is now a beta.** From 0.1.0 on the label beside the logo and the version says **Beta** instead of Alpha:
+  feature-complete for everyday use and tested; details can still change before 1.0.
 - Websites: a PHP build from deb.sury.org that a site names (`PHP/8.3.14-1+ubuntu24.04.1+deb.sury.org+1`) is judged by its
   upstream version; it was skipped as a distribution build before, although these builds follow upstream releases.
 

@@ -514,6 +514,9 @@ export const de: Messages = {
     alpha: "Alpha",
     alphaHint:
       "Frühe Version: Funktionen und Ansichten können sich noch ändern. Ihre Daten bleiben bei Updates erhalten.",
+    beta: "Beta",
+    betaHint:
+      "Für den Alltag vollständig und getestet; Einzelheiten können sich bis 1.0 noch ändern. Ihre Daten bleiben bei Updates erhalten.",
   },
   systemStatus: {
     title: "Systemstatus",

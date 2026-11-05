@@ -27,7 +27,7 @@
   <Facts>
     <Fact label={t("systemStatus.app.version")}>
       <span class="font-mono" data-testid="app-version">
-        {displayVersion(app.version, t("shell.alpha"))}
+        {displayVersion(app.version, { alpha: t("shell.alpha"), beta: t("shell.beta") })}
       </span>
     </Fact>
     <Fact label={t("systemStatus.app.updates")}>

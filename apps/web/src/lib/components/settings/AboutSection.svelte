@@ -21,7 +21,7 @@
   {#if system.data}
     <dl class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-2 px-5 py-5">
       <dt class="text-muted-foreground">{t("settings.aboutVersion")}</dt>
-      <dd class="font-mono">{version ? displayVersion(version, t("shell.alpha")) : null}</dd>
+      <dd class="font-mono">{version ? displayVersion(version, { alpha: t("shell.alpha"), beta: t("shell.beta") }) : null}</dd>
       <dt class="text-muted-foreground">{t("settings.aboutLicense")}</dt>
       <dd>{t("settings.aboutLicenseValue")}</dd>
       <dt class="text-muted-foreground">{t("settings.aboutSource")}</dt>
