@@ -4037,9 +4037,9 @@ test.describe("hosts and containers (ADR 0034)", () => {
     );
     await sql(
       `insert into host_package_finding (id, organization_id, host_id, vulnerability_id, package_name, package_version, package_type, fixed_in, fix_state, severity, severity_rank, first_seen_at, last_seen_at)
-       select 'hpf_apt_e2e_1', organization_id, id, 'CVE-2026-0301', 'openssl', '3.0.14-1~deb12u1', 'deb', '["3.0.15-1~deb12u1"]', 'fixed', 'high', 4, now(), now() from agent_host where id = $1
+       select 'hpf_apt_e2e_1', organization_id, id, 'CVE-2026-0301', 'openssl', '3.0.14-1~deb12u1', 'deb', '["3.0.15-1~deb12u1"]'::jsonb, 'fixed', 'high', 4, now(), now() from agent_host where id = $1
        union all
-       select 'hpf_apt_e2e_2', organization_id, id, 'CVE-2026-0302', 'bash', '5.2.15-2+b7', 'deb', '["5.2.15-2+b8"]', 'fixed', 'medium', 3, now(), now() from agent_host where id = $1`,
+       select 'hpf_apt_e2e_2', organization_id, id, 'CVE-2026-0302', 'bash', '5.2.15-2+b7', 'deb', '["5.2.15-2+b8"]'::jsonb, 'fixed', 'medium', 3, now(), now() from agent_host where id = $1`,
       [host?.id],
     );
     await sql("update agent_host set host_packages_matched_at = now() where id = $1", [host?.id]);
