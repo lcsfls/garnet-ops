@@ -107,8 +107,10 @@ without installing Docker or a language runtime.
 
 ## Addendum (2026-11): SSH server
 
-- The agent reads, as its unprivileged user and from files only, whether `/usr/sbin/sshd` or Dropbear exists, the program
-  interpreter and libpam link of sshd from its ELF headers (else the dynamic loaders), the OpenSSH server's package version from the
+- The agent reads, as its unprivileged user and from files only, whether OpenSSH or Dropbear exists, which server program the
+  host starts (`/usr/sbin/sshd`; on Alpine with OpenRC `sshd.pam` or `sshd.krb5` as `/etc/init.d/sshd` chooses them, from
+  `SSHD_BINARY` in `/etc/conf.d/sshd` and the configuration), the program interpreter and libpam link of that program and its
+  `sshd-session` and `sshd-auth` helpers from their ELF headers (else the dynamic loaders), the OpenSSH server's package version from the
   package list, and `/etc/ssh/sshd_config` with its includes (regular files under `/etc/ssh` only, 32 files of 256 KiB at most, host
   keys never opened). Of the configuration it keeps the global values of six authentication settings by sshd's first-value rule,
   OpenSSH's upstream defaults where nothing is set, and the values `Match` blocks set apart. `/etc/shadow` is never read. It is
@@ -120,7 +122,12 @@ without installing Docker or a language runtime.
   database knows the CVE (the worker reports which watched advisories the database holds; a distribution's backported fix then shows
   as no finding); until then the upstream version below 10.6p2 decides.
 - Where the host has the CVE-2026-123158 finding but its configuration does not allow the attack, the finding carries a
-  `configurationNote` that says why. Findings from the scanner, their severities, counts, the attention count, grades and gates are
-  unchanged: configuration can change back, and the update is still due.
+  `configurationNote` that says why. Findings from the scanner, their severities, counts, grades and gates are unchanged:
+  configuration can change back, and the update is still due.
+- The one exception to report-only: while the vulnerability database does not list CVE-2026-123158 (the version decides), a host
+  with the *sshole* finding counts in the menu's attention count for agents as critical. A flaw that lets anyone log in as root
+  must not wait for a database update to be seen; once the database lists it, the vulnerability finding counts instead and the
+  configuration finding stops counting, so nothing is counted twice and a backported fix counts nothing.
 - Not in this version: Dropbear's settings, sshd's command-line options and compiled-in distribution defaults, which users or
-  addresses a `Match` block covers, Alpine's `sshd.pam` build, and notifications about configuration findings.
+  addresses a `Match` block covers, a service started other than by the distribution's own unit or init script, and notifications
+  about configuration findings.

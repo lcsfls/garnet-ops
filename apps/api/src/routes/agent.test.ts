@@ -582,7 +582,7 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     await t.db.delete(schema.hostPackageFinding);
   });
 
-  it("keeps the SSH server's facts, judges its configuration report-only, and still takes agents without them", async () => {
+  it("keeps the SSH server's facts, judges its configuration report-only (sshole aside), and still takes agents without them", async () => {
     const setting = (value: string, isDefault = false, match: string[] = []) => ({
       value,
       default: isDefault,
@@ -592,6 +592,7 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
       server: "openssh",
       package: { name: "openssh-server", version: "10.0_p1-r9" },
       libc: "musl",
+      program: "/usr/sbin/sshd",
       pamLinked: false,
       config: {
         read: true,
@@ -629,6 +630,7 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     type Ssh = {
       findings: { rule: string; severity: string; scope: string; basis?: string }[];
       pam: boolean | null;
+      program: string | null;
     };
     const detail = async () =>
       (await session("GET", `/api/v1/hosts/${hostId}`, { role: "viewer" })).json as unknown as {
@@ -640,13 +642,19 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     let host = await detail();
     expect(host.serviceManager).toBe("openrc");
     expect(host.ssh?.pam).toBe(false);
+    expect(host.ssh?.program).toBe("/usr/sbin/sshd");
     expect(host.ssh?.findings).toEqual([
       { rule: "sshole", severity: "critical", scope: "global", basis: "version" },
       { rule: "root-login", severity: "high", scope: "match" },
       { rule: "password-authentication", severity: "medium", scope: "global" },
     ]);
-    // Configuration findings are report-only: the menu's count does not change.
-    expect((await session("GET", "/api/v1/hosts/attention")).json).toEqual(attentionBefore);
+    // Configuration findings are report-only, but sshole counts in the menu while the database does not list it yet.
+    const attention = (await session("GET", "/api/v1/hosts/attention")).json as unknown as {
+      count: number;
+      worst: string | null;
+    };
+    expect(attention.worst).toBe("critical");
+    expect(attention.count).toBeGreaterThanOrEqual(1);
     expect((await session("GET", "/api/v1/hosts", { role: "viewer" })).json?.[0]).toMatchObject({
       serviceManager: "openrc",
     });
@@ -704,6 +712,8 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     );
     host = await detail();
     expect(host.ssh?.findings.map((f) => f.rule)).toEqual(["root-login", "password-authentication"]);
+    // Neither the configuration nor a vulnerability finding counts now: the menu is as it was.
+    expect((await session("GET", "/api/v1/hosts/attention")).json).toEqual(attentionBefore);
 
     // An older agent sends neither field; a broken field is dropped without failing the report.
     expect(

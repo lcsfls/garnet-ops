@@ -17,10 +17,12 @@ Security-relevant changes are listed under **Security** in every release.
   list exactly what is missing and why the agent stays read-only and unprivileged. Hosts with neither systemd nor OpenRC get a
   clear next step. The host list and page say **OpenRC service**.
 - **SSH server check**: the agent without Docker reads the SSH server (OpenSSH, Dropbear or none), the OpenSSH package version, the
-  C library (musl or glibc, from sshd's program interpreter), whether sshd uses PAM, and the global values of six authentication
+  C library (musl or glibc, from sshd's program interpreter), which program runs (on Alpine `sshd.pam` with `openssh-server-pam`
+  and `UsePAM yes`), whether it uses PAM, and the global values of six authentication
   settings from `/etc/ssh/sshd_config` and its includes, from files only and never `/etc/shadow`. The host page shows them in the
   new **SSH server** card with report-only findings: password logins (medium), root login with a password (high), empty
-  passwords (high). They never change vulnerability findings, counts, grades or gates.
+  passwords (high). They never change vulnerability findings, counts, grades or gates; only *sshole* counts in the menu's
+  "needs attention" while the vulnerability database does not list it yet.
 - API (additive): `serviceManager` on `GET /api/v1/hosts` and `GET /api/v1/hosts/{id}`, `ssh` and `configurationNote` on
   `GET /api/v1/hosts/{id}`; the optional inventory fields `sshd` and `serviceManager` for the agent. Older agents are accepted as
   before.

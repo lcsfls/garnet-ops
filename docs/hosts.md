@@ -190,21 +190,30 @@ zstd are skipped (apt keeps them uncompressed by default; Docker images use gzip
 
 The agent without Docker (systemd or OpenRC) also looks at the host's SSH server and the host page shows it in the card **SSH
 server**: the server and its package, the C library, whether PAM is used, the global values of the settings below, and a few
-plain findings. They are **report-only**: they never change a vulnerability finding, its severity, a count, the menu's
-"needs attention", a grade or a quality gate.
+plain findings. They are **report-only**: they never change a vulnerability finding, its severity, a count, a grade or a quality
+gate. The one exception is *sshole* (below) while the vulnerability database does not list it yet: it counts in the menu's "needs
+attention" for agents as critical. Once the database lists it, the host's vulnerability finding counts instead (and a distribution's
+backported fix counts nothing).
 
 **What the agent reads**, as its unprivileged user and from files only (no `sshd -T`, which needs root, and no `ldd`):
 
-- whether `/usr/sbin/sshd` (OpenSSH) or `/usr/sbin/dropbear` exists, and the OpenSSH server's package and version from the
-  package list it already reads (`openssh-server`, else `openssh`);
-- the ELF headers of `/usr/sbin/sshd`: its program interpreter (`/lib/ld-musl-x86_64.so.1` means musl, `/lib64/ld-linux-x86-64.so.2`
-  glibc) and whether it is linked against `libpam`. Without that, the dynamic loaders the system has decide, and only when there is
-  one kind (a glibc system may carry musl's loader too);
+- whether OpenSSH (`/usr/sbin/sshd`, or Alpine's `sshd.pam` or `sshd.krb5`) or `/usr/sbin/dropbear` exists, and the OpenSSH
+  server's package and version from the package list it already reads (the package of the program that runs, else
+  `openssh-server`, else `openssh`);
+- which program the host starts: `/usr/sbin/sshd`, except on Alpine with OpenRC, where `/etc/init.d/sshd` picks one at every start
+  and the agent follows it: `SSHD_BINARY` from `/etc/conf.d/sshd` if set (a value with `$` or backquotes is not guessed at); else
+  `sshd.krb5` if installed and `KerberosAuthentication` or `GSSAPIAuthentication` is `yes`; else `sshd.pam` (package
+  `openssh-server-pam`) if installed and `UsePAM` is `yes`; else `sshd`. The card shows it as **Program**;
+- the ELF headers of that program and of its helpers `sshd-session` and `sshd-auth` (OpenSSH 9.8 and 10.0 moved the session and the
+  authentication there; on Alpine they carry the same suffix, `sshd-auth.pam`): the program interpreter (`/lib/ld-musl-x86_64.so.1`
+  means musl, `/lib64/ld-linux-x86-64.so.2` glibc) and whether one of them is linked against `libpam`. Without the interpreter, the
+  dynamic loaders the system has decide, and only when there is one kind (a glibc system may carry musl's loader too);
 - `/etc/ssh/sshd_config` and the files it includes: only regular files under `/etc/ssh` (symbolic links that leave it are not
   followed), globs resolved in lexical order, at most 32 files of 256 KiB each, Include nested at most 16 deep. Files it cannot read
   are listed on the card with the reason. Host keys (`ssh_host_*`) are never opened, even where a glob matches them;
 - of those files only `PasswordAuthentication`, `KbdInteractiveAuthentication` (and its old name
-  `ChallengeResponseAuthentication`), `PermitRootLogin`, `UsePAM`, `PermitEmptyPasswords` and `PubkeyAuthentication`.
+  `ChallengeResponseAuthentication`), `PermitRootLogin`, `UsePAM`, `PermitEmptyPasswords` and `PubkeyAuthentication`, plus
+  `KerberosAuthentication` and `GSSAPIAuthentication` to know which program Alpine starts (not sent).
 
 It **never** reads `/etc/shadow` (the agent's user cannot read it anyway) or any password, key or other file content, and it sends
 only the values of these six settings, the file names under `/etc/ssh` and the facts above.
@@ -218,7 +227,8 @@ with that file, and an `Include` inside a `Match` block belongs to it. A setting
 `UsePAM yes` and `KbdInteractiveAuthentication no` in `sshd_config`, Fedora and RHEL set `UsePAM yes` in
 `sshd_config.d/50-redhat.conf`), which the agent reads; a default a distribution compiles in differently is not seen. On Fedora and
 RHEL the files are readable by root only, so the card says it could not read them and judges nothing. PAM counts as used only when
-sshd is linked against libpam and `UsePAM` is `yes`; Alpine's `openssh-server` is built without PAM.
+the program that runs (or its helpers) is linked against libpam and `UsePAM` is `yes`. Alpine's `openssh-server` is built without
+PAM; with `openssh-server-pam` installed and `UsePAM yes`, Alpine starts `sshd.pam`, which uses PAM, and *sshole* does not apply.
 
 **The rules** (fixed severities):
 
@@ -251,9 +261,9 @@ the attack (password logins off everywhere, PAM used, glibc, Dropbear, or no Ope
 so next to the finding, with the reason. The finding itself, its severity and the counts stay as the vulnerability database has
 them, and it stays open until openssh is updated: a configuration can change back.
 
-**Limits.** Only `/usr/sbin/sshd` is judged (Alpine's `openssh-server-pam` installs a PAM build as `/usr/sbin/sshd.pam`; if that is
-the one your service runs, PAM may be used although the card says otherwise). Options given on sshd's command line (for example in
-`/etc/conf.d/sshd`) and distribution-compiled defaults are not seen. Which users, groups or addresses a `Match` block covers is not
+**Limits.** The program is chosen from files the way Alpine's init script chooses it; a service started some other way (a custom
+init script or unit) is not followed. Options given on sshd's command line (`command_args` in `/etc/conf.d/sshd`, `cfgfile`
+pointing elsewhere) and distribution-compiled defaults are not seen. Which users, groups or addresses a `Match` block covers is not
 reported. Dropbear's settings are not checked.
 
 ## Proxmox VE and LXC containers
@@ -295,8 +305,8 @@ Over HTTPS to this installation only:
 - systemd agent: the packages installed on the host (package URL, name, version, type), only when the list changed;
 - systemd agent: whether the host is itself a container, as a short name such as `lxc`;
 - agent without Docker: its service manager (`systemd` or `openrc`);
-- agent without Docker: the SSH server (OpenSSH, Dropbear or none), its package and version, the C library, whether sshd links
-  libpam, the names of the configuration files under `/etc/ssh` it read or skipped, and the values of six settings (see
+- agent without Docker: the SSH server (OpenSSH, Dropbear or none), its package and version, the C library, the path of the
+  program that runs and whether it links libpam, the names of the configuration files under `/etc/ssh` it read or skipped, and the values of six settings (see
   [SSH server check](#ssh-server-check));
 - systemd agent on Debian and Ubuntu: its apt sources (host, path, suite, components, the Release file's `Origin`, `Label`,
   `Codename` and `Date`) and, for installed packages with a newer version offered or from a third-party source, the versions offered

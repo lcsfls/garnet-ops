@@ -188,6 +188,17 @@ async function advisoryKnown(id: string): Promise<boolean | null> {
 }
 
 /**
+ * Whether the vulnerability database can speak for a host's OpenSSH: only after a finished match of its packages (until then, no
+ * finding says nothing and the version decides). `known` is advisoryKnown(SSHOLE_CVE).
+ */
+function ssholeCveKnown(
+  host: Pick<typeof h.$inferSelect, "hostPackagesMatchedAt" | "hostPackagesMatchError">,
+  known: boolean | null,
+) {
+  return host.hostPackagesMatchedAt && !host.hostPackagesMatchError ? known : null;
+}
+
+/**
  * The SSH server card (ADR 0037, addendum "SSH server"): the facts the agent read and the configuration findings, computed when
  * the page is read. Report-only: nothing here changes a finding, a count, a grade or a gate. Null for hosts without the facts
  * (the container agent, older agents).
@@ -204,18 +215,16 @@ async function sshView(
     server: facts.server,
     package: facts.package,
     libc: facts.libc,
+    program: facts.program ?? null,
     pamLinked: facts.pamLinked,
     pam: sshdEffective(facts).pam,
     config: facts.config,
     findings: sshdFindings(facts, {
       cveFinding,
-      // Without a finished match of the host's packages, no finding says nothing: the version decides until then.
       cveKnown:
         cveFinding || facts.server !== "openssh"
           ? true
-          : host.hostPackagesMatchedAt && !host.hostPackagesMatchError
-            ? await advisoryKnown(SSHOLE_CVE)
-            : null,
+          : ssholeCveKnown(host, await advisoryKnown(SSHOLE_CVE)),
     }),
   };
 }
@@ -691,7 +700,9 @@ export const hostRoutes = new Hono<AppEnv>()
   })
   /**
    * The number the navigation shows next to Agents: hosts that need a look because they stopped reporting or run an
-   * image or a kernel with an open critical or high vulnerability, and the worst of those severities.
+   * image, a kernel or a package with an open critical or high vulnerability, and the worst of those severities. The one SSH
+   * configuration finding that counts is sshole while the vulnerability database does not list it yet (judged by the OpenSSH
+   * version): once the database lists it, its vulnerability finding counts instead, and a backported fix counts nothing.
    */
   .get("/attention", async (c) => {
     const actor = c.get("actor");
@@ -700,7 +711,16 @@ export const hostRoutes = new Hono<AppEnv>()
     const serious = ["critical", "high"];
     const own = schema.hostPackageFinding;
     const [hosts, images, kernels, ownPackages] = await Promise.all([
-      db.select({ id: h.id, lastInventoryAt: h.lastInventoryAt }).from(h).where(eq(h.organizationId, org)),
+      db
+        .select({
+          id: h.id,
+          lastInventoryAt: h.lastInventoryAt,
+          sshdFacts: h.sshdFacts,
+          hostPackagesMatchedAt: h.hostPackagesMatchedAt,
+          hostPackagesMatchError: h.hostPackagesMatchError,
+        })
+        .from(h)
+        .where(eq(h.organizationId, org)),
       db
         .selectDistinct({ hostId: hc.hostId, severity: cf.severity })
         .from(hc)
@@ -728,6 +748,16 @@ export const hostRoutes = new Hono<AppEnv>()
       flagged.add(row.hostId);
       if (row.severity === "critical") worst = "critical";
       else if (worst === null) worst = "high";
+    }
+    let cveKnown: boolean | null | undefined;
+    for (const x of hosts) {
+      if (x.sshdFacts?.server !== "openssh") continue;
+      if (cveKnown === undefined) cveKnown = await advisoryKnown(SSHOLE_CVE);
+      const ssh = sshdFindings(x.sshdFacts, { cveFinding: false, cveKnown: ssholeCveKnown(x, cveKnown) });
+      if (ssh.some((f) => f.rule === "sshole" && f.basis === "version")) {
+        flagged.add(x.id);
+        worst = "critical";
+      }
     }
     return c.json({ count: flagged.size, worst });
   })
