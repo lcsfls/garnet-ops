@@ -1,5 +1,5 @@
-// The GarnetOps host agent for hosts without Docker (ADR 0037), run by systemd. It reports the running kernel and the packages
-// installed on the host to GarnetOps over HTTPS, signed with the host's Ed25519 key; GarnetOps matches them against its local
+// The GarnetOps host agent for hosts without Docker (ADR 0037), run by systemd or OpenRC. It reports the running kernel, the packages
+// installed on the host and the settings of its SSH server to GarnetOps over HTTPS, signed with the host's Ed25519 key; GarnetOps matches them against its local
 // vulnerability database. It only reads.
 //
 //	garnetops-agent run       report now and then every GARNETOPS_INTERVAL_HOURS
@@ -174,6 +174,11 @@ func reportOnce(c config, client *Client) (int, error) {
 	if container := DetectContainer(root); container != "" {
 		inventory["insideContainer"] = container
 	}
+	if manager := DetectServiceManager(root); manager != "" {
+		inventory["serviceManager"] = manager
+	}
+	// The SSH server's package, C library and global authentication settings (read from files only).
+	inventory["sshd"] = ReadSSHFacts(root, packages)
 	if len(packages) > 0 {
 		inventory["hostPackagesDigest"] = Digest(packages)
 	}
@@ -232,6 +237,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command: %s (run, once or version)\n", command)
 		os.Exit(2)
 	}
+	// Whatever the service manager sets, the agent's files are its own (systemd sets UMask=0077, OpenRC's umask may be older).
+	syscall.Umask(0o077)
 	c, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "agent: %v\n", err)

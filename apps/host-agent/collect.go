@@ -173,6 +173,17 @@ func DetectContainer(root string) string {
 	return ""
 }
 
+// DetectServiceManager says which service manager runs the host: "systemd" (it creates /run/systemd/system at boot), "openrc"
+// (/run/openrc), or "" when neither is seen. The agent runs as a service of it.
+func DetectServiceManager(root string) string {
+	for _, m := range []struct{ name, dir string }{{"systemd", "/run/systemd/system"}, {"openrc", "/run/openrc"}} {
+		if info, err := os.Stat(hostPath(root, m.dir)); err == nil && info.IsDir() {
+			return m.name
+		}
+	}
+	return ""
+}
+
 // MountsShowLXCFS says whether a mount table (/proc/self/mountinfo) has an LXCFS mount, which LXC containers carry over /proc.
 func MountsShowLXCFS(mountinfo string) bool {
 	for _, line := range strings.Split(mountinfo, "\n") {
