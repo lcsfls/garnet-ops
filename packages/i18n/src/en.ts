@@ -2057,6 +2057,34 @@ export const en = {
       fileTooLarge: "The file is larger than 1 KiB.",
       tlsFailed: "The certificate of the asset was refused.",
     },
+    verifyRedirect: {
+      otherHost: "The file address redirects to {host}. Redirects are not followed.",
+      sameHost:
+        "The file address redirects to another page on the same site, often because the file is not on the server and the site (for example WordPress) answers instead. Redirects are not followed.",
+    },
+    verifyNext: {
+      redirectOtherHost: "Verify {host} instead.",
+      redirectSameHost:
+        "Put the file into the .well-known folder of the web root, so that its address answers with the file itself.",
+      redirectUnusable: "Make the file address answer with the file itself, without a redirect.",
+      dnsRecordMissing:
+        "Check that a TXT record with exactly the name and value shown below exists. A new record can take a while to be visible, depending on its TTL.",
+      dnsNoMatch:
+        "Set the TXT record to the value shown below. A code from an earlier attempt does not count.",
+      dnsFailed: "Check that the domain's name servers answer, then check again.",
+      fileUnreachable: "Check that the site can be reached from the GarnetOps server, then check again.",
+      fileNotFound:
+        "Upload the file to the address shown below, with exactly that name and the code as its content.",
+      fileNoMatch: "Put the code shown below into the file. A code from an earlier attempt does not count.",
+      fileTooLarge: "The file should contain only the code.",
+      tlsFailed:
+        "The certificate must be valid, name this host and come from a trusted authority (or from the CA set up for GarnetOps).",
+      timeout: "The site answered too slowly. Check again later.",
+      unresolvable: "Check the name for typos and that it has an address record (A or AAAA).",
+      addressRefused:
+        "GarnetOps fetches files only from public addresses, and this name points into a private network.",
+      orDns: "Or use the DNS record.",
+    },
     settingsPageName: "Settings, Website monitoring",
     settingsTitle: "Website monitoring",
     settingsDescription: "The one switch that sends data out of your network.",

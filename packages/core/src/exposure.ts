@@ -299,6 +299,68 @@ export function fileMatchesToken(body: string, token: string): boolean {
   });
 }
 
+/**
+ * Where a redirect of the proof file points, as far as an owner needs to know to fix it (ADR 0023: redirects are never followed).
+ * `otherHost`: another host, named. `sameHost`: another address on the same host (another path, a trailing slash, http instead of
+ * https), often a site such as WordPress answering because the file is not there. `unusable`: no Location, or none that reads as an
+ * http(s) address with a valid host.
+ */
+export type ProofRedirect = { kind: "otherHost"; host: string } | { kind: "sameHost" } | { kind: "unusable" };
+
+/** What the last verification check stored besides its code (`exposure_asset.verify_error_detail`); hostile input reduced to this. */
+export interface VerifyErrorDetail {
+  redirect?: ProofRedirect;
+}
+
+const MAX_HOST_LENGTH = 253;
+const HOST_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/** A host as the URL parser canonicalised it, kept only if it is a syntactically valid host name, IPv4 or bracketed IPv6 address. */
+function validHost(hostname: string): string | null {
+  if (!hostname || hostname.length > MAX_HOST_LENGTH) return null;
+  if (/^\[[0-9a-f:.]+\]$/.test(hostname)) return hostname;
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname))
+    return hostname.split(".").every((n) => Number(n) <= 255) ? hostname : null;
+  const name = hostname.replace(/\.$/, "");
+  const labels = name.split(".");
+  if (labels.length < 2 || !labels.every((l) => HOST_LABEL.test(l))) return null;
+  // The last label of a name is never all digits (that would be an address the parser did not take as one).
+  return /^\d+$/.test(labels[labels.length - 1] as string) ? null : name;
+}
+
+/**
+ * Reads the Location of a redirect of the proof file, relative to the address that was requested. Only the target's host is kept,
+ * and only if it is valid; its path and query are never stored or fetched.
+ */
+export function proofRedirect(location: string | null | undefined, requested: string): ProofRedirect {
+  let base: URL;
+  let target: URL;
+  try {
+    base = new URL(requested);
+    target = new URL((location ?? "").trim(), base);
+  } catch {
+    return { kind: "unusable" };
+  }
+  if (!location?.trim() || (target.protocol !== "https:" && target.protocol !== "http:"))
+    return { kind: "unusable" };
+  const host = validHost(target.hostname);
+  if (!host) return { kind: "unusable" };
+  return host === base.hostname.replace(/\.$/, "") ? { kind: "sameHost" } : { kind: "otherHost", host };
+}
+
+/** A stored detail read back defensively (it is JSON in the database): anything unexpected becomes null. */
+export function readVerifyErrorDetail(value: unknown): VerifyErrorDetail | null {
+  const redirect = (value as { redirect?: { kind?: unknown; host?: unknown } } | null)?.redirect;
+  if (!redirect || typeof redirect !== "object") return null;
+  if (redirect.kind === "sameHost" || redirect.kind === "unusable")
+    return { redirect: { kind: redirect.kind } };
+  if (redirect.kind === "otherHost" && typeof redirect.host === "string") {
+    const host = validHost(redirect.host);
+    return host ? { redirect: { kind: "otherHost", host } } : null;
+  }
+  return null;
+}
+
 export interface VerifiableAsset {
   id: string;
   kind: AssetKind;

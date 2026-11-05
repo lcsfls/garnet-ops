@@ -2120,6 +2120,37 @@ export const de: Messages = {
       fileTooLarge: "Die Datei ist größer als 1 KiB.",
       tlsFailed: "Das Zertifikat des Assets wurde abgelehnt.",
     },
+    verifyRedirect: {
+      otherHost: "Die Adresse der Datei leitet zu {host} weiter. Weiterleitungen werden nicht verfolgt.",
+      sameHost:
+        "Die Adresse der Datei leitet auf eine andere Seite derselben Website weiter, oft weil die Datei nicht auf dem Server liegt und die Website (zum Beispiel WordPress) stattdessen antwortet. Weiterleitungen werden nicht verfolgt.",
+    },
+    verifyNext: {
+      redirectOtherHost: "Bestätigen Sie stattdessen {host}.",
+      redirectSameHost:
+        "Legen Sie die Datei in den Ordner .well-known im Web-Root, sodass ihre Adresse die Datei selbst liefert.",
+      redirectUnusable:
+        "Sorgen Sie dafür, dass die Adresse der Datei die Datei selbst liefert, ohne Weiterleitung.",
+      dnsRecordMissing:
+        "Prüfen Sie, ob ein TXT-Eintrag mit genau dem Namen und Wert unten existiert. Ein neuer Eintrag kann je nach TTL eine Weile brauchen, bis er sichtbar ist.",
+      dnsNoMatch:
+        "Setzen Sie den TXT-Eintrag auf den Wert unten. Ein Code aus einem früheren Versuch zählt nicht.",
+      dnsFailed: "Prüfen Sie, ob die Nameserver der Domain antworten, und prüfen Sie dann erneut.",
+      fileUnreachable:
+        "Prüfen Sie, ob die Website vom GarnetOps-Server aus erreichbar ist, und prüfen Sie dann erneut.",
+      fileNotFound:
+        "Laden Sie die Datei unter der Adresse unten hoch, mit genau diesem Namen und dem Code als Inhalt.",
+      fileNoMatch:
+        "Schreiben Sie den Code unten in die Datei. Ein Code aus einem früheren Versuch zählt nicht.",
+      fileTooLarge: "Die Datei sollte nur den Code enthalten.",
+      tlsFailed:
+        "Das Zertifikat muss gültig sein, diesen Host nennen und von einer vertrauenswürdigen Stelle stammen (oder von der für GarnetOps eingerichteten CA).",
+      timeout: "Die Website hat zu langsam geantwortet. Prüfen Sie später erneut.",
+      unresolvable: "Prüfen Sie den Namen auf Tippfehler und ob er einen Adresseintrag (A oder AAAA) hat.",
+      addressRefused:
+        "GarnetOps ruft Dateien nur von öffentlichen Adressen ab, und dieser Name zeigt in ein privates Netz.",
+      orDns: "Oder verwenden Sie den DNS-Eintrag.",
+    },
     settingsPageName: "Einstellungen, Website-Überwachung",
     settingsTitle: "Website-Überwachung",
     settingsDescription: "Der eine Schalter, der Daten aus Ihrem Netzwerk hinausschickt.",

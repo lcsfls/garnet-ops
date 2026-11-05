@@ -1,0 +1,1 @@
+ALTER TABLE "exposure_asset" ADD COLUMN "verify_error_detail" jsonb;

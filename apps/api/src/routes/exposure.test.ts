@@ -716,6 +716,27 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
       expect((await audits("exposure.verification_reset")).some((a) => a.targetId === id)).toBe(true);
     });
 
+    it("says where a redirect of the proof file points, and forgets it with a new token", async () => {
+      const id = await addAsset({
+        verifyError: "fileRedirected",
+        verifyErrorDetail: { redirect: { kind: "otherHost", host: "www.example.com" } },
+      });
+      expect((await call("GET", `/api/v1/exposure/${id}`)).json?.verification).toMatchObject({
+        error: "fileRedirected",
+        errorDetail: { redirect: { kind: "otherHost", host: "www.example.com" } },
+      });
+      // A stored detail that does not read as one is never passed on.
+      await t.db
+        .update(schema.exposureAsset)
+        .set({ verifyErrorDetail: { redirect: { kind: "otherHost", host: "<b>x</b>" } } })
+        .where(eq(schema.exposureAsset.id, id));
+      expect((await call("GET", `/api/v1/exposure/${id}`)).json?.verification).toMatchObject({
+        errorDetail: null,
+      });
+      expect((await call("POST", `/api/v1/exposure/${id}/verify/rotate`)).status).toBe(204);
+      expect(await row(id)).toMatchObject({ verifyError: null, verifyErrorDetail: null });
+    });
+
     it("never shows the token of one asset in the list", async () => {
       const id = await addAsset();
       const token = (await row(id)).verifyToken;

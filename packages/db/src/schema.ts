@@ -1658,6 +1658,13 @@ export const exposureAsset = pgTable(
     verifyCheckedAt: timestamp("verify_checked_at", { withTimezone: true }),
     /** A code from EXPOSURE_ERRORS; null if the last check found the proof. */
     verifyError: text("verify_error"),
+    /**
+     * What the last check saw besides the code (`VerifyErrorDetail` in @garnetops/core/exposure): for a redirect of the proof file
+     * only whether it points to the same host, another host (its validated name) or nowhere usable. Never a path or a query.
+     */
+    verifyErrorDetail: jsonb("verify_error_detail").$type<{
+      redirect?: { kind: "otherHost"; host: string } | { kind: "sameHost" } | { kind: "unusable" };
+    }>(),
 
     /** Stage 1 (passive) runs daily. An admin can pause it for an asset. */
     passiveEnabled: boolean("passive_enabled").notNull().default(true),

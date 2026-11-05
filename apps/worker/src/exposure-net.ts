@@ -39,7 +39,9 @@ import {
   type PlainHttpSnapshot,
   type PortResult,
   type PortSpec,
+  type ProofRedirect,
   plainText,
+  proofRedirect,
   registrableDomain,
   sanitizeBanner,
   spfPolicy,
@@ -766,20 +768,15 @@ export async function fetchPlain(
 
 export type ProofFile =
   | { ok: true; body: string }
+  | { ok: false; error: "fileRedirected"; redirect: ProofRedirect }
   | {
       ok: false;
-      error:
-        | "fileUnreachable"
-        | "fileNotFound"
-        | "fileRedirected"
-        | "fileNoMatch"
-        | "fileTooLarge"
-        | "tlsFailed"
-        | "timeout";
+      error: "fileUnreachable" | "fileNotFound" | "fileNoMatch" | "fileTooLarge" | "tlsFailed" | "timeout";
     };
 
 /**
- * Fetches the proof file once, without following a redirect. A name is fetched over HTTPS with the certificate verified; an address
+ * Fetches the proof file once, without following a redirect (a redirect says only where it points: another host by name, the same
+ * host, or nothing usable). A name is fetched over HTTPS with the certificate verified; an address
  * is tried over HTTPS (chain verified) and then over plain HTTP, because few certificates name an address and the file holds a token
  * that is public by design.
  */
@@ -809,7 +806,12 @@ export async function fetchProofFile(
         if (result.error === "timeout") return { ok: false, error: "timeout" };
         continue;
       }
-      if (result.status >= 300 && result.status < 400) return { ok: false, error: "fileRedirected" };
+      if (result.status >= 300 && result.status < 400) {
+        // Never followed (ADR 0023): only where it points is read, so the owner knows what to fix.
+        const host = asset.isAddress && asset.value.includes(":") ? `[${asset.value}]` : asset.value;
+        const redirect = proofRedirect(result.location, `${scheme}://${host}${path}`);
+        return { ok: false, error: "fileRedirected", redirect };
+      }
       // Gone is an answer; a server error is not (an outage must not read as "the proof was removed").
       if (result.status !== 200) {
         return {

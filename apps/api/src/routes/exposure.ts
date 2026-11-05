@@ -20,6 +20,7 @@ import {
   effectiveVerification,
   MAX_ASSETS,
   type PassiveSnapshot,
+  readVerifyErrorDetail,
   SCHEDULE_HOURS,
   STAGE2_ACKNOWLEDGEMENT_ID,
   VERIFY_FILE_PATH,
@@ -284,6 +285,8 @@ function present(
       confirmedAt: iso(row.verifiedAt),
       checkedAt: iso(row.verifyCheckedAt),
       error: row.verifyError,
+      /** For a redirect of the proof file: where it points (another host by name, the same host, or nothing usable). */
+      errorDetail: row.verifyError ? readVerifyErrorDetail(row.verifyErrorDetail) : null,
       /** True when the asset's own proof, or a verified parent domain that includes subdomains, covers it. */
       effective: effective.verified,
       via: effective.via,
@@ -1318,6 +1321,7 @@ export const exposureRoutes = new Hono<AppEnv>()
         verifyMethod: null,
         verifiedAt: null,
         verifyError: null,
+        verifyErrorDetail: null,
         stage2Enabled: false,
         stage2AcknowledgedBy: null,
         stage2AcknowledgedAt: null,

@@ -10,10 +10,12 @@ import {
   type ExposureErrorCode,
   type ExposureSeverity,
   type PassiveSnapshot,
+  type VerifyErrorDetail,
   type VerifyMethod,
   type VerifyState,
 } from "@garnetops/core/exposure";
 import type { BadgeTone } from "./components/ui/tones.ts";
+import type { MessageKey } from "./i18n.svelte.ts";
 
 export type {
   CertificateGroup,
@@ -42,6 +44,8 @@ export interface WebsiteAsset {
     confirmedAt: string | null;
     checkedAt: string | null;
     error: string | null;
+    /** For a redirect of the proof file: where it points (0.1.0; older servers send none). */
+    errorDetail?: VerifyErrorDetail | null;
     effective: boolean;
     via: "self" | "parent" | null;
     parent: { id: string; value: string } | null;
@@ -263,6 +267,66 @@ export const errorKey = (code: string | null | undefined): `websites.error.${Exp
 /** The code in an error text that the worker stored, if it is one this version knows. */
 export const knownError = (code: string | null | undefined): ExposureErrorCode | null =>
   code && (EXPOSURE_ERRORS as readonly string[]).includes(code) ? (code as ExposureErrorCode) : null;
+
+/** Verification codes that come with a next step in the verify dialog. */
+const NEXT_STEPS = [
+  "dnsRecordMissing",
+  "dnsNoMatch",
+  "dnsFailed",
+  "fileUnreachable",
+  "fileNotFound",
+  "fileNoMatch",
+  "fileTooLarge",
+  "tlsFailed",
+  "timeout",
+  "unresolvable",
+  "addressRefused",
+] as const;
+/** Codes about the file (or reaching the site), for which a domain can use the DNS record instead. */
+const FILE_SIDE = new Set<string>([
+  "fileUnreachable",
+  "fileNotFound",
+  "fileNoMatch",
+  "fileRedirected",
+  "fileTooLarge",
+  "tlsFailed",
+  "timeout",
+  "addressRefused",
+]);
+
+type Sentence = { key: MessageKey; params?: Record<string, string> };
+
+/**
+ * Why the last verification check failed, in words, and what to do next: for a redirect of the proof file it names where it
+ * points (another host by name, or the same site). Redirects are never followed; the text says what to verify instead. Null when
+ * the check found the proof or nothing was checked yet; an unknown code (a newer worker) is shown as it is.
+ */
+export function verifyProblem(
+  asset: Pick<WebsiteAsset, "kind" | "verification">,
+): { problem: Sentence | { text: string }; next: Sentence[] } | null {
+  const code = asset.verification.error;
+  if (!code) return null;
+  const known = knownError(code);
+  if (!known) return { problem: { text: code }, next: [] };
+  const next: Sentence[] = [];
+  let problem: Sentence = { key: `websites.error.${known}` };
+  if (known === "fileRedirected") {
+    const redirect = asset.verification.errorDetail?.redirect;
+    if (redirect?.kind === "otherHost") {
+      problem = { key: "websites.verifyRedirect.otherHost", params: { host: redirect.host } };
+      next.push({ key: "websites.verifyNext.redirectOtherHost", params: { host: redirect.host } });
+    } else if (redirect?.kind === "sameHost") {
+      problem = { key: "websites.verifyRedirect.sameHost" };
+      next.push({ key: "websites.verifyNext.redirectSameHost" });
+    } else {
+      next.push({ key: "websites.verifyNext.redirectUnusable" });
+    }
+  } else if ((NEXT_STEPS as readonly string[]).includes(known)) {
+    next.push({ key: `websites.verifyNext.${known as (typeof NEXT_STEPS)[number]}` });
+  }
+  if (asset.kind === "domain" && FILE_SIDE.has(known)) next.push({ key: "websites.verifyNext.orDns" });
+  return { problem, next };
+}
 
 /** A value of a rule's parameters as text for a sentence. */
 export const paramText = (value: string | number | undefined): string =>

@@ -6,7 +6,7 @@
   import { formatDateTime } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import { StepUp } from "../../step-up.svelte.ts";
-  import { type ExposureDetail, errorKey, verificationKey } from "../../websites.ts";
+  import { type ExposureDetail, verificationKey, verifyProblem } from "../../websites.ts";
   import StepUpPrompt from "../StepUpPrompt.svelte";
   import Alert from "../ui/Alert.svelte";
   import Button from "../ui/Button.svelte";
@@ -85,10 +85,12 @@
   const key = $derived(asset ? verificationKey(asset) : null);
   const instructions = $derived(asset?.instructions ?? null);
   const problem = $derived.by(() => {
-    const code = asset?.verification.error;
-    if (!code) return null;
-    const k = errorKey(code);
-    return k ? t(k) : code;
+    const found = asset ? verifyProblem(asset) : null;
+    if (!found) return null;
+    return {
+      text: "text" in found.problem ? found.problem.text : t(found.problem.key, found.problem.params),
+      next: found.next.map((s) => t(s.key, s.params)).join(" "),
+    };
   });
 </script>
 
@@ -121,7 +123,10 @@
         <Alert tone="error"><span data-testid="verify-state">{t("websites.verifyLost")}</span></Alert>
       {/if}
       {#if !waiting && problem && key !== "verified"}
-        <Alert tone="error"><span data-testid="verify-error">{problem}</span></Alert>
+        <Alert tone="error">
+          <span data-testid="verify-error">{problem.text}</span>
+          {#if problem.next}<span class="mt-1 block" data-testid="verify-next">{problem.next}</span>{/if}
+        </Alert>
       {/if}
 
       {#if instructions.dns}

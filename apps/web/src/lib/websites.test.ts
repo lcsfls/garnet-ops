@@ -11,6 +11,7 @@ import {
   stage2Key,
   VERIFICATION_TONE,
   verificationKey,
+  verifyProblem,
   type WebsiteAsset,
 } from "./websites.ts";
 
@@ -162,5 +163,56 @@ describe("search parameters", () => {
       findings: "resolved",
     });
     expect(websiteDetailSearch.parse({ tab: "nonsense", verify: "2" })).toEqual({});
+  });
+});
+
+describe("what a failed verification says, and what to do next", () => {
+  const failed = (
+    error: string,
+    errorDetail: WebsiteAsset["verification"]["errorDetail"] = null,
+    kind: WebsiteAsset["kind"] = "domain",
+  ) => asset({ kind, verification: { ...asset().verification, error, errorDetail } });
+  const keys = (found: ReturnType<typeof verifyProblem>) =>
+    found
+      ? ["key" in found.problem ? found.problem.key : found.problem.text, ...found.next.map((n) => n.key)]
+      : null;
+
+  it("names the host a redirect points to, and the same site otherwise", () => {
+    const other = verifyProblem(
+      failed("fileRedirected", { redirect: { kind: "otherHost", host: "www.example.org" } }),
+    );
+    expect(keys(other)).toEqual([
+      "websites.verifyRedirect.otherHost",
+      "websites.verifyNext.redirectOtherHost",
+      "websites.verifyNext.orDns",
+    ]);
+    expect(other?.next[0]?.params).toEqual({ host: "www.example.org" });
+    expect(keys(verifyProblem(failed("fileRedirected", { redirect: { kind: "sameHost" } }, "ip")))).toEqual([
+      "websites.verifyRedirect.sameHost",
+      "websites.verifyNext.redirectSameHost",
+    ]);
+    // An older worker stored no detail: the plain sentence, and still a next step.
+    expect(keys(verifyProblem(failed("fileRedirected")))).toEqual([
+      "websites.error.fileRedirected",
+      "websites.verifyNext.redirectUnusable",
+      "websites.verifyNext.orDns",
+    ]);
+  });
+
+  it("gives every verification code a sentence that exists in both languages", () => {
+    const de = resources.de.translation as unknown as Record<string, Record<string, Record<string, string>>>;
+    const enW = en.websites as unknown as Record<string, Record<string, string>>;
+    for (const code of EXPOSURE_ERRORS) {
+      for (const key of keys(verifyProblem(failed(code))) ?? []) {
+        const [, group, leaf] = key.split(".");
+        expect(enW[group as string]?.[leaf as string], key).toBeTypeOf("string");
+        expect(de.websites?.[group as string]?.[leaf as string], key).toBeTypeOf("string");
+      }
+    }
+    expect(verifyProblem(failed("somethingNewer"))).toEqual({
+      problem: { text: "somethingNewer" },
+      next: [],
+    });
+    expect(verifyProblem(asset())).toBeNull();
   });
 });

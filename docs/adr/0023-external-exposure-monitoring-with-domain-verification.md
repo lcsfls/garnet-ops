@@ -119,7 +119,9 @@ Per asset the organisation publishes a **token** in one of two ways:
 - **The check** is made by the worker: the TXT answer is matched exactly (the character strings of one record joined, surrounding blanks
   ignored; a longer, shorter or different value is no proof); the file is fetched over HTTPS with the certificate verified (names), or
   over HTTPS with the chain verified and then plain HTTP (addresses, whose certificates rarely name an address and for which the file
-  holds only a public token), **never following a redirect**, at most 1 KiB, status 200 only. The address policy applies.
+  holds only a public token), **never following a redirect**, at most 1 KiB, status 200 only. The address policy applies. Of a
+  redirect only the target's host is kept, if it is a valid name or address (never its path or query, never fetched), as
+  `verify_error_detail` (another host, the same host, or unusable), so the dialog can say what to verify instead (0.1.0).
 - **Re-checked daily** (the 15-minute tick queues every proof that is a day old) and **again at the start of every stage 2 run**. The
   result is *definitive* only if the method the asset was verified with shows that the proof is gone (the record is absent or different,
   the file is gone, different, redirected or oversized). A *definitive* loss turns `verified` into `lost`, **switches stage 2 off and voids

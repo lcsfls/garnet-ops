@@ -483,11 +483,15 @@ describe.skipIf(!openssl || !adminUrl)(
         web.proof = a.verifyToken;
         web.proofStatus = 302;
         await ex.runVerify(a.id, { net: env() });
-        expect((await asset(a.id)).verifyError).toBe("fileRedirected");
+        // Not followed, but where it points is kept: only the host, so the owner knows what to verify instead.
+        expect(await asset(a.id)).toMatchObject({
+          verifyError: "fileRedirected",
+          verifyErrorDetail: { redirect: { kind: "otherHost", host: "elsewhere.example.org" } },
+        });
         web.proofStatus = 200;
         web.proof = `${"x".repeat(3000)}\n${a.verifyToken}`;
         await ex.runVerify(a.id, { net: env() });
-        expect((await asset(a.id)).verifyError).toBe("fileTooLarge");
+        expect(await asset(a.id)).toMatchObject({ verifyError: "fileTooLarge", verifyErrorDetail: null });
         web.proof = "something else";
         await ex.runVerify(a.id, { net: env() });
         expect((await asset(a.id)).verifyError).toBe("fileNoMatch");

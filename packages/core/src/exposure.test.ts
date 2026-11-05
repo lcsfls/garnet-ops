@@ -24,6 +24,8 @@ import {
   parseHsts,
   plainText,
   portSpec,
+  proofRedirect,
+  readVerifyErrorDetail,
   registrableDomain,
   sanitizeBanner,
   spfPolicy,
@@ -796,5 +798,74 @@ describe("WordPress plugins and themes against wordpress.org (ADR 0042)", () => 
         { kind: "plugin", slug: "contact-form-7", version: "5.9.3", latest: "5.9.8" },
       ],
     ]);
+  });
+});
+
+describe("where a redirect of the proof file points", () => {
+  const FILE = "https://example.com/.well-known/garnetops-verify.txt";
+  it("names another host by its validated name only", () => {
+    expect(proofRedirect("https://www.example.com/.well-known/garnetops-verify.txt?x=1#y", FILE)).toEqual({
+      kind: "otherHost",
+      host: "www.example.com",
+    });
+    expect(proofRedirect("//WWW.Example.COM./a", FILE)).toEqual({
+      kind: "otherHost",
+      host: "www.example.com",
+    });
+    expect(proofRedirect("https://bücher.example/", FILE)).toEqual({
+      kind: "otherHost",
+      host: "xn--bcher-kva.example",
+    });
+    expect(proofRedirect("http://192.0.2.10:8080/", FILE)).toEqual({ kind: "otherHost", host: "192.0.2.10" });
+    expect(proofRedirect("http://[2001:db8::1]/", FILE)).toEqual({
+      kind: "otherHost",
+      host: "[2001:db8::1]",
+    });
+  });
+
+  it("sees a redirect on the same host: another page, a trailing slash, http", () => {
+    for (const location of [
+      "/",
+      "/wp-login.php",
+      "garnetops-verify.txt/",
+      "http://example.com/.well-known/garnetops-verify.txt",
+    ]) {
+      expect(proofRedirect(location, FILE)).toEqual({ kind: "sameHost" });
+    }
+    expect(
+      proofRedirect("https://[2001:db8::1]/x", "http://[2001:db8::1]/.well-known/garnetops-verify.txt"),
+    ).toEqual({
+      kind: "sameHost",
+    });
+  });
+
+  it("calls anything else unusable", () => {
+    for (const location of [
+      null,
+      "",
+      "   ",
+      "javascript:alert(1)",
+      "ftp://example.org/file",
+      "https://localhost/",
+      "https://under_score.example.com/",
+      `https://${"a".repeat(64)}.example.com/`,
+      `https://${"abcdefghi.".repeat(26)}example.com/`,
+      "https://-bad.example.com/",
+    ]) {
+      expect(proofRedirect(location, FILE)).toEqual({ kind: "unusable" });
+    }
+  });
+
+  it("reads a stored detail back defensively", () => {
+    expect(readVerifyErrorDetail({ redirect: { kind: "otherHost", host: "www.example.com" } })).toEqual({
+      redirect: { kind: "otherHost", host: "www.example.com" },
+    });
+    expect(readVerifyErrorDetail({ redirect: { kind: "sameHost", host: "x" } })).toEqual({
+      redirect: { kind: "sameHost" },
+    });
+    expect(readVerifyErrorDetail({ redirect: { kind: "otherHost", host: "<b>x</b>" } })).toBeNull();
+    expect(readVerifyErrorDetail({ redirect: { kind: "elsewhere" } })).toBeNull();
+    expect(readVerifyErrorDetail(null)).toBeNull();
+    expect(readVerifyErrorDetail("text")).toBeNull();
   });
 });

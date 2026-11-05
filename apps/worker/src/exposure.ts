@@ -46,6 +46,7 @@ import {
   VERIFY_FRESH_HOURS,
   VERIFY_INTERVAL_HOURS,
   type VerifiableAsset,
+  type VerifyErrorDetail,
   type VerifyMethod,
 } from "@garnetops/core/exposure";
 import { checkAsset } from "@garnetops/core/exposure-assets";
@@ -201,7 +202,7 @@ async function audit(
 
 export type ProofResult =
   | { ok: true; method: VerifyMethod }
-  | { ok: false; code: ExposureErrorCode; definitive: boolean };
+  | { ok: false; code: ExposureErrorCode; definitive: boolean; detail: VerifyErrorDetail | null };
 
 /** Which code to show when both methods failed: the one that tells an owner most about what to fix. */
 const CODE_PRIORITY: ExposureErrorCode[] = [
@@ -228,7 +229,9 @@ export async function checkProof(
   env: NetEnv,
   asset: Pick<AssetRow, "kind" | "value" | "verifyToken" | "verifyMethod">,
 ): Promise<ProofResult> {
-  const found: Partial<Record<VerifyMethod, { code: ExposureErrorCode; definitive: boolean }>> = {};
+  const found: Partial<
+    Record<VerifyMethod, { code: ExposureErrorCode; definitive: boolean; detail?: VerifyErrorDetail }>
+  > = {};
   if (asset.kind === "domain") {
     const txt = await readTxt(env, challengeName(asset.value));
     if (txt === undefined) found.dns = { code: "dnsFailed", definitive: false };
@@ -257,12 +260,14 @@ export async function checkProof(
         code === "fileNotFound" ||
         code === "fileRedirected" ||
         code === "fileTooLarge",
+      ...(!file.ok && file.error === "fileRedirected" ? { detail: { redirect: file.redirect } } : {}),
     };
   }
   const codes = Object.values(found).map((f) => f.code);
   const code = CODE_PRIORITY.find((c) => codes.includes(c)) ?? "unexpected";
   const preferred: VerifyMethod = asset.verifyMethod ?? (asset.kind === "domain" ? "dns" : "http");
-  return { ok: false, code, definitive: found[preferred]?.definitive ?? false };
+  const detail = Object.values(found).find((f) => f.code === code)?.detail ?? null;
+  return { ok: false, code, definitive: found[preferred]?.definitive ?? false, detail };
 }
 
 /**
@@ -285,6 +290,7 @@ export async function applyProof(
         verifiedAt: now,
         verifyCheckedAt: now,
         verifyError: null,
+        verifyErrorDetail: null,
         updatedAt: now,
       })
       .where(eq(a.id, asset.id));
@@ -305,6 +311,7 @@ export async function applyProof(
         verifyState: "lost",
         verifyCheckedAt: now,
         verifyError: result.code,
+        verifyErrorDetail: result.detail,
         // Stage 2 stops at once and needs a new acknowledgement after a new proof.
         stage2Enabled: false,
         stage2AcknowledgedBy: null,
@@ -328,7 +335,7 @@ export async function applyProof(
   }
   await db
     .update(a)
-    .set({ verifyCheckedAt: now, verifyError: result.code, updatedAt: now })
+    .set({ verifyCheckedAt: now, verifyError: result.code, verifyErrorDetail: result.detail, updatedAt: now })
     .where(eq(a.id, asset.id));
   return { lost: false };
 }

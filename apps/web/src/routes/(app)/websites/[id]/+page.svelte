@@ -38,7 +38,14 @@
   } from "#lib/search.ts";
   import { href, parseSearch } from "#lib/url.ts";
   import { websiteReport } from "#lib/website-report.ts";
-  import { type ExposureDetail, errorKey, isBusy, SEVERITY_ORDER, verificationKey } from "#lib/websites.ts";
+  import {
+    type ExposureDetail,
+    errorKey,
+    isBusy,
+    SEVERITY_ORDER,
+    verificationKey,
+    verifyProblem,
+  } from "#lib/websites.ts";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import type { PageData } from "./$types";
@@ -152,8 +159,13 @@
       label: t("websites.summaryConfirmed"),
       value: data.verification.confirmedAt ? confirmedAt : undefined,
     });
-    if (data.verification.error && data.verification.state !== "verified") {
-      rows.push({ label: t("websites.summaryProblem"), text: errorText(data.verification.error) });
+    const problem = data.verification.state !== "verified" ? verifyProblem(data) : null;
+    if (problem) {
+      rows.push({
+        label: t("websites.summaryProblem"),
+        text:
+          "text" in problem.problem ? problem.problem.text : t(problem.problem.key, problem.problem.params),
+      });
     }
     return rows;
   });

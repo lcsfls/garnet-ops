@@ -94,8 +94,22 @@ The file may contain the bare code or `garnetops-verify=<code>` on a line of its
 certificate. An address is tried over HTTPS and then plain HTTP. **Redirects are not followed**, and the file must be at most 1 KiB.
 
 Press **Check now**. The worker looks up the proof and the dialog shows the result: the proof was found, or why not (record
-missing, record with another value, file missing, file without the code, file redirected, certificate refused, ...). A check can
-be started twelve times an hour per asset; GarnetOps also checks once a day.
+missing, record with another value, file missing, file without the code, file redirected, certificate refused, ...) together with
+a next step. A check can be started twelve times an hour per asset; GarnetOps also checks once a day.
+
+**When the file address redirects.** Redirects are never followed. GarnetOps reads only where the redirect points, keeps nothing
+but the target's host name (only if it is a valid name or address; never its path or query) and says which of these it is:
+
+| The redirect points to | What it usually means | What to do |
+| --- | --- | --- |
+| another host, for example `www.example.com` | the site lives under that name | verify `www.example.com` instead, or use the DNS record |
+| another page on the same site (`/`, a trailing slash, `http://` instead of `https://`) | the file is not on the server and the site (often WordPress) answers with a page | put the file into the `.well-known` folder of the web root, so that its address answers with the file itself, or use the DNS record |
+| nothing usable (no or an invalid `Location`) | | make the file address answer with the file itself |
+
+The other results come with a short next step as well: for a missing or different TXT record, check its exact name and value (a
+new record can take a while to be visible, depending on its TTL); for a missing file, upload it under exactly that name; for a
+refused certificate, the certificate must be valid, name the host and come from a trusted authority; for a name that points into a
+private network, use the DNS record.
 
 The worker asks for the TXT record both through the system resolver and **directly at the domain's own name servers** (only at
 public addresses, one TXT query each). That way a new record counts at once, even if a resolver in your network still remembers

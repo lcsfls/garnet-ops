@@ -27,6 +27,10 @@ Security-relevant changes are listed under **Security** in every release.
 - The install script checks, in a container, that systemd can set up the agent's sandbox before it installs anything, and if not
   says what to do (in Proxmox VE: enable **Nesting** for the container, or use a VM). Without systemd (Alpine with OpenRC) it names
   the alternatives.
+- **Website verification says what to do next.** When the verification file's address redirects, the dialog names where it
+  points: another host ("redirects to www.example.com: verify www.example.com instead, or use the DNS record") or another page
+  on the same site (often WordPress answering because the file is not there). Redirects are still never followed; only the
+  target's host name is kept. Every other verification result also comes with a short next step (`docs/websites.md`).
 
 ### Changed
 
