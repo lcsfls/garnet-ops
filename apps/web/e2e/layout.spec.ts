@@ -106,6 +106,52 @@ test.describe("signed in", () => {
     });
   }
 
+  // AGENTS.md rule 6: burgundy is the logo and one primary action per page. A dialog is a surface of its own.
+  test("every page has at most one primary action outside its dialogs", async ({ page }) => {
+    const paths = [
+      "/",
+      "/findings",
+      "/findings?id=fnd_e2e0000000000000001",
+      `/findings?id=${AI.talked.findingId}`,
+      "/repositories",
+      "/repositories/repo_e2eseeded000000001",
+      "/packages",
+      "/gates",
+      "/fixes",
+      `/fixes?id=${FIXES.key("pkg-2")}`,
+      "/statistics",
+      "/team",
+      "/audit-log",
+      "/system",
+      ...[
+        "scanning",
+        "accounts",
+        "modules",
+        "external",
+        "signin",
+        "notifications",
+        "ai",
+        "updates",
+        "backup",
+        "about",
+      ].map((section) => `/settings?section=${section}`),
+      ...["profile", "password", "authenticator", "passkeys", "sessions", "notifications"].map(
+        (section) => `/account?section=${section}`,
+      ),
+    ];
+    for (const path of paths) {
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+      const primaries = await page.evaluate(
+        () =>
+          Array.from(document.querySelectorAll("main button.bg-primary, main a.bg-primary")).filter(
+            (el) => !el.closest("dialog, [role='dialog']") && (el as HTMLElement).offsetParent !== null,
+          ).length,
+      );
+      expect(primaries, path).toBeLessThanOrEqual(1);
+    }
+  });
+
   test("settings: sections, form and help follow the content width and stay inside it", async ({
     page,
   }, info) => {
@@ -574,10 +620,10 @@ test.describe("signed in", () => {
     const before = await search.boundingBox();
 
     const steps = [
-      () => page.getByLabel("Known exploited only").check(),
-      () => page.getByLabel("Fix available only").check(),
-      () => page.getByRole("button", { name: "High", exact: true }).click(),
-      () => page.getByRole("button", { name: "Accepted" }).click(),
+      () => page.getByTestId("toggle-kev").click(),
+      () => page.getByTestId("toggle-fixable").click(),
+      () => page.getByTestId("severity-critical").click(),
+      () => page.getByRole("button", { name: /^Accepted/ }).click(),
       () => page.getByRole("button", { name: "Clear filters" }).click(),
     ];
     for (const [index, step] of steps.entries()) {
@@ -585,7 +631,7 @@ test.describe("signed in", () => {
       await page.waitForLoadState("networkidle");
       expect(await search.boundingBox()).toEqual(before);
       if (index === 1) {
-        // Both checkboxes ticked: kept for visual review of the form controls.
+        // Both toggles pressed: kept for visual review of the filter controls.
         await page.screenshot({ path: info.outputPath("filters-checked.png") });
       }
     }

@@ -62,23 +62,105 @@ test("getting started ticks itself off from what is there, leads to each step, a
   expect(problems).toEqual([]);
 });
 
-test("overview tiles lead to the filtered list", async ({ page }) => {
+test("overview: a top statement from the data, four key figures, Fix first by upgrade, scans and gate runs", async ({
+  page,
+}) => {
   const problems = watchForProblems(page);
-  await page.goto("/");
-  const critical = page.getByRole("link", { name: /Critical open/ });
-  await expect(critical).toContainText(String(SEEDED.critical));
-  await critical.click();
-  await expect(page).toHaveURL(/\/findings\?severity=critical$/);
-  await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
-    `${SEEDED.critical} entries`,
+  // A pipeline's gate check as the worker would have written it (no worker runs here); removed again at the end, so the
+  // statistics and gate tests see only the seeded run.
+  await sql(
+    `insert into scan (id, organization_id, repository_id, state, trigger, created_at, finished_at)
+     select 'scan_e2eovgate000000001', organization_id, id, 'succeeded', 'ci', now() - interval '5 minutes',
+       now() - interval '5 minutes'
+     from repository where id = 'repo_e2eseeded000000001'`,
   );
+  await sql(
+    `insert into gate_run (id, organization_id, repository_id, scan_id, result, matches, created_at)
+     select 'gate_e2eovgate000000001', organization_id, id, 'scan_e2eovgate000000001', 'passed', '{}',
+       now() - interval '5 minutes'
+     from repository where id = 'repo_e2eseeded000000001'`,
+  );
+  try {
+    await page.goto("/");
 
-  await page.goto("/");
-  await page.getByRole("link", { name: /Known exploited/ }).click();
-  await expect(page).toHaveURL(/kev=1/);
-  await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
-    `${SEEDED.knownExploited} entry`,
-  );
+    // The one top statement, written from the data: two criticals in two packages, each with a fix, one exploited.
+    const headline = page.getByTestId("overview-headline");
+    await expect(headline.getByRole("status")).toHaveAttribute("data-tone", "critical");
+    await expect(headline).toContainText("2 critical findings in 1 repository");
+    await expect(headline).toContainText(
+      "They come from 2 packages. 2 upgrades fix all of them. 1 is known to be exploited.",
+    );
+    await expect(headline.getByRole("link", { name: "Review the fixes" })).toHaveAttribute(
+      "href",
+      "/fixes?severity=critical",
+    );
+
+    // Four key figures, no more: the repositories with criticals and the accepted risks are gone.
+    const kpis = page.getByTestId("overview-kpis");
+    await expect(kpis.getByRole("link")).toHaveCount(4);
+    await expect(kpis.getByRole("link", { name: /^Critical open/ })).toContainText(String(SEEDED.critical));
+    await expect(kpis.getByRole("link", { name: /^High open/ })).toContainText(String(SEEDED.high));
+    await expect(kpis.getByRole("link", { name: /^Fix available/ })).toContainText("3");
+    await expect(kpis.getByRole("link", { name: /^Known exploited/ })).toContainText(
+      String(SEEDED.knownExploited),
+    );
+    await expect(page.getByText("Repositories with critical findings")).toHaveCount(0);
+    await expect(page.getByText("Accepted risks")).toHaveCount(0);
+
+    // Fix first: one row per upgrade, the known exploited one first, leading to its fix proposal.
+    const fixFirst = page.getByTestId("fix-first");
+    await expect(fixFirst.locator("tbody tr")).toHaveCount(3);
+    const first = fixFirst.locator("tbody tr").first();
+    await expect(first).toHaveAttribute("data-remedy", "pkg-1");
+    await expect(first).toContainText("1.0.0 → 1.0.1");
+    await expect(first).toContainText("1 Critical");
+    await expect(first).toContainText("1 known exploited");
+    await expect(first.getByRole("link", { name: "Open the fix proposal" })).toHaveAttribute(
+      "href",
+      `/fixes?repositoryId=repo_e2eseeded000000001&q=pkg-1&id=${FIXES.key("pkg-1")}`,
+    );
+    await expect(page.getByTestId("fix-first-summary")).toHaveText(
+      `3 upgrades close 3 of ${SEEDED.total} open findings.`,
+    );
+
+    // The activity has the scans and the pipeline's gate check, each with its state.
+    const activity = page.getByTestId("overview-activity");
+    const gate = activity.locator('[data-kind="gate"]');
+    await expect(gate).toContainText("Gate check from a pipeline: seeded-app");
+    await expect(gate).toContainText("Passed");
+    const scan = activity.locator('[data-kind="scan"]').first();
+    await expect(scan).toContainText("Scan: seeded-app");
+    await expect(scan).toContainText("Scanned");
+    await expect(activity).not.toContainText("Nothing has happened yet");
+    for (const gone of ["Recent scans", "Recent gate runs"])
+      await expect(page.getByRole("heading", { name: gone })).toHaveCount(0);
+
+    // A plain fact instead of "Updated" and a refresh button: the page reloads by itself.
+    await expect(page.getByTestId("overview-last-scan")).toContainText(/^Last scan /);
+    await expect(page.getByRole("button", { name: "Refresh" })).toHaveCount(0);
+
+    // The menu counts every open finding, not only the critical ones.
+    await expect(page.getByTestId("nav-badge-findings")).toHaveText(String(SEEDED.total));
+
+    // Each figure leads to the list that explains it.
+    await kpis.getByRole("link", { name: /^Critical open/ }).click();
+    await expect(page).toHaveURL(/\/findings\?severity=critical$/);
+    await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
+      `${SEEDED.critical} entries`,
+    );
+    await page.goto("/");
+    await page
+      .getByTestId("overview-kpis")
+      .getByRole("link", { name: /^Known exploited/ })
+      .click();
+    await expect(page).toHaveURL(/kev=1/);
+    await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
+      `${SEEDED.knownExploited} entry`,
+    );
+  } finally {
+    await sql("delete from gate_run where id = 'gate_e2eovgate000000001'");
+    await sql("delete from scan where id = 'scan_e2eovgate000000001'");
+  }
   expect(problems).toEqual([]);
 });
 
@@ -169,7 +251,7 @@ test("findings paginate with the position in the URL", async ({ page }) => {
 test("findings show score, exploit probability, publication and detection dates", async ({ page }) => {
   await page.goto("/findings");
   const header = page.locator("thead");
-  for (const column of ["CVSS", "EPSS", "Published", "Detected on"]) {
+  for (const column of ["Severity", "Vulnerability", "Repository", "CVSS", "EPSS", "Published", "Detected"]) {
     await expect(header.getByRole("columnheader", { name: column })).toBeVisible();
   }
   const row = page.getByRole("row", { name: new RegExp(SEEDED.hostileId) });
@@ -178,6 +260,96 @@ test("findings show score, exploit probability, publication and detection dates"
   await expect(row).toContainText("Feb 15, 2021");
   // A value the database does not have is announced, not left blank.
   await expect(page.getByRole("row", { name: /CVE-2099-0002/ })).toContainText("Not available");
+});
+
+test("findings filters are toggles: pressed or not, a count each, off at zero, and old links still work", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  await page.goto("/findings");
+  const critical = page.getByTestId("severity-critical");
+  await expect(critical).toHaveAttribute("aria-pressed", "false");
+  await expect(critical).toContainText(`${SEEDED.critical} Critical`);
+  await critical.click();
+  await expect(page).toHaveURL(/severity=critical/);
+  await expect(critical).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
+    `${SEEDED.critical} entries`,
+  );
+
+  // Known exploited: one critical is left, and no high one, so the High toggle cannot be pressed.
+  await page.getByTestId("toggle-kev").click();
+  await expect(page).toHaveURL(/kev=1/);
+  await expect(page.getByTestId("toggle-kev")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("severity-critical")).toContainText("1 Critical");
+  await expect(page.getByTestId("severity-high")).toBeDisabled();
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(page.getByTestId("severity-high")).toBeEnabled();
+
+  // A link from 0.1.0 with the same parameters opens the same filters.
+  await page.goto("/findings?severity=high&kev=1&fixable=1");
+  await expect(page.getByTestId("severity-high")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("toggle-kev")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("toggle-fixable")).toHaveAttribute("aria-pressed", "true");
+  expect(problems).toEqual([]);
+});
+
+test("findings leave out a column that is empty on the page, and the export keeps it", async ({ page }) => {
+  await page.goto("/findings");
+  const header = page.locator("thead");
+  await expect(header.getByRole("columnheader", { name: "Published" })).toBeVisible();
+  // Only the known exploited critical has a publication date and an EPSS value; no high finding has either.
+  await page.goto("/findings?severity=high");
+  await expect(page.locator("tbody tr")).toHaveCount(SEEDED.high);
+  await expect(header.getByRole("columnheader", { name: "Published" })).toHaveCount(0);
+  await expect(header.getByRole("columnheader", { name: "EPSS" })).toHaveCount(0);
+  await expect(header.getByRole("columnheader", { name: "CVSS" })).toBeVisible();
+});
+
+test("the finding detail: key figures, the fix proposal, where else it is, and its actions as buttons", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  // The same finding in a second repository, removed again at the end.
+  await sql(
+    `insert into repository (id, organization_id, name, url, auth_kind)
+     select 'repo_e2ealsoin00000001', organization_id, 'also-app', 'https://git.example.test/team/also-app.git', 'none'
+     from repository where id = 'repo_e2eseeded000000001'`,
+  );
+  await sql(
+    `insert into finding (id, organization_id, repository_id, vulnerability_id, dedup_key, package_name,
+       package_version, package_type, fixed_in, severity, severity_rank, state, first_seen_scan_id, last_seen_scan_id,
+       first_seen_at, last_seen_at)
+     select 'fnd_e2ealsoin00000001', organization_id, 'repo_e2ealsoin00000001', vulnerability_id, 'also-in', package_name,
+       package_version, package_type, fixed_in, severity, severity_rank, 'open', first_seen_scan_id, last_seen_scan_id,
+       first_seen_at, last_seen_at
+     from finding where id = 'fnd_e2e0000000000000002'`,
+  );
+  try {
+    await page.goto("/findings?id=fnd_e2e0000000000000002");
+    const facts = page.getByTestId("finding-facts");
+    await expect(facts).toContainText("CVSS score");
+    await expect(facts).toContainText("exploit chance, 30 days");
+    await expect(facts).toContainText("1.0.1");
+    await expect(page.getByTestId("finding-fix-proposal")).toHaveAttribute(
+      "href",
+      `/fixes?repositoryId=repo_e2eseeded000000001&q=pkg-2&id=${FIXES.key("pkg-2")}`,
+    );
+    const alsoIn = page.getByTestId("finding-also-in");
+    await expect(alsoIn.getByRole("link", { name: "also-app" })).toHaveAttribute(
+      "href",
+      "/findings?id=fnd_e2ealsoin00000001&state=all",
+    );
+    const actions = page.getByTestId("finding-actions");
+    await expect(actions.getByRole("button", { name: "Accept risk …" })).toBeVisible();
+    await expect(actions.getByRole("button", { name: "Ask AI" })).toBeVisible();
+    await page.getByTestId("finding-fix-proposal").click();
+    await expect(page).toHaveURL(new RegExp(`/fixes\\?.*id=${FIXES.key("pkg-2")}`));
+  } finally {
+    await sql("delete from finding where id = 'fnd_e2ealsoin00000001'");
+    await sql("delete from repository where id = 'repo_e2ealsoin00000001'");
+  }
+  expect(problems).toEqual([]);
 });
 
 test("packages: find which repository contains a package, and its open findings", async ({ page }) => {
@@ -483,7 +655,7 @@ test("a repository opens its own page with scan and patch history", async ({ pag
   await page.getByRole("link", { name: SEEDED.repositoryName, exact: true }).click();
   await expect(page).toHaveURL(/\/repositories\/repo_e2eseeded000000001$/);
   await expect(page.getByRole("heading", { name: SEEDED.repositoryName })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Critical open/ })).toContainText(String(SEEDED.critical));
+  await expect(page.getByRole("link", { name: /^Critical open/ })).toContainText(String(SEEDED.critical));
 
   const scans = page.locator("section").filter({ has: page.getByRole("heading", { name: "Scan history" }) });
   await expect(scans.getByRole("row", { name: /Started by hand/ })).toContainText(
