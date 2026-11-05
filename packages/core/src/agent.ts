@@ -247,6 +247,14 @@ export const aptFactsSchema = z.object({
 });
 export type AptFactsInput = z.infer<typeof aptFactsSchema>;
 
+/** A list the agent may send as null when it is empty (Go's nil slice); it reads as an empty list. */
+const nullableList = <T extends z.ZodType>(item: T, max: number) =>
+  z
+    .array(item)
+    .max(max)
+    .nullish()
+    .transform((v) => v ?? []);
+
 /** A value of an sshd setting as the agent read it ("yes", "prohibit-password"), lower case. */
 const sshdValue = z
   .string()
@@ -255,7 +263,7 @@ const sshdValue = z
 const sshdSetting = z.object({
   value: sshdValue,
   default: z.boolean().default(false),
-  match: z.array(sshdValue).max(8).default([]),
+  match: nullableList(sshdValue, 8),
 });
 /** A configuration file path; only paths under /etc/ssh are ever read, anything else is named as skipped. */
 const sshdPath = z
@@ -283,11 +291,11 @@ export const sshdFactsSchema = z.object({
     .object({
       read: z.boolean(),
       problem: optionalText(40),
-      files: z.array(sshdPath).max(32).default([]),
-      skipped: z
-        .array(z.object({ path: sshdPath, reason: z.enum(SSHD_SKIP_REASONS).catch("unreadable") }))
-        .max(32)
-        .default([]),
+      files: nullableList(sshdPath, 32),
+      skipped: nullableList(
+        z.object({ path: sshdPath, reason: z.enum(SSHD_SKIP_REASONS).catch("unreadable") }),
+        32,
+      ),
       settings: z
         .object({
           passwordAuthentication: sshdSetting,

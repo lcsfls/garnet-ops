@@ -258,4 +258,27 @@ describe("the inventory field sshd", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("reads lists an agent sends as null as empty, so the field is not dropped", () => {
+    // What agents up to this fix sent when nothing was skipped: Go marshals a nil slice as null.
+    const setting = { value: "no", default: false, match: null };
+    const parsed = inventorySchema.parse({
+      ...base,
+      sshd: {
+        server: "openssh",
+        package: null,
+        libc: "musl",
+        pamLinked: null,
+        config: {
+          read: true,
+          files: ["/etc/ssh/sshd_config"],
+          skipped: null,
+          settings: Object.fromEntries(Object.keys(SSHD_DEFAULTS).map((k) => [k, setting])),
+        },
+      },
+    });
+    expect(parsed.sshd?.libc).toBe("musl");
+    expect(parsed.sshd?.config?.skipped).toEqual([]);
+    expect(parsed.sshd?.config?.settings?.passwordAuthentication.match).toEqual([]);
+  });
 });

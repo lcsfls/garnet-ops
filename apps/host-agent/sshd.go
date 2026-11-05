@@ -252,8 +252,9 @@ func ReadSSHConfig(root string) *SSHConfig {
 	p.files = append(p.files, main)
 	p.parse(text, false, 0)
 	cfg.Read = true
-	cfg.Files = p.files
-	cfg.Skipped = p.skipped
+	// Append keeps what the initial empty slices hold: a nil slice would be sent as null, and the server's schema expects a list.
+	cfg.Files = append(cfg.Files, p.files...)
+	cfg.Skipped = append(cfg.Skipped, p.skipped...)
 	setting := func(key string) SSHSetting {
 		s := SSHSetting{Value: p.global[key], Match: p.match[key]}
 		if s.Match == nil {

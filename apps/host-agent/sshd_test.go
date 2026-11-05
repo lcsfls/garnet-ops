@@ -132,6 +132,24 @@ func TestSSHConfigDefaults(t *testing.T) {
 	}
 }
 
+// The server's schema expects lists; a nil slice would be sent as null, and the whole sshd field would be dropped.
+func TestSSHConfigJSONHasListsNotNull(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "/etc/ssh/sshd_config", "PasswordAuthentication no\n")
+	for _, cfg := range []*SSHConfig{ReadSSHConfig(root), ReadSSHConfig(t.TempDir())} {
+		out, err := json.Marshal(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(out), "null") && !strings.Contains(string(out), `"settings":null`) {
+			t.Errorf("a list is null: %s", out)
+		}
+		if !strings.Contains(string(out), `"files":[`) || !strings.Contains(string(out), `"skipped":[]`) {
+			t.Errorf("files or skipped missing: %s", out)
+		}
+	}
+}
+
 func TestSSHConfigUnreadableOrMissing(t *testing.T) {
 	if got := ReadSSHConfig(t.TempDir()); got.Read || got.Problem != "missing" || got.Settings != nil {
 		t.Errorf("no /etc/ssh: %+v", got)
