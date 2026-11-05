@@ -8,6 +8,31 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Severity pill**: every severity badge shows its word and a level of four small bars (critical four, high three, medium two,
+  low one), so severity reads without colour. The bars are decorative for screen readers; the word is the name.
+- **Found and resolved** (Statistics) labels its axis **Found ↑** and **Resolved ↓**, so the resolved counts below the baseline
+  no longer read as negative numbers.
+- Every text colour pair of both themes is checked against WCAG AA in CI, as are the focus ring and the lightness steps between
+  the severities in charts; a lint step refuses hard-coded and faded colours in the web app.
+
+### Changed
+
+- **New colours for light and dark** (AGENTS.md rule 6): calmer warm-grey surfaces, fixed severity colours with their own
+  background, text and border, and a steel-blue information colour. Charts, heat tables, badges, banners and the PDF report take
+  them from one place, so the app and the PDF cannot drift; the four severities, and the three gate results, also differ in
+  lightness.
+- **Burgundy only for the logo and the one primary button.** Active navigation, selected table rows and the active tab are neutral:
+  a grey surface, the full text colour and a heavier weight. Links are the text colour, underlined. The focus ring, checked
+  checkboxes and radio buttons, the current wizard step and the severity filters are neutral as well.
+- Banners and notices take the colour of what they talk about: the overview's "critical findings are open" banner is now
+  critical (vermilion) instead of amber; errors, information, warnings and the update banner use fixed colours, no tints.
+- The counts in the menu (findings, hosts, websites) and the "update available" dot are neutral; the number and its label say it.
+- No coloured edges any more: website findings, the website report and the websites report show severity with the pill alone, and
+  an unread notification is bold on a neutral surface instead of carrying a coloured bar.
+- A certificate that has ended is shown as critical (it was shown like one that ends within a week).
+
 ## [0.1.0] - 2026-11-05
 <!-- title: Beta: backup and restore, reports, what can be patched now, and certificates at a glance -->
 

@@ -41,7 +41,7 @@ Status markers: `[ ]` open, `[~]` in progress, `[x]` done.
 - [x] Components and license register `docs/COMPONENTS.md`
 - [ ] Trademark search at DPMA and EUIPO (classes 9 and 42); secure .eu/.io/.de
 - [~] Brand identity: burgundy palette v1 and garnet mark draft in the mockup;
-      still to do: contrast token tests, final logo and wordmark
+      semantic tokens with WCAG AA contrast tests in CI (0.1.1); still to do: final logo and wordmark
 - [ ] Edition and maintenance model, legal check against the EU Cyber
       Resilience Act before the first paid release
 - [~] Hosting: public GitHub repository `lcsfls/garnet-ops`, AGPL-3.0 plus

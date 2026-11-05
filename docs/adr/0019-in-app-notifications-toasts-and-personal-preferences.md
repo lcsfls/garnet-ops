@@ -135,8 +135,9 @@ Top right of the header, left of the account menu: an unread badge with the numb
 no animation), a panel (disclosure, Escape and click outside close it, focus is never moved) with the newest
 notifications **grouped by day in the person's time zone** (ADR 0005: "today", "yesterday", then the date) and relative
 times (hours and minutes below 12 hours, calendar days of the person's zone beyond; the exact time on hover), mark one or
-all read, a link on each notification, "Show older", and "Notification settings". An unread notification is bold, has a
-bar and is announced as "Unread" (not colour alone). New notifications that arrive while the app is open also show a
+all read, a link on each notification, "Show older", and "Notification settings". An unread notification is bold, sits on
+the neutral selected surface and is announced as "Unread" (not colour alone; until 0.1.0 it had a coloured bar, which AGENTS.md
+rule 6 no longer allows). New notifications that arrive while the app is open also show a
 toast with a "View" link (more than two at once become one message).
 
 ## Threat model

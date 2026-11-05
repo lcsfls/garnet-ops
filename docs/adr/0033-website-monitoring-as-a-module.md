@@ -45,8 +45,8 @@ default, because once it is on the installation connects to public hosts that an
   `PUT /api/v1/organization/modules/{name}`, audited as before). Other members still see an entry only while the module is on.
   Nothing else changes while a module is off: no connection, no proof check, 409 `module-off`.
 - **The menu counts what needs a look** (`GET /api/v1/exposure/attention`, `GET /api/v1/hosts/attention`): the websites of the
-  "attention" filter, the hosts that stopped reporting or run something with an open critical or high vulnerability, coloured by the
-  worst severity. A "+" next to each entry opens its add dialog.
+  "attention" filter, the hosts that stopped reporting or run something with an open critical or high vulnerability. Until 0.1.0 the count
+  was coloured by the worst severity; from 0.1.1 it is neutral (AGENTS.md rule 6), the number and its label say it. A "+" next to each entry opens its add dialog.
 - **Adding a website opens its proof.** The new website's page opens with the verification dialog, so the TXT record is the next step.
 - **The TXT record is also asked of the domain's own name servers.** The first check runs right after adding, before the record can
   exist; recursive resolvers then keep that "not there" for the zone's negative TTL, and resolvers with an internal view of the own

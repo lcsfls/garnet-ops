@@ -43,12 +43,14 @@ focus a chart with Tab, move with the left and right arrow keys (Home and End ju
 leave; a screen reader reads the numbers of each day.
 
 A click on a column of **Found and resolved** opens the findings behind it: above the baseline the findings first seen on that day or
-week, below it the ones resolved then. Enter opens the found ones. The findings list shows the period as a filter that one click
+week, below it the ones resolved then. Both halves count up from the baseline, so the chart labels them **Found ↑** and
+**Resolved ↓**. Enter opens the found ones. The findings list shows the period as a filter that one click
 removes.
 
 Every chart has a legend that names each colour with its total (or last value), and **Show as table** lists the same numbers; in the
 found and resolved table every number links to its findings. Nothing depends on colour or on hovering. Green marks only what is
-proven: a gate that passed, a finding that a scan no longer found.
+proven: a gate that passed, a finding that a scan no longer found. The severities, and the three gate results (passed, with notes,
+blocked), also differ in lightness, so the charts still read in greyscale or with a colour vision deficiency.
 
 Findings of the severities *negligible* and *unknown* are not counted on this page, as in the overview trend.
 

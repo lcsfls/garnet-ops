@@ -20,8 +20,9 @@ Reports only say what GarnetOps knows from its own checks: real counts and dates
 version, a blocked gate, accepted risks that have run out, a host that stopped reporting or a kernel update. When nothing is urgent it
 says so.
 
-Severities have their fixed colours and their own icon in the app; in the PDF a small square in the severity's colour stands next to
-its name. Green is used for nothing but a passed gate.
+Severities have their fixed colours in the app, and the severity pill shows the word with a level of four bars (critical four, low
+one), so it reads without colour; in the PDF a small square in the same colour as the app's charts stands next to its name. Green
+is used for nothing but a passed gate.
 
 ## Who sees what
 
