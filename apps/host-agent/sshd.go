@@ -49,7 +49,8 @@ type SSHSettings struct {
 }
 
 // SSHSkipped is a configuration file that was not read, and why: "unreadable", "too-large", "not-regular", "outside" (not under
-// /etc/ssh), "limit" (more than MaxSSHConfigFiles files) or "depth" (Include nested too deep).
+// /etc/ssh), "limit" (more than MaxSSHConfigFiles files), "depth" (Include nested too deep) or "host-key" (ssh_host_*, never
+// opened even where an Include's glob matches it).
 type SSHSkipped struct {
 	Path   string `json:"path"`
 	Reason string `json:"reason"`
@@ -375,6 +376,11 @@ func (p *sshParser) include(patterns []string, inMatch bool, depth int) {
 			name := "/" + strings.TrimPrefix(filepath.ToSlash(strings.TrimPrefix(full, filepath.Clean(p.root))), "/")
 			if depth+1 > maxSSHIncludeDepth {
 				p.skip(name, "depth")
+				continue
+			}
+			if strings.HasPrefix(path.Base(name), "ssh_host_") {
+				// A host key (or its public half) matched by a wide glob: never opened.
+				p.skip(name, "host-key")
 				continue
 			}
 			if len(p.files) >= MaxSSHConfigFiles {

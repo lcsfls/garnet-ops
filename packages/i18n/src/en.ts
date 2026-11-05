@@ -1110,6 +1110,7 @@ export const en = {
       outside: "outside /etc/ssh",
       limit: "more than 32 files",
       depth: "nested too deep",
+      "host-key": "a host key, never opened",
     },
     sshConfigUnreadable:
       "The agent could not read /etc/ssh/sshd_config ({problem}), so its settings are not judged. On some distributions the file is readable by root only.",

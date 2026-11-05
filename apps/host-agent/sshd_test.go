@@ -172,8 +172,10 @@ func TestSSHConfigBounds(t *testing.T) {
 		"Include /etc/passwd ../shadow",
 		"Include big.conf link.conf dir.conf",
 		"Include many/*.conf",
+		"Include /etc/ssh/*",
 		"PasswordAuthentication no",
 	}, "\n"))
+	writeFile(t, root, "/etc/ssh/ssh_host_ed25519_key", "-----BEGIN OPENSSH PRIVATE KEY-----\nPasswordAuthentication yes\n")
 	writeFile(t, root, "/etc/ssh/big.conf", "PasswordAuthentication yes\n"+strings.Repeat("#", MaxSSHConfigBytes))
 	if err := os.Symlink(hostPath(outside, "/secret.conf"), hostPath(root, "/etc/ssh/link.conf")); err != nil {
 		t.Fatal(err)
@@ -193,15 +195,18 @@ func TestSSHConfigBounds(t *testing.T) {
 	}
 	reasons := map[string]string{}
 	for _, s := range cfg.Skipped {
-		reasons[s.Path] = s.Reason
+		if _, seen := reasons[s.Path]; !seen {
+			reasons[s.Path] = s.Reason
+		}
 	}
 	for path, reason := range map[string]string{
-		"/etc/passwd":           "outside",
-		"/etc/shadow":           "outside",
-		"/etc/ssh/big.conf":     "too-large",
-		"/etc/ssh/link.conf":    "outside",
-		"/etc/ssh/dir.conf":     "not-regular",
-		"/etc/ssh/many/39.conf": "limit",
+		"/etc/passwd":                   "outside",
+		"/etc/shadow":                   "outside",
+		"/etc/ssh/big.conf":             "too-large",
+		"/etc/ssh/link.conf":            "outside",
+		"/etc/ssh/dir.conf":             "not-regular",
+		"/etc/ssh/many/39.conf":         "limit",
+		"/etc/ssh/ssh_host_ed25519_key": "host-key",
 	} {
 		if reasons[path] != reason {
 			t.Errorf("%s: got %q, want %q (all: %v)", path, reasons[path], reason, cfg.Skipped)

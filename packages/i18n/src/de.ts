@@ -1146,6 +1146,7 @@ export const de: Messages = {
       outside: "außerhalb von /etc/ssh",
       limit: "mehr als 32 Dateien",
       depth: "zu tief verschachtelt",
+      "host-key": "ein Host-Schlüssel, nie geöffnet",
     },
     sshConfigUnreadable:
       "Der Agent konnte /etc/ssh/sshd_config nicht lesen ({problem}), deshalb werden die Einstellungen nicht bewertet. Auf manchen Distributionen darf nur root die Datei lesen.",
