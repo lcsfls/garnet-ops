@@ -1,7 +1,7 @@
 /**
- * The systemd host agent's installation (ADR 0037): this installation serves the agent binaries it was built with and a script that
- * installs one of them as a hardened systemd service. Nothing comes from the internet, so it works air-gapped, and the version
- * always matches the server.
+ * The host agent's installation (ADR 0037): this installation serves the agent binaries it was built with and a script that
+ * installs one of them as a hardened systemd service or, on hosts with OpenRC (Alpine), as an unprivileged OpenRC service. Nothing
+ * comes from the internet, so it works air-gapped, and the version always matches the server.
  */
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -96,6 +96,55 @@ export const SANDBOX_CHECK = [
   "SystemCallFilter=@system-service",
 ] as const;
 
+/** Where OpenRC's service writes the agent's output (created for the agent user before each start). */
+export const OPENRC_LOG = "/var/log/garnetops-agent.log";
+
+/**
+ * The OpenRC service (Alpine and other hosts without systemd, ADR 0037 addendum "OpenRC"). OpenRC has no sandbox like systemd's;
+ * what it offers is used: supervise-daemon restarts the agent on failure and starts it as the unprivileged user with umask 077 and,
+ * on OpenRC 0.45 or newer, no_new_privs. The agent never runs as root, so it holds no capabilities. Memory and CPU limits are cgroup
+ * settings that OpenRC applies where it manages cgroup v2 and skips elsewhere; GOMEMLIMIT keeps the Go runtime below them.
+ * The environment file is read line by line into an allow-list of names, never sourced as shell.
+ */
+export const OPENRC_SERVICE = `#!/sbin/openrc-run
+# GarnetOps host agent (ADR 0037): reports this host's kernel, packages and SSH settings to GarnetOps. Runs unprivileged.
+
+name="garnetops-agent"
+description="GarnetOps host agent"
+supervisor="supervise-daemon"
+command="/usr/local/bin/garnetops-agent"
+command_args="run"
+command_user="garnetops-agent:garnetops-agent"
+pidfile="/run/\${RC_SVCNAME}.pid"
+umask="077"
+no_new_privs="yes"
+respawn_delay=60
+respawn_max=0
+output_log="${OPENRC_LOG}"
+error_log="${OPENRC_LOG}"
+rc_cgroup_settings="memory.max 268435456
+cpu.max 20000 100000"
+
+depend() {
+	need net
+	after firewall
+}
+
+start_pre() {
+	checkpath -d -o garnetops-agent:garnetops-agent -m 0700 /var/lib/garnetops-agent || return 1
+	checkpath -f -o garnetops-agent:garnetops-agent -m 0640 ${OPENRC_LOG} || return 1
+	[ -r /etc/garnetops-agent/agent.env ] || { eerror "/etc/garnetops-agent/agent.env is missing"; return 1; }
+	# KEY=value lines as systemd's EnvironmentFile= reads them: no shell evaluation, only the agent's own settings.
+	while IFS='=' read -r key value; do
+		case "$key" in
+		GARNETOPS_URL|GARNETOPS_ENROLMENT_CODE|GARNETOPS_HOST_NAME|GARNETOPS_CA_FILE|GARNETOPS_INTERVAL_HOURS) export "$key=$value" ;;
+		esac
+	done < /etc/garnetops-agent/agent.env
+	export GARNETOPS_STATE_DIR=/var/lib/garnetops-agent
+	export GOMEMLIMIT=200MiB
+}
+`;
+
 const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 
 /**
@@ -105,7 +154,7 @@ const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 export function installScript(publicUrl: string, sums: Partial<Record<AgentArch, string>>): string {
   const base = publicUrl.replace(/\/+$/, "");
   return `#!/bin/sh
-# GarnetOps host agent: installs the agent as a systemd service (ADR 0037).
+# GarnetOps host agent: installs the agent as a systemd service, or as an OpenRC service where OpenRC runs (Alpine) (ADR 0037).
 # Read it before you run it. Usage, as root:
 #   GARNETOPS_ENROLMENT_CODE=goe_... sh garnetops-agent-install.sh
 # Optional: GARNETOPS_HOST_NAME (the name the host reports), GARNETOPS_CA_FILE (a CA bundle for an internal CA).
@@ -117,16 +166,24 @@ SHA256_arm64=${shellQuote(sums.arm64 ?? "")}
 
 fail() { echo "garnetops-agent: $*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || fail "run this as root"
-if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
-  fail "systemd is needed and this system does not run it (Alpine Linux, for example, uses OpenRC). Use a Debian or Ubuntu container or VM, or the container agent where Docker runs."
+INIT=""
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+  INIT=systemd
+elif command -v openrc-run >/dev/null 2>&1 || [ -x /sbin/openrc-run ] || [ -x /sbin/openrc ]; then
+  [ -d /run/openrc ] || fail "OpenRC is installed but does not run on this system (/run/openrc is missing), so it cannot start the agent. Use the container agent where Docker runs."
+  INIT=openrc
+else
+  fail "neither systemd nor OpenRC runs on this system, so the agent cannot be installed as a service. Use the container agent where Docker runs, or install the agent in a Debian, Ubuntu or Alpine container or VM."
 fi
 
 # In a container (e.g. Proxmox VE), check first that systemd can set up the agent's sandbox.
 CONTAINER=""
-if command -v systemd-detect-virt >/dev/null 2>&1; then
-  CONTAINER=$(systemd-detect-virt --container 2>/dev/null || true)
-elif [ -r /run/systemd/container ]; then
-  CONTAINER=$(head -c 40 /run/systemd/container)
+if [ "$INIT" = systemd ]; then
+  if command -v systemd-detect-virt >/dev/null 2>&1; then
+    CONTAINER=$(systemd-detect-virt --container 2>/dev/null || true)
+  elif [ -r /run/systemd/container ]; then
+    CONTAINER=$(head -c 40 /run/systemd/container)
+  fi
 fi
 [ "$CONTAINER" = none ] && CONTAINER=""
 if [ -n "$CONTAINER" ]; then
@@ -147,21 +204,40 @@ esac
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 URL="$GARNETOPS_URL/api/v1/agent/download/linux-$ARCH"
+case "$URL" in https://*) ;; *) fail "the address of this installation must start with https://" ;; esac
 CA_OPT=""
 if command -v curl >/dev/null 2>&1; then
   [ -n "\${GARNETOPS_CA_FILE:-}" ] && CA_OPT="--cacert $GARNETOPS_CA_FILE"
   # shellcheck disable=SC2086
   curl -fsS --proto =https --tlsv1.2 $CA_OPT -o "$TMP/agent" "$URL" || fail "download failed"
-elif command -v wget >/dev/null 2>&1; then
+elif command -v wget >/dev/null 2>&1 && wget --help 2>&1 | grep -q -- --https-only; then
+  # GNU wget.
   [ -n "\${GARNETOPS_CA_FILE:-}" ] && CA_OPT="--ca-certificate=$GARNETOPS_CA_FILE"
   # shellcheck disable=SC2086
   wget -q --https-only $CA_OPT -O "$TMP/agent" "$URL" || fail "download failed"
+elif command -v wget >/dev/null 2>&1; then
+  # BusyBox wget (Alpine) has no option to refuse plain HTTP, to name a CA file or to refuse redirects, and checks the
+  # certificate only through its openssl helper. The SHA-256 below is what protects the agent either way.
+  [ -z "\${GARNETOPS_CA_FILE:-}" ] || fail "GARNETOPS_CA_FILE needs curl or GNU wget (on Alpine: apk add curl)"
+  wget -q -O "$TMP/agent" "$URL" || fail "download failed"
 else
   fail "curl or wget is needed"
 fi
 echo "$SUM  $TMP/agent" | sha256sum -c - >/dev/null 2>&1 || fail "the download does not match its checksum"
 
-id garnetops-agent >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin garnetops-agent
+if ! id garnetops-agent >/dev/null 2>&1; then
+  NOLOGIN=/bin/false
+  for shell in /usr/sbin/nologin /sbin/nologin; do [ -x "$shell" ] && NOLOGIN=$shell && break; done
+  if command -v useradd >/dev/null 2>&1; then
+    useradd --system --no-create-home --home-dir /nonexistent --shell "$NOLOGIN" garnetops-agent
+  elif command -v adduser >/dev/null 2>&1 && command -v addgroup >/dev/null 2>&1; then
+    # BusyBox (Alpine): a system group and a system user without password and home directory.
+    addgroup -S garnetops-agent
+    adduser -S -D -H -h /nonexistent -s "$NOLOGIN" -G garnetops-agent garnetops-agent
+  else
+    fail "useradd or adduser is needed to create the user garnetops-agent"
+  fi
+fi
 install -o root -g root -m 0755 "$TMP/agent" /usr/local/bin/garnetops-agent
 install -d -o root -g garnetops-agent -m 0750 /etc/garnetops-agent
 umask 077
@@ -174,6 +250,17 @@ umask 077
 } > /etc/garnetops-agent/agent.env
 chown root:garnetops-agent /etc/garnetops-agent/agent.env
 chmod 0640 /etc/garnetops-agent/agent.env
+if [ "$INIT" = openrc ]; then
+  install -d -o garnetops-agent -g garnetops-agent -m 0700 /var/lib/garnetops-agent
+  cat > /etc/init.d/garnetops-agent <<'SERVICE'
+${OPENRC_SERVICE}SERVICE
+  chmod 0755 /etc/init.d/garnetops-agent
+  rc-update add garnetops-agent default >/dev/null
+  rc-service garnetops-agent restart
+  echo "garnetops-agent: installed and started as an OpenRC service; the host appears in GarnetOps after its first report."
+  echo "garnetops-agent: logs in ${OPENRC_LOG}"
+  exit 0
+fi
 cat > /etc/systemd/system/garnetops-agent.service <<'UNIT'
 ${SYSTEMD_UNIT}UNIT
 systemctl daemon-reload
