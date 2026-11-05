@@ -8,7 +8,7 @@ No code, finding or log leaves the customer's network.
 Dual-licensed: [AGPL-3.0-only](LICENSE) and a commercial license
 ([LICENSING.md](LICENSING.md)). Domain: garnetops.com.
 
-**Status:** alpha, with signed releases since 0.0.3
+**Status:** beta since 0.1.0, with signed releases since 0.0.3
 ([GitHub Releases](https://github.com/lcsfls/garnet-ops/releases)). Since 0.0.4 GarnetOps is a pure developer
 pipeline ([ADR 0025](docs/adr/0025-focus-on-the-developer-pipeline.md)): the server, Proxmox VE, UniFi,
 Wazuh/XDR, attack overview and external exposure modules were removed. The last version that has them
@@ -98,8 +98,8 @@ LXC container) with Docker Engine 26 or newer and the Compose plugin v2.24 or ne
 ```sh
 git clone https://github.com/lcsfls/garnet-ops.git /opt/garnetops
 cd /opt/garnetops
-docker build --target app -t garnetops:local     --build-arg VERSION=0.0.18 .
-docker build --target web -t garnetops-web:local --build-arg VERSION=0.0.18 .
+docker build --target app -t garnetops:local     --build-arg VERSION=0.1.0 .
+docker build --target web -t garnetops-web:local --build-arg VERSION=0.1.0 .
 
 sh deploy/install.sh garnetops.example.com garnetops:local garnetops-web:local
 echo 'UPDATER_URL=' >> .env    # in-app updates need signed releases; off for local builds
@@ -163,7 +163,7 @@ release tag:
 cd /opt/garnetops
 docker compose exec db pg_dump -U garnetops -Fc garnetops > garnetops-$(date +%F).dump
 git fetch --tags
-TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)   # the newest release, e.g. v0.0.18
+TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)   # the newest release, e.g. v0.1.0
 git checkout "$TAG"
 VERSION=$(echo "$TAG" | cut -c2-)
 docker build --target app -t garnetops:local     --build-arg VERSION="$VERSION" .

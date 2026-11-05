@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-05
+<!-- title: Beta: backup and restore, reports, what can be patched now, and certificates at a glance -->
+
 ### Added
 
 - **Backup of the whole installation** ([ADR 0046](docs/adr/0046-backup-and-restore.md), `docs/backup.md`): under **Settings → Backup** an owner makes one encrypted file with everything, including every stored access secret, protected by a passphrase of their choice (age format, so it also opens without GarnetOps). The worker builds it; the owner who asked can download it for an hour.
@@ -1394,7 +1397,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.0.18...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/lcsfls/garnet-ops/compare/v0.0.18...v0.1.0
 [0.0.18]: https://github.com/lcsfls/garnet-ops/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/lcsfls/garnet-ops/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/lcsfls/garnet-ops/compare/v0.0.15...v0.0.16
