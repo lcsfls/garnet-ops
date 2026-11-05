@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-05
+<!-- title: Host agent on Alpine and OpenRC, and an SSH server check that finds sshole -->
+
 ### Added
 
 - **Host agent on Alpine and other hosts with OpenRC** (`docs/hosts.md`, ADR 0037): the install script now installs the agent as an
@@ -1503,7 +1506,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/lcsfls/garnet-ops/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/lcsfls/garnet-ops/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/lcsfls/garnet-ops/compare/v0.0.18...v0.1.0
 [0.0.18]: https://github.com/lcsfls/garnet-ops/compare/v0.0.17...v0.0.18
