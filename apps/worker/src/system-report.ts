@@ -11,6 +11,7 @@
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { newId } from "@garnetops/core";
+import { WATCHED_ADVISORIES } from "@garnetops/core/sshd";
 import {
   appVersionOf,
   cleanVersion,
@@ -227,8 +228,36 @@ function countByProvider(file: string): Map<string, number> | null {
   }
 }
 
+/**
+ * Which of the watched advisories (a host rule depends on whether the database knows them) the database file holds, upper case.
+ * Null when it cannot be read.
+ */
+function knownAdvisories(file: string): string[] | null {
+  let sqlite: DatabaseSync | null = null;
+  try {
+    sqlite = new DatabaseSync(file, { readOnly: true });
+    const names = [...WATCHED_ADVISORIES];
+    return sqlite
+      .prepare(
+        `select distinct upper(name) as name from vulnerability_handles
+          where name collate nocase in (${names.map(() => "?").join(",")})`,
+      )
+      .all(...names)
+      .map((row) => String(row.name))
+      .sort();
+  } catch {
+    return null;
+  } finally {
+    sqlite?.close();
+  }
+}
+
 /** Counting walks an index over every advisory; once per database is enough. */
-let countCache: { key: string; counts: Map<string, number> | null } | null = null;
+let countCache: {
+  key: string;
+  counts: Map<string, number> | null;
+  known: string[] | null;
+} | null = null;
 
 /**
  * Reads what the database file says about itself: `grype db status -o json` (schema, build time,
@@ -271,15 +300,16 @@ export async function probeVulnDb(): Promise<void> {
 
     const builtAt = toIso(status.built);
     let providers: VulnDbReport["providers"] = { available: false, items: [] };
+    const key = `${builtAt ?? ""}|${status.path ?? ""}`;
+    if (countCache?.key !== key) {
+      const file = status.path || join(env.GARNETOPS_GRYPE_DB_DIR, "6", "vulnerability.db");
+      countCache = { key, counts: countByProvider(file), known: knownAdvisories(file) };
+    }
+    const cached = countCache;
     try {
       const { stdout } = await run(env.GARNETOPS_GRYPE_BIN, ["db", "providers", "-o", "json"], options);
       const listed = providersOutput.parse(JSON.parse(stdout));
-      const key = `${builtAt ?? ""}|${status.path ?? ""}`;
-      if (countCache?.key !== key) {
-        const file = status.path || join(env.GARNETOPS_GRYPE_DB_DIR, "6", "vulnerability.db");
-        countCache = { key, counts: countByProvider(file) };
-      }
-      const counts = countCache.counts;
+      const counts = cached.counts;
       providers = {
         available: true,
         items: listed.slice(0, 200).map((p) => ({
@@ -300,6 +330,7 @@ export async function probeVulnDb(): Promise<void> {
       schemaVersion: status.schemaVersion?.slice(0, 40) || null,
       builtAt,
       providers,
+      knownAdvisories: cached.known,
     };
     await writeReport("vulndb", vulnDbReportSchema.parse(report));
   });

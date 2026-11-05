@@ -369,6 +369,12 @@ export const vulnDbReportSchema = z.object({
       )
       .max(200),
   }),
+  /**
+   * Which of the advisories GarnetOps judges together with a host's configuration (WATCHED_ADVISORIES in ./sshd.ts) the database
+   * holds; null when it could not be read, absent in reports of older workers. An advisory the database does not hold yet is
+   * judged by the upstream version instead.
+   */
+  knownAdvisories: z.array(z.string().max(40)).max(50).nullable().optional(),
 });
 export type VulnDbReport = z.infer<typeof vulnDbReportSchema>;
 

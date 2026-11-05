@@ -10,6 +10,7 @@
     "./pagination": "./src/pagination.ts",
     "./password": "./src/password.ts",
     "./ssh": "./src/ssh.ts",
+    "./sshd": "./src/sshd.ts",
     "./gates": "./src/gates.ts",
     "./grades": "./src/grades.ts",
     "./team": "./src/team.ts",

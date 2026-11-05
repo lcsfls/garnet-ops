@@ -126,6 +126,7 @@ describe.skipIf(!adminUrl || !posix)("system report", () => {
     const insert = sqlite.prepare("insert into vulnerability_handles (name, provider_id) values (?, ?)");
     for (let i = 0; i < 5; i++) insert.run(`CVE-2099-${i}`, "nvd");
     for (let i = 0; i < 3; i++) insert.run(`GHSA-${i}`, "github");
+    insert.run("cve-2026-123158", "alpine");
     sqlite.close();
     held.env.GARNETOPS_WORK_DIR = work;
     held.env.GARNETOPS_GRYPE_DB_DIR = join(work, "db");
@@ -197,6 +198,8 @@ describe.skipIf(!adminUrl || !posix)("system report", () => {
     const byName = Object.fromEntries(report.providers.items.map((p) => [p.name, p]));
     expect(byName.nvd).toMatchObject({ records: 5, capturedAt: "2026-10-22T04:00:00.000Z" });
     expect(byName.github?.records).toBe(3);
+    // The watched advisory a host rule depends on (CVE-2026-123158) is in the database, whatever its case there.
+    expect(report.knownAdvisories).toEqual(["CVE-2026-123158"]);
     // Listed by grype but without advisories in the database: no count is not a count of zero.
     expect(byName.debian).toMatchObject({ records: null, capturedAt: null });
     // The URL grype prints for the download is not kept.
@@ -226,6 +229,7 @@ describe.skipIf(!adminUrl || !posix)("system report", () => {
     const report = vulnDbReportSchema.parse(await reportOf("vulndb"));
     expect(report.providers.available).toBe(true);
     expect(report.providers.items.every((p) => p.records === null)).toBe(true);
+    expect(report.knownAdvisories).toBeNull();
   });
 
   it("keeps earlier facts when the update report is changed", async () => {

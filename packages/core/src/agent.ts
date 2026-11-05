@@ -6,6 +6,7 @@
 import { createHash, createPublicKey, generateKeyPairSync, randomBytes, sign, verify } from "node:crypto";
 import { z } from "zod";
 import { stripControl } from "./fix-prs.ts";
+import { SSHD_SKIP_REASONS, type SshdFacts } from "./sshd.ts";
 
 /* -------------------------------------------------------------------------- */
 /* Enrolment                                                                   */
@@ -246,6 +247,63 @@ export const aptFactsSchema = z.object({
 });
 export type AptFactsInput = z.infer<typeof aptFactsSchema>;
 
+/** A value of an sshd setting as the agent read it ("yes", "prohibit-password"), lower case. */
+const sshdValue = z
+  .string()
+  .max(160)
+  .transform((v) => stripControl(v).toLowerCase().slice(0, 40));
+const sshdSetting = z.object({
+  value: sshdValue,
+  default: z.boolean().default(false),
+  match: z.array(sshdValue).max(8).default([]),
+});
+/** A configuration file path; only paths under /etc/ssh are ever read, anything else is named as skipped. */
+const sshdPath = z
+  .string()
+  .max(1200)
+  .transform((v) => stripControl(v).slice(0, 300))
+  .refine((v) => v.startsWith("/"));
+
+/**
+ * The host's SSH server (systemd and OpenRC agent; see sshd.ts): which server, its package, the C library, whether sshd links
+ * libpam, and the global values of six settings from sshd_config and its includes. Older agents send none.
+ */
+export const sshdFactsSchema = z.object({
+  server: z.enum(["openssh", "dropbear", "none"]),
+  package: z
+    .object({ name: text(100), version: text(200) })
+    .nullish()
+    .transform((v) => v ?? null),
+  libc: z.enum(["musl", "glibc", "unknown"]).catch("unknown"),
+  pamLinked: z
+    .boolean()
+    .nullish()
+    .transform((v) => v ?? null),
+  config: z
+    .object({
+      read: z.boolean(),
+      problem: optionalText(40),
+      files: z.array(sshdPath).max(32).default([]),
+      skipped: z
+        .array(z.object({ path: sshdPath, reason: z.enum(SSHD_SKIP_REASONS).catch("unreadable") }))
+        .max(32)
+        .default([]),
+      settings: z
+        .object({
+          passwordAuthentication: sshdSetting,
+          kbdInteractiveAuthentication: sshdSetting,
+          permitRootLogin: sshdSetting,
+          usePam: sshdSetting,
+          permitEmptyPasswords: sshdSetting,
+          pubkeyAuthentication: sshdSetting,
+        })
+        .nullish()
+        .transform((v) => v ?? null),
+    })
+    .nullish()
+    .transform((v) => v ?? null),
+}) satisfies z.ZodType<SshdFacts, unknown>;
+
 export const inventorySchema = z.object({
   hostname: text(253),
   agentVersion: text(40),
@@ -288,6 +346,10 @@ export const inventorySchema = z.object({
    * other package managers send none). A report that does not fit the schema is dropped, never the whole inventory.
    */
   apt: aptFactsSchema.optional().catch(undefined),
+  /** The service manager that runs the agent without Docker: "systemd" or "openrc". Older agents send none. */
+  serviceManager: z.enum(["systemd", "openrc"]).optional().catch(undefined),
+  /** The host's SSH server and its settings; a report that does not fit the schema is dropped, never the inventory. */
+  sshd: sshdFactsSchema.optional().catch(undefined),
   /** SHA-256 (hex) over the sorted package URLs of the host itself (systemd agent); the answer says whether to send them. */
   hostPackagesDigest: z
     .string()
