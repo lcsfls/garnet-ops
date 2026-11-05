@@ -336,6 +336,67 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     await agent("/api/v1/agent/inventory", inventory({ kernel }));
   });
 
+  it("never checks the kernel of a host that is a container, and clears what an earlier report matched", async () => {
+    const kernel = {
+      release: "6.8.0-45-generic",
+      versionSignature: "Ubuntu 6.8.0-45.45-generic 6.8.12",
+      osName: "Ubuntu 24.04.1 LTS",
+      osVersion: "24.04",
+    };
+    await agent("/api/v1/agent/inventory", inventory({ kernel }));
+    await t.db
+      .insert(schema.vulnerability)
+      .values({ id: "CVE-2026-0019", severity: "high" })
+      .onConflictDoNothing();
+    const finding = {
+      organizationId: ORG,
+      hostId,
+      vulnerabilityId: "CVE-2026-0019",
+      packageName: "linux-image-6.8.0-45-generic",
+      packageVersion: "6.8.0-45.45",
+      severity: "high",
+      severityRank: 4,
+    };
+    await t.db
+      .insert(schema.hostKernelFinding)
+      .values({ id: "hkf_container", ...finding, firstSeenAt: new Date(), lastSeenAt: new Date() });
+    await t.db
+      .insert(schema.runtimeEarlyWarning)
+      .values({ id: "rew_container", ...finding, kind: "kernel", subjectId: hostId, packageType: "deb" });
+    holder.sent.length = 0;
+    // An old server ignores the field; this one stops matching the kernel and drops the earlier findings.
+    expect(
+      (await agent("/api/v1/agent/inventory", inventory({ kernel, insideContainer: "lxc" }))).status,
+    ).toBe(200);
+    const [host] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, hostId));
+    expect(host).toMatchObject({ kernelPackage: null, kernelProblem: "container", kernelMatchedAt: null });
+    expect(
+      await t.db.select().from(schema.hostKernelFinding).where(eq(schema.hostKernelFinding.hostId, hostId)),
+    ).toEqual([]);
+    expect(holder.sent.filter((s) => s.name === "hosts.kernel")).toEqual([]);
+    const [warning] = await t.db
+      .select()
+      .from(schema.runtimeEarlyWarning)
+      .where(eq(schema.runtimeEarlyWarning.id, "rew_container"));
+    expect(warning?.state).toBe("cleared");
+    // A Proxmox VE kernel reported by a Debian container (or a Docker agent in one) is never named as a Debian package.
+    await agent(
+      "/api/v1/agent/inventory",
+      inventory({
+        kernel: {
+          release: "6.8.12-4-pve",
+          procVersion:
+            "Linux version 6.8.12-4-pve (gcc (Debian 12.2.0-14) 12.2.0) #1 SMP PREEMPT_DYNAMIC PMX 6.8.12-4",
+          osName: "Debian GNU/Linux 12 (bookworm)",
+          osVersion: "12",
+        },
+      }),
+    );
+    const [pve] = await t.db.select().from(schema.agentHost).where(eq(schema.agentHost.id, hostId));
+    expect(pve).toMatchObject({ kernelPackage: null, kernelProblem: "proxmoxKernel" });
+    await agent("/api/v1/agent/inventory", inventory({ kernel }));
+  });
+
   it("takes the packages of the host itself from the systemd agent only when they changed, and shows their findings", async () => {
     const pkgs = [
       {
@@ -406,6 +467,11 @@ describe.skipIf(!adminUrl)("host agent API (ADR 0034)", () => {
     expect(text).toContain(`SHA256_amd64='${sum}'`);
     expect(text).toContain("SHA256_arm64=''");
     expect(text).toContain("NoNewPrivileges=yes");
+    // In a container the sandbox is tried before anything is installed; without it the script names the next step.
+    expect(text).toContain("systemd-detect-virt --container");
+    expect(text).toContain("-p PrivateTmp=yes -p PrivateDevices=yes");
+    expect(text).toContain("Options > Features > Nesting");
+    expect(text).toContain("OpenRC");
     expect(text).not.toMatch(/goe_[A-Za-z0-9_-]{43}/);
     const download = await app.request("/api/v1/agent/download/linux-amd64");
     expect(download.status).toBe(200);

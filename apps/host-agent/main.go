@@ -163,6 +163,9 @@ func reportOnce(c config, client *Client) (int, error) {
 		"containers":   []any{},
 		"images":       []any{},
 	}
+	if container := DetectContainer(root); container != "" {
+		inventory["insideContainer"] = container
+	}
 	if len(packages) > 0 {
 		inventory["hostPackagesDigest"] = Digest(packages)
 	}

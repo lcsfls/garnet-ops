@@ -68,6 +68,31 @@ host**. A list is sent again only when it changed. It does not see Docker contai
 - Remove: `systemctl disable --now garnetops-agent`, then delete `/usr/local/bin/garnetops-agent`, `/etc/garnetops-agent`,
   `/etc/systemd/system/garnetops-agent.service` and `/var/lib/garnetops-agent`, and remove the host in GarnetOps.
 
+## Proxmox VE and LXC containers
+
+Install the agent where the packages you want checked live:
+
+| Where | What GarnetOps checks |
+| --- | --- |
+| In each LXC container (Debian or Ubuntu) | the container's own packages. Not its kernel: a container runs on the kernel of the Proxmox VE host, so the host page says **This host is a container** instead of any kernel result. |
+| In each VM | the VM's packages and its kernel, as on any server. |
+| On the Proxmox VE host itself | its Debian packages. Proxmox's own packages (`pve-*`, `proxmox-*`) and the Proxmox kernel (`6.8.12-4-pve` and so on) have no data in the vulnerability database, so they are not checked; the host page says so for the kernel. Keep the Proxmox VE host updated through its own update channel. |
+
+The agent sees that it runs in a container from what any user can read: the file `/run/systemd/container` that systemd writes at
+boot (`lxc` in a Proxmox VE container), the marker files of Podman and Docker, and the LXCFS mounts that LXC places over `/proc`.
+GarnetOps then never names the kernel as a package of the container's distribution, and drops kernel findings and early warnings
+that an earlier report produced for that host. A Proxmox VE kernel is never named as a Debian or any other package either,
+also when the container agent runs Docker inside an LXC container.
+
+**Nesting.** The agent's systemd service runs in a sandbox (private `/tmp` and devices, a read-only system, restricted namespaces).
+An unprivileged container without the **nesting** feature cannot set that up, and the service would stop at once with
+`status=226/NAMESPACE`. The install script therefore tries the sandbox first when it runs in a container and stops with a clear
+message if it does not work. In Proxmox VE enable **Options → Features → Nesting** for the container (`pct set <id> --features
+nesting=1`) and restart it, or use a VM. The service's hardening is never weakened to fit.
+
+**Alpine Linux** containers use OpenRC, not systemd, so the systemd agent cannot be installed there; the script says so. Use a Debian or
+Ubuntu container or VM, or, where Docker runs, the container agent.
+
 ## What leaves the host
 
 Over HTTPS to this installation only:
@@ -79,7 +104,8 @@ Over HTTPS to this installation only:
 - per image: its id, tags, digests, OS and architecture, and only the OCI labels `org.opencontainers.image.source`, `.revision`,
   `.version`, `.title` and `.created`;
 - per image GarnetOps does not know yet: syft's package list (package URL, name, version, type);
-- systemd agent: the packages installed on the host (package URL, name, version, type), only when the list changed.
+- systemd agent: the packages installed on the host (package URL, name, version, type), only when the list changed;
+- systemd agent: whether the host is itself a container, as a short name such as `lxc`.
 
 Never: file contents, paths inside images, environment variables, command lines, secrets, or the images themselves.
 
@@ -112,6 +138,11 @@ other package:
 | RHEL, AlmaLinux, Rocky, CentOS Stream, Oracle Linux (also UEK), Amazon Linux | `uname -r` (`5.14.0-427.13.1.el9_4.x86_64` → `kernel` 5.14.0-427.13.1.el9_4) |
 | Alpine | `uname -r` (`6.6.58-0-lts` → `linux-lts` 6.6.58-r0) |
 | SUSE and others | not checked yet; the host page says so |
+| A container (LXC, systemd-nspawn, ...) or a Proxmox VE kernel (`-pve`) | not checked; see [Proxmox VE and LXC containers](#proxmox-ve-and-lxc-containers) |
+
+A kernel is only named as a package of the reported distribution when its flavour or release tag is that distribution's own
+(`-amd64` on Debian, the signature's flavour on Ubuntu, `.el9` on RHEL and its relatives, `.amzn2023` on Amazon Linux, `-lts` or
+`-virt` on Alpine). A self-built kernel or one from another vendor is shown as not checked, never as "no known vulnerability".
 
 **What "affected" means, and what it does not.** The host page says **Affected** when the running kernel has a version in which the
 distribution lists a flaw as not fixed. It does **not** say the flaw can be exploited on that host: that depends on the host's

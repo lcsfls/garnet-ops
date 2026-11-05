@@ -10,7 +10,14 @@ export type SeverityCounts = { critical: number; high: number; medium: number; l
 export interface KernelSummary {
   release: string | null;
   package: { name: string; version: string; distro: string } | null;
-  problem: "unknownDistribution" | "unknownVersion" | "unsupportedDistribution" | null;
+  problem:
+    | "unknownDistribution"
+    | "unknownVersion"
+    | "unsupportedDistribution"
+    | "container"
+    | "proxmoxKernel"
+    | "foreignKernel"
+    | null;
   matchedAt: string | null;
   matchError: string | null;
 }

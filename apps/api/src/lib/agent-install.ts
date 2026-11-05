@@ -73,6 +73,29 @@ CPUQuota=20%
 WantedBy=multi-user.target
 `;
 
+/**
+ * The unit's settings that need namespaces or seccomp from the container manager. In a container (an unprivileged Proxmox VE
+ * container without "nesting", for example) systemd may be unable to set them up and the service would fail to start with
+ * 226/NAMESPACE; the script tries them with a short transient service first and stops with a clear message. The unit is never
+ * weakened to fit.
+ */
+export const SANDBOX_CHECK = [
+  "NoNewPrivileges=yes",
+  "ProtectSystem=strict",
+  "ProtectHome=yes",
+  "PrivateTmp=yes",
+  "PrivateDevices=yes",
+  "ProtectKernelTunables=yes",
+  "ProtectKernelModules=yes",
+  "ProtectKernelLogs=yes",
+  "ProtectControlGroups=yes",
+  "ProtectClock=yes",
+  "ProtectHostname=yes",
+  "RestrictNamespaces=yes",
+  "MemoryDenyWriteExecute=yes",
+  "SystemCallFilter=@system-service",
+] as const;
+
 const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 
 /**
@@ -94,7 +117,23 @@ SHA256_arm64=${shellQuote(sums.arm64 ?? "")}
 
 fail() { echo "garnetops-agent: $*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || fail "run this as root"
-command -v systemctl >/dev/null 2>&1 || fail "systemd is needed"
+if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
+  fail "systemd is needed and this system does not run it (Alpine Linux, for example, uses OpenRC). Use a Debian or Ubuntu container or VM, or the container agent where Docker runs."
+fi
+
+# In a container (e.g. Proxmox VE), check first that systemd can set up the agent's sandbox.
+CONTAINER=""
+if command -v systemd-detect-virt >/dev/null 2>&1; then
+  CONTAINER=$(systemd-detect-virt --container 2>/dev/null || true)
+elif [ -r /run/systemd/container ]; then
+  CONTAINER=$(head -c 40 /run/systemd/container)
+fi
+[ "$CONTAINER" = none ] && CONTAINER=""
+if [ -n "$CONTAINER" ]; then
+  # shellcheck disable=SC2086
+  systemd-run --wait --quiet --collect ${SANDBOX_CHECK.map((p) => `-p ${p}`).join(" ")} /bin/true >/dev/null 2>&1 ||
+    fail "this is a container ($CONTAINER) in which systemd cannot set up the agent's sandbox (private /tmp and devices, read-only system), so the service would not start. In Proxmox VE, enable Options > Features > Nesting for this container and restart it, or install the agent in a VM. The agent does not run without its sandbox."
+fi
 [ -n "\${GARNETOPS_ENROLMENT_CODE:-}" ] || fail "set GARNETOPS_ENROLMENT_CODE to the code from Add agent"
 case "$GARNETOPS_ENROLMENT_CODE" in goe_*) ;; *) fail "that is not an enrolment code" ;; esac
 

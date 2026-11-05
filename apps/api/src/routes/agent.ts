@@ -189,8 +189,9 @@ export const agentRoutes = new Hono<AgentEnv>()
     const org = host.organizationId;
     const used = new Set(input.containers.map((x) => x.imageId));
     const images = input.images.filter((i) => used.has(i.id));
-    // The running kernel as the distribution's package; a new kernel (an update and a reboot) is matched again.
-    const kernel = input.kernel ? kernelPackage(input.kernel) : null;
+    // The running kernel as the distribution's package; a new kernel (an update and a reboot) is matched again. A container's
+    // kernel belongs to the machine it runs on and is never matched as this host's.
+    const kernel = input.kernel ? kernelPackage({ ...input.kernel, container: input.insideContainer }) : null;
     const kernelPurl = kernel?.ok ? kernel.purl : null;
     const kernelChanged = kernelPurl !== (host.kernelPackage?.purl ?? null);
     const need = await db.transaction(async (tx) => {
@@ -226,6 +227,21 @@ export const agentRoutes = new Hono<AgentEnv>()
         .where(eq(schema.agentHost.id, host.id));
       if (input.kernel && kernelChanged) {
         await tx.delete(schema.hostKernelFinding).where(eq(schema.hostKernelFinding.hostId, host.id));
+        // No kernel to match any more (e.g. the host turned out to be a container): no later match closes its early warnings.
+        if (!kernelPurl) {
+          const r = schema.runtimeEarlyWarning;
+          await tx
+            .update(r)
+            .set({ state: "cleared", closedAt: now })
+            .where(
+              and(
+                eq(r.organizationId, org),
+                eq(r.kind, "kernel"),
+                eq(r.subjectId, host.id),
+                eq(r.state, "open"),
+              ),
+            );
+        }
       }
       for (const image of images) {
         const values = {

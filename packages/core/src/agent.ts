@@ -210,6 +210,21 @@ export const inventorySchema = z.object({
     .nullish(),
   /** How the agent runs (0.0.13): "container" (Compose) or "systemd" (no Docker, ADR 0037). */
   runtime: z.enum(["container", "systemd"]).optional(),
+  /**
+   * The container technology the host itself runs in, e.g. "lxc" for a Proxmox VE container (systemd agent, from
+   * `/run/systemd/container` and similar signs); absent on a VM or bare metal and from older agents. Its kernel is not its own.
+   */
+  insideContainer: z
+    .string()
+    .max(200)
+    .nullish()
+    .transform((v) => {
+      const name = (v ?? "")
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]/g, "")
+        .slice(0, 40);
+      return name || null;
+    }),
   /** SHA-256 (hex) over the sorted package URLs of the host itself (systemd agent); the answer says whether to send them. */
   hostPackagesDigest: z
     .string()
@@ -421,12 +436,27 @@ export interface HostKernelInput {
   osName?: string | null;
   osVersion?: string | null;
   architecture?: string | null;
+  /** The container technology the host runs in (`insideContainer` of the inventory); its kernel then belongs to another machine. */
+  container?: string | null;
 }
 
 /** The running kernel as the distribution's package, as grype matches packages; or why it cannot be named. */
 export type KernelPackage =
   | { ok: true; purl: string; name: string; version: string; type: "deb" | "rpm" | "apk"; distro: string }
-  | { ok: false; reason: "unknownDistribution" | "unknownVersion" | "unsupportedDistribution" };
+  | { ok: false; reason: KernelProblem };
+
+/**
+ * Why a kernel is not checked. `container`: the host is a container, the kernel belongs to the machine it runs on. `proxmoxKernel`: a
+ * Proxmox VE kernel, for which the vulnerability database has no data. `foreignKernel`: the kernel does not come from the reported
+ * distribution's packages (a custom kernel, or another vendor's), so naming it as that distribution's package would be a guess.
+ */
+export type KernelProblem =
+  | "unknownDistribution"
+  | "unknownVersion"
+  | "unsupportedDistribution"
+  | "container"
+  | "proxmoxKernel"
+  | "foreignKernel";
 
 /** Distributions by the start of Docker's `OperatingSystem`, with their grype distribution name and package type. */
 const DISTRIBUTIONS: { prefix: RegExp; id: string; type: "deb" | "rpm" | "apk"; versionParts: number }[] = [
@@ -442,6 +472,21 @@ const DISTRIBUTIONS: { prefix: RegExp; id: string; type: "deb" | "rpm" | "apk"; 
   { prefix: /^(suse linux enterprise|opensuse)/i, id: "sles", type: "rpm", versionParts: 2 },
 ];
 
+/** The flavours of Debian's kernel packages: the end of `uname -r`, e.g. "6.1.0-26-amd64" or "6.1.0-26-cloud-amd64". */
+const DEBIAN_FLAVOUR =
+  /-(?:(?:cloud|rt)-)?(?:amd64|arm64|i386|686|686-pae|armmp|armmp-lpae|rpi|marvell|powerpc64le|ppc64el|s390x|riscv64|loong64|mips64r2el|mips32r2el|octeon|loongson-3|4kc-malta|5kc-malta)$/;
+/** Alpine's kernel packages (linux-lts, linux-virt, ...) by the flavour at the end of `uname -r`. */
+const ALPINE_FLAVOURS = new Set(["lts", "virt", "rpi", "rpi2", "rpi4", "edge", "stable"]);
+/** The release tag an RPM distribution's own kernel carries in `uname -r`. */
+const RPM_DIST_TAG: Record<string, RegExp> = {
+  rhel: /\.el\d+/,
+  almalinux: /\.el\d+/,
+  rocky: /\.el\d+/,
+  ol: /\.el\d+/,
+  centos: /\.el\d+/,
+  amazonlinux: /\.amzn\d+/,
+};
+
 /** Ubuntu's own kernel per release; a newer one on the same release comes from a hardware enablement ("hwe") package. */
 const UBUNTU_GA_KERNEL: Record<string, string> = { "20.04": "5.4", "22.04": "5.15", "24.04": "6.8" };
 
@@ -449,16 +494,20 @@ const UBUNTU_GA_KERNEL: Record<string, string> = { "20.04": "5.4", "22.04": "5.1
  * Names the running kernel as the distribution's package, so the vulnerability database can match it like any other package: the
  * version comes from what the kernel says about itself (`uname -r`, `/proc/version`, Ubuntu's `/proc/version_signature`), the
  * distribution from Docker's description of the host. Where the package cannot be named with certainty it says so instead of
- * guessing (SUSE's release suffix, a missing Ubuntu signature).
+ * guessing (SUSE's release suffix, a missing Ubuntu signature). A kernel is only ever named as a package of the distribution it
+ * belongs to: a container's kernel (it is the host's), a Proxmox VE kernel and a kernel whose flavour or release tag is not the
+ * reported distribution's are never matched, so the page never says "no known vulnerability" about a kernel it could not check.
  */
 export function kernelPackage(k: HostKernelInput): KernelPackage {
+  if (k.container) return { ok: false, reason: "container" };
+  const release = k.release.trim();
+  if (/-pve$/.test(release)) return { ok: false, reason: "proxmoxKernel" };
   const dist = DISTRIBUTIONS.find((d) => d.prefix.test(k.osName ?? ""));
   if (!dist) return { ok: false, reason: "unknownDistribution" };
   const versionText = (k.osVersion ?? /(\d+(?:\.\d+)*)/.exec(k.osName ?? "")?.[1] ?? "").trim();
   const osVersion = /^\d+(?:\.\d+)*/.exec(versionText)?.[0]?.split(".").slice(0, dist.versionParts).join(".");
   if (!osVersion) return { ok: false, reason: "unknownVersion" };
   const distro = `${dist.id}-${osVersion}`;
-  const release = k.release.trim();
   const enc = encodeURIComponent;
 
   if (dist.id === "ubuntu") {
@@ -468,6 +517,9 @@ export function kernelPackage(k: HostKernelInput): KernelPackage {
     if (!m) return { ok: false, reason: "unknownVersion" };
     const version = m[1] as string;
     const flavour = m[2] as string;
+    // The release must be the signature's own kernel: "6.8.0-45-generic" for "6.8.0-45.45-generic".
+    const abi = version.replace(/\.\d+(?:~[0-9.]+)?$/, "");
+    if (!release.startsWith(`${abi}-${flavour}`)) return { ok: false, reason: "foreignKernel" };
     const series = version.split(".").slice(0, 2).join(".");
     const ga = UBUNTU_GA_KERNEL[osVersion];
     const base = flavour === "generic" || flavour === "lowlatency" ? "linux" : `linux-${flavour}`;
@@ -483,10 +535,16 @@ export function kernelPackage(k: HostKernelInput): KernelPackage {
     };
   }
   if (dist.id === "debian") {
-    // "... #1 SMP PREEMPT_DYNAMIC Debian 6.1.112-1 (2024-09-30)": the package version is 6.1.112-1.
-    const m = /Debian (\d+\.\d+(?:\.\d+)?-\d+(?:[+~.][A-Za-z0-9.+~]+)?)/.exec(k.procVersion ?? "");
-    if (!m) return { ok: false, reason: "unknownVersion" };
-    const version = m[1] as string;
+    // "... #1 SMP PREEMPT_DYNAMIC Debian 6.1.112-1 (2024-09-30)": the package version is 6.1.112-1. The same text names the
+    // compiler ("gcc-12 (Debian 12.2.0-14)"), so only a version of the running kernel's own series counts.
+    if (!DEBIAN_FLAVOUR.test(release)) return { ok: false, reason: "foreignKernel" };
+    const series = /^(\d+\.\d+)[.+-]/.exec(release)?.[1];
+    const version = [
+      ...(k.procVersion ?? "").matchAll(/Debian (\d+\.\d+(?:\.\d+)?-\d+(?:[+~.][A-Za-z0-9.+~]+)?)/g),
+    ]
+      .map((m) => m[1] as string)
+      .find((v) => series !== undefined && v.startsWith(`${series}.`));
+    if (!version) return { ok: false, reason: "unknownVersion" };
     const name = `linux-image-${release}`;
     return {
       ok: true,
@@ -499,8 +557,9 @@ export function kernelPackage(k: HostKernelInput): KernelPackage {
   }
   if (dist.id === "alpine") {
     // "6.6.58-0-lts": package linux-lts, version 6.6.58-r0.
-    const m = /^(\d+\.\d+\.\d+)-(\d+)-([a-z]+)$/.exec(release);
+    const m = /^(\d+\.\d+\.\d+)-(\d+)-([a-z0-9]+)$/.exec(release);
     if (!m) return { ok: false, reason: "unknownVersion" };
+    if (!ALPINE_FLAVOURS.has(m[3] as string)) return { ok: false, reason: "foreignKernel" };
     const name = `linux-${m[3]}`;
     const version = `${m[1]}-r${m[2]}`;
     return {
@@ -517,6 +576,7 @@ export function kernelPackage(k: HostKernelInput): KernelPackage {
   const m = /^(\d+\.\d+\.\d+-[0-9][A-Za-z0-9._]*?)(?:\.(x86_64|aarch64|ppc64le|s390x))?$/.exec(release);
   if (!m) return { ok: false, reason: "unknownVersion" };
   const version = m[1] as string;
+  if (!RPM_DIST_TAG[dist.id]?.test(version)) return { ok: false, reason: "foreignKernel" };
   const arch = m[2] ?? k.architecture ?? null;
   const name = /uek/.test(version) ? "kernel-uek" : "kernel";
   const namespace = dist.id === "rhel" ? "redhat" : dist.id;

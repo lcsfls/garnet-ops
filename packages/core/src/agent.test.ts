@@ -105,6 +105,17 @@ describe("what an agent reports", () => {
     expect(JSON.stringify(parsed)).not.toContain("hunter2");
   });
 
+  it("takes the container a host runs in as a cleaned name, and works without it and with fields it does not know", () => {
+    const base = { hostname: "ct-101.example.lan", agentVersion: "0.1.0", containers: [], images: [] };
+    expect(inventorySchema.parse({ ...base, insideContainer: "LXC\u001b[31m<b>" }).insideContainer).toBe(
+      "lxc31mb",
+    );
+    expect(inventorySchema.parse(base).insideContainer).toBeNull();
+    expect(inventorySchema.parse({ ...base, insideContainer: "" }).insideContainer).toBeNull();
+    // A newer agent's additions are dropped, never refused: old servers keep working with new agents.
+    expect(inventorySchema.parse({ ...base, somethingNew: { a: 1 } })).not.toHaveProperty("somethingNew");
+  });
+
   it("refuses ids that are not Docker ids and package URLs that are not package URLs", () => {
     expect(() =>
       inventorySchema.parse({
@@ -325,6 +336,86 @@ describe("the host's kernel as a distribution package", () => {
     ).toMatchObject({
       purl: "pkg:apk/alpine/linux-lts@6.6.58-r0?distro=alpine-3.20",
     });
+  });
+
+  it("reads Debian's package version, not the compiler's, from a full /proc/version", () => {
+    expect(
+      kernelPackage({
+        release: "6.1.0-26-amd64",
+        procVersion:
+          "Linux version 6.1.0-26-amd64 (debian-kernel@lists.debian.org) (gcc-12 (Debian 12.2.0-14) 12.2.0, GNU ld (GNU Binutils for Debian) 2.40) #1 SMP PREEMPT_DYNAMIC Debian 6.1.112-1 (2024-09-30)",
+        osName: "Debian GNU/Linux 12 (bookworm)",
+        osVersion: "12",
+      }),
+    ).toMatchObject({ ok: true, version: "6.1.112-1" });
+    expect(
+      kernelPackage({
+        release: "6.1.0-26-cloud-amd64",
+        procVersion: "Linux version 6.1.0-26-cloud-amd64 (gcc-12 (Debian 12.2.0-14) 12.2.0) #1 SMP",
+        osName: "Debian GNU/Linux 12 (bookworm)",
+        osVersion: "12",
+      }),
+    ).toEqual({ ok: false, reason: "unknownVersion" });
+  });
+
+  it("never checks the kernel of a container: it belongs to the machine the container runs on", () => {
+    expect(
+      kernelPackage({
+        release: "6.8.0-45-generic",
+        versionSignature: "Ubuntu 6.8.0-45.45-generic 6.8.12",
+        osName: "Ubuntu 24.04.1 LTS",
+        osVersion: "24.04",
+        container: "lxc",
+      }),
+    ).toEqual({ ok: false, reason: "container" });
+  });
+
+  it("never names a Proxmox VE kernel or another distribution's kernel as a package of the reported distribution", () => {
+    const pveVersion =
+      "Linux version 6.8.12-4-pve (build@proxmox) (gcc (Debian 12.2.0-14) 12.2.0, GNU ld (GNU Binutils for Debian) 2.40) #1 SMP PREEMPT_DYNAMIC PMX 6.8.12-4 (2024-11-06T15:04Z)";
+    for (const host of [
+      { osName: "Debian GNU/Linux 12 (bookworm)", osVersion: "12", procVersion: pveVersion },
+      {
+        osName: "Ubuntu 24.04.1 LTS",
+        osVersion: "24.04",
+        versionSignature: "Ubuntu 6.8.0-45.45-generic 6.8.12",
+      },
+      { osName: "Alpine Linux v3.20", osVersion: "3.20.3" },
+      { osName: "Rocky Linux 9.4 (Blue Onyx)", osVersion: "9.4" },
+      { osName: "Gentoo Linux", osVersion: "2.15" },
+    ]) {
+      expect(kernelPackage({ release: "6.8.12-4-pve", ...host })).toEqual({
+        ok: false,
+        reason: "proxmoxKernel",
+      });
+    }
+    // The flavour or release tag of the running kernel must be the distribution's own.
+    expect(
+      kernelPackage({ release: "6.6.58-0-custom", osName: "Alpine Linux v3.20", osVersion: "3.20.3" }),
+    ).toEqual({ ok: false, reason: "foreignKernel" });
+    expect(
+      kernelPackage({
+        release: "6.8.0-45-generic",
+        procVersion: "Linux version 6.8.0-45-generic #45-Ubuntu SMP Debian 6.8.12-1",
+        osName: "Debian GNU/Linux 12 (bookworm)",
+        osVersion: "12",
+      }),
+    ).toEqual({ ok: false, reason: "foreignKernel" });
+    expect(
+      kernelPackage({
+        release: "6.8.0-45-generic",
+        versionSignature: "Ubuntu 6.5.0-41.41-generic 6.5.13",
+        osName: "Ubuntu 24.04.1 LTS",
+        osVersion: "24.04",
+      }),
+    ).toEqual({ ok: false, reason: "foreignKernel" });
+    expect(
+      kernelPackage({
+        release: "6.1.112-1.fc40.x86_64",
+        osName: "Rocky Linux 9.4 (Blue Onyx)",
+        osVersion: "9.4",
+      }),
+    ).toEqual({ ok: false, reason: "foreignKernel" });
   });
 
   it("says when it cannot name the package", () => {

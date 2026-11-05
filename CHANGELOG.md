@@ -21,12 +21,26 @@ Security-relevant changes are listed under **Security** in every release.
   subdomains behind a wildcard certificate that Certificate Transparency cannot show. Every line is checked first and refused
   lines are listed with the reason; the rest are added in one go, each audited and looked at like a single add. API:
   `POST /api/v1/exposure/list`, `GET /api/v1/exposure/certificates`, and `sharedCertificates` in a website's detail.
+- **Proxmox VE and LXC containers** (`docs/hosts.md`): the systemd agent tells GarnetOps when the host is itself a container
+  (for example an LXC container on Proxmox VE). Its kernel belongs to the machine it runs on, so the host page says so instead of
+  checking it. Older agents keep working unchanged.
+- The install script checks, in a container, that systemd can set up the agent's sandbox before it installs anything, and if not
+  says what to do (in Proxmox VE: enable **Nesting** for the container, or use a VM). Without systemd (Alpine with OpenRC) it names
+  the alternatives.
 
 ### Changed
 
 - **Certificate expiry notifications go out once per certificate**: when several websites serve the same certificate, one
   message names the first of them and their number, with a link to the certificate, instead of one message per name. A
   certificate on a single name is told as before. The findings stay per website, so reports and gates do not change.
+
+### Fixed
+
+- A Proxmox VE kernel (`-pve`), or any kernel that does not belong to the reported distribution, is no longer named as that
+  distribution's package; the host page could show "no known vulnerability" for a kernel that was never really checked. Kernel
+  findings and early warnings that such a report produced are cleared with the next report.
+- Debian kernels: the package version is read from the kernel's own version, no longer from the compiler version that
+  `/proc/version` also names.
 
 ### Security
 

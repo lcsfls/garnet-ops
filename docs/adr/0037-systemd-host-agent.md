@@ -59,3 +59,16 @@ without installing Docker or a language runtime.
 - One additive migration (columns on `agent_host`, table `host_package_finding`).
 - Not in this version: Docker containers seen by the systemd agent (use the container agent for that), packages outside the distribution's
   package manager (language packages, binaries in `/opt`), automatic updates of the agent (run the install script again).
+
+## Addendum (2026-11): containers and Proxmox VE
+
+- The agent reports, as the additive optional inventory field `insideContainer`, whether the host is itself a container (from
+  `/run/systemd/container`, the Podman and Docker marker files, or LXCFS mounts in its own mount table; all readable unprivileged).
+  Older agents do not send it and older servers ignore it. For such a host the kernel is not matched (`kernelProblem` `container`):
+  it belongs to the machine the container runs on. Earlier kernel findings and open kernel early warnings of the host are removed.
+- `kernelPackage` names a kernel only as a package of the reported distribution when its flavour or release tag belongs to that
+  distribution; a Proxmox VE kernel (`-pve`) is `proxmoxKernel`, any other mismatch `foreignKernel`. A Debian `/proc/version` names
+  the compiler's version too; only a version of the running kernel's own series is taken.
+- In a container the install script first runs a transient service with the unit's namespace and seccomp settings
+  (`systemd-run --wait`) and stops with a next step (Proxmox VE: enable nesting, or use a VM) if systemd cannot set them up. The
+  unit's hardening is not weakened. Without a running systemd (Alpine with OpenRC) the script names the alternatives.

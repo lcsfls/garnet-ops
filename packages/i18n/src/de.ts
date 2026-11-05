@@ -1203,6 +1203,12 @@ export const de: Messages = {
       unknownVersion:
         "Die Paketversion des Kernels war nicht lesbar, deshalb wurde der Kernel nicht geprüft.",
       unsupportedDistribution: "Kernel dieser Distribution werden noch nicht geprüft.",
+      container:
+        "Dieser Host ist ein Container. Sein Kernel gehört der Maschine, auf der der Container läuft, zum Beispiel einem Proxmox-VE-Host, deshalb wird er hier nicht geprüft. Damit ein Kernel geprüft wird, installieren Sie den Agent auf dieser Maschine oder nutzen Sie eine VM.",
+      proxmoxKernel:
+        "Dies ist ein Proxmox-VE-Kernel. Die Schwachstellendatenbank hat keine Daten zu Proxmox' eigenen Kerneln, deshalb wurde er nicht geprüft. Ist dieser Host ein Container, gehört der Kernel dem Proxmox-VE-Host.",
+      foreignKernel:
+        "Der laufende Kernel stammt nicht aus den Paketen dieser Distribution (zum Beispiel ein selbst gebauter Kernel oder einer eines anderen Anbieters), deshalb wurde er nicht geprüft.",
     },
     kernelFixNone: "Noch kein Fix",
     kernelFixWontFix: "Wird nicht behoben",

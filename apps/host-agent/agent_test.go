@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -142,4 +143,48 @@ func statMode(path string) (uint32, error) {
 		return 0, err
 	}
 	return uint32(info.Mode().Perm()), nil
+}
+
+func TestDetectContainer(t *testing.T) {
+	write := func(root, path, text string) {
+		full := hostPath(root, path)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	vm := t.TempDir()
+	write(vm, "/proc/self/mountinfo", "22 1 8:1 / / rw,relatime shared:1 - ext4 /dev/sda1 rw\n")
+	if got := DetectContainer(vm); got != "" {
+		t.Errorf("a VM is no container, got %q", got)
+	}
+
+	lxc := t.TempDir()
+	write(lxc, "/run/systemd/container", "lxc\n")
+	if got := DetectContainer(lxc); got != "lxc" {
+		t.Errorf("got %q", got)
+	}
+
+	// What the file says is cleaned and cut, never sent as it is.
+	odd := t.TempDir()
+	write(odd, "/run/systemd/container", "LXC <script>"+strings.Repeat("x", 80))
+	if got := DetectContainer(odd); got != "lxcscript"+strings.Repeat("x", 31) {
+		t.Errorf("got %q", got)
+	}
+
+	// Without systemd's file (an older container manager), the LXCFS mounts over /proc show an LXC container.
+	lxcfs := t.TempDir()
+	write(lxcfs, "/proc/self/mountinfo", "22 1 0:50 / / rw - zfs rpool/data/subvol-101-disk-0 rw\n"+
+		"40 22 0:52 /proc/cpuinfo /proc/cpuinfo rw,nosuid - fuse.lxcfs lxcfs rw,user_id=0\n")
+	if got := DetectContainer(lxcfs); got != "lxc" {
+		t.Errorf("got %q", got)
+	}
+
+	podman := t.TempDir()
+	write(podman, "/run/.containerenv", "")
+	if got := DetectContainer(podman); got != "podman" {
+		t.Errorf("got %q", got)
+	}
 }

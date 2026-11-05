@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -119,6 +120,66 @@ func readKernel(root string, osr OSRelease) *Kernel {
 		OSVersion:        optional(osr.VersionID),
 		Architecture:     &arch,
 	}
+}
+
+// readLimited reads at most limit bytes of a file; files under /proc may need more than one read.
+func readLimited(path string, limit int64) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, limit))
+	return string(data), err
+}
+
+// cleanContainerName keeps what a container name can be ("lxc", "systemd-nspawn"): lower-case letters, digits, '.', '_' and '-'.
+func cleanContainerName(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(s)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
+			b.WriteRune(r)
+		}
+		if b.Len() == 40 {
+			break
+		}
+	}
+	return b.String()
+}
+
+// DetectContainer says which container technology the host itself runs in ("lxc", "docker", ...), or "" on a VM or bare metal.
+// Inside a container the running kernel belongs to the machine the container runs on (e.g. a Proxmox VE host), so GarnetOps does
+// not check it as this host's kernel. Only signs an unprivileged user can read are used: the file systemd writes at boot
+// (/run/systemd/container, from the container manager), the marker files of Podman and Docker, and the LXCFS mounts that LXC and
+// Proxmox VE place over /proc (seen in this process's own mount table). /proc/1/environ, where the manager says it too, is
+// readable only by root.
+func DetectContainer(root string) string {
+	if text, err := readSmall(hostPath(root, "/run/systemd/container"), 64); err == nil {
+		if name := cleanContainerName(text); name != "" {
+			return name
+		}
+	}
+	if _, err := os.Stat(hostPath(root, "/run/.containerenv")); err == nil {
+		return "podman"
+	}
+	if _, err := os.Stat(hostPath(root, "/.dockerenv")); err == nil {
+		return "docker"
+	}
+	if text, err := readLimited(hostPath(root, "/proc/self/mountinfo"), 1<<20); err == nil && MountsShowLXCFS(text) {
+		return "lxc"
+	}
+	return ""
+}
+
+// MountsShowLXCFS says whether a mount table (/proc/self/mountinfo) has an LXCFS mount, which LXC containers carry over /proc.
+func MountsShowLXCFS(mountinfo string) bool {
+	for _, line := range strings.Split(mountinfo, "\n") {
+		// "... - fuse.lxcfs lxcfs rw,...": the file system type follows the separator.
+		if _, after, ok := strings.Cut(line, " - "); ok && strings.HasPrefix(after, "fuse.lxcfs ") {
+			return true
+		}
+	}
+	return false
 }
 
 func distroQualifier(osr OSRelease) string {

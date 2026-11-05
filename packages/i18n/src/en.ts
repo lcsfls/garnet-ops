@@ -1162,6 +1162,12 @@ export const en = {
       unknownDistribution: "GarnetOps does not know this distribution, so the kernel was not checked.",
       unknownVersion: "The kernel's package version could not be read, so the kernel was not checked.",
       unsupportedDistribution: "Kernels of this distribution are not checked yet.",
+      container:
+        "This host is a container. Its kernel belongs to the machine the container runs on, for example a Proxmox VE host, so it is not checked here. To have a kernel checked, install the agent on that machine or use a VM.",
+      proxmoxKernel:
+        "This is a Proxmox VE kernel. The vulnerability database has no data for Proxmox's own kernels, so it was not checked. If this host is a container, the kernel belongs to the Proxmox VE host.",
+      foreignKernel:
+        "The running kernel does not come from this distribution's packages (for example a self-built kernel or one from another vendor), so it was not checked.",
     },
     kernelFixNone: "No fix yet",
     kernelFixWontFix: "Will not be fixed",
