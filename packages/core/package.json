@@ -47,7 +47,9 @@
     "./pdf": "./src/pdf.ts",
     "./severity-colours": "./src/severity-colours.ts",
     "./reports": "./src/reports.ts",
-    "./report-documents": "./src/report-documents.ts"
+    "./report-documents": "./src/report-documents.ts",
+    "./secrets": "./src/secrets.ts",
+    "./secret-fingerprint": "./src/secret-fingerprint.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
