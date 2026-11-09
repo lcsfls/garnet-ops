@@ -11,6 +11,7 @@ import {
   requestMatch,
   requestMatchPurls,
   requestSbom,
+  requestSecrets,
   ScannerRequestError,
   ScannerUnavailableError,
   scannerHealth,
@@ -35,6 +36,13 @@ sbom="\${1#*:}"
 { printf '{"matches":[],"sbom":'; cat "$sbom"; printf '}'; } > "$5"
 `;
 
+// gitleaks: `dir|git <dir> ... --report-path <file> ...`; reports one secret with everything gitleaks would print about it.
+const fakeGitleaks = `#!/bin/sh
+mode="$1"; dir="$2"; shift 2
+while [ $# -gt 0 ]; do [ "$1" = "--report-path" ] && report="$2"; shift; done
+printf '[{"RuleID":"github-pat","File":"%s/app.js","StartLine":3,"Secret":"VALUE-%s","Match":"token = VALUE","Author":"Someone","Email":"someone@example.com","Message":"add key","Commit":"","Date":""}]' "$dir" "$mode" > "$report"
+`;
+
 function clone(name: string): string {
   const dir = join(work, name, "src");
   mkdirSync(dir, { recursive: true });
@@ -46,6 +54,7 @@ const server = createScannerService({
   workDir: work,
   grypeBin: join(bin, "grype"),
   syftBin: join(bin, "syft"),
+  gitleaksBin: join(bin, "gitleaks"),
   grypeDbDir: join(root, "db"),
   concurrency: 1,
   version: "0.0.9",
@@ -56,6 +65,7 @@ describe.skipIf(process.platform === "win32")("scanner service", () => {
     for (const dir of [work, out, bin]) mkdirSync(dir, { recursive: true });
     writeFileSync(join(bin, "syft"), fakeSyft, { mode: 0o755 });
     writeFileSync(join(bin, "grype"), fakeGrype, { mode: 0o755 });
+    writeFileSync(join(bin, "gitleaks"), fakeGitleaks, { mode: 0o755 });
     await new Promise<void>((resolve) => server.listen(socket, resolve));
   });
   afterAll(async () => {
@@ -130,6 +140,47 @@ describe.skipIf(process.platform === "win32")("scanner service", () => {
       expect((error as ScannerRequestError).code).toBe("bad_request");
     }
     expect(purlList(" pkg:npm/x@1 \n\n pkg:pypi/y@2 ")).toBe("pkg:npm/x@1\npkg:pypi/y@2\n");
+  });
+
+  it("hands over secrets as digests only, with the history on request (ADR 0049)", async () => {
+    const dir = clone("scan-Se3Cr7");
+    const file = join(out, "secrets.json");
+    await requestSecrets(socket, dir, true, file);
+    const text = readFileSync(file, "utf8");
+    expect(text).not.toMatch(/VALUE|Someone|someone@|add key|Match|Author/);
+    const reports = JSON.parse(text) as {
+      tree: { RuleID: string; File: string; Secret: string }[];
+      history: unknown[];
+    };
+    expect(reports.tree).toEqual([
+      expect.objectContaining({ RuleID: "github-pat", File: join(work, dir, "app.js"), StartLine: 3 }),
+    ]);
+    expect(reports.tree[0]?.Secret).toMatch(/^[0-9a-f]{64}$/);
+    expect(reports.history).toHaveLength(1);
+    await requestSecrets(socket, dir, false, file);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ history: null });
+  });
+
+  it("answers not_found for secrets when it has no gitleaks", async () => {
+    const plainSocket = join(root, "plain.sock");
+    const plain = createScannerService({
+      workDir: work,
+      grypeBin: join(bin, "grype"),
+      syftBin: join(bin, "syft"),
+      grypeDbDir: join(root, "db"),
+      concurrency: 1,
+      version: "0.1.2",
+    });
+    await new Promise<void>((resolve) => plain.listen(plainSocket, resolve));
+    try {
+      const error = await requestSecrets(plainSocket, clone("scan-No5ecr"), false, join(out, "x.json")).catch(
+        (e: unknown) => e,
+      );
+      expect(error).toBeInstanceOf(ScannerRequestError);
+      expect((error as ScannerRequestError).code).toBe("not_found");
+    } finally {
+      await new Promise((resolve) => plain.close(resolve));
+    }
   });
 
   it("is unavailable, not failed, when nothing listens", async () => {

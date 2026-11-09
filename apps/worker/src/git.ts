@@ -31,6 +31,11 @@ export interface CloneOptions {
   ref?: string | null;
   token: string | null;
   ssh?: SshOptions | null;
+  /**
+   * Every commit of every branch instead of the one commit, for a secret scan of the history (ADR 0049). Never with `ref`:
+   * gate checks look at one commit.
+   */
+  fullHistory?: boolean;
 }
 
 /**
@@ -154,8 +159,7 @@ export function cloneCommand(options: CloneOptions): { args: string[]; env: Node
   const args = [
     ...config,
     "clone",
-    "--depth=1",
-    "--single-branch",
+    ...(options.fullHistory ? [] : ["--depth=1", "--single-branch"]),
     "--no-tags",
     "--no-recurse-submodules",
     ...(options.branch ? ["--branch", options.branch] : []),
@@ -248,7 +252,7 @@ export async function shallowClone(options: CloneOptions): Promise<{ commitSha: 
   }
   const { args, env } = cloneCommand(options);
   try {
-    await run("git", args, { env, timeoutMs: 5 * 60_000, redact });
+    await run("git", args, { env, timeoutMs: (options.fullHistory ? 15 : 5) * 60_000, redact });
   } catch (error) {
     if (error instanceof CommandError) throw new Error(cloneErrorMessage(error.stderr));
     throw error;

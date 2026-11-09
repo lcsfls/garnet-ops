@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { secretFingerprint } from "./secret-fingerprint.ts";
+import { redactGitleaksReport, secretFingerprint } from "./secret-fingerprint.ts";
 import {
   cleanSecretPath,
   gitleaksArgs,
@@ -202,5 +202,27 @@ describe("the fingerprint", () => {
     );
     expect(secretFingerprint(key, "github-pat", token, "a")).toMatch(/^[A-Za-z0-9_-]{22}$/);
     expect(() => secretFingerprint(new Uint8Array(16), "r", "s", "p")).toThrow("too short");
+  });
+});
+
+describe("the report as it leaves the scanner", () => {
+  it("holds no value, matched text, author or message: only the value's SHA-256", () => {
+    const redacted = redactGitleaksReport(
+      JSON.stringify([
+        entry(),
+        entry({ RuleID: "garnetops-env-file", File: ".env", StartLine: 0, Secret: "x" }),
+      ]),
+    );
+    expect(redacted).not.toContain(token);
+    expect(redacted).not.toContain("x7Kq");
+    expect(redacted).not.toMatch(/someone|Someone|Match|Author|Email|Message|Fingerprint/);
+    const [value, file] = JSON.parse(redacted) as { Secret: string }[];
+    expect(value?.Secret).toMatch(/^[0-9a-f]{64}$/);
+    expect(file?.Secret).toBe("");
+    // The worker reads it as before; the same value gives the same fingerprint in every file.
+    const parsed = parseGitleaksReport(redacted, { root: "/work/scan-1/src", fingerprint: fp });
+    expect(parsed.hits[0]?.fingerprint).toBe(fp("github-pat", value?.Secret ?? "", "app/config.js"));
+    expect(redactGitleaksReport("")).toBe("[]");
+    expect(() => redactGitleaksReport('{"a":1}')).toThrow("not a list");
   });
 });

@@ -75,6 +75,7 @@ if (!existsSync(envFile)) {
     `GARNETOPS_GRYPE_BIN=${join(root, ".tools", "grype", `grype${exe}`)}`,
     `GARNETOPS_GRYPE_DB_DIR=${join(root, ".tools", "grype-db")}`,
     `GARNETOPS_SYFT_BIN=${join(root, ".tools", "syft", `syft${exe}`)}`,
+    `GARNETOPS_GITLEAKS_BIN=${join(root, ".tools", "gitleaks", `gitleaks${exe}`)}`,
     `GARNETOPS_WORK_DIR=${join(data, "work")}`,
   ];
   writeFileSync(envFile, `${lines.join("\n")}\n`, { mode: 0o600 });
@@ -94,6 +95,7 @@ const env = Object.fromEntries(
 );
 // Added after the first dev.env files were written; fill in for existing ones.
 env.GARNETOPS_SYFT_BIN ??= join(root, ".tools", "syft", `syft${exe}`);
+env.GARNETOPS_GITLEAKS_BIN ??= join(root, ".tools", "gitleaks", `gitleaks${exe}`);
 const pgPassword = new URL(env.DATABASE_URL).password;
 
 const pg = new EmbeddedPostgres({

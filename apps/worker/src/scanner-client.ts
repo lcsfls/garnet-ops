@@ -101,6 +101,19 @@ export function requestMatchPurls(socket: string, purlFile: string, outFile: str
   return call(socket, "/v1/match-purls", { file: purlFile }, outFile);
 }
 
+/**
+ * Asks for the secrets in a clone (ADR 0049): gitleaks' findings with every value replaced by its SHA-256. An older service
+ * without the endpoint answers `not_found`.
+ */
+export function requestSecrets(
+  socket: string,
+  dir: string,
+  history: boolean,
+  outFile: string,
+): Promise<void> {
+  return call(socket, "/v1/secrets", { json: { dir, history } }, outFile);
+}
+
 /** The service's health answer: its release, or null when it does not answer. */
 export function scannerHealth(socket: string): Promise<{ version: string | null } | null> {
   return new Promise((resolve) => {

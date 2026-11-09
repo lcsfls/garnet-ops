@@ -8,6 +8,7 @@
  *   POST /v1/sbom   {"dir": ...}  syft's SBOM (syft-json) of a clone below the work directory
  *   POST /v1/match  <SBOM>        grype's JSON report for the SBOM in the request body
  *   POST /v1/match-purls <list>   grype's JSON report for package URLs, one per line (early warnings, ADR 0029)
+ *   POST /v1/secrets {"dir": ..., "history": bool}  gitleaks' findings in a clone, every value replaced by its SHA-256 (ADR 0049)
  *
  * Errors answer with a status and `{"error": "<code>"}`. Nothing a tool prints is returned or logged:
  * a scanned repository is hostile input, and so is everything syft and grype say about it.
@@ -19,6 +20,7 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { runGitleaks } from "./gitleaks-run.ts";
 import { runGrype } from "./grype-run.ts";
 import { buildSbom } from "./syft.ts";
 
@@ -55,6 +57,8 @@ export interface ScannerServiceConfig {
   grypeBin: string;
   syftBin: string;
   grypeDbDir: string;
+  /** gitleaks for `POST /v1/secrets` (ADR 0049); without it the endpoint answers 404 and the worker records "skipped". */
+  gitleaksBin?: string;
   /** How many syft or grype runs at once; more requests wait. */
   concurrency: number;
   /** The release of this image, told to the worker so that it can tell a mismatch. */
@@ -160,6 +164,21 @@ export function createScannerService(config: ScannerServiceConfig): Server {
           throw new RequestError(422, "sbom_failed");
         });
         await sendFile(res, sbom);
+      });
+      return;
+    }
+    if (req.method === "POST" && req.url === "/v1/secrets" && config.gitleaksBin) {
+      const gitleaks = config.gitleaksBin;
+      const body = (await readJson(req)) as { dir?: unknown; history?: unknown } | null;
+      const dir = await cloneDir(config.workDir, body?.dir);
+      const history = body?.history === true;
+      await withScratch(async (scratch) => {
+        // The values never leave this service: the report it sends holds their SHA-256 only (ADR 0049).
+        const report = await runGitleaks(gitleaks, dir, scratch, { history }).catch((error: Error) => {
+          console.error(`scanner: gitleaks: ${error.message}`);
+          throw new RequestError(422, "secrets_failed");
+        });
+        await sendFile(res, report);
       });
       return;
     }

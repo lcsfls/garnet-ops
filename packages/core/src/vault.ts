@@ -84,7 +84,9 @@ export type SecretPurpose =
    * What the worker needs for one backup (ADR 0046): the passphrase the owner chose and the API's session secret, which the
    * backup carries so a restore can re-encrypt the second factors. Sealed by the API, opened and deleted by the worker at once.
    */
-  | "backup-request";
+  | "backup-request"
+  /** The organisation's random key for fingerprints of found secrets (ADR 0049); sealed by the worker for itself. */
+  | "secret-fingerprint-key";
 
 export interface SecretBinding {
   organizationId: string;

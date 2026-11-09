@@ -351,6 +351,13 @@
       "when": 1793907534809,
       "tag": "0049_host_sshd_facts",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794260308608,
+      "tag": "0050_secret_scanning",
+      "breakpoints": true
     }
   ]
 }

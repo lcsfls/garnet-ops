@@ -18,6 +18,8 @@ const schema = z.object({
   GARNETOPS_SCANNER_WORK_DIR: z.string().min(1),
   GARNETOPS_GRYPE_BIN: z.string().min(1),
   GARNETOPS_SYFT_BIN: z.string().min(1),
+  /** Optional, so an image without gitleaks still serves SBOMs and matches (ADR 0049). */
+  GARNETOPS_GITLEAKS_BIN: z.string().min(1).optional(),
   GARNETOPS_GRYPE_DB_DIR: z.string().min(1),
   GARNETOPS_SCAN_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
 });
@@ -37,6 +39,7 @@ const server = createScannerService({
   workDir: env.GARNETOPS_SCANNER_WORK_DIR,
   grypeBin: env.GARNETOPS_GRYPE_BIN,
   syftBin: env.GARNETOPS_SYFT_BIN,
+  gitleaksBin: env.GARNETOPS_GITLEAKS_BIN,
   grypeDbDir: env.GARNETOPS_GRYPE_DB_DIR,
   concurrency: env.GARNETOPS_SCAN_CONCURRENCY,
   version: process.env.APP_VERSION ?? null,

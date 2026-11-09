@@ -23,6 +23,7 @@ describe("gate defaults", () => {
       "known-exploited": "report",
       "high-fixable": "report",
       "license-denied": "off",
+      "secret-found": "off",
     });
     const { result } = evaluateGate({
       findings: [finding({ severity: "critical", fixable: true, knownExploited: true })],
@@ -125,5 +126,31 @@ describe("isCommitSha", () => {
     expect(isCommitSha("A".repeat(64))).toBe(true);
     expect(isCommitSha("abc123")).toBe(false);
     expect(isCommitSha(`${"a".repeat(39)}g`)).toBe(false);
+  });
+});
+
+describe("the secret rule (ADR 0049)", () => {
+  test("is off by default, so results of existing gates stay as they were", () => {
+    const input = { findings: [], packages: [], secrets: [{ severity: "critical" }], deniedLicenses: [] };
+    expect(evaluateGate({ ...input, modes: {} })).toEqual({ result: "passed", matches: {} });
+  });
+
+  test("counts open critical and high secrets once switched on", () => {
+    const secrets = [
+      { severity: "critical" },
+      { severity: "high" },
+      { severity: "medium" },
+      { severity: "low" },
+    ];
+    const base = { findings: [], packages: [], secrets, deniedLicenses: [] };
+    expect(evaluateGate({ ...base, modes: { "secret-found": "report" } })).toEqual({
+      result: "notes",
+      matches: { "secret-found": { count: 2, mode: "report" } },
+    });
+    expect(evaluateGate({ ...base, modes: { "secret-found": "block" } }).result).toBe("blocked");
+    // A scan that did not check for secrets has nothing to count.
+    expect(evaluateGate({ ...base, secrets: undefined, modes: { "secret-found": "block" } }).result).toBe(
+      "passed",
+    );
   });
 });

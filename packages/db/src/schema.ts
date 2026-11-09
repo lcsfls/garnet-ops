@@ -419,6 +419,7 @@ export const secret = pgTable(
         "vulndb-nvd-api-key",
         "webhook-secret",
         "backup-request",
+        "secret-fingerprint-key",
       ],
     }).notNull(),
     /** SealedSecret JSON from @garnetops/core/vault. */
@@ -483,6 +484,14 @@ export const repository = pgTable(
     inactiveBy: text("inactive_by").references(() => user.id, { onDelete: "set null" }),
     /** A short note why, as the person wrote it (plain text). */
     inactiveReason: text("inactive_reason"),
+    /**
+     * Secret scanning of the whole Git history on every scan (ADR 0049), switched on by a person; null while off. Without it,
+     * scans check the scanned commit's files only, and the history only when someone asks once.
+     */
+    secretHistoryAt: timestamp("secret_history_at", { withTimezone: true }),
+    secretHistoryBy: text("secret_history_by").references(() => user.id, { onDelete: "set null" }),
+    /** When a scan last checked the whole history for secrets. */
+    secretHistoryCheckedAt: timestamp("secret_history_checked_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -521,6 +530,16 @@ export const scan = pgTable(
     resolvedFindings: integer("resolved_findings"),
     scannerVersions: jsonb("scanner_versions").$type<Record<string, string>>(),
     vulnDbBuiltAt: timestamp("vuln_db_built_at", { withTimezone: true }),
+    /** This scan checks the whole Git history for secrets, not only the scanned commit's files (ADR 0049). */
+    secretHistory: boolean("secret_history").notNull().default(false),
+    /**
+     * The secret check of this scan: "done", "skipped" (no gitleaks, or a scanner service without it) or "failed" (gitleaks alone
+     * failed; the dependency results stand). Null for scans before secret scanning.
+     */
+    secretScan: text("secret_scan", { enum: ["done", "skipped", "failed"] }),
+    /** Open secrets by severity seen in this scan, and how many were new. */
+    secretCounts: jsonb("secret_counts").$type<Record<string, number>>(),
+    newSecrets: integer("new_secrets"),
     /** Short, user-safe error message. Never contains secrets or raw scanner output. */
     error: text("error"),
     startedAt: timestamp("started_at", { withTimezone: true }),
@@ -665,6 +684,60 @@ export const finding = pgTable(
     index("finding_list_idx").on(t.organizationId, t.state, t.severityRank, t.lastSeenAt, t.id),
     index("finding_repo_idx").on(t.repositoryId, t.state),
     index("finding_vuln_idx").on(t.vulnerabilityId),
+  ],
+);
+
+/** Where a secret was found: the current files (no commit) or a commit of the history. Never the value or the author. */
+export interface SecretLocation {
+  path: string;
+  line: number | null;
+  commit?: string;
+  committedAt?: string | null;
+}
+
+/**
+ * A secret or a sensitive file in a repository (ADR 0049). One row per secret per repository: the same value in three files is one
+ * row with three places. The value itself is never stored, only a keyed fingerprint (HMAC with the organisation's own key).
+ * A scan never closes a row: only a person does, as revoked (rotated) or dismissed (not a secret).
+ */
+export const secretFinding = pgTable(
+  "secret_finding",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    repositoryId: text("repository_id")
+      .notNull()
+      .references(() => repository.id, { onDelete: "cascade" }),
+    /** gitleaks rule id, or one of GarnetOps' own file rules (garnetops-…). */
+    ruleId: text("rule_id").notNull(),
+    severity: text("severity", { enum: ["critical", "high", "medium", "low"] }).notNull(),
+    severityRank: integer("severity_rank").notNull(),
+    /** HMAC-SHA-256 of the value's SHA-256 (or of rule and path for file rules) with the organisation's key, 128 bits. */
+    fingerprint: text("fingerprint").notNull(),
+    state: text("state", { enum: ["open", "revoked", "dismissed"] }).notNull(),
+    stateReason: text("state_reason"),
+    stateBy: text("state_by").references(() => user.id, { onDelete: "set null" }),
+    stateAt: timestamp("state_at", { withTimezone: true }),
+    /** Still in the files of the last scanned commit; false once only the history has it. */
+    inTree: boolean("in_tree").notNull(),
+    /** Places in the current files, at most 50; and how many there were. */
+    treeLocations: jsonb("tree_locations").$type<SecretLocation[]>().notNull(),
+    treeLocationCount: integer("tree_location_count").notNull(),
+    /** Places in the history from the last history check, at most 50; and how many there were. */
+    historyLocations: jsonb("history_locations").$type<SecretLocation[]>().notNull(),
+    historyLocationCount: integer("history_location_count").notNull(),
+    firstSeenScanId: text("first_seen_scan_id").notNull(),
+    lastSeenScanId: text("last_seen_scan_id").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("secret_finding_uq").on(t.repositoryId, t.fingerprint),
+    index("secret_finding_list_idx").on(t.organizationId, t.state, t.severityRank, t.lastSeenAt, t.id),
+    index("secret_finding_repo_idx").on(t.repositoryId, t.state),
   ],
 );
 

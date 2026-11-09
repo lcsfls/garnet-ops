@@ -41,6 +41,21 @@ const TOOLS = [
       "win32-x64": "ada4c9b93af575f479ce80fce6629897272a2d41f300a14bc49bace020767ca2",
     },
   },
+  {
+    // Finds secrets and files that do not belong in a repository (ADR 0049), always with GarnetOps' own configuration.
+    // gitleaks names its builds x64 instead of amd64; the hashes come from the release's checksums file.
+    name: "gitleaks",
+    version: "8.30.1",
+    asset: (version, os, cpu) =>
+      `https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_${os}_${cpu === "amd64" ? "x64" : cpu}.${ext}`,
+    sha256: {
+      "linux-x64": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+      "linux-arm64": "e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080",
+      "darwin-x64": "dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709",
+      "darwin-arm64": "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
+      "win32-x64": "d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e",
+    },
+  },
 ];
 
 const key = `${platform()}-${arch()}`;
@@ -54,8 +69,10 @@ async function install(tool) {
     console.error(`No pinned ${tool.name} build for ${key}`);
     process.exit(1);
   }
-  const file = `${tool.name}_${tool.version}_${goOs}_${goArch}.${ext}`;
-  const url = `https://github.com/anchore/${tool.name}/releases/download/v${tool.version}/${file}`;
+  const url = tool.asset
+    ? tool.asset(tool.version, goOs, goArch)
+    : `https://github.com/anchore/${tool.name}/releases/download/v${tool.version}/${tool.name}_${tool.version}_${goOs}_${goArch}.${ext}`;
+  const file = url.slice(url.lastIndexOf("/") + 1);
   const dest = join(tools, tool.name);
   const binary = join(dest, platform() === "win32" ? `${tool.name}.exe` : tool.name);
   const marker = join(dest, "VERSION");

@@ -1,7 +1,13 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { newId, scanErrorMessage } from "@garnetops/core";
-import { evaluateGate, GATE_RULES, type GateMode, type GateRule } from "@garnetops/core/gates";
+import {
+  evaluateGate,
+  GATE_RULES,
+  type GateMode,
+  type GateRule,
+  type GateSecret,
+} from "@garnetops/core/gates";
 import { parseKnownHosts } from "@garnetops/core/ssh";
 import { open, type SecretPurpose } from "@garnetops/core/vault";
 import { schema } from "@garnetops/db";
@@ -13,6 +19,7 @@ import { type SshOptions, shallowClone, sshClient } from "./git.ts";
 import { addAdvisoryDates, type ParsedReport, parseReport, scanTarget } from "./grype.ts";
 import { type CollectedManifest, collectManifests } from "./manifests.ts";
 import { requestMatch, requestSbom, ScannerUnavailableError } from "./scanner-client.ts";
+import { gateSecrets, persistSecrets, runSecretScan, type SecretScanResult } from "./secret-scan.ts";
 import { buildSbom, type Inventory, readSbom } from "./syft.ts";
 import { reportScanFacts, reportScannerIsolation } from "./system-report.ts";
 import { type Tx, upsertVulnerabilities } from "./vulnerability-store.ts";
@@ -114,6 +121,8 @@ export async function runScan(scanId: string): Promise<void> {
       plain.fill(0);
     }
 
+    // The whole history for secrets (ADR 0049): when asked for once, or switched on for the repository; never for a gate check.
+    const secretHistory = !scan.ref && (scan.secretHistory || repo.secretHistoryAt !== null);
     const cloned = await shallowClone({
       url: repo.url,
       dir: src,
@@ -122,6 +131,7 @@ export async function runScan(scanId: string): Promise<void> {
       ref: scan.ref,
       token,
       ssh,
+      fullHistory: secretHistory,
     })
       .catch((e: Error) => {
         throw new UserFacingError(e.message);
@@ -147,9 +157,11 @@ export async function runScan(scanId: string): Promise<void> {
     const { inventory, json } = await runScanners(src, out);
     const parsed = parseReport(json, repo.id);
     addAdvisoryDates(parsed.vulnerabilities, env.GARNETOPS_GRYPE_DB_DIR);
+    // Secrets (ADR 0049) in the same clone; its outcome never fails the scan.
+    const secrets = await runSecretScan(src, out, repo.organizationId, secretHistory);
     // A check of another ref (a pull request) must not change the repository's findings or
     // inventory, which describe its configured branch; it only records its gate result.
-    if (scan.ref) await persistCheck(scan.id, repo, parsed, cloned, inventory);
+    if (scan.ref) await persistCheck(scan.id, repo, parsed, cloned, inventory, secrets);
     else {
       // The manifests feed the Fix proposals page (ADR 0014). They are read as data from the commit
       // that was scanned; failing to read them never fails the scan (the page then has no proposals).
@@ -157,7 +169,7 @@ export async function runScan(scanId: string): Promise<void> {
         console.error(`scan ${scanId}: manifests:`, error.message);
         return null;
       });
-      await persist(scan.id, repo, parsed, cloned, inventory, manifests);
+      await persist(scan.id, repo, parsed, cloned, inventory, manifests, secrets);
     }
   } catch (error) {
     if (error instanceof UserFacingError) await fail(scanId, error.message);
@@ -297,7 +309,8 @@ async function persist(
   parsed: ParsedReport,
   cloned: { commitSha: string; branch: string },
   inventory: Inventory | null,
-  manifests: CollectedManifest[] | null = null,
+  manifests: CollectedManifest[] | null,
+  secrets: SecretScanResult,
 ) {
   const now = new Date();
   const counts: Record<string, number> = {};
@@ -305,8 +318,9 @@ async function persist(
     counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
 
   await db.transaction(async (tx) => {
-    const gate = await evaluateScanGate(tx, repo, parsed, inventory);
+    const gate = await evaluateScanGate(tx, repo, parsed, inventory, await gateSecrets(tx, repo.id, secrets));
     await upsertVulnerabilities(tx, parsed.vulnerabilities.values(), now);
+    const secretSummary = await persistSecrets(tx, scanId, repo, secrets, now);
 
     const existing = await tx
       .select({ id: f.id, dedupKey: f.dedupKey, state: f.state, acceptedUntil: f.acceptedUntil })
@@ -408,6 +422,9 @@ async function persist(
           ...(inventory?.syftVersion ? { syft: inventory.syftVersion } : {}),
         },
         vulnDbBuiltAt: parsed.dbBuiltAt,
+        secretScan: secrets.state,
+        secretCounts: secretSummary?.counts ?? null,
+        newSecrets: secretSummary?.newSecrets ?? null,
         error: null,
       })
       .where(eq(schema.scan.id, scanId));
@@ -463,6 +480,7 @@ async function evaluateScanGate(
   repo: typeof schema.repository.$inferSelect,
   parsed: ParsedReport,
   inventory: Inventory | null,
+  secrets: GateSecret[] | undefined,
 ) {
   const [rules, accepted] = await Promise.all([
     tx.select().from(schema.gateRule).where(eq(schema.gateRule.organizationId, repo.organizationId)),
@@ -500,6 +518,7 @@ async function evaluateScanGate(
         };
       }),
     packages: (inventory?.packages ?? []).map((pkg) => ({ licenses: pkg.licenses })),
+    secrets,
     modes,
     deniedLicenses,
   });
@@ -521,6 +540,12 @@ async function insertGateRun(
   });
 }
 
+function countBySeverity(items: { severity: string }[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) counts[item.severity] = (counts[item.severity] ?? 0) + 1;
+  return counts;
+}
+
 /** A gate check of another ref: the scan's summary and its gate result, nothing else. */
 async function persistCheck(
   scanId: string,
@@ -528,12 +553,14 @@ async function persistCheck(
   parsed: ParsedReport,
   cloned: { commitSha: string; branch: string },
   inventory: Inventory | null,
+  secrets: SecretScanResult,
 ) {
   const counts: Record<string, number> = {};
   for (const finding of parsed.findings.values())
     counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
   await db.transaction(async (tx) => {
-    const gate = await evaluateScanGate(tx, repo, parsed, inventory);
+    const open = await gateSecrets(tx, repo.id, secrets);
+    const gate = await evaluateScanGate(tx, repo, parsed, inventory, open);
     await tx
       .update(schema.scan)
       .set({
@@ -548,6 +575,9 @@ async function persistCheck(
           ...(inventory?.syftVersion ? { syft: inventory.syftVersion } : {}),
         },
         vulnDbBuiltAt: parsed.dbBuiltAt,
+        // A check never changes findings; it records the secrets it saw in the checked commit for the gate run.
+        secretScan: secrets.state,
+        secretCounts: open ? countBySeverity(open) : null,
         error: null,
       })
       .where(eq(schema.scan.id, scanId));

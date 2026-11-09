@@ -6,7 +6,13 @@
  * Changing a default here would change gate behaviour on upgrade (AGENTS.md rule 2), so
  * a test pins them.
  */
-export const GATE_RULES = ["critical-fixable", "known-exploited", "high-fixable", "license-denied"] as const;
+export const GATE_RULES = [
+  "critical-fixable",
+  "known-exploited",
+  "high-fixable",
+  "license-denied",
+  "secret-found",
+] as const;
 export type GateRule = (typeof GATE_RULES)[number];
 
 export const GATE_MODES = ["off", "report", "block"] as const;
@@ -17,6 +23,8 @@ export const GATE_DEFAULTS: Readonly<Record<GateRule, GateMode>> = Object.freeze
   "known-exploited": "report",
   "high-fixable": "report",
   "license-denied": "off",
+  // Secret scanning (ADR 0049): off, because even "report" would turn a passing run into one with notes.
+  "secret-found": "off",
 });
 
 export type GateResult = "passed" | "notes" | "blocked";
@@ -32,6 +40,11 @@ export interface GateFinding {
 export interface GatePackage {
   /** Licence expressions as syft reports them, e.g. "MIT" or "(MIT OR Apache-2.0)". */
   licenses: string[] | null;
+}
+
+/** A secret in the checked commit's files that nobody closed as revoked or dismissed (ADR 0049). */
+export interface GateSecret {
+  severity: string;
 }
 
 export type GateMatches = Partial<Record<GateRule, { count: number; mode: GateMode }>>;
@@ -58,7 +71,10 @@ export function licenseDenied(expression: string, denied: ReadonlySet<string>): 
   return alternatives.every((ids) => ids.some((id) => denied.has(id)));
 }
 
-const RULE_MATCHES: Record<Exclude<GateRule, "license-denied">, (f: GateFinding) => boolean> = {
+const RULE_MATCHES: Record<
+  Exclude<GateRule, "license-denied" | "secret-found">,
+  (f: GateFinding) => boolean
+> = {
   "critical-fixable": (f) => f.fixable && (f.severity === "critical" || (f.cvssScore ?? 0) >= 9),
   "known-exploited": (f) => f.knownExploited,
   "high-fixable": (f) => f.fixable && f.severity === "high",
@@ -71,6 +87,8 @@ const RULE_MATCHES: Record<Exclude<GateRule, "license-denied">, (f: GateFinding)
 export function evaluateGate(input: {
   findings: GateFinding[];
   packages: GatePackage[];
+  /** Open secrets in the checked files; absent when the scan did not check for secrets. */
+  secrets?: GateSecret[];
   modes: Partial<Record<GateRule, GateMode>>;
   deniedLicenses: string[];
 }): { result: GateResult; matches: GateMatches } {
@@ -82,7 +100,9 @@ export function evaluateGate(input: {
     const count =
       rule === "license-denied"
         ? input.packages.filter((p) => (p.licenses ?? []).some((l) => licenseDenied(l, denied))).length
-        : input.findings.filter(RULE_MATCHES[rule]).length;
+        : rule === "secret-found"
+          ? (input.secrets ?? []).filter((s) => s.severity === "critical" || s.severity === "high").length
+          : input.findings.filter(RULE_MATCHES[rule]).length;
     if (count > 0) matches[rule] = { count, mode };
   }
   const hits = Object.values(matches);

@@ -65,12 +65,13 @@ RUN rm -rf apps/web vendor pnpm-lock.yaml pnpm-workspace.yaml \
 FROM ${NODE_IMAGE} AS scanners
 WORKDIR /src
 COPY scripts/fetch-scanners.mjs scripts/
-# Downloads grype and syft and checks their pinned SHA-256 checksums (fails the build otherwise).
+# Downloads grype, syft and gitleaks and checks their pinned SHA-256 checksums (fails the build otherwise).
 RUN node scripts/fetch-scanners.mjs
 RUN mkdir -p /opt/scanners \
- && cp .tools/grype/grype .tools/syft/syft /opt/scanners/ \
+ && cp .tools/grype/grype .tools/syft/syft .tools/gitleaks/gitleaks /opt/scanners/ \
  && cp .tools/grype/LICENSE /opt/scanners/LICENSE.grype \
- && cp .tools/syft/LICENSE /opt/scanners/LICENSE.syft
+ && cp .tools/syft/LICENSE /opt/scanners/LICENSE.syft \
+ && cp .tools/gitleaks/LICENSE /opt/scanners/LICENSE.gitleaks
 
 # ---------------------------------------------------------------- systemd host agent (Go)
 # Go cross-compiles, so the build runs on the build machine's own platform and makes both targets.
@@ -102,6 +103,7 @@ ENV NODE_ENV=production \
     PORT=3000 \
     GARNETOPS_GRYPE_BIN=/opt/scanners/grype \
     GARNETOPS_SYFT_BIN=/opt/scanners/syft \
+    GARNETOPS_GITLEAKS_BIN=/opt/scanners/gitleaks \
     GARNETOPS_GRYPE_DB_DIR=/var/lib/garnetops/vulndb \
     GARNETOPS_WORK_DIR=/tmp/garnetops-work
 # vulndb-builds: the builder's archives (ADR 0044); owned by uid 1000 whichever service creates the volume first.

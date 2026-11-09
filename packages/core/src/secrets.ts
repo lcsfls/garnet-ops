@@ -6,9 +6,9 @@
  * files that never belong in a repository. A repository's own `.gitleaks.toml`, `.gitleaksignore` and `gitleaks:allow` comments
  * are never honoured: whoever can commit could otherwise hide a secret from the check.
  *
- * The value of a secret only passes through memory: `parseGitleaksReport` hands it to a callback that turns it into a keyed
- * fingerprint (secret-fingerprint.ts) and then drops it. Nothing here stores, logs or returns a value, a matched line or the
- * author of a commit.
+ * The value of a secret never leaves the scanner: `redactGitleaksReport` (secret-fingerprint.ts) replaces it by its SHA-256 and
+ * drops the matched text and the author before the report is handed over. `parseGitleaksReport` turns that digest into a keyed
+ * fingerprint through a callback. Nothing here stores, logs or returns a value, a matched line or the author of a commit.
  */
 
 export const SECRET_SEVERITIES = ["critical", "high", "medium", "low"] as const;
@@ -288,8 +288,8 @@ const RULE_ID = /^[a-z0-9][a-z0-9-]{1,79}$/;
 const COMMIT = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 /**
- * Reads gitleaks' JSON report. `fingerprint` receives the rule, the secret (empty for file rules) and the path, and returns the
- * keyed fingerprint; the secret is not kept anywhere else. Hits with the same rule, fingerprint, path and line count once.
+ * Reads gitleaks' JSON report as `redactGitleaksReport` left it. `fingerprint` receives the rule, the value's SHA-256 (empty for
+ * file rules) and the path, and returns the keyed fingerprint; the digest is not kept anywhere else. Hits with the same rule, fingerprint, path and line count once.
  */
 export function parseGitleaksReport(
   text: string,

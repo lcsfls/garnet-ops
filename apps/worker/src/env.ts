@@ -17,6 +17,8 @@ const schema = z.object({
    * and only vulnerable packages are known.
    */
   GARNETOPS_SYFT_BIN: z.string().min(1).optional(),
+  /** gitleaks for secret scanning (ADR 0049); without it scans record that secrets were not checked. */
+  GARNETOPS_GITLEAKS_BIN: z.string().min(1).optional(),
   /** Directory of the local vulnerability database. */
   GARNETOPS_GRYPE_DB_DIR: z.string().min(1),
   /**
