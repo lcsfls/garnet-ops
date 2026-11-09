@@ -253,6 +253,10 @@ export const de: Messages = {
           label: "Ein Scan ist fehlgeschlagen",
           hint: "Ein Repository konnte nicht gescannt werden.",
         },
+        secretNew: {
+          label: "Neue Secrets in einem Repository",
+          hint: "Ein Scan hat einen Schlüssel, ein Token, ein Passwort oder eine Datei gefunden, die nicht in ein Repository gehört.",
+        },
         fixPrMerged: {
           label: "Ein Fix-Pull-Request wurde gemergt",
           hint: "Die Forge meldet, dass ein von GarnetOps geöffneter Pull Request gemergt wurde.",
@@ -3050,6 +3054,7 @@ export const de: Messages = {
       "known-exploited": "Bekannt ausgenutzte Schwachstelle",
       "high-fixable": "Hohe Schwachstelle mit Fix",
       "license-denied": "Nicht erlaubte Lizenz",
+      "secret-found": "Secret im Code",
     },
     ruleHint: {
       "critical-fixable":
@@ -3057,6 +3062,8 @@ export const de: Messages = {
       "known-exploited": "Im CISA-Katalog bekannt ausgenutzter Schwachstellen gelistet.",
       "high-fixable": "Hoch, und es gibt eine behobene Version.",
       "license-denied": "Ein Paket nutzt nur Lizenzen aus Ihrer Sperrliste.",
+      "secret-found":
+        "Ein kritisches oder hohes Secret in den geprüften Dateien, das niemand als ausgetauscht oder verworfen markiert hat. Standardmäßig aus.",
     },
     deniedLicenses: "Gesperrte Lizenzen",
     deniedLicensesHint: "SPDX-IDs, durch Komma oder Zeilen getrennt, z. B. AGPL-3.0-only, SSPL-1.0.",
@@ -3216,6 +3223,9 @@ export const de: Messages = {
     advisoryNewTitle: "Frühwarnung: neue Advisories betreffen {repository}",
     advisoryNewText:
       "Noch nicht durch einen Scan bestätigt: {list}. Ein Scan des Repositorys bestätigt oder entkräftet sie.",
+    secretNewTitle: "Neue Secrets: {repository}",
+    secretNewText:
+      "Im letzten Scan gefunden: {list}. Zuerst austauschen; die Fundstellen stehen in GarnetOps.",
     severityCount: {
       critical: "{count} kritisch",
       high: "{count} hoch",
@@ -3451,6 +3461,7 @@ export const de: Messages = {
       advisory_new: "Frühwarnungen: neuen Advisories für gespeicherte Pakete",
       gate_blocked: "Einem blockierten Quality Gate",
       scan_failed: "Einem fehlgeschlagenen Scan",
+      secret_new: "Neuen Secrets oder sensiblen Dateien",
       test: "Testnachricht",
     },
     channelMinSeverity: "Neue Funde und Frühwarnungen ab",
@@ -4548,6 +4559,10 @@ export const de: Messages = {
         text: "Passende Regeln im Modus Blockieren: {rules}.",
       },
       scanFailed: { title: "Scan fehlgeschlagen: {repository}", text: "Den Grund zeigt GarnetOps." },
+      secretNew: {
+        title: "Neue Secrets: {repository}",
+        text: "{count} im letzten Scan gefunden, davon {serious} kritisch oder hoch. Zuerst austauschen.",
+      },
       fixPrMerged: {
         title: "Fix-Pull-Request gemergt: {repository}",
         text: "Die Forge meldet, dass der Pull Request gemergt wurde.",

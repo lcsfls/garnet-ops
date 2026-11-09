@@ -10,6 +10,8 @@ export async function queueScan(
   trigger: "manual" | "schedule" | "webhook" | "ci",
   /** Gate checks of another ref (ADR 0008): scanned on their own, never changing the repository's findings. */
   check: { ref: string | null; expectedSha: string | null } = { ref: null, expectedSha: null },
+  /** Check the whole Git history for secrets in this scan (ADR 0049). */
+  options: { secretHistory?: boolean } = {},
 ): Promise<string> {
   const scanId = newId("scan");
   await db.insert(schema.scan).values({
@@ -21,6 +23,7 @@ export async function queueScan(
     requestedBy,
     ref: check.ref,
     expectedSha: check.expectedSha,
+    secretHistory: options.secretHistory === true,
     // Millisecond precision on purpose: this column is a pagination key (see lib/paginate.ts).
     createdAt: new Date(),
   });

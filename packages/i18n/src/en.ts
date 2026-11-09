@@ -240,6 +240,10 @@ export const en = {
           hint: "A rule set to Block matched in a scan of a repository.",
         },
         scanFailed: { label: "A scan failed", hint: "A repository could not be scanned." },
+        secretNew: {
+          label: "New secrets in a repository",
+          hint: "A scan found a key, token, password or a file that does not belong in a repository.",
+        },
         fixPrMerged: {
           label: "A fix pull request was merged",
           hint: "The forge reports that a pull request opened by GarnetOps was merged.",
@@ -2969,6 +2973,7 @@ export const en = {
       "known-exploited": "Known exploited vulnerability",
       "high-fixable": "High vulnerability with a fix",
       "license-denied": "Licence not allowed",
+      "secret-found": "Secret in the code",
     },
     ruleHint: {
       "critical-fixable":
@@ -2976,6 +2981,8 @@ export const en = {
       "known-exploited": "Listed in the CISA catalogue of known exploited vulnerabilities.",
       "high-fixable": "High, and a fixed version exists.",
       "license-denied": "A package uses only licences from your deny list.",
+      "secret-found":
+        "A critical or high secret in the checked files that nobody marked as revoked or dismissed. Off by default.",
     },
     deniedLicenses: "Denied licences",
     deniedLicensesHint: "SPDX ids, separated by commas or lines, e.g. AGPL-3.0-only, SSPL-1.0.",
@@ -3131,6 +3138,8 @@ export const en = {
     newFindingsText: "New in the last scan: {list}.",
     advisoryNewTitle: "Early warning: new advisories affect {repository}",
     advisoryNewText: "Not confirmed by a scan yet: {list}. A scan of the repository confirms or clears them.",
+    secretNewTitle: "New secrets: {repository}",
+    secretNewText: "Found in the last scan: {list}. Rotate them first; the places are in GarnetOps.",
     severityCount: {
       critical: "{count} critical",
       high: "{count} high",
@@ -3361,6 +3370,7 @@ export const en = {
       advisory_new: "Early warnings: new advisories for stored packages",
       gate_blocked: "A quality gate blocked",
       scan_failed: "A scan failed",
+      secret_new: "New secrets or sensitive files",
       test: "Test message",
     },
     channelMinSeverity: "New findings and early warnings from",
@@ -4437,6 +4447,10 @@ export const en = {
         text: "Rules set to Block that matched: {rules}.",
       },
       scanFailed: { title: "Scan failed: {repository}", text: "The reason is in GarnetOps." },
+      secretNew: {
+        title: "New secrets: {repository}",
+        text: "{count} found in the last scan, {serious} of them critical or high. Rotate them first.",
+      },
       fixPrMerged: {
         title: "Fix pull request merged: {repository}",
         text: "The forge reports that the pull request was merged.",

@@ -15,6 +15,7 @@ export const USER_EVENTS = [
   "finding.new_critical",
   "gate.blocked",
   "scan.failed",
+  "secret.new",
   "fix_pr.merged",
   "fix_pr.failed",
   "exposure.certificate_expiring",
@@ -60,6 +61,8 @@ export const EVENT_CATALOG: Record<UserEvent, EventDefinition> = {
   },
   "gate.blocked": { group: "code", minRole: "viewer", scoped: true, defaultScope: "all", channelEvent: true },
   "scan.failed": { group: "code", minRole: "member", scoped: true, defaultScope: "all", channelEvent: true },
+  /** New secrets or sensitive files in a repository (ADR 0049); counts only, never a path. */
+  "secret.new": { group: "code", minRole: "member", scoped: true, defaultScope: "all", channelEvent: true },
   "fix_pr.merged": {
     group: "code",
     minRole: "member",
@@ -166,6 +169,7 @@ export const TITLE_EVENTS = {
   findingNewCritical: "finding.new_critical",
   gateBlocked: "gate.blocked",
   scanFailed: "scan.failed",
+  secretNew: "secret.new",
   fixPrMerged: "fix_pr.merged",
   fixPrFailed: "fix_pr.failed",
   exposureCertificateExpiring: "exposure.certificate_expiring",

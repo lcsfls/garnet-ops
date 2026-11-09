@@ -392,8 +392,9 @@ test.describe("the matrix on the account page", () => {
     await page.goto("/account?section=notifications");
     await expect(page.getByRole("heading", { name: "Notifications", level: 2 })).toBeVisible();
     const table = matrix(page);
-    // One row per event; the group rows are column groups. The owner also has "a backup was downloaded" (ADR 0046).
-    await expect(table.getByRole("rowheader")).toHaveCount(10);
+    // One row per event; the group rows are column groups. The owner also has "a backup was downloaded" (ADR 0046) and
+    // "new secrets in a repository" (ADR 0049).
+    await expect(table.getByRole("rowheader")).toHaveCount(11);
     for (const group of ["Code", "Account and team", "System"]) {
       await expect(table.getByRole("columnheader", { name: group })).toBeVisible();
     }

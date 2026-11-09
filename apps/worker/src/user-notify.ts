@@ -72,6 +72,17 @@ export async function tellAboutScan(
         },
         send,
       );
+    } else if (payload.event === "secret.new") {
+      const f = payload.findings ?? { critical: 0, high: 0, medium: 0, low: 0 };
+      await tellUsers(
+        {
+          ...common,
+          link: `/findings/secrets?repositoryId=${encodeURIComponent(payload.repository.id)}`,
+          titleKey: "secretNew",
+          params: { repository, count: f.critical + f.high + f.medium + f.low, serious: f.critical + f.high },
+        },
+        send,
+      );
     } else if (payload.event === "scan.failed") {
       await tellUsers({ ...common, titleKey: "scanFailed", params: { repository } }, send);
     }

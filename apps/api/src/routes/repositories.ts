@@ -38,6 +38,7 @@ import {
 import { notFound, ProblemError } from "../lib/problem.ts";
 import { queueScan } from "../lib/scan-queue.ts";
 import { renovateRoutes, writeAccessRoutes, writeAccessSummary } from "./fixes.ts";
+import { repositorySecretRoutes } from "./secrets.ts";
 import { webhookRoutes } from "./webhooks.ts";
 
 export { queueScan };
@@ -757,6 +758,7 @@ export const repositoryRoutes = new Hono<AppEnv>()
   .route("/:id/write-access", writeAccessRoutes)
   .route("/:id/renovate-config", renovateRoutes)
   .route("/:id/webhook", webhookRoutes)
+  .route("/:id/secrets", repositorySecretRoutes)
   .post("/:id/scans", async (c) => {
     const actor = c.get("actor");
     requireRole(actor, "member");

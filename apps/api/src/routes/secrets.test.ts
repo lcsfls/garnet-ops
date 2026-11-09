@@ -1,0 +1,266 @@
+/**
+ * The secrets API (ADR 0049) against a throw-away database on the development server: lists and counts by state and severity,
+ * private repositories (ADR 0030), closing and reopening with a reason and an audit entry, the history setting and the
+ * once-an-hour history check. Sessions are replaced by a header-driven actor. Skipped without the development PostgreSQL.
+ */
+import { schema } from "@garnetops/db";
+import { devDatabaseUrl, type TestDatabase } from "@garnetops/db/testing";
+import { and, eq } from "drizzle-orm";
+import { Hono } from "hono";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+const adminUrl = devDatabaseUrl();
+const holder = vi.hoisted(() => ({ db: null as unknown, sent: [] as unknown[] }));
+
+vi.mock("../db.ts", async () => {
+  const { createTestDatabase: create, devDatabaseUrl: url } = await import("@garnetops/db/testing");
+  const target = url();
+  if (!target) return { db: null, pool: null, boss: null, QUEUES: {} };
+  const t = await create(target, "api_secrets");
+  holder.db = t;
+  return {
+    db: t.db,
+    pool: t.pool,
+    QUEUES: { scanRepository: "scan.repository" },
+    boss: { send: async (...args: unknown[]) => holder.sent.push(args) },
+  };
+});
+
+// The context helpers read the installation's settings when they are imported.
+vi.mock("../env.ts", () => ({ env: { PUBLIC_URL: "https://garnetops.example.test/" }, isProduction: false }));
+vi.mock("../auth.ts", () => ({ auth: { api: {} } }));
+
+// biome-ignore lint/suspicious/noExplicitAny: test helper for arbitrary response bodies
+type Json = Record<string, any>;
+const ORG = "org_sec_a";
+const OTHER = "org_sec_b";
+
+describe.skipIf(!adminUrl)("secrets API", () => {
+  let t: TestDatabase;
+  let app: Hono;
+  let counter = 0;
+  let shared: string;
+  let mine: string;
+  let theirs: string;
+
+  async function call(
+    method: string,
+    path: string,
+    opts: { role?: string; user?: string; org?: string; body?: unknown } = {},
+  ) {
+    const res = await app.request(path, {
+      method,
+      headers: {
+        "x-org": opts.org ?? ORG,
+        "x-role": opts.role ?? "member",
+        "x-user": opts.user ?? "usr_member",
+        "content-type": "application/json",
+      },
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    });
+    const text = await res.text();
+    return { status: res.status, json: (text ? JSON.parse(text) : null) as Json | null };
+  }
+
+  async function repo(name: string, options: { owner?: string; org?: string } = {}) {
+    const id = `repo_sec${++counter}`;
+    await t.db.insert(schema.repository).values({
+      id,
+      organizationId: options.org ?? ORG,
+      name,
+      url: `https://git.example.lan/${name}.git`,
+      authKind: "none",
+      visibility: options.owner ? "private" : "organization",
+      ownerUserId: options.owner ?? null,
+    });
+    return id;
+  }
+
+  async function secret(
+    repositoryId: string,
+    severity: "critical" | "high" | "medium" | "low",
+    options: { state?: "open" | "revoked" | "dismissed"; org?: string; inTree?: boolean } = {},
+  ) {
+    const id = `sec_t${++counter}`;
+    const rank = { critical: 5, high: 4, medium: 3, low: 2 }[severity];
+    await t.db.insert(schema.secretFinding).values({
+      id,
+      organizationId: options.org ?? ORG,
+      repositoryId,
+      ruleId: severity === "critical" ? "github-pat" : "garnetops-env-file",
+      severity,
+      severityRank: rank,
+      fingerprint: `fp-${counter}`,
+      state: options.state ?? "open",
+      inTree: options.inTree ?? true,
+      treeLocations: options.inTree === false ? [] : [{ path: "src/config.js", line: 3 }],
+      treeLocationCount: options.inTree === false ? 0 : 1,
+      historyLocations: [],
+      historyLocationCount: 0,
+      firstSeenScanId: "scan_x",
+      lastSeenScanId: "scan_x",
+      firstSeenAt: new Date(),
+      lastSeenAt: new Date(),
+    });
+    return id;
+  }
+
+  beforeAll(async () => {
+    const { handleError } = await import("../lib/problem.ts");
+    const { secretRoutes, repositorySecretRoutes } = await import("./secrets.ts");
+    t = holder.db as TestDatabase;
+    await t.db.insert(schema.organization).values([
+      { id: ORG, name: "A" },
+      { id: OTHER, name: "B" },
+    ]);
+    await t.db.insert(schema.user).values([
+      { id: "usr_member", name: "Member", email: "member@example.com" },
+      { id: "usr_other", name: "Other", email: "other@example.com" },
+      { id: "usr_admin", name: "Admin", email: "admin@example.com" },
+    ]);
+    const v1 = new Hono().use("*", async (c, next) => {
+      c.set(
+        "actor" as never,
+        {
+          userId: c.req.header("x-user"),
+          organizationId: c.req.header("x-org"),
+          role: c.req.header("x-role"),
+          ip: null,
+        } as never,
+      );
+      await next();
+    });
+    v1.route("/secrets", secretRoutes as never);
+    v1.route("/repositories/:id/secrets", repositorySecretRoutes as never);
+    app = new Hono().onError(handleError).route("/api/v1", v1) as unknown as Hono;
+
+    shared = await repo("shared");
+    mine = await repo("mine", { owner: "usr_member" });
+    theirs = await repo("theirs", { owner: "usr_other" });
+    await secret(shared, "critical");
+    await secret(shared, "medium", { inTree: false });
+    await secret(shared, "high", { state: "dismissed" });
+    await secret(mine, "high");
+    await secret(theirs, "critical");
+    await secret(await repo("elsewhere", { org: OTHER }), "critical", { org: OTHER });
+  });
+
+  afterAll(async () => {
+    await t?.drop();
+  });
+
+  it("lists open secrets worst first, of the repositories the person sees, without any value", async () => {
+    const list = await call("GET", "/api/v1/secrets");
+    expect(list.status).toBe(200);
+    expect(list.json?.items.map((i: Json) => [i.repositoryName, i.severity])).toEqual([
+      ["shared", "critical"],
+      ["mine", "high"],
+      ["shared", "medium"],
+    ]);
+    expect(list.json?.items[0]).toMatchObject({
+      ruleId: "github-pat",
+      place: { path: "src/config.js", line: 3 },
+    });
+    expect(list.json?.items[2]).toMatchObject({ inTree: false, place: null });
+    expect(JSON.stringify(list.json)).not.toMatch(/fingerprint|fp-\d/);
+    // The owner of "theirs" sees its secret; nobody else does.
+    const other = await call("GET", "/api/v1/secrets", { user: "usr_other" });
+    // Two critical ones: the one seen last comes first.
+    expect(other.json?.items.map((i: Json) => i.repositoryName)).toEqual(["theirs", "shared", "shared"]);
+    const filtered = await call("GET", "/api/v1/secrets?state=all&severity=high");
+    expect(filtered.json?.items.map((i: Json) => i.state).sort()).toEqual(["dismissed", "open"]);
+    expect((await call("GET", "/api/v1/secrets?severity=bad")).status).toBe(422);
+  });
+
+  it("counts per state, and open ones per severity", async () => {
+    const counts = await call("GET", "/api/v1/secrets/counts");
+    expect(counts.json).toEqual({
+      states: { open: 3, revoked: 0, dismissed: 1 },
+      open: { critical: 1, high: 1, medium: 1 },
+    });
+  });
+
+  it("closes a secret with a reason, audits it, keeps it closed, and reopens it", async () => {
+    const [target] = (await call("GET", "/api/v1/secrets")).json?.items ?? [];
+    const id = target.id as string;
+    expect(
+      (
+        await call("POST", `/api/v1/secrets/${id}/revoke`, {
+          role: "viewer",
+          body: { reason: "rotated today" },
+        })
+      ).status,
+    ).toBe(403);
+    expect((await call("POST", `/api/v1/secrets/${id}/revoke`, { body: { reason: "short" } })).status).toBe(
+      422,
+    );
+    expect(
+      (
+        await call("POST", `/api/v1/secrets/${id}/revoke`, {
+          body: { reason: "Rotated the token on GitHub" },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await call("POST", `/api/v1/secrets/${id}/dismiss`, {
+          body: { reason: "Rotated the token on GitHub" },
+        })
+      ).status,
+    ).toBe(409);
+    const detail = await call("GET", `/api/v1/secrets/${id}`);
+    expect(detail.json).toMatchObject({
+      state: "revoked",
+      stateReason: "Rotated the token on GitHub",
+      stateByName: "Member",
+      treeLocations: [{ path: "src/config.js", line: 3 }],
+    });
+    const [entry] = await t.db
+      .select()
+      .from(schema.auditLog)
+      .where(and(eq(schema.auditLog.action, "secret.revoked"), eq(schema.auditLog.targetId, id)));
+    expect(entry).toMatchObject({ actorUserId: "usr_member", organizationId: ORG });
+    expect((await call("POST", `/api/v1/secrets/${id}/reopen`)).status).toBe(200);
+    expect((await call("GET", `/api/v1/secrets/${id}`)).json).toMatchObject({
+      state: "open",
+      stateReason: null,
+    });
+    // Another organisation, or a private repository of someone else: not found.
+    expect((await call("GET", `/api/v1/secrets/${id}`, { org: OTHER })).status).toBe(404);
+  });
+
+  it("switches history checks on for admins, or a member's own private repository, and audits it", async () => {
+    expect(
+      (await call("PUT", `/api/v1/repositories/${shared}/secrets/history`, { body: { enabled: true } }))
+        .status,
+    ).toBe(403);
+    const own = await call("PUT", `/api/v1/repositories/${mine}/secrets/history`, {
+      body: { enabled: true },
+    });
+    expect(own.status).toBe(200);
+    expect(own.json).toMatchObject({ open: { high: 1 }, history: { enabled: true } });
+    const admin = await call("PUT", `/api/v1/repositories/${shared}/secrets/history`, {
+      role: "admin",
+      user: "usr_admin",
+      body: { enabled: true },
+    });
+    expect(admin.json?.history.enabled).toBe(true);
+    const actions = (await t.db.select().from(schema.auditLog)).map((a) => a.action);
+    expect(actions.filter((a) => a === "repository.secret_history_enabled")).toHaveLength(2);
+    expect((await call("GET", `/api/v1/repositories/${theirs}/secrets`)).status).toBe(404);
+  });
+
+  it("checks the history once on request, not twice within an hour, and not while a scan runs", async () => {
+    const first = await call("POST", `/api/v1/repositories/${shared}/secrets/history-check`);
+    expect(first.status).toBe(202);
+    const [scan] = await t.db.select().from(schema.scan).where(eq(schema.scan.id, first.json?.scanId));
+    expect(scan).toMatchObject({ secretHistory: true, state: "queued", repositoryId: shared });
+    expect(holder.sent).toHaveLength(1);
+    expect((await call("POST", `/api/v1/repositories/${shared}/secrets/history-check`)).status).toBe(409);
+    await t.db.update(schema.scan).set({ state: "succeeded" }).where(eq(schema.scan.id, first.json?.scanId));
+    expect((await call("POST", `/api/v1/repositories/${shared}/secrets/history-check`)).status).toBe(429);
+    expect(
+      (await call("POST", `/api/v1/repositories/${shared}/secrets/history-check`, { role: "viewer" })).status,
+    ).toBe(403);
+  });
+});

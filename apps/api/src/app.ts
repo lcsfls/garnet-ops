@@ -34,6 +34,7 @@ import { reportMailRoutes, reportRoutes } from "./routes/reports.ts";
 import { repositoryRoutes } from "./routes/repositories.ts";
 import { scanRoutes } from "./routes/scans.ts";
 import { searchRoutes } from "./routes/search.ts";
+import { secretRoutes } from "./routes/secrets.ts";
 import { setupRoutes } from "./routes/setup.ts";
 import { setupProgressRoutes } from "./routes/setup-progress.ts";
 import { repositorySharingRoutes, shareRequestRoutes } from "./routes/sharing.ts";
@@ -135,6 +136,7 @@ const v1 = new Hono<AppEnv>()
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)
+  .route("/secrets", secretRoutes)
   .route("/early-warnings", earlyWarningRoutes)
   .route("/fixes", fixRoutes)
   .route("/ai", aiRoutes)

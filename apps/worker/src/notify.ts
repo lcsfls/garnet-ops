@@ -72,14 +72,19 @@ export function renderNotification(
               fill(m.newCriticalTitle, { repository }),
               fill(m.newCriticalText, payload.counts ?? { critical: 0, knownExploited: 0 }),
             ]
-          : payload.event === "gate.blocked"
+          : payload.event === "secret.new"
             ? [
-                fill(m.gateBlockedTitle, { repository }),
-                fill(m.gateBlockedText, { rules: payload.gate?.blockingRules ?? 0 }),
+                fill(m.secretNewTitle, { repository }),
+                fill(m.secretNewText, { list: newFindingList(payload, m) }),
               ]
-            : payload.event === "scan.failed"
-              ? [fill(m.scanFailedTitle, { repository }), m.scanFailedText]
-              : [m.testTitle, m.testText];
+            : payload.event === "gate.blocked"
+              ? [
+                  fill(m.gateBlockedTitle, { repository }),
+                  fill(m.gateBlockedText, { rules: payload.gate?.blockingRules ?? 0 }),
+                ]
+              : payload.event === "scan.failed"
+                ? [fill(m.scanFailedTitle, { repository }), m.scanFailedText]
+                : [m.testTitle, m.testText];
   return { title, text: `${body}\n${fill(m.footer, { organization: payload.organization })}` };
 }
 
@@ -449,6 +454,19 @@ export async function eventsForScan(
     .from(schema.gateRun)
     .where(eq(schema.gateRun.scanId, scanId))
     .limit(1);
+  // New secrets (ADR 0049): counts per severity of the secrets this scan opened, never a path or a rule.
+  const [secretCounts] = await db
+    .select({
+      critical: sql<number>`count(*) filter (where ${schema.secretFinding.severity} = 'critical')::int`,
+      high: sql<number>`count(*) filter (where ${schema.secretFinding.severity} = 'high')::int`,
+      medium: sql<number>`count(*) filter (where ${schema.secretFinding.severity} = 'medium')::int`,
+      low: sql<number>`count(*) filter (where ${schema.secretFinding.severity} = 'low')::int`,
+    })
+    .from(schema.secretFinding)
+    .where(and(eq(schema.secretFinding.firstSeenScanId, scanId), eq(schema.secretFinding.state, "open")));
+  if (secretCounts && countFrom(secretCounts, "low") > 0) {
+    payloads.push({ ...base, event: "secret.new", findings: secretCounts });
+  }
   if (gate?.result === "blocked") {
     const blockingRules = Object.values(gate.matches).filter((m) => m.mode === "block").length;
     payloads.push({ ...base, event: "gate.blocked", gate: { blockingRules } });

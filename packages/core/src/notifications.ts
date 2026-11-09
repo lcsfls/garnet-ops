@@ -6,7 +6,8 @@ import { classifyAddress } from "./ai-endpoint.ts";
  * What a channel can be told about (ADR 0010). "test" is sent on request only. `finding.new` (0.0.10)
  * counts every new finding of a scan from the channel's minimum severity on; `finding.new_critical`
  * stays as it was. `advisory.new` (0.0.10, ADR 0029) counts early warnings: new advisories that match a
- * repository's packages before a scan saw them, also from the channel's minimum severity on.
+ * repository's packages before a scan saw them, also from the channel's minimum severity on. `secret.new` (0.1.3, ADR 0049)
+ * counts new secrets of a scan the same way; a channel only gets it once someone ticks it.
  */
 export const NOTIFY_EVENTS = [
   "finding.new_critical",
@@ -14,6 +15,7 @@ export const NOTIFY_EVENTS = [
   "scan.failed",
   "finding.new",
   "advisory.new",
+  "secret.new",
 ] as const;
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number] | "test";
 
@@ -39,7 +41,7 @@ export function channelAccepts(filters: ChannelFilters, payload: NotifyPayload):
   if (payload.event === "test") return true;
   const only = filters.repositoryIds ?? [];
   if (only.length > 0 && payload.repository && !only.includes(payload.repository.id)) return false;
-  if (payload.event === "finding.new" || payload.event === "advisory.new") {
+  if (payload.event === "finding.new" || payload.event === "advisory.new" || payload.event === "secret.new") {
     return countFrom(payload.findings, filters.minSeverity) > 0;
   }
   return true;
@@ -126,6 +128,7 @@ const DISCORD_COLOURS: Record<NotifyEvent, number> = {
   "scan.failed": 0xd9481f,
   "finding.new": 0xe07b1a,
   "advisory.new": 0xe07b1a,
+  "secret.new": 0xd9481f,
   test: 0x4a78a8,
 };
 

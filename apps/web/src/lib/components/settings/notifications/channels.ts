@@ -6,6 +6,7 @@ export const EVENTS = [
   "advisory.new",
   "gate.blocked",
   "scan.failed",
+  "secret.new",
 ] as const;
 export const KINDS = ["webhook", "smtp", "graph"] as const;
 export const FORMATS = ["discord", "slack", "generic"] as const;
@@ -41,7 +42,8 @@ export const eventKey = (event: ChannelEvent) =>
     | "finding_new"
     | "advisory_new"
     | "gate_blocked"
-    | "scan_failed";
+    | "scan_failed"
+    | "secret_new";
 
 /** The filters as the API takes them: an empty repository choice is no choice. */
 export function filtersBody(minSeverity: MinSeverity, repositoryIds: string[] | null): ChannelFilters {
