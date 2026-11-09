@@ -51,3 +51,9 @@ certs/
 # Python bytecode (apps/vulndb-builder)
 __pycache__/
 *.pyc
+
+# Personal AI agent settings: they can hold commands with credentials that an agent was allowed to run (AGENTS.md rule 7).
+# Shared settings (.claude/settings.json) stay trackable on purpose.
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
