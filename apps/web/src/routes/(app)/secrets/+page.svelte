@@ -90,7 +90,7 @@
     label={t("secrets.stateLabel")}
     value={state}
     options={STATES.map((s) => ({ value: s, label: t(`secrets.state.${s}`), count: stateCount(s) }))}
-    onChange={(value) => setSearch({ state: value === "open" ? undefined : value, id: undefined })}
+    onChange={(value) => setSearch({ state: value === "open" ? undefined : value })}
   />
   <fieldset class="flex flex-wrap gap-1.5">
     <legend class="sr-only">{t("secrets.severityLabel")}</legend>
