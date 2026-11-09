@@ -8,6 +8,32 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Secrets in repositories** ([docs/secrets.md](docs/secrets.md), ADR 0049): every scan checks the scanned files for keys,
+  tokens, passwords and files that do not belong in a repository, with gitleaks (MIT) and GarnetOps' own rules for `.env` files
+  with values, private key files and key stores, stored Git, npm, PyPI and registry credentials, kubeconfig with credentials,
+  Terraform state, database dumps, `.htpasswd`, `wp-config.php` with a password and personal AI agent settings
+  (`.claude/settings.local.json`). The Git history is checked on request (**Check history now**, at most once an hour) or on
+  every scan, switched on per repository. A repository's own `.gitleaks.toml`, `.gitleaksignore` and `gitleaks:allow` comments
+  are ignored, so nobody can hide a secret from the check.
+- **Secrets** page beside Findings: severity per rule, where it is (file and line, or the commit in the history), what to do
+  (rotate first), and closing it as revoked or "not a secret" with a reason, audited. A scan never closes one: a secret no
+  longer in the files stays open with "Only in the history now". The menu counts open critical and high secrets; the
+  repository page has a **Secrets** card with the history setting.
+- Gate rule **Secret in the code** (open critical or high secrets in the checked commit), **off** until an admin switches it on,
+  so no gate result changes by the update. Pull request checks check the files of their commit for it.
+- Notification **New secrets** for channels (once ticked) and in the app: counts by severity, never a path.
+- API (additive): `/api/v1/secrets`, `/api/v1/repositories/{id}/secrets`; the scanner service's `POST /v1/secrets` (ADR 0028).
+
+### Security
+
+- The value of a found secret never leaves the scanner container: it is replaced by its SHA-256 there, and GarnetOps stores only
+  an HMAC of that with the organisation's own random key, sealed in the vault. No matched line, no commit author is kept, and
+  secret findings are never sent to the AI.
+- The repository's own `.gitignore` now also excludes personal AI agent settings (`.claude/settings.local.json`,
+  `CLAUDE.local.md`), which can hold commands with credentials.
+
 ## [0.1.2] - 2026-11-05
 <!-- title: Host agent on Alpine and OpenRC, and an SSH server check that finds sshole -->
 

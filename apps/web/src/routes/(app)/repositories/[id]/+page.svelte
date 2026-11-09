@@ -15,6 +15,7 @@
   import RepositoryFacts from "#lib/components/repositories/RepositoryFacts.svelte";
   import RepositoryTrend from "#lib/components/repositories/RepositoryTrend.svelte";
   import ScanHistory from "#lib/components/repositories/ScanHistory.svelte";
+  import SecretsCard from "#lib/components/repositories/SecretsCard.svelte";
   import SharingCard from "#lib/components/repositories/SharingCard.svelte";
   import WebhookCard from "#lib/components/repositories/WebhookCard.svelte";
   import WriteAccessCard from "#lib/components/repositories/WriteAccessCard.svelte";
@@ -128,9 +129,10 @@
       </div>
     </div>
     <div class="grid items-start gap-4 @wide:grid-cols-2">
+      <SecretsCard repo={data} {me} />
       <WriteAccessCard repo={data} {me} />
-      <WebhookCard repositoryId={id} {me} />
     </div>
+    <WebhookCard repositoryId={id} {me} />
     {#if me.organization.modules?.hosts}<RunningCard repositoryId={id} />{/if}
     <div class="grid items-start gap-4 @wide:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <RepositoryTrend {id} />

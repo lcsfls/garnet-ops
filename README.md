@@ -40,6 +40,8 @@ you until shared
 ([docs/connected-accounts.md](docs/connected-accounts.md)),
 early warnings when a new advisory affects a package a repository already uses, before the next scan
 ([docs/early-warnings.md](docs/early-warnings.md)),
+a check of every repository, and on request its whole Git history, for keys, tokens, passwords and files that do not belong
+there, without ever storing a value ([docs/secrets.md](docs/secrets.md)),
 an optional host agent that reports the containers running on your servers, the vulnerabilities in their images and the repository
 each was built from, or, on servers without Docker, the host's own packages as a small systemd service ([docs/hosts.md](docs/hosts.md)),
 an optional module that watches your own websites from the outside, including DNSSEC, with port checks only for names you proved

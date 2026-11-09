@@ -34,6 +34,7 @@ describe("navigation of the developer pipeline", () => {
     expect(items("viewer")).toEqual([
       "/",
       "/findings",
+      "/secrets",
       "/early-warnings",
       "/statistics",
       "/repositories",

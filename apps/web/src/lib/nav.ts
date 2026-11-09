@@ -6,6 +6,7 @@ import {
   GitPullRequest,
   GitPullRequestArrow,
   Globe,
+  KeyRound,
   LayoutGrid,
   type LucideIcon,
   Package,
@@ -22,6 +23,7 @@ import type { Me } from "./session.ts";
 export type NavTo =
   | "/"
   | "/findings"
+  | "/secrets"
   | "/early-warnings"
   | "/statistics"
   | "/repositories"
@@ -57,6 +59,7 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
     items: [
       { to: "/", label: "nav.overview", icon: LayoutGrid },
       { to: "/findings", label: "nav.findings", icon: Bug },
+      { to: "/secrets", label: "nav.secrets", icon: KeyRound },
       { to: "/early-warnings", label: "nav.earlyWarnings", icon: Siren },
       { to: "/statistics", label: "nav.statistics", icon: ChartColumn },
     ],

@@ -4404,3 +4404,100 @@ test.describe("hosts and containers (ADR 0034)", () => {
     expect(problems).toEqual([]);
   });
 });
+
+test.describe("secrets (ADR 0049)", () => {
+  const REPO = "repo_e2eseeded000000001";
+  const insertSecret = (id: string, rule: string, severity: string, rank: number, tree: boolean) =>
+    sql(
+      `insert into secret_finding (id, organization_id, repository_id, rule_id, severity, severity_rank, fingerprint, state,
+         in_tree, tree_locations, tree_location_count, history_locations, history_location_count, first_seen_scan_id,
+         last_seen_scan_id, first_seen_at, last_seen_at)
+       select $1, organization_id, id, $2, $3, $4, $1, 'open', $5, $6::jsonb, $7, $8::jsonb, $9, 'scan_x', 'scan_x', now(), now()
+       from repository where id = $10`,
+      [
+        id,
+        rule,
+        severity,
+        rank,
+        tree,
+        JSON.stringify(tree ? [{ path: "src/config.js", line: 12 }] : []),
+        tree ? 1 : 0,
+        JSON.stringify(
+          tree
+            ? []
+            : [{ path: ".env", line: null, commit: "a".repeat(40), committedAt: "2026-01-02T03:04:05Z" }],
+        ),
+        tree ? 0 : 1,
+        REPO,
+      ],
+    );
+
+  test.afterAll(async () => {
+    await sql("delete from secret_finding where repository_id = $1", [REPO]);
+    await sql("update repository set secret_history_at = null, secret_history_by = null where id = $1", [
+      REPO,
+    ]);
+  });
+
+  test("lists secrets without values, closes one with a reason and reopens it, and sets the history check", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await insertSecret("sec_e2e_pat", "github-pat", "critical", 5, true);
+    await insertSecret("sec_e2e_env", "garnetops-env-file", "high", 4, false);
+
+    await page.goto("/secrets");
+    await expect(page.getByRole("heading", { name: "Secrets", level: 1 })).toBeVisible();
+    // The menu counts open critical and high secrets.
+    await expect(
+      page
+        .getByRole("navigation", { name: "Main navigation" })
+        .getByRole("link", { name: /^Secrets, 2 open critical or high secrets/ }),
+    ).toBeVisible();
+    const rows = page.getByTestId("secret-row");
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first()).toContainText("github-pat");
+    await expect(rows.first()).toContainText("src/config.js:12");
+    await expect(rows.nth(1)).toContainText("Environment file with values");
+    await expect(rows.nth(1)).toContainText("Only in the history now");
+
+    await rows.nth(1).getByRole("link", { name: "Environment file with values" }).click();
+    const detail = page.getByTestId("secret-detail");
+    await expect(detail).toContainText("never stores or shows the value");
+    await expect(detail.getByTestId("secret-history")).toContainText(".env");
+    await expect(detail.getByTestId("secret-history")).toContainText(`Commit ${"a".repeat(12)}`);
+    await expect(detail).toContainText("This file does not belong in a repository");
+    await detail.getByRole("button", { name: "Not a secret" }).click();
+    const dialog = page.getByRole("dialog", { name: "Not a secret" });
+    await dialog.getByLabel("Reason").fill("An empty template for local development");
+    await dialog.getByRole("button", { name: "Not a secret" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(detail).toContainText("Dismissed by");
+    await expect(detail).toContainText("An empty template for local development");
+    await expect(rows).toHaveCount(1);
+    await page.getByRole("button", { name: /^Dismissed/ }).click();
+    await expect(rows).toHaveCount(1);
+    await detail.getByRole("button", { name: "Reopen" }).click();
+    await expect(detail).not.toContainText("Dismissed by");
+
+    // The repository's card: open secrets, and the history on every scan (the owner is an admin).
+    await page.goto(`/repositories/${REPO}`);
+    const card = page.getByTestId("repository-secrets");
+    await expect(card).toContainText("2 open secrets");
+    await expect(card).toContainText("The history has not been checked yet.");
+    const history = card.getByLabel("Check the whole Git history on every scan");
+    await history.check();
+    await expect(history).toBeChecked();
+    const [repo] = await sql<{ on: boolean }>(
+      "select secret_history_at is not null as on from repository where id = $1",
+      [REPO],
+    );
+    expect(repo?.on).toBe(true);
+
+    // The gate rule ships off (rule 2).
+    await page.goto("/gates");
+    const rule = page.getByRole("group", { name: "Mode of Secret in the code" });
+    await expect(rule.getByRole("button", { name: "Off" })).toHaveAttribute("aria-pressed", "true");
+    expect(problems).toEqual([]);
+  });
+});

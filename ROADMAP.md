@@ -220,7 +220,8 @@ What was removed, and the items that were open when it was:
 
 ## Phase 5: Breadth, teams and distribution
 
-- [ ] Container image scanning, IaC and secret scanning, SAST (resale-safe rules)
+- [x] Secret and sensitive-file scanning of repositories and their history (ADR 0049, 0.1.3)
+- [ ] Container image scanning, IaC, SAST (resale-safe rules)
 - [~] Mail via SMTP or Microsoft Graph and webhooks (Discord, Slack-compatible, JSON) for
       alerts (ADR 0010); per-channel minimum severity and repositories, Discord embeds (0.0.10); the security report by email, daily,
       weekly or monthly per person in their own zone, sent once per period (ADR 0047). Still open: invitation mail

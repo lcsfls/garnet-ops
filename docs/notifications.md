@@ -15,8 +15,9 @@ they share: personal mail is sent through the organisation's mail channel (see "
 
 GarnetOps can tell a chat or a mailbox when a scan of a repository's branch finds **new
 critical or known exploited vulnerabilities**, **new findings** from a severity you choose,
-when a **quality gate blocks**, or when a **scan fails** (ADR 0010). Owners and admins set
-this up under **Settings → Notifications**.
+when a **quality gate blocks**, when a **scan fails** (ADR 0010), or when a scan finds **new secrets or sensitive files**
+(0.1.3, [secrets.md](secrets.md); counts by severity only, never a path; existing channels get it only once ticked). Owners and
+admins set this up under **Settings → Notifications**.
 
 ## What leaves your network
 

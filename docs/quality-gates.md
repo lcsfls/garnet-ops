@@ -11,6 +11,7 @@ scan and on request from your CI (ADR 0008).
 | Known exploited vulnerability | listed in the CISA KEV catalogue | Report |
 | High vulnerability with a fix | high, and a fixed version exists | Report |
 | Licence not allowed | a package uses only licences from your deny list (SPDX ids) | Off |
+| Secret in the code | an open critical or high secret in the checked commit's files, not marked revoked or dismissed ([secrets.md](secrets.md)) | Off |
 
 Each rule is **Off**, **Report** (shown, never fails a pipeline) or **Block** (fails the
 pipeline). Owners and admins set the modes under **Code → Quality gates**; every change is

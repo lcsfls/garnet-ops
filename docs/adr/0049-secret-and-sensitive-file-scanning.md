@@ -81,7 +81,7 @@ where the secret leaks.
 
 ### 5. Where people see it
 
-- **Findings → Secrets** (`/findings/secrets`): a table of its own (rule, severity, repository, where, state, first seen), filters
+- **Secrets** (`/secrets`, beside Findings in the menu): a table of its own (rule, severity, repository, where, state, first seen), filters
   by state, severity and repository, a detail with the places and the actions, and the plain steps: rotate first, then remove it
   from the files, then, if needed, from the history. The menu counts open critical and high secrets.
 - The repository page gets a **Secrets** card: open secrets by severity, the history setting, **Check history now**, and when the

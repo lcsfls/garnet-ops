@@ -82,3 +82,11 @@ submodules or LFS (`apps/worker/src/git.ts`).
 - Existing installations switch by downloading `docker-compose.yml` and `updater.yaml` of the release (docs/updating.md). Until then
   nothing changes for them except the hint on the System status page.
 - `GET /api/v1/system/status` gains `scanners.isolation`; nothing existing changes.
+
+## Addendum (2026-11): secret scanning
+
+The service gains a third kind of run, `POST /v1/secrets {"dir", "history"}`, for gitleaks (ADR 0049). It reads the same
+read-only clone, runs without network, and hands back gitleaks' findings with every value replaced by its SHA-256 and the matched
+text and commit authors removed: the values never leave this container. An image without gitleaks answers 404, which the worker
+records as "secrets not checked" without failing the scan. A history check needs every commit, so its clone is not shallow; the
+limits of the scan (`GARNETOPS_MAX_REPO_MB`, time) apply as before.

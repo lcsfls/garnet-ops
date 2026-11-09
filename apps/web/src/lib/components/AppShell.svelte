@@ -8,6 +8,7 @@
   import { formatNumber } from "../format.ts";
   import { t } from "../i18n.svelte.ts";
   import { isAdmin, moduleOn, type NavItem, navFor, navTrail } from "../nav.ts";
+  import { secretCountsQuery } from "../secrets.ts";
   import type { Me } from "../session.ts";
   import { findingCountsQuery, systemQuery } from "../shell.ts";
   import { resolvedTheme, setTheme } from "../theme.svelte.ts";
@@ -39,6 +40,9 @@
   const system = createQuery(() => systemQuery);
   // Every open finding the person sees (0.1.1, the maintainer's choice), not only the critical ones.
   const openFindings = $derived(counts.data?.states.open ?? 0);
+  // Secrets that need rotating (ADR 0049): open critical and high ones.
+  const secrets = createQuery(() => ({ ...secretCountsQuery(), refetchInterval: 60_000 }));
+  const seriousSecrets = $derived((secrets.data?.open.critical ?? 0) + (secrets.data?.open.high ?? 0));
   // What needs a look under Infrastructure: the same "attention" the pages filter by.
   type Attention = { count: number; worst: "critical" | "high" | null };
   const hostsAttention = createQuery(() => ({
@@ -61,6 +65,10 @@
     if (item.to === "/findings")
       return openFindings > 0
         ? { count: openFindings, label: t("shell.openFindingsBadge", { count: openFindings }) }
+        : null;
+    if (item.to === "/secrets")
+      return seriousSecrets > 0
+        ? { count: seriousSecrets, label: t("shell.openSecretsBadge", { count: seriousSecrets }) }
         : null;
     const attention =
       item.to === "/hosts"

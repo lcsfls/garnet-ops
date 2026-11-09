@@ -77,7 +77,7 @@ export async function tellAboutScan(
       await tellUsers(
         {
           ...common,
-          link: `/findings/secrets?repositoryId=${encodeURIComponent(payload.repository.id)}`,
+          link: `/secrets?repositoryId=${encodeURIComponent(payload.repository.id)}`,
           titleKey: "secretNew",
           params: { repository, count: f.critical + f.high + f.medium + f.low, serious: f.critical + f.high },
         },
