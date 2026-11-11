@@ -442,9 +442,10 @@ describe.skipIf(!adminUrl)("personal notifications", () => {
       });
       const admin = await get({ user: "u_admin", role: "admin" });
       expect(admin.json?.canManageChannels).toBe(true);
-      expect(admin.json?.events).toHaveLength(9);
+      expect(admin.json?.events).toHaveLength(10);
       expect(admin.json?.events.map((e: Json) => e.group)).toEqual([
-        ...Array(5).fill("code"),
+        // Including "new secrets" (ADR 0049).
+        ...Array(6).fill("code"),
         // The directory's certificate, an accepted invitation and a changed role.
         ...Array(3).fill("account"),
         "system",
