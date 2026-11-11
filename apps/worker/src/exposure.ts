@@ -65,6 +65,7 @@ import {
   type NetEnv,
   pacedRun,
   portResult,
+  probeExposedFiles,
   probePort,
   readDns,
   readPtr,
@@ -679,6 +680,16 @@ export async function runPassive(runId: string, deps: ExposureDeps = {}): Promis
       }
     }
 
+    // Files that must not be public (ADR 0050): only when switched on, only for a proved name, over the HTTPS the run reached.
+    let exposedFiles: PassiveSnapshot["exposedFiles"];
+    if (asset.exposedFilesAt && !isAddress) {
+      const address = http?.address ?? addresses[0];
+      if (!verifiedHosts(all).has(asset.value))
+        exposedFiles = { error: "notVerified", checked: 0, failed: 0, found: [] };
+      else if (!address || !httpsOpen) exposedFiles = { error: "noHttps", checked: 0, failed: 0, found: [] };
+      else exposedFiles = await probeExposedFiles(env, target, address);
+    }
+
     const snapshot: PassiveSnapshot = {
       version: 1,
       takenAt: now.toISOString(),
@@ -692,6 +703,7 @@ export async function runPassive(runId: string, deps: ExposureDeps = {}): Promis
       http,
       plain,
       ...(wordpressPlugin ? { wordpressPlugin } : {}),
+      ...(exposedFiles ? { exposedFiles } : {}),
       resolves: resolved.a.length + resolved.aaaa.length > 0 || (isAddress && addresses.length > 0),
       httpsOpen,
     };
@@ -715,8 +727,34 @@ export async function runPassive(runId: string, deps: ExposureDeps = {}): Promis
       ...(settings?.wordpressOrgEnabled ? { latest: await latestVersions(wordpressKeys(snapshot)) } : {}),
       ...(settings?.wordfenceSecretId ? { advisories: await wordfenceAdvisories(asset.organizationId) } : {}),
     });
-    await syncFindings(asset, "passive", drafts, new Set(unjudgedRules(snapshot)), now);
+    const synced = await syncFindings(asset, "passive", drafts, new Set(unjudgedRules(snapshot)), now);
     const counts = countBySeverity(drafts);
+
+    // A critical or high file that must not be public (ADR 0050) is announced once for as long as it stays reachable.
+    const exposed = synced.filter(
+      (row) =>
+        row.rule === "exposedFile" &&
+        row.state === "open" &&
+        row.notifiedAt === null &&
+        (row.severity === "critical" || row.severity === "high"),
+    );
+    if (exposed.length > 0) {
+      await tellUsers({
+        organizationId: asset.organizationId,
+        titleKey: "exposureExposedFile",
+        params: { asset: asset.value, count: exposed.length, path: String(exposed[0]?.subject ?? "") },
+        link: `/websites/${asset.id}?tab=findings`,
+      });
+      await db
+        .update(schema.exposureFinding)
+        .set({ notifiedAt: now })
+        .where(
+          inArray(
+            schema.exposureFinding.id,
+            exposed.map((row) => row.id),
+          ),
+        );
+    }
 
     // Certificate expiry warnings: once per step (30, 14, 7 days, expired), again after a renewal, once per certificate.
     const notifiedLevel = await announceCertificateExpiry(asset, snapshot, now);

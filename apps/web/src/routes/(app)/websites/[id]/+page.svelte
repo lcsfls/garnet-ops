@@ -14,6 +14,7 @@
   import ConfirmDialog from "#lib/components/ui/ConfirmDialog.svelte";
   import AvailabilityCard from "#lib/components/websites/AvailabilityCard.svelte";
   import DnsCard from "#lib/components/websites/DnsCard.svelte";
+  import ExposedFilesCard from "#lib/components/websites/ExposedFilesCard.svelte";
   import Facts, { type Fact } from "#lib/components/websites/Facts.svelte";
   import FindingsCard from "#lib/components/websites/FindingsCard.svelte";
   import HistoryCard from "#lib/components/websites/HistoryCard.svelte";
@@ -249,6 +250,7 @@
       <div class="grid gap-4">
         <HttpCard detail={data} />
         <WordPressPluginCard detail={data} {canEdit} email={me.user.email} />
+        <ExposedFilesCard detail={data} {canEdit} email={me.user.email} />
       </div>
     {:else if which === "ports"}<PortsCard detail={data} {canEdit} onStage2={() => setSearch({ stage2: "1" })} />
     {:else if which === "history"}<HistoryCard detail={data} />

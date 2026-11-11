@@ -2965,11 +2965,12 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(findings.locator("li")).toHaveCount(1);
     await expect(findings).toContainText("No Content-Security-Policy");
 
-    // The report comes first: every area in one list, each leading to its details (ADR 0040 adds availability).
+    // The report comes first: every area in one list, each leading to its details (ADR 0040 adds availability, ADR 0050 files).
     const report = page.getByTestId("websites-report");
-    await expect(report.locator("li")).toHaveCount(9);
-    await expect(page.getByTestId("websites-report-summary")).toContainText("4 of 9 areas need a look");
+    await expect(report.locator("li")).toHaveCount(10);
+    await expect(page.getByTestId("websites-report-summary")).toContainText("4 of 10 areas need a look");
     await expect(report.locator('[data-area="availability"]')).toContainText("Switched off for this website");
+    await expect(report.locator('[data-area="files"]')).toContainText("Switched off for this website");
     await expect(report.locator('[data-area="ports"]')).toContainText("Reachable from the internet");
     // The report agrees with the HTTP tab about the software it judged.
     await expect(report.locator('[data-area="software"]')).toContainText("Medium");
@@ -3050,6 +3051,62 @@ test.describe("website monitoring (ADR 0023, 0033)", () => {
     await expect(page.getByText("gateway.example.com")).toBeVisible();
     await page.getByRole("tablist", { name: "Sections" }).getByRole("tab", { name: "TLS" }).click();
     await expect(page.getByText("Not checked for an address.")).toBeVisible();
+    expect(problems).toEqual([]);
+  });
+
+  test("files that must not be public: an admin switches the check on for a proved name; a finding names path and kind (ADR 0050)", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await signedInAt("now");
+    await page.goto(`/websites/${EXPOSURE.main.id}?tab=http`);
+    const card = page.getByTestId("exposed-files");
+    await expect(card).toContainText("Off. When switched on, the daily look asks for 24 fixed paths");
+    await card.getByRole("button", { name: "Show the paths" }).click();
+    await expect(card.getByTestId("exposed-files-paths")).toContainText("/.git/config");
+    await card.getByRole("button", { name: "Switch on" }).click();
+    await expect(card).toContainText("On since");
+    await expect(card).toContainText("Not looked yet");
+    const [on] = await sql<{ n: number }>(
+      "select count(*)::int as n from audit_log where action = 'exposure.exposed_files_enabled' and target_id = $1",
+      [EXPOSURE.main.id],
+    );
+    expect(on?.n).toBe(1);
+
+    // What the daily look would have found.
+    await sql(
+      `insert into exposure_finding (id, organization_id, asset_id, stage, rule, subject, severity, severity_rank, state, params,
+         first_seen_at, last_seen_at)
+       select 'exf_e2e_exposed_env', organization_id, id, 'passive', 'exposedFile', '/.env', 'critical', 5, 'open',
+         '{"path":"/.env","kind":"envFile"}'::jsonb, now(), now()
+       from exposure_asset where id = $1`,
+      [EXPOSURE.main.id],
+    );
+    try {
+      await page.goto(`/websites/${EXPOSURE.main.id}?tab=findings`);
+      const findings = page.getByTestId("websites-findings");
+      await expect(findings).toContainText("A file that must not be public is reachable");
+      await expect(findings).toContainText("/.env (environment file) is served to anyone");
+      await page.goto(`/websites/${EXPOSURE.main.id}?tab=report`);
+      await expect(page.getByTestId("websites-report").locator('[data-area="files"]')).toContainText(
+        "Critical",
+      );
+
+      // Switched off: its findings close at once.
+      await page.goto(`/websites/${EXPOSURE.main.id}?tab=http`);
+      await card.getByRole("button", { name: "Switch off" }).click();
+      await expect(card).toContainText("Off. When switched on");
+      const [closed] = await sql<{ state: string }>(
+        "select state from exposure_finding where id = 'exf_e2e_exposed_env'",
+      );
+      expect(closed?.state).toBe("resolved");
+    } finally {
+      await sql("delete from exposure_finding where id = 'exf_e2e_exposed_env'");
+      await sql("update exposure_asset set exposed_files_at = null, exposed_files_by = null where id = $1", [
+        EXPOSURE.main.id,
+      ]);
+      await sql("delete from audit_log where action like 'exposure.exposed_files_%'");
+    }
     expect(problems).toEqual([]);
   });
 

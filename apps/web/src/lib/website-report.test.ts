@@ -35,6 +35,7 @@ function detail(over: Partial<ExposureDetail> = {}): ExposureDetail {
     },
     open: { critical: 0, high: 0, medium: 0, low: 0 },
     uptime: { enabled: false, intervalMinutes: 5, state: null, since: null, checkedAt: null },
+    exposedFiles: { enabled: false, enabledAt: null, last: null },
     createdAt: "2026-10-22T10:00:00.000Z",
     passive: {
       httpsOpen: true,

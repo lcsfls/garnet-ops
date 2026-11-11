@@ -1857,6 +1857,12 @@ export const exposureAsset = pgTable(
     wordpressTokenSecretId: text("wordpress_token_secret_id"),
     wordpressTokenSetAt: timestamp("wordpress_token_set_at", { withTimezone: true }),
     wordpressTokenSetBy: text("wordpress_token_set_by").references(() => user.id, { onDelete: "set null" }),
+    /**
+     * Files that must not be public (ADR 0050): switched on by an admin for a proved name; the daily look then asks for a fixed
+     * list of paths. Null while off.
+     */
+    exposedFilesAt: timestamp("exposed_files_at", { withTimezone: true }),
+    exposedFilesBy: text("exposed_files_by").references(() => user.id, { onDelete: "set null" }),
 
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: createdAt(),

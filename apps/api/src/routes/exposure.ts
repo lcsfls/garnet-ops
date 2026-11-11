@@ -8,6 +8,7 @@
 
 import { randomBytes } from "node:crypto";
 import { newId } from "@garnetops/core";
+import { EXPOSED_FILE_PROBES } from "@garnetops/core/exposed-files";
 import {
   ACTIVE_LIMITS,
   ACTIVE_SCHEDULES,
@@ -311,6 +312,17 @@ function present(
       nextManualAt: row.lastActiveAt
         ? new Date(row.lastActiveAt.getTime() + ACTIVE_LIMITS.minIntervalHours * HOUR).toISOString()
         : null,
+    },
+    /** Files that must not be public (ADR 0050, 0.1.4): switched on per website by an admin, for proved names only. */
+    exposedFiles: {
+      enabled: row.exposedFilesAt !== null,
+      enabledAt: iso(row.exposedFilesAt),
+      last: (() => {
+        const files = (row.passive as PassiveSnapshot | null)?.exposedFiles;
+        return files
+          ? { error: files.error, checked: files.checked, failed: files.failed, found: files.found.length }
+          : null;
+      })(),
     },
     open: open ?? { critical: 0, high: 0, medium: 0, low: 0 },
     uptime: {
@@ -1375,6 +1387,62 @@ export const exposureRoutes = new Hono<AppEnv>()
       );
     }
     return c.json({ enabled: body.enabled, intervalMinutes: interval });
+  })
+  /** Files that must not be public (ADR 0050): admins, a recent sign-in to switch on, and only for a proved name. */
+  .put("/:id/exposed-files", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    const row = await ownAsset(actor.organizationId, c.req.param("id"));
+    const body = z.object({ enabled: z.boolean() }).parse(await c.req.json());
+    const now = new Date();
+    if (!body.enabled) {
+      if (row.exposedFilesAt) {
+        await db
+          .update(a)
+          .set({ exposedFilesAt: null, exposedFilesBy: null, updatedAt: now })
+          .where(eq(a.id, row.id));
+        // Switched off: what it found is no longer looked at, so it is no longer reported.
+        await db
+          .update(schema.exposureFinding)
+          .set({ state: "resolved", resolvedAt: now, notifiedAt: null })
+          .where(
+            and(
+              eq(schema.exposureFinding.assetId, row.id),
+              eq(schema.exposureFinding.rule, "exposedFile"),
+              eq(schema.exposureFinding.state, "open"),
+            ),
+          );
+        await audit(
+          actor,
+          "exposure.exposed_files_disabled",
+          { type: "exposure_asset", id: row.id },
+          { value: row.value },
+        );
+      }
+      return c.json({ enabled: false });
+    }
+    requireRecentSignIn(actor);
+    if (row.kind !== "domain") {
+      throw new ProblemError(409, "not-a-name", "Files are only checked on names, not on addresses");
+    }
+    const all = await orgVerifiables(actor.organizationId);
+    const effective = effectiveVerification(verifiable(row), all);
+    if (!effective.verified) {
+      throw new ProblemError(409, "not-verified", "Prove control of the name before switching on this check");
+    }
+    if (!row.exposedFilesAt) {
+      await db
+        .update(a)
+        .set({ exposedFilesAt: now, exposedFilesBy: actor.userId, updatedAt: now })
+        .where(eq(a.id, row.id));
+      await audit(
+        actor,
+        "exposure.exposed_files_enabled",
+        { type: "exposure_asset", id: row.id },
+        { value: row.value, verifiedVia: effective.via, paths: EXPOSED_FILE_PROBES.length },
+      );
+    }
+    return c.json({ enabled: true });
   })
   .put("/:id/stage2", async (c) => {
     const actor = c.get("actor");

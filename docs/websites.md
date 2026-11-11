@@ -38,7 +38,8 @@ with one optional exception that is off by default (Certificate Transparency, be
 
 No exploits, no password or credential testing, no brute force, no fuzzing, no flooding, no crawling, no form submission and no
 payloads. Stage 2 **only connects and reads**: apart from the TLS handshake on TLS ports, nothing is written to a port. There is
-no raw-socket or SYN scanning and no third-party scanner. Subdomains are never guessed.
+no raw-socket or SYN scanning and no third-party scanner. Subdomains are never guessed. Only `/` is requested, with one exception an
+admin switches on per website: the check for [files that must not be public](#files-that-must-not-be-public).
 
 ## Add an asset
 
@@ -342,6 +343,26 @@ A high or critical service notifies once while it stays open.
 Your firewall, IDS or hosting provider may flag these connections as a port scan. They come from the **address of the machine that
 runs the GarnetOps worker**. If you do not want alerts, allow that address for the target. The run is slow on purpose (about
 6 seconds per address for the connections alone, plus up to 2 seconds for each service that speaks first).
+
+## Files that must not be public
+
+A `.env`, a `.git` folder, a database dump or a `wp-config.php.bak` in the web root gives away what it contains to anyone who asks;
+scanners on the internet ask all day ([ADR 0050](adr/0050-exposed-files-on-websites.md)). **HTTP tab → Files that must not be
+public → Switch on** (owners and admins, recent sign-in, only for a name whose control is proved, never for an address).
+
+Then the daily look asks for a fixed list of 24 paths (**Show the paths** lists them): environment files, Git, cloud and registry
+credentials, `.htpasswd`, AI agent settings, configuration backups, SQL dumps and backup archives, `phpinfo`, the Apache server
+status and `.DS_Store`. One request each, over verified HTTPS to the address the look already checked, no redirects followed,
+8 KiB of each answer read, a pause between requests.
+
+A path counts only when its **content proves** the kind of file (for example `KEY=value` lines for `.env`, `ref: refs/` for
+`.git/HEAD`, the ZIP header for an archive): a site that answers every path with its own page is not reported. Nothing of a file
+is kept, only its path and kind. Each one is a finding with a fixed severity (critical for environment files, credentials and
+configuration backups; high for Git, dumps, archives, `.htpasswd` and AI agent settings; medium for `phpinfo` and the server
+status; low for `.DS_Store`), in the report under **Files that must not be public**. A new critical or high one tells admins once.
+
+What to do: remove the file or block the path in the web server, then rotate what it contained, because it may have been read
+already. Without a proof of control the paths are not asked for; switching the check off closes its findings.
 
 ## Certificate Transparency (optional)
 

@@ -7,12 +7,14 @@ export function ruleText(f: Pick<ExposureFindingRow, "rule" | "params">): { titl
   if (!hasKey(titleKey)) return { title: f.rule, text: "" };
   const service = typeof f.params.service === "string" ? f.params.service : "";
   const category = typeof f.params.category === "string" ? f.params.category : "";
+  const kind = typeof f.params.kind === "string" ? f.params.kind : "";
   const values = {
     ...f.params,
     service: hasKey(`websites.service.${service}`) ? t(`websites.service.${service}` as MessageKey) : service,
     category: hasKey(`websites.category.${category}`)
       ? t(`websites.category.${category}` as MessageKey)
       : category,
+    kind: hasKey(`websites.exposedKind.${kind}`) ? t(`websites.exposedKind.${kind}` as MessageKey) : kind,
   };
   return {
     title: t(titleKey as MessageKey, values),

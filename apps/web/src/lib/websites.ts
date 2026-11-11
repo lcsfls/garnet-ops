@@ -74,6 +74,12 @@ export interface WebsiteAsset {
     summary: { takenAt: string | null; open: number; checked: number | null } | null;
     nextManualAt: string | null;
   };
+  /** Files that must not be public (ADR 0050); off until an admin switches it on for a proved name. */
+  exposedFiles: {
+    enabled: boolean;
+    enabledAt: string | null;
+    last: { error: "notVerified" | "noHttps" | null; checked: number; failed: number; found: number } | null;
+  };
   open: Record<ExposureSeverity, number>;
   /** Availability (ADR 0040); off until an admin switches it on. */
   uptime: {

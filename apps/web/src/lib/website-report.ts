@@ -18,6 +18,7 @@ export const REPORT_AREAS = [
   "dns",
   "dnssec",
   "ports",
+  "files",
 ] as const;
 export type ReportArea = (typeof REPORT_AREAS)[number];
 
@@ -58,6 +59,7 @@ export const RULE_AREA: Record<ExposureRule, ReportArea> = {
   dnssecWeakAlgorithm: "dnssec",
   dnssecSha1Digest: "dnssec",
   portExposed: "ports",
+  exposedFile: "files",
 };
 
 /** The tab that shows the details of an area. */
@@ -71,6 +73,7 @@ export const AREA_TAB: Record<ReportArea, WebsiteTab> = {
   dns: "dns",
   dnssec: "dns",
   ports: "ports",
+  files: "findings",
 };
 
 export type ReportState =
@@ -139,6 +142,15 @@ export function websiteReport(detail: ExposureDetail): ReportRow[] {
           software: { name: first.j.name, version: first.j.version, status: first.j.status },
         };
       }
+    }
+    if (area === "files") {
+      // Files that must not be public (ADR 0050): only names, only while switched on.
+      if (detail.kind !== "domain") return null;
+      if (!detail.exposedFiles.enabled) return { kind: "notChecked", reason: "off" };
+      const last = detail.exposedFiles.last;
+      if (!last) return { kind: "notChecked", reason: "noRun" };
+      if (last.error !== null || last.failed > 0) return { kind: "notChecked", reason: "unknown" };
+      return { kind: "ok" };
     }
     if (area === "ports") {
       if (!detail.stage2.enabled) return { kind: "notChecked", reason: "off" };

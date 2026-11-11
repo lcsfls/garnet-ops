@@ -272,6 +272,10 @@ export const en = {
           label: "A website is down or back up",
           hint: "The availability check failed three times in a row, or succeeded again after an outage.",
         },
+        exposureExposedFile: {
+          label: "A file that must not be public is reachable",
+          hint: "The daily look found a .env, a Git folder, a backup or a similar file on a website where this check is on.",
+        },
         hostsNewAdvisory: {
           label: "A new advisory concerns a running container or host",
           hint: "A newer vulnerability database brought advisories for packages that already run. They are findings at once.",
@@ -1563,6 +1567,7 @@ export const en = {
         dns: "DNS records",
         dnssec: "DNSSEC",
         ports: "Open ports",
+        files: "Files that must not be public",
       },
       ok: {
         certificate: "Trusted, matches the name, modern TLS",
@@ -1577,6 +1582,7 @@ export const en = {
         dnssecSecure: "Signed, and the chain of trust holds",
         ports:
           "{count, plural, =0 {No open ports found} one {One open port, none risky} other {# open ports, none risky}}",
+        files: "None of the paths it asks for is served",
       },
       notChecked: {
         noRun: "Not checked yet",
@@ -1789,6 +1795,10 @@ export const en = {
       portExposed: {
         title: "Reachable from the internet: port {port}",
         text: "{service} ({category}) answers on port {port} of {addresses}. GarnetOps only connected and sent nothing, so it cannot tell whether the service is protected.",
+      },
+      exposedFile: {
+        title: "A file that must not be public is reachable",
+        text: "{path} ({kind}) is served to anyone who asks for it. Remove it from the web root or block the path in the web server, then rotate what it contains: it may have been read already.",
       },
     },
     category: {
@@ -2033,6 +2043,41 @@ export const en = {
       tooLarge: "The feed was larger than GarnetOps reads (400 MB).",
       invalid: "The answer was not the expected feed.",
       noKey: "The key could not be opened. Set it again.",
+    },
+    exposedKind: {
+      envFile: "environment file",
+      gitRepository: "Git repository",
+      cloudCredentials: "cloud credentials",
+      registryToken: "package registry token",
+      htpasswd: "web server password file",
+      aiAgentSettings: "AI agent settings",
+      configBackup: "configuration backup with a password",
+      sqlDump: "database dump",
+      archive: "backup archive",
+      phpinfo: "PHP configuration page",
+      serverStatus: "web server status page",
+      dsStore: "macOS folder index",
+    },
+    exposedFiles: {
+      title: "Files that must not be public",
+      description:
+        "Once a day, GarnetOps asks this site for a fixed list of files such as .env, .git, backups and dumps, and reports the ones it really serves. Nothing of a file is kept.",
+      namesOnly: "Checked on names only, not on addresses.",
+      off: "Off. When switched on, the daily look asks for {count} fixed paths, verified HTTPS only, no redirects followed, 8 KiB of each answer read.",
+      needsProof: "Prove control of the name first (DNS TXT record or file).",
+      on: "On since {date}.",
+      last: "Last look: {checked} paths asked, {found, plural, =0 {none served} one {# served} other {# served}}{failed, plural, =0 {} other {, # without an answer}}.",
+      noRunYet: "Not looked yet: with the next daily look.",
+      lostProof:
+        "The proof of control is gone, so the paths are not asked for. Prove it again or switch the check off.",
+      noHttps: "HTTPS did not answer at the last look, so nothing was asked for.",
+      switchOn: "Switch on",
+      switchOff: "Switch off",
+      switchedOn: "Switched on. The next daily look asks for the paths.",
+      switchedOff: "Switched off. Its findings are closed.",
+      notVerified: "Prove control of the name before switching this on.",
+      showPaths: "Show the paths",
+      hidePaths: "Hide the paths",
     },
     wpPlugin: {
       title: "GarnetOps WordPress plugin",
@@ -3968,6 +4013,8 @@ export const en = {
       exposure_verification_lost: "Asset verification lost",
       exposure_verification_reset: "Asset verification code replaced",
       exposure_stage2_enabled: "Stage 2 switched on for an asset",
+      exposure_exposed_files_enabled: "Check for exposed files switched on for a website",
+      exposure_exposed_files_disabled: "Check for exposed files switched off for a website",
       exposure_uptime_enabled: "Availability check switched on or changed for an asset",
       exposure_uptime_disabled: "Availability check switched off for an asset",
       exposure_stage2_disabled: "Stage 2 switched off for an asset",
@@ -4623,6 +4670,10 @@ export const en = {
       exposureUp: {
         title: "Website back up: {asset}",
         text: "The availability check succeeded again.",
+      },
+      exposureExposedFile: {
+        title: "File must not be public: {asset}",
+        text: "{count, plural, one {{path} is} other {{path} and # more are}} served to anyone. Remove it, then rotate what it contains.",
       },
       certificateChangedDirectory: {
         title: "Directory server certificate changed: {name}",

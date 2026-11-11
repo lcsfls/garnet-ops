@@ -8,6 +8,7 @@
  * markup, a link or an instruction.
  */
 
+import { EXPOSED_FILE_SEVERITY, type ExposedFilesSnapshot } from "./exposed-files.ts";
 import {
   compareVersions,
   detectSoftware,
@@ -631,6 +632,8 @@ export interface PassiveSnapshot {
    * (`unauthorized`, `notInstalled`, `status`, `invalid`, `refused`, `timeout`, `tls`, `protocol`, `notVerified`).
    */
   wordpressPlugin?: { error: string | null; pluginVersion: string | null };
+  /** Files that must not be public (ADR 0050), when the check is switched on for this website. */
+  exposedFiles?: ExposedFilesSnapshot;
   /** Whether the name has no address at all. */
   resolves: boolean;
   /** Whether port 443 accepted a connection on any looked-at address. */
@@ -794,6 +797,7 @@ export const EXPOSURE_RULES = [
   "wordpressOutdated",
   "wordpressVulnerable",
   "portExposed",
+  "exposedFile",
 ] as const;
 export type ExposureRule = (typeof EXPOSURE_RULES)[number];
 
@@ -1027,6 +1031,15 @@ export function evaluatePassive(
       }
     }
   }
+  // Files that must not be public (ADR 0050): one finding per path that proved to be served.
+  for (const file of snapshot.exposedFiles?.found ?? []) {
+    out.push(
+      finding("exposedFile", EXPOSED_FILE_SEVERITY[file.kind], stage, file.path, {
+        path: file.path,
+        kind: file.kind,
+      }),
+    );
+  }
   return out;
 }
 
@@ -1099,6 +1112,9 @@ const HTTP_RULES: ExposureRule[] = [
 export function unjudgedRules(s: PassiveSnapshot): ExposureRule[] {
   const out: ExposureRule[] = [];
   const dns = s.dns;
+  // Exposed files (ADR 0050): asked for but not every answer came, or not asked because the proof is gone: leave them as they are.
+  const files = s.exposedFiles;
+  if (files && (files.failed > 0 || files.error !== null)) out.push("exposedFile");
   if (dns?.failed.includes("txt")) out.push("dnsNoSpf", "dnsSpfMultiple", "dnsSpfPermissive");
   if (dns?.failed.includes("dmarc")) out.push("dnsNoDmarc", "dnsDmarcNone");
   if (dns?.failed.includes("caa")) out.push("dnsNoCaa");

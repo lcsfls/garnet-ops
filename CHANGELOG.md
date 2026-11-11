@@ -15,6 +15,13 @@ Security-relevant changes are listed under **Security** in every release.
   with **Ignore similar** on a secret. A secret is set aside only when every place it is known at matches; set aside means not
   counted, not in the gate or notifications, but listed under **Ignored**. Rules live in GarnetOps, never in the repository.
 - The audit log names the secret actions (revoked, not a secret, reopened, ignore rules, history check on or off).
+- **Files that must not be public on websites** ([docs/websites.md](docs/websites.md#files-that-must-not-be-public), ADR 0050):
+  switched on per website by an admin, only for names whose control is proved. The daily look then asks for 24 fixed paths
+  (`.env`, `.git`, credentials, configuration backups, SQL dumps and archives, `phpinfo`, server status, `.DS_Store`) and reports
+  only what its content proves, so pages that answer every path do not count. Nothing of a file is kept. Findings appear in the
+  website's report (area **Files that must not be public**), the websites at a glance and the organisation report; a new
+  critical or high one tells admins once. Off by default: until switched on, only `/` is requested, as before.
+- API (additive): `PUT /api/v1/exposure/{id}/exposed-files` with `{ "enabled" }`; `exposedFiles` on `GET /api/v1/exposure/{id}`.
 
 ## [0.1.3] - 2026-11-11
 <!-- title: Secrets in repositories: keys, tokens and files that do not belong there, without storing a value -->

@@ -745,6 +745,72 @@ describe.skipIf(!adminUrl)("Exposure API", () => {
     });
   });
 
+  describe("exposed files (ADR 0050)", () => {
+    it("are switched on by admins with a recent sign-in, only for proved names, and switching off closes their findings", async () => {
+      const unverified = await addAsset();
+      const ok = await verified();
+      expect(
+        (
+          await call("PUT", `/api/v1/exposure/${ok}/exposed-files`, {
+            role: "member",
+            body: { enabled: true },
+          })
+        ).status,
+      ).toBe(403);
+      const stale = await call("PUT", `/api/v1/exposure/${ok}/exposed-files`, {
+        age: STALE,
+        body: { enabled: true },
+      });
+      expect([stale.status, problemCode(stale)]).toEqual([403, "step-up-required"]);
+      const refused = await call("PUT", `/api/v1/exposure/${unverified}/exposed-files`, {
+        body: { enabled: true },
+      });
+      expect([refused.status, problemCode(refused)]).toEqual([409, "not-verified"]);
+
+      expect(
+        (await call("PUT", `/api/v1/exposure/${ok}/exposed-files`, { body: { enabled: true } })).status,
+      ).toBe(200);
+      expect((await row(ok)).exposedFilesAt).not.toBeNull();
+      expect(
+        (await audits("exposure.exposed_files_enabled")).find((a) => a.targetId === ok)?.data,
+      ).toMatchObject({
+        verifiedVia: "self",
+        paths: 24,
+      });
+      const detail = await call("GET", `/api/v1/exposure/${ok}`);
+      expect(detail.json?.exposedFiles).toMatchObject({ enabled: true, last: null });
+
+      const [orgRow] = await t.db
+        .select({ org: schema.exposureAsset.organizationId })
+        .from(schema.exposureAsset)
+        .where(eq(schema.exposureAsset.id, ok));
+      await t.db.insert(schema.exposureFinding).values({
+        id: "exf_e2e_env",
+        organizationId: orgRow?.org as string,
+        assetId: ok,
+        stage: "passive",
+        rule: "exposedFile",
+        subject: "/.env",
+        severity: "critical",
+        severityRank: 5,
+        state: "open",
+        params: { path: "/.env", kind: "envFile" },
+        firstSeenAt: new Date(),
+        lastSeenAt: new Date(),
+      });
+      expect(
+        (await call("PUT", `/api/v1/exposure/${ok}/exposed-files`, { age: STALE, body: { enabled: false } }))
+          .status,
+      ).toBe(200);
+      expect((await row(ok)).exposedFilesAt).toBeNull();
+      const [closed] = await t.db
+        .select()
+        .from(schema.exposureFinding)
+        .where(eq(schema.exposureFinding.id, "exf_e2e_env"));
+      expect(closed?.state).toBe("resolved");
+    });
+  });
+
   describe("stage 2", () => {
     it("needs a recent sign-in, the acknowledgement and a verified asset", async () => {
       const unverified = await addAsset();

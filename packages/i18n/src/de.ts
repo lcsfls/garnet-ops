@@ -285,6 +285,10 @@ export const de: Messages = {
           label: "Eine Website ist nicht erreichbar oder wieder da",
           hint: "Die Erreichbarkeitsprüfung ist dreimal hintereinander gescheitert oder nach einem Ausfall wieder gelungen.",
         },
+        exposureExposedFile: {
+          label: "Eine Datei, die nicht öffentlich sein darf, ist erreichbar",
+          hint: "Der tägliche Blick hat eine .env, einen Git-Ordner, ein Backup oder Ähnliches auf einer Website gefunden, für die diese Prüfung an ist.",
+        },
         hostsNewAdvisory: {
           label: "Eine neue Sicherheitsmeldung betrifft einen laufenden Container oder Host",
           hint: "Eine neuere Schwachstellen-Datenbank hat Meldungen für Pakete gebracht, die schon laufen. Sie sind sofort Befunde.",
@@ -1615,6 +1619,7 @@ export const de: Messages = {
         dns: "DNS-Einträge",
         dnssec: "DNSSEC",
         ports: "Offene Ports",
+        files: "Dateien, die nicht öffentlich sein dürfen",
       },
       ok: {
         certificate: "Vertrauenswürdig, passt zum Namen, aktuelles TLS",
@@ -1629,6 +1634,7 @@ export const de: Messages = {
         dnssecSecure: "Signiert, und die Vertrauenskette ist vollständig",
         ports:
           "{count, plural, =0 {Keine offenen Ports gefunden} one {Ein offener Port, keiner riskant} other {# offene Ports, keiner riskant}}",
+        files: "Keiner der abgefragten Pfade wird ausgeliefert",
       },
       notChecked: {
         noRun: "Noch nicht geprüft",
@@ -1842,6 +1848,10 @@ export const de: Messages = {
       portExposed: {
         title: "Aus dem Internet erreichbar: Port {port}",
         text: "{service} ({category}) antwortet auf Port {port} von {addresses}. GarnetOps hat sich nur verbunden und nichts gesendet. Ob der Dienst geschützt ist, lässt sich daher nicht sagen.",
+      },
+      exposedFile: {
+        title: "Eine Datei, die nicht öffentlich sein darf, ist erreichbar",
+        text: "{path} ({kind}) wird jedem ausgeliefert, der danach fragt. Entfernen Sie sie aus dem Web-Verzeichnis oder sperren Sie den Pfad im Webserver, und tauschen Sie dann aus, was sie enthält: Sie kann schon gelesen worden sein.",
       },
     },
     category: {
@@ -2092,6 +2102,41 @@ export const de: Messages = {
       tooLarge: "Der Feed war größer, als GarnetOps liest (400 MB).",
       invalid: "Die Antwort war nicht der erwartete Feed.",
       noKey: "Der Schlüssel konnte nicht geöffnet werden. Setzen Sie ihn erneut.",
+    },
+    exposedKind: {
+      envFile: "Umgebungsdatei",
+      gitRepository: "Git-Repository",
+      cloudCredentials: "Cloud-Zugangsdaten",
+      registryToken: "Token einer Paket-Registry",
+      htpasswd: "Passwortdatei des Webservers",
+      aiAgentSettings: "Einstellungen eines KI-Agenten",
+      configBackup: "Konfigurations-Backup mit Passwort",
+      sqlDump: "Datenbank-Dump",
+      archive: "Backup-Archiv",
+      phpinfo: "PHP-Konfigurationsseite",
+      serverStatus: "Statusseite des Webservers",
+      dsStore: "macOS-Ordnerindex",
+    },
+    exposedFiles: {
+      title: "Dateien, die nicht öffentlich sein dürfen",
+      description:
+        "Einmal am Tag fragt GarnetOps diese Website nach einer festen Liste von Dateien wie .env, .git, Backups und Dumps und meldet die, die sie wirklich ausliefert. Vom Inhalt wird nichts gespeichert.",
+      namesOnly: "Wird nur für Namen geprüft, nicht für Adressen.",
+      off: "Aus. Eingeschaltet fragt der tägliche Blick {count} feste Pfade ab, nur über geprüftes HTTPS, ohne Weiterleitungen, je Antwort 8 KiB gelesen.",
+      needsProof: "Weisen Sie zuerst die Kontrolle über den Namen nach (DNS-TXT-Eintrag oder Datei).",
+      on: "An seit {date}.",
+      last: "Letzter Blick: {checked} Pfade abgefragt, {found, plural, =0 {keiner ausgeliefert} one {# ausgeliefert} other {# ausgeliefert}}{failed, plural, =0 {} other {, # ohne Antwort}}.",
+      noRunYet: "Noch nicht geprüft: beim nächsten täglichen Blick.",
+      lostProof:
+        "Der Kontrollnachweis fehlt, deshalb werden die Pfade nicht abgefragt. Weisen Sie ihn erneut nach oder schalten Sie die Prüfung aus.",
+      noHttps: "HTTPS hat beim letzten Blick nicht geantwortet, deshalb wurde nichts abgefragt.",
+      switchOn: "Einschalten",
+      switchOff: "Ausschalten",
+      switchedOn: "Eingeschaltet. Der nächste tägliche Blick fragt die Pfade ab.",
+      switchedOff: "Ausgeschaltet. Ihre Befunde sind geschlossen.",
+      notVerified: "Weisen Sie die Kontrolle über den Namen nach, bevor Sie das einschalten.",
+      showPaths: "Pfade zeigen",
+      hidePaths: "Pfade ausblenden",
     },
     wpPlugin: {
       title: "GarnetOps-WordPress-Plugin",
@@ -4078,6 +4123,8 @@ export const de: Messages = {
       exposure_verification_lost: "Verifizierung eines Assets verloren",
       exposure_verification_reset: "Verifizierungscode eines Assets ersetzt",
       exposure_stage2_enabled: "Stufe 2 für ein Asset eingeschaltet",
+      exposure_exposed_files_enabled: "Prüfung auf öffentliche Dateien für eine Website eingeschaltet",
+      exposure_exposed_files_disabled: "Prüfung auf öffentliche Dateien für eine Website ausgeschaltet",
       exposure_uptime_enabled: "Erreichbarkeitsprüfung für ein Asset eingeschaltet oder geändert",
       exposure_uptime_disabled: "Erreichbarkeitsprüfung für ein Asset ausgeschaltet",
       exposure_stage2_disabled: "Stufe 2 für ein Asset ausgeschaltet",
@@ -4743,6 +4790,10 @@ export const de: Messages = {
       exposureUp: {
         title: "Website wieder erreichbar: {asset}",
         text: "Die Erreichbarkeitsprüfung ist wieder gelungen.",
+      },
+      exposureExposedFile: {
+        title: "Datei darf nicht öffentlich sein: {asset}",
+        text: "{count, plural, one {{path} wird} other {{path} und # weitere werden}} jedem ausgeliefert. Entfernen Sie sie und tauschen Sie aus, was sie enthält.",
       },
       certificateChangedDirectory: {
         title: "Zertifikat eines Verzeichnisservers geändert: {name}",

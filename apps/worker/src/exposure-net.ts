@@ -26,6 +26,12 @@ import {
 } from "node:tls";
 import { certificateFingerprint } from "@garnetops/core/certificates";
 import {
+  EXPOSED_FILE_PROBES,
+  EXPOSED_FILES_LIMITS,
+  type ExposedFilesSnapshot,
+  provesExposedFile,
+} from "@garnetops/core/exposed-files";
+import {
   ACTIVE_LIMITS,
   CAPTURED_HEADERS,
   type CertInfo,
@@ -86,6 +92,8 @@ export interface NetEnv {
   /** Tests only: shorter waits. */
   connectTimeoutMs?: number;
   bannerReadMs?: number;
+  /** Tests only: the pause between two requests of the exposed-file check (ADR 0050). */
+  exposedFilesGapMs?: number;
   /** Tests only: a hook that sees the moment each stage 2 attempt starts. */
   onAttempt?: (port: number, address: string) => void;
   /** A resolver that asks one name server and nothing else; tests pass a fake. */
@@ -985,4 +993,40 @@ export async function fetchWordPressInventory(
   if (result.truncated) return { error: "invalid" };
   const inventory = parseWordPressInventory(result.body.toString("utf8"));
   return inventory ? { inventory } : { error: "invalid" };
+}
+
+/**
+ * Asks a website for the fixed list of files that must not be public (ADR 0050): only for a proved name, to the address the run
+ * already checked, with verified TLS, no redirects followed, 8 KiB of each body read and nothing of it kept, one request after
+ * another with a pause between them. A path counts only when its content proves the kind of file.
+ */
+export async function probeExposedFiles(
+  env: NetEnv,
+  target: { name: string },
+  address: string,
+): Promise<ExposedFilesSnapshot> {
+  const snapshot: ExposedFilesSnapshot = { error: null, checked: 0, failed: 0, found: [] };
+  for (const [i, probe] of EXPOSED_FILE_PROBES.entries()) {
+    if (i > 0) await new Promise((r) => setTimeout(r, env.exposedFilesGapMs ?? EXPOSED_FILES_LIMITS.gapMs));
+    const result = await httpGet({
+      scheme: "https",
+      address,
+      port: env.httpsPort ?? 443,
+      host: target.name,
+      path: probe.path,
+      verify: true,
+      ca: env.ca,
+      timeoutMs: EXPOSED_FILES_LIMITS.timeoutMs,
+      maxBody: EXPOSED_FILES_LIMITS.maxBody,
+      headers: { accept: "*/*" },
+    });
+    snapshot.checked += 1;
+    if (!result.ok) {
+      snapshot.failed += 1;
+      continue;
+    }
+    if (provesExposedFile(probe.kind, result.status, result.body)) snapshot.found.push({ ...probe });
+    result.body.fill(0);
+  }
+  return snapshot;
 }

@@ -23,6 +23,7 @@ export const USER_EVENTS = [
   "exposure.new_open_port",
   "exposure.risky_service",
   "exposure.down",
+  "exposure.exposed_file",
   "hosts.new_advisory",
   "infra.certificate_changed",
   "team.invitation_accepted",
@@ -117,6 +118,15 @@ export const EVENT_CATALOG: Record<UserEvent, EventDefinition> = {
     channelEvent: false,
     module: "websites",
   },
+  /** A file that must not be public is reachable on a website (ADR 0050); admins, as for open ports. */
+  "exposure.exposed_file": {
+    group: "websites",
+    minRole: "admin",
+    scoped: false,
+    defaultScope: "all",
+    channelEvent: false,
+    module: "websites",
+  },
   "hosts.new_advisory": {
     group: "hosts",
     minRole: "member",
@@ -182,6 +192,7 @@ export const TITLE_EVENTS = {
   exposureRiskyService: "exposure.risky_service",
   exposureDown: "exposure.down",
   exposureUp: "exposure.down",
+  exposureExposedFile: "exposure.exposed_file",
   hostsNewAdvisory: "hosts.new_advisory",
   certificateChangedDirectory: "infra.certificate_changed",
   invitationAccepted: "team.invitation_accepted",

@@ -85,6 +85,8 @@ describe.skipIf(!openssl || !adminUrl)(
       requests: string[];
       /** The token the fake GarnetOps WordPress plugin accepts; null: the plugin is not installed. */
       wpToken: string | null;
+      /** Files the site serves as they are (ADR 0050); every other path gets the site's own page, a "soft 404". */
+      files: Record<string, string>;
     }
     const web: WebState = freshWeb();
     function freshWeb(): WebState {
@@ -98,6 +100,7 @@ describe.skipIf(!openssl || !adminUrl)(
         hostsSeen: [],
         requests: [],
         wpToken: null,
+        files: {},
       };
     }
     const plainState = { redirect: true, requests: 0 };
@@ -129,6 +132,8 @@ describe.skipIf(!openssl || !adminUrl)(
           }),
         );
       }
+      const file = web.files[String(req.url)];
+      if (file !== undefined) return void res.writeHead(200, { "content-type": "text/plain" }).end(file);
       if (req.url === "/.well-known/garnetops-verify.txt") {
         if (web.proof === null) return void res.writeHead(404).end("not found");
         if (web.proofStatus >= 300 && web.proofStatus < 400)
@@ -169,6 +174,7 @@ describe.skipIf(!openssl || !adminUrl)(
         httpPort: ports.plain,
         connectTimeoutMs: 800,
         bannerReadMs: 500,
+        exposedFilesGapMs: 0,
         ...over,
       };
     }
@@ -821,6 +827,75 @@ describe.skipIf(!openssl || !adminUrl)(
         web.wpToken = null;
         await passive(a);
         expect(((await asset(a.id)).passive as PassiveSnapshot).wordpressPlugin?.error).toBe("notInstalled");
+        Object.assign(web, freshWeb());
+      });
+
+      it("asks a proved site for files that must not be public, counts only what its content proves, and keeps none of it (ADR 0050)", async () => {
+        resetZone();
+        const org = await newOrg();
+        tidyZone(SITE);
+        const marker = "PLACEHOLDER-VALUE-NOT-KEPT";
+        Object.assign(web, freshWeb(), {
+          headers: { ...TIDY_HEADERS },
+          files: {
+            "/.env": `APP_ENV=production\nDB_PASSWORD=${marker}\n`,
+            "/.git/HEAD": "ref: refs/heads/main\n",
+          },
+        });
+        const probes = () => web.requests.filter((r) => r !== "GET /" && !r.includes("garnetops")).length;
+
+        // Switched on but not proved: nothing is asked for.
+        const a = await addAsset(org.id, { value: SITE });
+        await conn.db
+          .update(schema.exposureAsset)
+          .set({ exposedFilesAt: new Date() })
+          .where(eq(schema.exposureAsset.id, a.id));
+        await passive(a);
+        expect(probes()).toBe(0);
+        expect(((await asset(a.id)).passive as PassiveSnapshot).exposedFiles).toEqual({
+          error: "notVerified",
+          checked: 0,
+          failed: 0,
+          found: [],
+        });
+
+        // Proved: the fixed list, one request each; the soft 404 page of every other path does not count.
+        await conn.db
+          .update(schema.exposureAsset)
+          .set({
+            verifyState: "verified",
+            verifyMethod: "dns",
+            verifiedAt: new Date(),
+            verifyCheckedAt: new Date(),
+          })
+          .where(eq(schema.exposureAsset.id, a.id));
+        web.requests.length = 0;
+        await passive(a);
+        const { EXPOSED_FILE_PROBES } = await import("@garnetops/core/exposed-files");
+        expect(probes()).toBe(EXPOSED_FILE_PROBES.length);
+        expect((await rules(a.id)).filter((r) => r.startsWith("exposedFile"))).toEqual([
+          "exposedFile:/.env",
+          "exposedFile:/.git/HEAD",
+        ]);
+        const stored = (await asset(a.id)).passive as PassiveSnapshot;
+        expect(stored.exposedFiles).toMatchObject({
+          error: null,
+          checked: EXPOSED_FILE_PROBES.length,
+          failed: 0,
+        });
+        expect(JSON.stringify(await findings(a.id))).not.toContain(marker);
+        expect(JSON.stringify(stored)).not.toContain(marker);
+        const exposed = (await findings(a.id)).filter((f) => f.rule === "exposedFile");
+        expect(exposed.map((f) => f.severity).sort()).toEqual(["critical", "high"]);
+        // Told once while they stay reachable.
+        expect(exposed.every((f) => f.notifiedAt !== null)).toBe(true);
+
+        // Removed from the site: the next look closes it.
+        web.files = { "/.git/HEAD": "ref: refs/heads/main\n" };
+        await passive(a);
+        expect((await rules(a.id)).filter((r) => r.startsWith("exposedFile"))).toEqual([
+          "exposedFile:/.git/HEAD",
+        ]);
         Object.assign(web, freshWeb());
       });
 
