@@ -7,11 +7,13 @@
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import RepositoryLink from "#lib/components/RepositoryLink.svelte";
   import Segmented from "#lib/components/Segmented.svelte";
+  import IgnoreRules, { type IgnoreDraft } from "#lib/components/secrets/IgnoreRules.svelte";
   import SecretDetail from "#lib/components/secrets/SecretDetail.svelte";
   import Select from "#lib/components/ui/Select.svelte";
   import SeverityBadge from "#lib/components/ui/SeverityBadge.svelte";
   import { formatRelative } from "#lib/format.ts";
   import { t } from "#lib/i18n.svelte.ts";
+  import { isAdmin } from "#lib/nav.ts";
   import {
     placeText,
     type SecretRow,
@@ -31,10 +33,10 @@
    */
   let { data }: { data: PageData } = $props();
 
-  const STATES = ["open", "revoked", "dismissed", "all"] as const;
+  const STATES = ["open", "ignored", "revoked", "dismissed", "all"] as const;
   type View = (typeof STATES)[number];
   const params = $derived(page.url.searchParams);
-  const state: View = $derived(
+  const view: View = $derived(
     (STATES as readonly string[]).includes(params.get("state") ?? "")
       ? (params.get("state") as View)
       : "open",
@@ -49,7 +51,7 @@
   const setSearch = (patch: Record<string, string | undefined>) =>
     goto(
       href(page.url.pathname, {
-        state: state === "open" ? undefined : state,
+        state: view === "open" ? undefined : view,
         severity: severity.length ? severity.join(",") : undefined,
         repositoryId,
         id: selected ?? undefined,
@@ -58,7 +60,9 @@
       { reset: false },
     );
 
-  const filters = $derived(href("", { state, severity: severity.join(",") || undefined, repositoryId }));
+  const filters = $derived(
+    href("", { state: view, severity: severity.join(",") || undefined, repositoryId }),
+  );
   const list = createQuery(() => ({
     queryKey: ["secrets", filters],
     queryFn: () => api<{ items: SecretRow[]; more: boolean }>(`/secrets${filters}`),
@@ -70,6 +74,8 @@
     queryFn: () => api<Page<RepositoryRow>>("/repositories?pageSize=100"),
   }));
   const canEdit = $derived(data.me.role !== "viewer");
+  const canIgnore = $derived(isAdmin(data.me));
+  let ignoreDraft = $state<IgnoreDraft | null>(null);
 
   const toggleSeverity = (s: SecretSeverity) =>
     setSearch({
@@ -79,8 +85,11 @@
   const stateCount = (s: View) =>
     counts.data
       ? s === "all"
-        ? counts.data.states.open + counts.data.states.revoked + counts.data.states.dismissed
-        : counts.data.states[s as SecretState]
+        ? counts.data.states.open +
+          counts.data.states.ignored +
+          counts.data.states.revoked +
+          counts.data.states.dismissed
+        : counts.data.states[s as SecretState | "ignored"]
       : null;
 </script>
 
@@ -88,7 +97,7 @@
 <div class="mb-4 flex flex-wrap items-center gap-3">
   <Segmented
     label={t("secrets.stateLabel")}
-    value={state}
+    value={view}
     options={STATES.map((s) => ({ value: s, label: t(`secrets.state.${s}`), count: stateCount(s) }))}
     onChange={(value) => setSearch({ state: value === "open" ? undefined : value })}
   />
@@ -102,7 +111,7 @@
         onclick={() => toggleSeverity(s)}
       >
         <SeverityBadge severity={s} />
-        {#if state === "open" && counts.data}
+        {#if view === "open" && counts.data}
           <span class="ml-1 text-sm tabular-nums">{counts.data.open[s] ?? 0}</span>
         {/if}
       </button>
@@ -143,7 +152,7 @@
             <td class="px-3 py-2.5">
               <a
                 href={href(page.url.pathname, {
-                  state: state === "open" ? undefined : state,
+                  state: view === "open" ? undefined : view,
                   severity: severity.join(",") || undefined,
                   repositoryId,
                   id: s.id,
@@ -171,7 +180,7 @@
     <QueryStatus query={list} />
     {#if list.data && list.data.items.length === 0}
       <p class="px-5 py-6 text-muted-foreground" data-testid="secrets-empty">
-        {state === "open" && severity.length === 0 ? t("secrets.empty") : t("secrets.emptyOther")}
+        {view === "open" && severity.length === 0 ? t("secrets.empty") : t("secrets.emptyOther")}
       </p>
     {/if}
     {#if list.data?.more}
@@ -179,6 +188,11 @@
     {/if}
   </Card>
   {#if selected}
-    {#key selected}<SecretDetail id={selected} {canEdit} />{/key}
+    {#key selected}
+      <SecretDetail id={selected} {canEdit} {canIgnore} onIgnoreSimilar={(draft) => (ignoreDraft = draft)} />
+    {/key}
   {/if}
+</div>
+<div class="mt-4">
+  <IgnoreRules me={data.me} bind:draft={ignoreDraft} />
 </div>

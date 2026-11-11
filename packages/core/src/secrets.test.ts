@@ -4,7 +4,11 @@ import {
   cleanSecretPath,
   gitleaksArgs,
   gitleaksConfig,
+  ignorePatternProblem,
+  ignorePatternRegExp,
+  ignoringRule,
   isSensitiveFileRule,
+  matchingIgnoreRule,
   parseGitleaksReport,
   SENSITIVE_FILE_RULES,
   secretSeverity,
@@ -224,5 +228,58 @@ describe("the report as it leaves the scanner", () => {
     expect(parsed.hits[0]?.fingerprint).toBe(fp("github-pat", value?.Secret ?? "", "app/config.js"));
     expect(redactGitleaksReport("")).toBe("[]");
     expect(() => redactGitleaksReport('{"a":1}')).toThrow("not a list");
+  });
+});
+
+describe("ignore rules", () => {
+  it("match globs over the whole path", () => {
+    const m = (pattern: string, path: string) => ignorePatternRegExp(pattern).test(path);
+    expect(m("test/fixtures/**", "test/fixtures/a/b.json")).toBe(true);
+    expect(m("test/fixtures/**", "src/test/fixtures/a.json")).toBe(false);
+    expect(m("**/fixtures/**", "src/test/fixtures/a.json")).toBe(true);
+    expect(m("**/*.example.env", "deploy/prod.example.env")).toBe(true);
+    expect(m("**/*.example.env", "prod.example.env")).toBe(true);
+    expect(m("docs/*.md", "docs/a.md")).toBe(true);
+    expect(m("docs/*.md", "docs/sub/a.md")).toBe(false);
+    expect(m("a?.txt", "ab.txt")).toBe(true);
+    // Dots and other characters are literal.
+    expect(m("a.txt", "abtxt")).toBe(false);
+    expect(m("(x)+", "(x)+")).toBe(true);
+  });
+
+  it("refuse patterns that are absolute, climb out, are too wide or carry odd characters", () => {
+    expect(ignorePatternProblem("test/**")).toBeNull();
+    expect(ignorePatternProblem("/etc/**")).toBe("not-relative");
+    expect(ignorePatternProblem("a/../b")).toBe("not-relative");
+    expect(ignorePatternProblem("**")).toBe("everything");
+    expect(ignorePatternProblem("*/**/*")).toBe("everything");
+    expect(ignorePatternProblem("a[bc]")).toBe("characters");
+    expect(ignorePatternProblem("x".repeat(201))).toBe("too-long");
+    expect(ignorePatternProblem("  ")).toBe("empty");
+  });
+
+  it("apply by repository, rule and path, and set a finding aside only when every place is covered", () => {
+    const rules = [
+      { id: "r1", repositoryId: "repo_a", pathPattern: "test/**", ruleId: null },
+      { id: "r2", repositoryId: null, pathPattern: null, ruleId: "jwt" },
+    ];
+    expect(
+      matchingIgnoreRule(rules, { repositoryId: "repo_a", ruleId: "github-pat", path: "test/x.js" })?.id,
+    ).toBe("r1");
+    expect(
+      matchingIgnoreRule(rules, { repositoryId: "repo_b", ruleId: "github-pat", path: "test/x.js" }),
+    ).toBeNull();
+    expect(matchingIgnoreRule(rules, { repositoryId: "repo_b", ruleId: "jwt", path: "src/a.ts" })?.id).toBe(
+      "r2",
+    );
+    const finding = (paths: string[]) => ({
+      repositoryId: "repo_a",
+      ruleId: "github-pat",
+      places: paths.map((path) => ({ path })),
+    });
+    expect(ignoringRule(rules, finding(["test/a.js", "test/b/c.js"]))?.id).toBe("r1");
+    // The same value also in src/: still a leak.
+    expect(ignoringRule(rules, finding(["test/a.js", "src/config.js"]))).toBeNull();
+    expect(ignoringRule(rules, finding([]))).toBeNull();
   });
 });

@@ -4,7 +4,7 @@
   import { ApiError, api } from "../../api.ts";
   import { formatDate, formatRelative } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
-  import { placeText, type SecretDetail, secretRuleName } from "../../secrets.ts";
+  import { folderPattern, placeText, type SecretDetail, secretRuleName } from "../../secrets.ts";
   import { toast } from "../../toast.svelte.ts";
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
@@ -15,12 +15,24 @@
   import DialogFooter from "../ui/DialogFooter.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
   import Facts from "../websites/Facts.svelte";
+  import type { IgnoreDraft } from "./IgnoreRules.svelte";
 
   /**
    * One secret (ADR 0049): what was found and where, what to do, and closing it as revoked or dismissed with a reason. The value
    * is never part of it: GarnetOps does not have it.
    */
-  let { id, canEdit }: { id: string; canEdit: boolean } = $props();
+  let {
+    id,
+    canEdit,
+    canIgnore = false,
+    onIgnoreSimilar,
+  }: {
+    id: string;
+    canEdit: boolean;
+    /** Admins can make an ignore rule from it (ADR 0049 addendum). */
+    canIgnore?: boolean;
+    onIgnoreSimilar?: (draft: IgnoreDraft) => void;
+  } = $props();
   const queryClient = useQueryClient();
   const detail = createQuery(() => ({
     queryKey: ["secret", id],
@@ -130,7 +142,30 @@
         </ol>
       </section>
 
+      {#if d.ignoredBy}
+        <section class="grid gap-1 border-t px-5 py-4 text-sm" data-testid="secret-ignored">
+          <h3 class="font-medium">{t("secrets.ignore.setAside")}</h3>
+          <p class="font-mono break-all">
+            {[d.ignoredBy.pathPattern, d.ignoredBy.ruleId].filter(Boolean).join(" · ")}
+          </p>
+          <p class="whitespace-pre-line text-muted-foreground">{d.ignoredBy.reason}</p>
+        </section>
+      {/if}
+
       <div class="flex flex-wrap items-center gap-2 border-t px-5 py-4">
+        {#if canIgnore && !d.ignoredBy && onIgnoreSimilar}
+          {@const first = d.treeLocations[0] ?? d.historyLocations[0]}
+          <Button
+            onclick={() =>
+              onIgnoreSimilar?.({
+                repositoryId: d.repositoryId,
+                pathPattern: first ? folderPattern(first.path) : "",
+                ruleId: d.ruleId,
+              })}
+          >
+            {t("secrets.ignore.similar")}
+          </Button>
+        {/if}
         {#if d.state !== "open"}
           <p class="basis-full text-sm">
             <span class="font-medium">

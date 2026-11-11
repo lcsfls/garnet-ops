@@ -349,3 +349,89 @@ export function parseGitleaksReport(
   }
   return { hits, dropped, invalid };
 }
+
+/* -------------------------------------------------------------------------------------------------------------------------- */
+/* Ignore rules (ADR 0049, addendum): kept in GarnetOps by admins, never read from the repository.                            */
+/* -------------------------------------------------------------------------------------------------------------------------- */
+
+/** An admin's rule that sets aside what matches it. At least one of `pathPattern` and `ruleId` is set. */
+export interface SecretIgnoreRule {
+  id: string;
+  /** Null: every repository of the organisation. */
+  repositoryId: string | null;
+  /** A glob over the path inside the repository: `*` within a folder, `**` across folders, `?` one character. */
+  pathPattern: string | null;
+  ruleId: string | null;
+}
+
+export const IGNORE_PATTERN_MAX = 200;
+
+/** Why a path pattern is not acceptable, or null. Patterns are relative, plain and short; no regular expressions. */
+export function ignorePatternProblem(pattern: string): string | null {
+  if (!pattern.trim()) return "empty";
+  if (pattern.length > IGNORE_PATTERN_MAX) return "too-long";
+  if (pattern.startsWith("/") || pattern.split("/").some((part) => part === ".." || part === ""))
+    return "not-relative";
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: refusing control characters is the point
+  if (/[\u0000-\u001f\u007f[\]{}\\]/.test(pattern)) return "characters";
+  // A rule that matches every path of every repository would switch the check off; it must name something.
+  if (/^[*?/]*$/.test(pattern)) return "everything";
+  return null;
+}
+
+/** The glob as a regular expression anchored to the whole path. Linear: no nested quantifiers. */
+export function ignorePatternRegExp(pattern: string): RegExp {
+  let out = "";
+  for (let i = 0; i < pattern.length; i += 1) {
+    const c = pattern[i] as string;
+    if (c === "*" && pattern[i + 1] === "*") {
+      // "**/" matches no folder or any number of them; a final "**" matches the rest.
+      if (pattern[i + 2] === "/") {
+        out += "(?:[^/]+/)*";
+        i += 2;
+      } else {
+        out += ".*";
+        i += 1;
+      }
+    } else if (c === "*") out += "[^/]*";
+    else if (c === "?") out += "[^/]";
+    else out += c.replace(/[.+^$()|]/g, "\\$&");
+  }
+  return new RegExp(`^${out}$`);
+}
+
+/** The first rule that covers this place of this rule's finding in this repository, or null. */
+export function matchingIgnoreRule(
+  rules: readonly SecretIgnoreRule[],
+  hit: { repositoryId: string; ruleId: string; path: string },
+): SecretIgnoreRule | null {
+  for (const rule of rules) {
+    if (rule.repositoryId && rule.repositoryId !== hit.repositoryId) continue;
+    if (rule.ruleId && rule.ruleId !== hit.ruleId) continue;
+    if (rule.pathPattern && !ignorePatternRegExp(rule.pathPattern).test(hit.path)) continue;
+    return rule;
+  }
+  return null;
+}
+
+/**
+ * The rule that sets a whole finding aside: only when every place it is known at (files and history) is covered. A secret that
+ * is also anywhere else stays open: the rule is about a place, and the same value elsewhere is still a leak.
+ */
+export function ignoringRule(
+  rules: readonly SecretIgnoreRule[],
+  finding: { repositoryId: string; ruleId: string; places: readonly { path: string }[] },
+): SecretIgnoreRule | null {
+  if (finding.places.length === 0 || rules.length === 0) return null;
+  let first: SecretIgnoreRule | null = null;
+  for (const place of finding.places) {
+    const rule = matchingIgnoreRule(rules, {
+      repositoryId: finding.repositoryId,
+      ruleId: finding.ruleId,
+      path: place.path,
+    });
+    if (!rule) return null;
+    first ??= rule;
+  }
+  return first;
+}

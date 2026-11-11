@@ -8,6 +8,14 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Ignore rules for secrets** ([docs/secrets.md](docs/secrets.md), ADR 0049 addendum): admins set aside test fixtures and
+  examples by path pattern, rule or both, for one repository or all, with a reason, a recent sign-in and an audit entry; or
+  with **Ignore similar** on a secret. A secret is set aside only when every place it is known at matches; set aside means not
+  counted, not in the gate or notifications, but listed under **Ignored**. Rules live in GarnetOps, never in the repository.
+- The audit log names the secret actions (revoked, not a secret, reopened, ignore rules, history check on or off).
+
 ## [0.1.3] - 2026-11-11
 <!-- title: Secrets in repositories: keys, tokens and files that do not belong there, without storing a value -->
 

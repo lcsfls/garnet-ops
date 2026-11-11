@@ -20,6 +20,8 @@ export interface SecretRow {
   severity: SecretSeverity;
   state: SecretState;
   inTree: boolean;
+  /** The ignore rule that sets it aside, or null. */
+  ignoredBy: string | null;
   place: SecretPlace | null;
   treeLocationCount: number;
   historyLocationCount: number;
@@ -27,7 +29,21 @@ export interface SecretRow {
   lastSeenAt: string;
 }
 
-export interface SecretDetail extends Omit<SecretRow, "place"> {
+export interface SecretIgnoreRule {
+  id: string;
+  repositoryId: string | null;
+  repositoryName: string | null;
+  pathPattern: string | null;
+  ruleId: string | null;
+  reason: string;
+  createdByName: string | null;
+  createdAt: string;
+  /** Open secrets it sets aside now. */
+  ignored: number;
+}
+
+export interface SecretDetail extends Omit<SecretRow, "place" | "ignoredBy"> {
+  ignoredBy: { id: string; pathPattern: string | null; ruleId: string | null; reason: string } | null;
   stateReason: string | null;
   stateAt: string | null;
   stateByName: string | null;
@@ -36,7 +52,7 @@ export interface SecretDetail extends Omit<SecretRow, "place"> {
 }
 
 export interface SecretCounts {
-  states: Record<SecretState, number>;
+  states: Record<SecretState | "ignored", number>;
   open: Partial<Record<SecretSeverity, number>>;
 }
 
@@ -55,6 +71,12 @@ export const secretCountsQuery = (filters = "") => ({
 /** What the rule found, in words: GarnetOps' own file rules are named, gitleaks' rules keep their id. */
 export function secretRuleName(ruleId: string): string {
   return isSensitiveFileRule(ruleId) ? t(`secrets.fileRule.${ruleId}` as MessageKey) : ruleId;
+}
+
+/** A pattern for "ignore similar": the folder of a path and everything below it, or the file itself at the top. */
+export function folderPattern(path: string): string {
+  const slash = path.lastIndexOf("/");
+  return slash > 0 ? `${path.slice(0, slash)}/**` : path;
 }
 
 /** `path:line`, or the path alone for a rule about a whole file. */

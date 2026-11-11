@@ -358,6 +358,13 @@
       "when": 1794260308608,
       "tag": "0050_secret_scanning",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794416342733,
+      "tag": "0051_secret_ignore_rules",
+      "breakpoints": true
     }
   ]
 }

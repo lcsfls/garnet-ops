@@ -4480,6 +4480,30 @@ test.describe("secrets (ADR 0049)", () => {
     await detail.getByRole("button", { name: "Reopen" }).click();
     await expect(detail).not.toContainText("Dismissed by");
 
+    // An ignore rule from the token's detail: "src/**" for this rule in this repository. The sign-in is recent, so no prompt.
+    await signedInAt("now");
+    await page.getByRole("button", { name: /^Open/ }).click();
+    await rows.first().getByRole("link", { name: "github-pat" }).click();
+    await detail.getByRole("button", { name: "Ignore similar" }).click();
+    const ignore = page.getByRole("dialog", { name: "Add ignore rule" });
+    await expect(ignore.getByLabel("Path pattern")).toHaveValue("src/**");
+    await expect(ignore.getByLabel("Rule", { exact: true })).toHaveValue("github-pat");
+    await ignore.getByLabel("Reason").fill("Placeholder token in the example configuration");
+    await ignore.getByRole("button", { name: "Add rule" }).click();
+    await expect(ignore).toBeHidden();
+    await expect(detail.getByTestId("secret-ignored")).toContainText("src/**");
+    const ignoreRules = page.getByTestId("secret-ignore-rules");
+    await expect(ignoreRules.getByTestId("secret-ignore-rule")).toContainText("Sets 1 secret aside");
+    await expect(page.getByRole("button", { name: /^Ignored/ })).toContainText("1");
+    // Removing the rule brings it back.
+    await ignoreRules.getByRole("button", { name: "Remove" }).click();
+    await page
+      .getByRole("dialog", { name: "Remove the ignore rule?" })
+      .getByRole("button", { name: "Remove" })
+      .click();
+    await expect(ignoreRules).toContainText("No ignore rules.");
+    await expect(detail.getByTestId("secret-ignored")).toHaveCount(0);
+
     // The repository's card: open secrets, and the history on every scan (the owner is an admin).
     await page.goto(`/repositories/${REPO}`);
     const card = page.getByTestId("repository-secrets");

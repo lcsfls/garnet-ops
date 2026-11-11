@@ -50,6 +50,17 @@ secret**. Both need a reason of at least 10 characters, are in the audit log, an
 Members and above can do it; a scan never closes a secret, and one that is no longer in the files stays open with "Only in the
 history now".
 
+## Ignore rules
+
+Where a repository holds test fixtures or examples, an admin can set them aside with an **ignore rule** on the Secrets page, or
+with **Ignore similar** on a secret: a path pattern (`test/fixtures/**`, `**/*.example.env`), a rule (`generic-api-key`) or
+both, for one repository or all, with a reason. Making or removing one needs a recent sign-in and is in the audit log.
+
+A secret is set aside only when every place it is known at matches the rule; the same value anywhere else still counts. Set aside
+means it is not counted, not in the gate rule or the notifications, but listed under **Ignored** with the rule. Each rule shows how
+many secrets it sets aside, and removing it brings them back at once. A pattern that matches everything (`**`) is refused. Rules
+live in GarnetOps only: a repository's own `.gitleaksignore` is still ignored.
+
 ## Gate rule and notifications
 
 - The quality gate rule **Secret in the code** counts open critical and high secrets in the checked commit. It is **Off** until
@@ -67,4 +78,7 @@ the dependency counts, grades, exports or reports.
 `GET /api/v1/secrets` (`state`, `severity`, `repositoryId`), `GET /api/v1/secrets/counts`, `GET /api/v1/secrets/{id}`,
 `POST /api/v1/secrets/{id}/revoke|dismiss` with `{ "reason" }`, `POST /api/v1/secrets/{id}/reopen`;
 `GET /api/v1/repositories/{id}/secrets`, `PUT /api/v1/repositories/{id}/secrets/history` with `{ "enabled" }`,
-`POST /api/v1/repositories/{id}/secrets/history-check`.
+`POST /api/v1/repositories/{id}/secrets/history-check`; `GET /api/v1/secrets/ignore-rules`,
+`POST /api/v1/secrets/ignore-rules` with `{ "pathPattern", "ruleId", "repositoryId", "reason" }` (admins, recent sign-in),
+`DELETE /api/v1/secrets/ignore-rules/{id}`. `state=ignored` lists what the rules set aside; `GET /api/v1/secrets/counts` gains
+`states.ignored`.

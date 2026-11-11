@@ -2821,7 +2821,7 @@ export const en = {
     description:
       "Keys, tokens, passwords and files that do not belong in a repository, found in the scanned files and, where asked for, in the Git history.",
     stateLabel: "State",
-    state: { open: "Open", revoked: "Revoked", dismissed: "Dismissed", all: "All" },
+    state: { open: "Open", ignored: "Ignored", revoked: "Revoked", dismissed: "Dismissed", all: "All" },
     severityLabel: "Severity",
     columnSeverity: "Severity",
     columnRule: "What",
@@ -2867,6 +2867,35 @@ export const en = {
     reasonHint: "At least 10 characters. Stored with your name in the audit log.",
     closed: "Saved.",
     severityRuleHint: "Severities are fixed per rule.",
+    ignore: {
+      title: "Ignore rules",
+      description:
+        "Set aside what is not a secret everywhere it appears, such as test fixtures or examples. Kept in GarnetOps, never read from a repository; what a rule sets aside stays listed under Ignored.",
+      add: "Add rule",
+      none: "No ignore rules.",
+      allRepositories: "All repositories",
+      ignoredCount:
+        "{count, plural, =0 {Sets nothing aside} one {Sets # secret aside} other {Sets # secrets aside}}",
+      madeBy: "By {name} on {date}",
+      remove: "Remove",
+      removeTitle: "Remove the ignore rule?",
+      removeDescription:
+        "{count, plural, =0 {It sets nothing aside now.} one {The secret it sets aside counts again at once.} other {The # secrets it sets aside count again at once.}}",
+      removed: "Ignore rule removed.",
+      addTitle: "Add ignore rule",
+      addDescription:
+        "A secret is set aside only when every place it is known at matches the rule; the same value anywhere else still counts.",
+      pathPattern: "Path pattern",
+      pathPatternHint:
+        "Relative to the repository: * within a folder, ** across folders, for example test/fixtures/** or **/*.example.env.",
+      ruleId: "Rule",
+      ruleIdHint: "Optional: one rule, such as generic-api-key. A pattern, a rule or both.",
+      save: "Add rule",
+      created:
+        "{count, plural, =0 {Rule added; it sets nothing aside yet.} one {Rule added; # secret set aside.} other {Rule added; # secrets set aside.}}",
+      similar: "Ignore similar",
+      setAside: "Set aside by an ignore rule",
+    },
     fileRule: {
       "garnetops-env-file": "Environment file with values",
       "garnetops-ssh-private-key-file": "SSH private key file",
@@ -3983,6 +4012,13 @@ export const en = {
       forge_app_removed: "Forge sign-in removed",
       scan_requested: "Scan requested",
       finding_accepted: "Risk accepted",
+      secret_revoked: "Secret marked as revoked",
+      secret_dismissed: "Secret marked as not a secret",
+      secret_reopened: "Secret reopened",
+      secret_ignore_rule_created: "Secret ignore rule added",
+      secret_ignore_rule_deleted: "Secret ignore rule removed",
+      repository_secret_history_enabled: "History check for secrets switched on",
+      repository_secret_history_disabled: "History check for secrets switched off",
       finding_reopened: "Finding reopened",
       finding_exported: "Findings exported",
       report_exported: "Report downloaded",

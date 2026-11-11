@@ -2902,7 +2902,13 @@ export const de: Messages = {
     description:
       "Schlüssel, Tokens, Passwörter und Dateien, die nicht in ein Repository gehören, gefunden in den gescannten Dateien und auf Wunsch in der Git-Historie.",
     stateLabel: "Status",
-    state: { open: "Offen", revoked: "Ausgetauscht", dismissed: "Verworfen", all: "Alle" },
+    state: {
+      open: "Offen",
+      ignored: "Ignoriert",
+      revoked: "Ausgetauscht",
+      dismissed: "Verworfen",
+      all: "Alle",
+    },
     severityLabel: "Schweregrad",
     columnSeverity: "Schweregrad",
     columnRule: "Was",
@@ -2950,6 +2956,35 @@ export const de: Messages = {
     reasonHint: "Mindestens 10 Zeichen. Wird mit Ihrem Namen im Audit-Log gespeichert.",
     closed: "Gespeichert.",
     severityRuleHint: "Schweregrade sind je Regel fest.",
+    ignore: {
+      title: "Ausnahmeregeln",
+      description:
+        "Legen Sie beiseite, was überall dort, wo es vorkommt, kein Secret ist, etwa Testdaten oder Beispiele. In GarnetOps gespeichert, nie aus einem Repository gelesen; was eine Regel beiseitelegt, bleibt unter Ignoriert sichtbar.",
+      add: "Regel hinzufügen",
+      none: "Keine Ausnahmeregeln.",
+      allRepositories: "Alle Repositorys",
+      ignoredCount:
+        "{count, plural, =0 {Legt nichts beiseite} one {Legt # Secret beiseite} other {Legt # Secrets beiseite}}",
+      madeBy: "Von {name} am {date}",
+      remove: "Entfernen",
+      removeTitle: "Ausnahmeregel entfernen?",
+      removeDescription:
+        "{count, plural, =0 {Sie legt gerade nichts beiseite.} one {Das Secret, das sie beiseitelegt, zählt sofort wieder.} other {Die # Secrets, die sie beiseitelegt, zählen sofort wieder.}}",
+      removed: "Ausnahmeregel entfernt.",
+      addTitle: "Ausnahmeregel hinzufügen",
+      addDescription:
+        "Ein Secret wird nur beiseitegelegt, wenn jede bekannte Fundstelle zur Regel passt; derselbe Wert an anderer Stelle zählt weiter.",
+      pathPattern: "Pfadmuster",
+      pathPatternHint:
+        "Relativ zum Repository: * innerhalb eines Ordners, ** über Ordner hinweg, zum Beispiel test/fixtures/** oder **/*.example.env.",
+      ruleId: "Regel",
+      ruleIdHint: "Optional: eine Regel, etwa generic-api-key. Ein Muster, eine Regel oder beides.",
+      save: "Regel hinzufügen",
+      created:
+        "{count, plural, =0 {Regel hinzugefügt; sie legt noch nichts beiseite.} one {Regel hinzugefügt; # Secret beiseitegelegt.} other {Regel hinzugefügt; # Secrets beiseitegelegt.}}",
+      similar: "Ähnliche ignorieren",
+      setAside: "Von einer Ausnahmeregel beiseitegelegt",
+    },
     fileRule: {
       "garnetops-env-file": "Umgebungsdatei mit Werten",
       "garnetops-ssh-private-key-file": "Privater SSH-Schlüssel",
@@ -4089,6 +4124,13 @@ export const de: Messages = {
       forge_app_removed: "Anmeldung über Forge entfernt",
       scan_requested: "Scan angefordert",
       finding_accepted: "Risiko akzeptiert",
+      secret_revoked: "Secret als ausgetauscht markiert",
+      secret_dismissed: "Secret als kein Secret markiert",
+      secret_reopened: "Secret wieder geöffnet",
+      secret_ignore_rule_created: "Ausnahmeregel für Secrets hinzugefügt",
+      secret_ignore_rule_deleted: "Ausnahmeregel für Secrets entfernt",
+      repository_secret_history_enabled: "Prüfung der Historie auf Secrets eingeschaltet",
+      repository_secret_history_disabled: "Prüfung der Historie auf Secrets ausgeschaltet",
       finding_reopened: "Finding wieder geöffnet",
       finding_exported: "Findings exportiert",
       report_exported: "Bericht heruntergeladen",

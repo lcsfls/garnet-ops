@@ -46,7 +46,7 @@ describe.skipIf(!adminUrl)("secrets API", () => {
   async function call(
     method: string,
     path: string,
-    opts: { role?: string; user?: string; org?: string; body?: unknown } = {},
+    opts: { role?: string; user?: string; org?: string; body?: unknown; stale?: boolean } = {},
   ) {
     const res = await app.request(path, {
       method,
@@ -55,6 +55,7 @@ describe.skipIf(!adminUrl)("secrets API", () => {
         "x-role": opts.role ?? "member",
         "x-user": opts.user ?? "usr_member",
         "content-type": "application/json",
+        ...(opts.stale ? { "x-stale": "1" } : {}),
       },
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
     });
@@ -126,6 +127,8 @@ describe.skipIf(!adminUrl)("secrets API", () => {
           organizationId: c.req.header("x-org"),
           role: c.req.header("x-role"),
           ip: null,
+          // "x-stale": signed in long ago, for the step-up of ignore rules.
+          strongAuthAt: c.req.header("x-stale") ? new Date(0) : new Date(),
         } as never,
       );
       await next();
@@ -175,7 +178,7 @@ describe.skipIf(!adminUrl)("secrets API", () => {
   it("counts per state, and open ones per severity", async () => {
     const counts = await call("GET", "/api/v1/secrets/counts");
     expect(counts.json).toEqual({
-      states: { open: 3, revoked: 0, dismissed: 1 },
+      states: { open: 3, ignored: 0, revoked: 0, dismissed: 1 },
       open: { critical: 1, high: 1, medium: 1 },
     });
   });
@@ -262,5 +265,68 @@ describe.skipIf(!adminUrl)("secrets API", () => {
     expect(
       (await call("POST", `/api/v1/repositories/${shared}/secrets/history-check`, { role: "viewer" })).status,
     ).toBe(403);
+  });
+
+  it("ignore rules: admins with a recent sign-in, set aside only what they cover, counted apart, and undone on delete", async () => {
+    const before = (await call("GET", "/api/v1/secrets/counts")).json;
+    const body = { pathPattern: "src/**", reason: "Example configuration in the docs" };
+    expect((await call("POST", "/api/v1/secrets/ignore-rules", { body })).status).toBe(403);
+    const stale = await call("POST", "/api/v1/secrets/ignore-rules", {
+      role: "admin",
+      user: "usr_admin",
+      stale: true,
+      body,
+    });
+    expect(stale.json?.type ?? stale.json?.code).toMatch(/step-up-required/);
+    for (const bad of [
+      { reason: "no pattern and no rule" },
+      { pathPattern: "**", reason: "everything at once" },
+    ]) {
+      expect(
+        (await call("POST", "/api/v1/secrets/ignore-rules", { role: "admin", user: "usr_admin", body: bad }))
+          .status,
+      ).toBe(422);
+    }
+    const made = await call("POST", "/api/v1/secrets/ignore-rules", {
+      role: "admin",
+      user: "usr_admin",
+      body: { ...body, repositoryId: shared },
+    });
+    expect(made.status).toBe(201);
+    // The open secrets of "shared" sit in src/config.js; the one without places (only in history, none known) stays.
+    expect(made.json?.ignored).toBeGreaterThanOrEqual(1);
+    const counts = (await call("GET", "/api/v1/secrets/counts")).json;
+    expect(counts?.states.ignored).toBe(made.json?.ignored);
+    expect(counts?.states.open).toBe((before?.states.open ?? 0) - (made.json?.ignored ?? 0));
+    const ignored = await call("GET", "/api/v1/secrets?state=ignored");
+    expect(ignored.json?.items.every((i: Json) => i.ignoredBy === made.json?.id)).toBe(true);
+    const detail = await call("GET", `/api/v1/secrets/${ignored.json?.items[0].id}`);
+    expect(detail.json?.ignoredBy).toMatchObject({
+      pathPattern: "src/**",
+      reason: "Example configuration in the docs",
+    });
+    const rules = await call("GET", "/api/v1/secrets/ignore-rules", { role: "viewer" });
+    expect(rules.json?.items).toEqual([
+      expect.objectContaining({
+        id: made.json?.id,
+        repositoryName: "shared",
+        ignored: made.json?.ignored,
+        createdByName: "Admin",
+      }),
+    ]);
+    // Removing it brings them back at once, and both changes are audited.
+    expect(
+      (
+        await call("DELETE", `/api/v1/secrets/ignore-rules/${made.json?.id}`, {
+          role: "admin",
+          user: "usr_admin",
+        })
+      ).status,
+    ).toBe(204);
+    expect((await call("GET", "/api/v1/secrets/counts")).json).toEqual(before);
+    const actions = (await t.db.select().from(schema.auditLog)).map((a) => a.action);
+    expect(actions).toEqual(
+      expect.arrayContaining(["secret.ignore_rule_created", "secret.ignore_rule_deleted"]),
+    );
   });
 });

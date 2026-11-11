@@ -2,9 +2,16 @@
  * Secrets and sensitive files found in repositories (ADR 0049). Read by everyone who sees the repository (ADR 0030); closed or
  * reopened by members and above, with a reason, audited. No value is stored, so none can be returned.
  */
-import { SECRET_SEVERITIES } from "@garnetops/core/secrets";
-import { activeRepository, repositoryVisibleTo, schema, visibleRepository } from "@garnetops/db";
-import { and, count, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { newId } from "@garnetops/core";
+import { IGNORE_PATTERN_MAX, ignorePatternProblem, SECRET_SEVERITIES } from "@garnetops/core/secrets";
+import {
+  activeRepository,
+  applySecretIgnoreRules,
+  repositoryVisibleTo,
+  schema,
+  visibleRepository,
+} from "@garnetops/db";
+import { and, count, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
@@ -13,8 +20,10 @@ import { type AppEnv, requireRole } from "../lib/context.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
 import { rateLimit } from "../lib/rate-limit.ts";
 import { queueScan } from "../lib/scan-queue.ts";
+import { requireRecentSignIn } from "../lib/step-up.ts";
 
 const s = schema.secretFinding;
+const ir = schema.secretIgnoreRule;
 const r = schema.repository;
 
 export const SECRET_STATES = ["open", "revoked", "dismissed"] as const;
@@ -37,7 +46,8 @@ const csv = <T extends string>(values: readonly T[]) =>
     });
 
 const listQuery = z.object({
-  state: z.enum([...SECRET_STATES, "all"]).default("open"),
+  /** "open" leaves out what an ignore rule sets aside; "ignored" lists exactly that (ADR 0049 addendum). */
+  state: z.enum([...SECRET_STATES, "ignored", "all"]).default("open"),
   severity: csv(SECRET_SEVERITIES),
   repositoryId: z.string().max(64).optional(),
 });
@@ -57,7 +67,13 @@ function where(actor: { organizationId: string; userId: string }, input: z.infer
     visibleRepository(s.repositoryId, actor),
     // Over the whole organisation, repositories set aside are left out; one repository shows them (ADR 0043).
     input.repositoryId ? eq(s.repositoryId, input.repositoryId) : activeRepository(s.repositoryId),
-    input.state === "all" ? undefined : eq(s.state, input.state),
+    input.state === "all"
+      ? undefined
+      : input.state === "open"
+        ? and(eq(s.state, "open"), isNull(s.ignoredBy))
+        : input.state === "ignored"
+          ? and(eq(s.state, "open"), isNotNull(s.ignoredBy))
+          : eq(s.state, input.state),
     input.severity.length ? inArray(s.severity, input.severity) : undefined,
   );
 }
@@ -70,6 +86,7 @@ const listColumns = {
   severity: s.severity,
   state: s.state,
   inTree: s.inTree,
+  ignoredBy: s.ignoredBy,
   treeLocations: s.treeLocations,
   treeLocationCount: s.treeLocationCount,
   historyLocationCount: s.historyLocationCount,
@@ -106,25 +123,131 @@ export const secretRoutes = new Hono<AppEnv>()
     const actor = c.get("actor");
     const input = listQuery.parse(c.req.query());
     const rows = await db
-      .select({ state: s.state, severity: s.severity, n: count() })
+      .select({
+        state: s.state,
+        severity: s.severity,
+        ignored: sql<boolean>`${s.ignoredBy} is not null`,
+        n: count(),
+      })
       .from(s)
       .where(where(actor, { ...input, state: "all", severity: [] }))
-      .groupBy(s.state, s.severity);
-    const states: Record<(typeof SECRET_STATES)[number], number> = { open: 0, revoked: 0, dismissed: 0 };
+      .groupBy(s.state, s.severity, sql`${s.ignoredBy} is not null`);
+    const states = { open: 0, ignored: 0, revoked: 0, dismissed: 0 };
     const open: Record<string, number> = {};
     for (const row of rows) {
-      states[row.state] += row.n;
-      if (row.state === "open") open[row.severity] = row.n;
+      if (row.state === "open" && row.ignored) states.ignored += row.n;
+      else states[row.state] += row.n;
+      if (row.state === "open" && !row.ignored) open[row.severity] = (open[row.severity] ?? 0) + row.n;
     }
+    /** `states.ignored` (0.1.4): open secrets an ignore rule sets aside; `open` leaves them out. */
     return c.json({ states, open });
+  })
+  /** The organisation's ignore rules, as far as their repository is visible to the person. */
+  .get("/ignore-rules", async (c) => {
+    const actor = c.get("actor");
+    const rows = await db
+      .select({
+        id: ir.id,
+        repositoryId: ir.repositoryId,
+        repositoryName: r.name,
+        pathPattern: ir.pathPattern,
+        ruleId: ir.ruleId,
+        reason: ir.reason,
+        createdByName: schema.user.name,
+        createdAt: ir.createdAt,
+        ignored: sql<number>`(select count(*)::int from ${s} where ${s.ignoredBy} = ${ir.id} and ${s.state} = 'open')`,
+      })
+      .from(ir)
+      .leftJoin(r, eq(r.id, ir.repositoryId))
+      .leftJoin(schema.user, eq(schema.user.id, ir.createdBy))
+      .where(
+        and(
+          eq(ir.organizationId, actor.organizationId),
+          or(isNull(ir.repositoryId), visibleRepository(ir.repositoryId, actor)),
+        ),
+      )
+      .orderBy(desc(ir.createdAt), ir.id);
+    return c.json({ items: rows });
+  })
+  /** Admins, with a recent sign-in: a rule hides findings, so making one is treated like changing a security setting. */
+  .post("/ignore-rules", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    requireRecentSignIn(actor);
+    const input = ignoreRuleBody.parse(await c.req.json());
+    if (input.repositoryId) {
+      const [repo] = await db
+        .select({ id: r.id })
+        .from(r)
+        .where(and(eq(r.id, input.repositoryId), repositoryVisibleTo(actor)))
+        .limit(1);
+      if (!repo) throw notFound("Repository");
+    }
+    const id = newId("sir");
+    await db.insert(ir).values({
+      id,
+      organizationId: actor.organizationId,
+      repositoryId: input.repositoryId ?? null,
+      pathPattern: input.pathPattern ?? null,
+      ruleId: input.ruleId ?? null,
+      reason: input.reason,
+      createdBy: actor.userId,
+    });
+    await applySecretIgnoreRules(db, actor.organizationId);
+    await audit(
+      actor,
+      "secret.ignore_rule_created",
+      { type: "secret_ignore_rule", id },
+      {
+        repositoryId: input.repositoryId ?? null,
+        pathPattern: input.pathPattern ?? null,
+        rule: input.ruleId ?? null,
+        reason: input.reason,
+      },
+    );
+    const [{ n } = { n: 0 }] = await db
+      .select({ n: count() })
+      .from(s)
+      .where(and(eq(s.ignoredBy, id), eq(s.state, "open")));
+    return c.json({ id, ignored: n }, 201);
+  })
+  .delete("/ignore-rules/:ruleId", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    requireRecentSignIn(actor);
+    const id = c.req.param("ruleId");
+    const [rule] = await db
+      .delete(ir)
+      .where(and(eq(ir.id, id), eq(ir.organizationId, actor.organizationId)))
+      .returning();
+    if (!rule) throw notFound("Ignore rule");
+    // Its findings come back at once (the foreign key cleared them; this sets aside what another rule still covers).
+    await applySecretIgnoreRules(db, actor.organizationId);
+    await audit(
+      actor,
+      "secret.ignore_rule_deleted",
+      { type: "secret_ignore_rule", id },
+      {
+        repositoryId: rule.repositoryId,
+        pathPattern: rule.pathPattern,
+        rule: rule.ruleId,
+      },
+    );
+    return c.body(null, 204);
   })
   .get("/:id", async (c) => {
     const actor = c.get("actor");
     const [row] = await db
-      .select({ secret: s, repositoryName: r.name, stateByName: schema.user.name })
+      .select({
+        secret: s,
+        repositoryName: r.name,
+        stateByName: schema.user.name,
+        ignoreRule: { id: ir.id, pathPattern: ir.pathPattern, ruleId: ir.ruleId, reason: ir.reason },
+      })
       .from(s)
       .innerJoin(r, eq(r.id, s.repositoryId))
       .leftJoin(schema.user, eq(schema.user.id, s.stateBy))
+      .leftJoin(ir, eq(ir.id, s.ignoredBy))
       .where(
         and(
           eq(s.id, c.req.param("id")),
@@ -146,6 +269,7 @@ export const secretRoutes = new Hono<AppEnv>()
       stateAt: secret.stateAt,
       stateByName: row.stateByName,
       inTree: secret.inTree,
+      ignoredBy: row.ignoreRule?.id ? row.ignoreRule : null,
       treeLocations: secret.treeLocations,
       treeLocationCount: secret.treeLocationCount,
       historyLocations: secret.historyLocations,
@@ -214,6 +338,38 @@ async function close(c: Context<AppEnv>, state: "revoked" | "dismissed"): Promis
   return c.json({ ok: true });
 }
 
+const ignoreRuleBody = z
+  .object({
+    repositoryId: z.string().min(1).max(64).nullish(),
+    pathPattern: z
+      .string()
+      .trim()
+      .max(IGNORE_PATTERN_MAX)
+      .optional()
+      .transform((v) => v || undefined)
+      .refine((v) => v === undefined || ignorePatternProblem(v) === null, {
+        message: "A relative path pattern such as test/fixtures/** that does not match everything",
+      }),
+    ruleId: z
+      .string()
+      .trim()
+      .optional()
+      .transform((v) => v || undefined)
+      .refine((v) => v === undefined || /^[a-z0-9][a-z0-9-]{1,79}$/.test(v), {
+        message: "A rule id such as generic-api-key",
+      }),
+    reason: z
+      .string()
+      .trim()
+      .min(10, "Explain in at least 10 characters")
+      .max(1000)
+      .transform((t) => t.replace(/[\p{Cc}\p{Cf}]/gu, " ")),
+  })
+  .refine((v) => v.pathPattern || v.ruleId, {
+    message: "Name a path pattern, a rule or both",
+    path: ["pathPattern"],
+  });
+
 const historyBody = z.object({ enabled: z.boolean() });
 
 /** What a repository's Secrets card shows (ADR 0049). */
@@ -221,7 +377,7 @@ async function repositorySecrets(repo: typeof r.$inferSelect) {
   const rows = await db
     .select({ severity: s.severity, n: count() })
     .from(s)
-    .where(and(eq(s.repositoryId, repo.id), eq(s.state, "open")))
+    .where(and(eq(s.repositoryId, repo.id), eq(s.state, "open"), isNull(s.ignoredBy)))
     .groupBy(s.severity);
   const [lastScan] = await db
     .select({ secretScan: schema.scan.secretScan, finishedAt: schema.scan.finishedAt })

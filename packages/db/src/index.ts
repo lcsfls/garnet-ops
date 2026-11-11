@@ -9,6 +9,7 @@ export * from "./backup.ts";
 export * from "./directory.ts";
 export * from "./reports.ts";
 export * from "./schedule.ts";
+export * from "./secret-ignore.ts";
 export * from "./statistics.ts";
 export * from "./system.ts";
 export * from "./trend.ts";

@@ -696,6 +696,28 @@ export interface SecretLocation {
 }
 
 /**
+ * An admin's rule that sets secrets aside (ADR 0049 addendum): a path glob, a rule id or both, for one repository or all. Kept in
+ * GarnetOps, never read from a repository; each one has a reason and is audited when made or removed.
+ */
+export const secretIgnoreRule = pgTable(
+  "secret_ignore_rule",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** Null: every repository of the organisation. */
+    repositoryId: text("repository_id").references(() => repository.id, { onDelete: "cascade" }),
+    pathPattern: text("path_pattern"),
+    ruleId: text("rule_id"),
+    reason: text("reason").notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("secret_ignore_rule_org_idx").on(t.organizationId)],
+);
+
+/**
  * A secret or a sensitive file in a repository (ADR 0049). One row per secret per repository: the same value in three files is one
  * row with three places. The value itself is never stored, only a keyed fingerprint (HMAC with the organisation's own key).
  * A scan never closes a row: only a person does, as revoked (rotated) or dismissed (not a secret).
@@ -722,6 +744,11 @@ export const secretFinding = pgTable(
     stateAt: timestamp("state_at", { withTimezone: true }),
     /** Still in the files of the last scanned commit; false once only the history has it. */
     inTree: boolean("in_tree").notNull(),
+    /**
+     * The ignore rule that sets it aside (ADR 0049 addendum): every place it is known at matches that rule. Set aside means not
+     * counted, not notified and not in the gate, but listed under "Ignored". Null otherwise.
+     */
+    ignoredBy: text("ignored_by").references(() => secretIgnoreRule.id, { onDelete: "set null" }),
     /** Places in the current files, at most 50; and how many there were. */
     treeLocations: jsonb("tree_locations").$type<SecretLocation[]>().notNull(),
     treeLocationCount: integer("tree_location_count").notNull(),

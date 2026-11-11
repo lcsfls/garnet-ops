@@ -18,7 +18,7 @@ import {
 import { open, type SecretPurpose } from "@garnetops/core/vault";
 import { schema } from "@garnetops/db";
 import { type Language, resolveLanguage, resources } from "@garnetops/i18n";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import type { PgBoss } from "pg-boss";
 import { db } from "./db.ts";
@@ -463,7 +463,13 @@ export async function eventsForScan(
       low: sql<number>`count(*) filter (where ${schema.secretFinding.severity} = 'low')::int`,
     })
     .from(schema.secretFinding)
-    .where(and(eq(schema.secretFinding.firstSeenScanId, scanId), eq(schema.secretFinding.state, "open")));
+    .where(
+      and(
+        eq(schema.secretFinding.firstSeenScanId, scanId),
+        eq(schema.secretFinding.state, "open"),
+        isNull(schema.secretFinding.ignoredBy),
+      ),
+    );
   if (secretCounts && countFrom(secretCounts, "low") > 0) {
     payloads.push({ ...base, event: "secret.new", findings: secretCounts });
   }

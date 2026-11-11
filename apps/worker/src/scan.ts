@@ -318,7 +318,7 @@ async function persist(
     counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
 
   await db.transaction(async (tx) => {
-    const gate = await evaluateScanGate(tx, repo, parsed, inventory, await gateSecrets(tx, repo.id, secrets));
+    const gate = await evaluateScanGate(tx, repo, parsed, inventory, await gateSecrets(tx, repo, secrets));
     await upsertVulnerabilities(tx, parsed.vulnerabilities.values(), now);
     const secretSummary = await persistSecrets(tx, scanId, repo, secrets, now);
 
@@ -559,7 +559,7 @@ async function persistCheck(
   for (const finding of parsed.findings.values())
     counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
   await db.transaction(async (tx) => {
-    const open = await gateSecrets(tx, repo.id, secrets);
+    const open = await gateSecrets(tx, repo, secrets);
     const gate = await evaluateScanGate(tx, repo, parsed, inventory, open);
     await tx
       .update(schema.scan)

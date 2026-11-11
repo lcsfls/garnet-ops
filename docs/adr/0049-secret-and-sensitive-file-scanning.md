@@ -127,3 +127,24 @@ where the secret leaks.
 - Not in this version: secrets in container images, personal data and internal addresses, export of secret findings, a
   section in the reports of ADR 0047, the overview's key figures. The code viewer (ADR 0048) will show secret findings with the
   value masked.
+
+## Addendum (2026-11): ignore rules
+
+Closing false positives one by one does not scale where a repository has test fixtures or examples. Admins can now make
+**ignore rules** in GarnetOps: a path glob (`test/fixtures/**`, `**/*.example.env`), a rule id, or both, for one repository or
+all, with a reason of at least 10 characters, a recent sign-in, and an audit entry (`secret.ignore_rule_created`,
+`secret.ignore_rule_deleted`).
+
+- A rule is never read from a repository: the decision of 4 above (the repository's own suppressions are ignored) stands.
+- A finding is set aside (`secret_finding.ignored_by`) only when **every** place it is known at matches a rule; the same value
+  anywhere else keeps it open. With more than the 50 stored places of a kind, nothing is set aside.
+- Set aside means: not in the open count, the menu, the gate rule `secret-found` or the `secret.new` notification. It stays listed
+  under **Ignored** with the rule that set it aside, and each rule shows how many it sets aside.
+- Patterns are relative globs (`*`, `**`, `?`) of at most 200 characters, without `..`, brackets or braces; a pattern that would
+  match every path (`**`) is refused, so a rule cannot switch the check off.
+- Rules apply at once when made or removed (the API recomputes the organisation's findings) and after every scan.
+
+| Threat | Impact | Control |
+| --- | --- | --- |
+| An admin hides real secrets with a wide rule | A leak goes unseen | Recent sign-in, reason, audit entry, rules visible to everyone with their count, set-aside findings still listed, a match-everything pattern refused, the same value elsewhere still counts |
+

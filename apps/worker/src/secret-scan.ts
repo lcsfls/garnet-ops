@@ -9,10 +9,15 @@ import { join, relative, sep } from "node:path";
 import { newId } from "@garnetops/core";
 import type { GateSecret } from "@garnetops/core/gates";
 import { secretFingerprint } from "@garnetops/core/secret-fingerprint";
-import { parseGitleaksReport, type SecretHit, type SecretSeverity } from "@garnetops/core/secrets";
-import { schema } from "@garnetops/db";
+import {
+  matchingIgnoreRule,
+  parseGitleaksReport,
+  type SecretHit,
+  type SecretSeverity,
+} from "@garnetops/core/secrets";
+import { applySecretIgnoreRules, schema, secretIgnoreRules } from "@garnetops/db";
 import type { SecretLocation } from "@garnetops/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "./db.ts";
 import { env } from "./env.ts";
 import { runGitleaks, type SecretReports } from "./gitleaks-run.ts";
@@ -117,10 +122,11 @@ export async function runSecretScan(
 /** The secrets in the checked files that nobody closed: what the gate rule `secret-found` counts. */
 export async function gateSecrets(
   tx: Tx,
-  repositoryId: string,
+  repo: { id: string; organizationId: string },
   result: SecretScanResult,
 ): Promise<GateSecret[] | undefined> {
   if (result.state !== "done") return undefined;
+  const { id: repositoryId, organizationId } = repo;
   const fingerprints = [...new Set(result.tree.map((h) => h.fingerprint))];
   if (fingerprints.length === 0) return [];
   const closed = await tx
@@ -130,9 +136,12 @@ export async function gateSecrets(
       and(eq(s.repositoryId, repositoryId), inArray(s.fingerprint, fingerprints), sql`${s.state} <> 'open'`),
     );
   const shut = new Set(closed.map((c) => c.fingerprint));
+  const rules = await secretIgnoreRules(tx, organizationId, repositoryId);
   const worst = new Map<string, SecretSeverity>();
   for (const hit of result.tree) {
     if (shut.has(hit.fingerprint)) continue;
+    // A place an ignore rule covers does not count; the same value anywhere else still does.
+    if (matchingIgnoreRule(rules, { repositoryId, ruleId: hit.ruleId, path: hit.path })) continue;
     const before = worst.get(hit.fingerprint);
     if (!before || RANK[hit.severity] > RANK[before]) worst.set(hit.fingerprint, hit.severity);
   }
@@ -188,8 +197,6 @@ export async function persistSecrets(
     .from(s)
     .where(eq(s.repositoryId, repo.id));
   const byFingerprint = new Map(existing.map((e) => [e.fingerprint, e]));
-  const counts: Record<string, number> = {};
-  let newSecrets = 0;
   const historyChecked = result.history !== null;
 
   for (const [fingerprint, g] of groups) {
@@ -216,7 +223,6 @@ export async function persistSecrets(
             : {}),
         })
         .where(eq(s.id, known.id));
-      if (known.state === "open") counts[g.severity] = (counts[g.severity] ?? 0) + 1;
       continue;
     }
     await tx.insert(s).values({
@@ -234,8 +240,6 @@ export async function persistSecrets(
       firstSeenScanId: scanId,
       firstSeenAt: now,
     });
-    newSecrets += 1;
-    counts[g.severity] = (counts[g.severity] ?? 0) + 1;
   }
 
   // Secrets this scan did not see in the files: they stay, with no place in the files; a history check that did not find them
@@ -259,5 +263,20 @@ export async function persistSecrets(
       .set({ secretHistoryCheckedAt: now })
       .where(eq(schema.repository.id, repo.id));
   }
-  return { counts, newSecrets };
+  // The organisation's ignore rules (ADR 0049 addendum), then what this scan saw that nobody closed or set aside.
+  await applySecretIgnoreRules(tx, repo.organizationId, repo.id);
+  const seen = await tx
+    .select({ severity: s.severity, firstSeenScanId: s.firstSeenScanId })
+    .from(s)
+    .where(
+      and(
+        eq(s.repositoryId, repo.id),
+        eq(s.lastSeenScanId, scanId),
+        eq(s.state, "open"),
+        isNull(s.ignoredBy),
+      ),
+    );
+  const counts: Record<string, number> = {};
+  for (const row of seen) counts[row.severity] = (counts[row.severity] ?? 0) + 1;
+  return { counts, newSecrets: seen.filter((row) => row.firstSeenScanId === scanId).length };
 }

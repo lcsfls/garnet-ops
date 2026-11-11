@@ -208,7 +208,7 @@ describe.skipIf(!ready)("secret scanning with the real gitleaks", () => {
     });
     const { result, summary } = await scanAndStore(dir);
     expect(summary).toEqual({ counts: { critical: 1 }, newSecrets: 0 });
-    const gate = await conn.db.transaction((tx) => mod.gateSecrets(tx as never, repo.id, result));
+    const gate = await conn.db.transaction((tx) => mod.gateSecrets(tx as never, repo, result));
     expect(gate).toEqual([{ severity: "critical" }]);
     expect((await rows()).find((r) => r.id === env?.id)).toMatchObject({ state: "dismissed", inTree: true });
 
@@ -253,6 +253,44 @@ describe.skipIf(!ready)("secret scanning with the real gitleaks", () => {
     expect(JSON.stringify(await rows())).not.toContain(awsKey);
   });
 
+  it("sets aside what an ignore rule covers everywhere, counts it nowhere, and brings it back when the rule goes", async () => {
+    await conn.db.insert(schema.secretIgnoreRule).values({
+      id: "sir_fixtures",
+      organizationId: org,
+      repositoryId: repo.id,
+      pathPattern: "test/fixtures/**",
+      ruleId: null,
+      reason: "Fake keys for the parser tests",
+    });
+    const fixtures = await repository({
+      "test/fixtures/keys/config.js": `export const key = "${token}";\n`,
+      ".env": "DATABASE_PASSWORD=correct-horse-battery\n",
+    });
+    const { result, summary } = await scanAndStore(fixtures);
+    // The token only in fixtures: set aside, not counted; the .env (dismissed above) is not counted either.
+    expect(summary).toEqual({ counts: {}, newSecrets: 0 });
+    const pat = (await rows()).find((r) => r.ruleId === "github-pat");
+    expect(pat).toMatchObject({ state: "open", ignoredBy: "sir_fixtures" });
+    expect(await conn.db.transaction((tx) => mod.gateSecrets(tx as never, repo, result))).toEqual([]);
+
+    // The same value also outside the fixtures: it counts again.
+    const both = await repository({
+      "test/fixtures/keys/config.js": `export const key = "${token}";\n`,
+      "src/live.js": `export const key = "${token}";\n`,
+    });
+    const again = await scanAndStore(both);
+    expect(again.summary).toEqual({ counts: { critical: 1 }, newSecrets: 0 });
+    expect((await rows()).find((r) => r.ruleId === "github-pat")?.ignoredBy).toBeNull();
+
+    // Removing the rule (the API does this at once) leaves nothing set aside.
+    await scanAndStore(fixtures);
+    expect((await rows()).find((r) => r.ruleId === "github-pat")?.ignoredBy).toBe("sir_fixtures");
+    await conn.db.delete(schema.secretIgnoreRule).where(eq(schema.secretIgnoreRule.id, "sir_fixtures"));
+    const { applySecretIgnoreRules } = await import("@garnetops/db");
+    await applySecretIgnoreRules(conn.db, org);
+    expect((await rows()).every((r) => r.ignoredBy === null)).toBe(true);
+  });
+
   it("leaves findings alone when the secret check did not run", async () => {
     const before = await rows();
     const summary = await conn.db.transaction((tx) =>
@@ -268,7 +306,7 @@ describe.skipIf(!ready)("secret scanning with the real gitleaks", () => {
     expect(await rows()).toEqual(before);
     expect(
       await conn.db.transaction((tx) =>
-        mod.gateSecrets(tx as never, repo.id, { state: "skipped", tree: [], history: null }),
+        mod.gateSecrets(tx as never, repo, { state: "skipped", tree: [], history: null }),
       ),
     ).toBeUndefined();
   });
