@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-11
+<!-- title: Secrets in repositories: keys, tokens and files that do not belong there, without storing a value -->
+
 ### Added
 
 - **Secrets in repositories** ([docs/secrets.md](docs/secrets.md), ADR 0049): every scan checks the scanned files for keys,
@@ -1532,7 +1535,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/lcsfls/garnet-ops/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/lcsfls/garnet-ops/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/lcsfls/garnet-ops/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/lcsfls/garnet-ops/compare/v0.0.18...v0.1.0
