@@ -111,7 +111,15 @@ jobs:
         run: corepack pnpm test
 
       - name: Browser for Playwright
-        run: corepack pnpm --filter @garnetops/web exec playwright install --with-deps chromium
+        run: corepack pnpm --filter @garnetops/web exec playwright install chromium
+
+      # The runner image already has the libraries; this adds the few fonts it lacks. An outage of the Ubuntu mirrors
+      # (seen on 2026-11-11: DNS failures for two runs in a row) must not stop the run: if a library were really missing,
+      # the end-to-end tests below fail with a clear message instead.
+      - name: System packages for the browser
+        timeout-minutes: 8
+        continue-on-error: true
+        run: corepack pnpm --filter @garnetops/web exec playwright install-deps chromium
 
       - name: End-to-end tests
         run: corepack pnpm --filter @garnetops/web exec playwright test
