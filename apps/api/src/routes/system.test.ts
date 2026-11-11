@@ -75,7 +75,7 @@ describe.skipIf(!adminUrl)("System status API", () => {
   const partOf = (status: SystemStatus, key: string, part: string) =>
     row(status, key)?.parts.find((p) => p.key === part);
 
-  const heartbeat = (beatAgoMs: number, version = "0.1.3") =>
+  const heartbeat = (beatAgoMs: number, version = "0.1.4") =>
     t.db.insert(schema.workerHeartbeat).values({
       instanceId: `wrk_${++counter}`,
       version,
@@ -168,7 +168,7 @@ describe.skipIf(!adminUrl)("System status API", () => {
     it("keeps the small public facts open to every signed-in user", async () => {
       const res = await app.request("/api/v1/system", { headers: { "x-role": "viewer", "x-org": ORG } });
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ version: "0.1.3" });
+      expect(await res.json()).toEqual({ version: "0.1.4" });
     });
 
     it("shows nothing of another organisation", async () => {
@@ -213,7 +213,7 @@ describe.skipIf(!adminUrl)("System status API", () => {
         ].sort(),
       );
       expect(r.json.refreshSeconds).toBe(60);
-      expect(r.json.app.version).toBe("0.1.3");
+      expect(r.json.app.version).toBe("0.1.4");
       expect(r.json.integrations.map((i: Json) => i.key)).toEqual(["directory", "ai", "notifications"]);
       expect(r.json.scanners.items.map((s: Json) => s.name)).toEqual(["grype", "syft"]);
       expect(r.json.vulnDb.thresholds).toEqual({ staleAfterDays: 3, outdatedAfterDays: 7 });
@@ -280,11 +280,11 @@ describe.skipIf(!adminUrl)("System status API", () => {
 
     it("shows a different version as attention, and a missing binary as failed", async () => {
       await report("scanners", {
-        grype: { version: "0.1.3", reportedAt: ago(MIN).toISOString(), problem: null },
+        grype: { version: "0.1.4", reportedAt: ago(MIN).toISOString(), problem: null },
         syft: { version: null, reportedAt: ago(MIN).toISOString(), problem: "missing" },
       });
       const s = await view();
-      expect(s.scanners.items[0]).toMatchObject({ match: "differs", level: "attention", version: "0.1.3" });
+      expect(s.scanners.items[0]).toMatchObject({ match: "differs", level: "attention", version: "0.1.4" });
       expect(s.scanners.items[1]).toMatchObject({ match: "unknown", level: "failed", problem: "missing" });
       expect(s.scanners.level).toBe("failed");
     });
@@ -299,9 +299,9 @@ describe.skipIf(!adminUrl)("System status API", () => {
 
       await report("scanners", {
         ...scanners,
-        isolation: { mode: "service", reachable: true, version: "0.1.3", reportedAt: at },
+        isolation: { mode: "service", reachable: true, version: "0.1.4", reportedAt: at },
       });
-      await heartbeat(10_000, "0.1.3");
+      await heartbeat(10_000, "0.1.4");
       let s = await view();
       expect(s.scanners.isolation).toMatchObject({
         mode: "service",
@@ -659,12 +659,12 @@ describe.skipIf(!adminUrl)("System status API", () => {
   describe("the worker", () => {
     it("is missing without a heartbeat, running with a recent one, late after three missed beats", async () => {
       expect((await view()).worker).toMatchObject({ liveness: "missing", heartbeat: null });
-      await heartbeat(20_000, "0.1.3");
+      await heartbeat(20_000, "0.1.4");
       let s = await view();
       expect(s.worker).toMatchObject({
         liveness: "running",
         heartbeat: {
-          version: "0.1.3",
+          version: "0.1.4",
           instances: 1,
           startedAt: ago(2 * HOUR).toISOString(),
           beatAt: ago(20_000).toISOString(),
@@ -678,10 +678,10 @@ describe.skipIf(!adminUrl)("System status API", () => {
     });
 
     it("counts the workers that beat and reports the newest", async () => {
-      await heartbeat(10_000, "0.1.3");
-      await heartbeat(20_000, "0.1.3");
-      await heartbeat(HOUR, "0.1.3");
-      expect((await view()).worker.heartbeat).toMatchObject({ version: "0.1.3", instances: 2 });
+      await heartbeat(10_000, "0.1.4");
+      await heartbeat(20_000, "0.1.4");
+      await heartbeat(HOUR, "0.1.4");
+      expect((await view()).worker.heartbeat).toMatchObject({ version: "0.1.4", instances: 2 });
     });
 
     it("reports the database size and that every migration is applied", async () => {
@@ -822,19 +822,19 @@ describe.skipIf(!adminUrl)("System status API", () => {
     it("has no updater to report when none is set up", async () => {
       const s = await view({ configured: false, phase: null, latestAvailable: null });
       expect(s.app).toMatchObject({
-        version: "0.1.3",
+        version: "0.1.4",
         updater: { configured: false, reachable: false, level: "inactive" },
       });
     });
 
     it("reports the sidecar's phase and the newest release it knows", async () => {
-      const s = await view({ configured: true, phase: "idle", latestAvailable: "0.1.3" });
+      const s = await view({ configured: true, phase: "idle", latestAvailable: "0.1.4" });
       expect(s.app.updater).toEqual({
         configured: true,
         reachable: true,
         level: "ok",
         phase: "idle",
-        latestAvailable: "0.1.3",
+        latestAvailable: "0.1.4",
       });
       expect(
         (await view({ configured: true, phase: "failed", latestAvailable: null })).app.updater.level,
@@ -849,13 +849,13 @@ describe.skipIf(!adminUrl)("System status API", () => {
 
     it("asks the sidecar through the route, and a sidecar that is down is a fact, not an error", async () => {
       held.updaterUrl = "http://updater.example.test:8090";
-      held.updater.state = async () => ({ phase: "scheduled", updater: { latestAvailable: "0.1.3" } });
+      held.updater.state = async () => ({ phase: "scheduled", updater: { latestAvailable: "0.1.4" } });
       let r = await call();
       expect(r.json.app.updater).toMatchObject({
         configured: true,
         reachable: true,
         phase: "scheduled",
-        latestAvailable: "0.1.3",
+        latestAvailable: "0.1.4",
       });
       held.updater.state = async () => {
         throw new Error("connection refused");
