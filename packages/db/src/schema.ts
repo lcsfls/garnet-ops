@@ -2712,6 +2712,39 @@ export const aiSettings = pgTable("ai_settings", {
 });
 
 /**
+ * A person asked to see the code of a finding (ADR 0048): the worker clones the repository with its read credential, reads the
+ * declaring files and searches for usages, and writes the excerpts here. Transient: the API deletes the row when it hands the result
+ * over, and a sweep deletes rows older than 10 minutes in any state. Never part of a backup worth keeping.
+ */
+export const codeRequest = pgTable(
+  "code_request",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    requestedBy: text("requested_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    findingId: text("finding_id")
+      .notNull()
+      .references(() => finding.id, { onDelete: "cascade" }),
+    repositoryId: text("repository_id")
+      .notNull()
+      .references(() => repository.id, { onDelete: "cascade" }),
+    state: text("state", { enum: ["queued", "running", "done", "failed"] })
+      .notNull()
+      .default("queued"),
+    /** The excerpts (`CodeView` of `@garnetops/core/code-view`), cleaned; null until done. */
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    /** A user-safe reason when it failed. */
+    error: text("error"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("code_request_org_idx").on(t.organizationId, t.state, t.createdAt)],
+);
+
+/**
  * "Load models" and "Test connection": the API cannot open the API key, so it queues a probe
  * and the worker writes the result here. Short-lived; the worker sweeps old rows.
  */

@@ -26,6 +26,12 @@ describe("where a package is declared", () => {
     expect(declarationLines(manifest, "@scope/lodash")).toEqual([5]);
     expect(declarationLines("requests==2.31.0\nrequests-toolbelt==1.0", "requests")).toEqual([1]);
     expect(declarationLines('[[package]]\nname = "serde"\nversion = "1.0.1"', "serde")).toEqual([2]);
+    // Lockfiles: npm's node_modules/ keys, yarn's name@range, pnpm's /name@version; a scoped namesake is not it.
+    expect(
+      declarationLines('    "node_modules/lodash": {\n    "node_modules/@x/lodash": {', "lodash"),
+    ).toEqual([1]);
+    expect(declarationLines("lodash@^4.17.15:\n  version", "lodash")).toEqual([1]);
+    expect(declarationLines("  /lodash@4.17.15:\n  /lodash-es@4.17.21:", "lodash")).toEqual([1]);
   });
 
   it("stops after a fixed number of places", () => {

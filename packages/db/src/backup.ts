@@ -93,6 +93,8 @@ export const BACKUP_EXCLUDED_TABLES: ReadonlySet<string> = new Set([
   "backup_run",
   "backup_chunk",
   "worker_heartbeat",
+  // Code a person viewed (ADR 0048): never kept beyond the hand-over, never in a backup.
+  "code_request",
   "updater_journal_cursor",
 ]);
 

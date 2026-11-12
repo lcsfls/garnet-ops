@@ -158,7 +158,8 @@ export function looksLikeText(head: Uint8Array): boolean {
 /** The lines of a manifest or lockfile that name the package as a whole token (not as part of a longer name). */
 export function declarationLines(text: string, packageName: string): number[] {
   const n = escapeRegExp(packageName);
-  const token = new RegExp(`(?:^|[^A-Za-z0-9@/._-])${n}(?:$|[^A-Za-z0-9._-])`);
+  // Before the name: nothing that would make it part of a longer one, or a lockfile's `node_modules/` (npm) or leading `/` (pnpm).
+  const token = new RegExp(`(?:^|[^A-Za-z0-9@/._-]|node_modules/|^\\s*/)${n}(?:$|[^A-Za-z0-9._/-])`);
   const out: number[] = [];
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length && out.length < CODE_VIEW_LIMITS.maxDeclarationMatches; i += 1) {
