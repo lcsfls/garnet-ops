@@ -50,7 +50,8 @@
     "./report-documents": "./src/report-documents.ts",
     "./secrets": "./src/secrets.ts",
     "./secret-fingerprint": "./src/secret-fingerprint.ts",
-    "./exposed-files": "./src/exposed-files.ts"
+    "./exposed-files": "./src/exposed-files.ts",
+    "./code-view": "./src/code-view.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

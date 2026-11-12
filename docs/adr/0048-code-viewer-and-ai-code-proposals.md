@@ -1,6 +1,6 @@
 # ADR 0048: Code viewer for findings, and AI code proposals as pull requests
 
-- Status: proposed
+- Status: accepted (2026-11-12); delivered in two steps: the viewer (0.1.5), then AI excerpts, proposals and pull requests (0.1.6)
 - Date: 2026-11-05
 - Decided by: maintainer (a code viewer that shows the affected code of a finding, an AI fix proposal shown before and after in
   tabs, handed on as a pull request; code fetched on demand, nothing stored; code excerpts for the AI only as an opt-in per
