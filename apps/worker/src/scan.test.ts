@@ -190,6 +190,11 @@ describe.skipIf(!ready)("scan with the real scanner", () => {
     (await conn.db.select().from(schema.scan).where(eq(schema.scan.id, id)))[0];
   const findings = () => conn.db.select().from(schema.finding).where(eq(schema.finding.repositoryId, repo));
   const leftovers = () => readdirSync(workDir).filter((n) => n.startsWith("scan-"));
+  /**
+   * How many findings the fixture has depends on the local vulnerability database, which changes as advisories are revised or
+   * withdrawn: the first test counts them, the others compare against that count.
+   */
+  let vulnerable = 0;
 
   it(
     "scans a repository end to end and records what it found",
@@ -203,7 +208,6 @@ describe.skipIf(!ready)("scan with the real scanner", () => {
         state: "succeeded",
         error: null,
         packageCount: 3, // the project itself, lodash and minimist
-        newFindings: 8,
         resolvedFindings: 0,
         commitSha: "fixture-npm-vulnerable",
       });
@@ -239,13 +243,13 @@ describe.skipIf(!ready)("scan with the real scanner", () => {
       expect(lodash?.publishedAt?.toISOString().slice(0, 10)).toBe("2021-02-15");
 
       const rows = await findings();
-      expect(rows).toHaveLength(8);
+      vulnerable = rows.length;
+      expect(scan?.newFindings).toBe(vulnerable);
       expect(rows.every((f) => f.state === "open" && f.firstSeenScanId === id)).toBe(true);
-      expect(rows.map((f) => f.packageName).sort()).toEqual([
-        ...Array(6).fill("lodash"),
-        "minimist",
-        "minimist",
-      ]);
+      // Both packages have long-known advisories; lodash has several.
+      expect(new Set(rows.map((f) => f.packageName))).toEqual(new Set(["lodash", "minimist"]));
+      expect(rows.filter((f) => f.packageName === "lodash").length).toBeGreaterThan(1);
+      expect(rows.some((f) => f.vulnerabilityId === "GHSA-35jh-r3h4-6jhm")).toBe(true);
       const repoRow = (
         await conn.db.select().from(schema.repository).where(eq(schema.repository.id, repo))
       )[0];
@@ -293,7 +297,11 @@ describe.skipIf(!ready)("scan with the real scanner", () => {
       const id = await queueScan();
       await runScan(id);
 
-      expect(await scanRow(id)).toMatchObject({ state: "succeeded", newFindings: 0, resolvedFindings: 8 });
+      expect(await scanRow(id)).toMatchObject({
+        state: "succeeded",
+        newFindings: 0,
+        resolvedFindings: vulnerable,
+      });
       // The inventory is replaced, not appended.
       const inventory = await conn.db
         .select()
@@ -314,9 +322,13 @@ describe.skipIf(!ready)("scan with the real scanner", () => {
       const id = await queueScan();
       await runScan(id);
 
-      expect(await scanRow(id)).toMatchObject({ state: "succeeded", newFindings: 8, resolvedFindings: 0 });
+      expect(await scanRow(id)).toMatchObject({
+        state: "succeeded",
+        newFindings: vulnerable,
+        resolvedFindings: 0,
+      });
       const rows = await findings();
-      expect(rows).toHaveLength(8); // the same rows, not duplicates
+      expect(rows).toHaveLength(vulnerable); // the same rows, not duplicates
       expect(rows.every((f) => f.state === "open" && f.resolvedAt === null && f.firstSeenScanId === id)).toBe(
         true,
       );
