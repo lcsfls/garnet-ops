@@ -1,5 +1,5 @@
 /**
- * The code viewer of a finding (ADR 0048, 0.1.5). Pure: where a vulnerable package is declared (manifests and lockfiles) and where
+ * The code viewer of a finding (ADR 0048, 0.1.6). Pure: where a vulnerable package is declared (manifests and lockfiles) and where
  * the code imports it (a search by name, per ecosystem), shown as excerpts with a few lines around each place. The worker reads
  * the files from a short-lived clone; nothing here touches a disk or the network, and nothing is executed.
  */
