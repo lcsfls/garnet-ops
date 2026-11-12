@@ -192,8 +192,11 @@ function literal(value: string): string {
 }
 
 /** The configuration GarnetOps hands gitleaks: its default rules, plus the rules above. */
-export function gitleaksConfig(): string {
-  const lines = ['title = "GarnetOps secret scanning (ADR 0049)"', "", "[extend]", "useDefault = true"];
+export function gitleaksConfig(opts: { extendPath?: string } = {}): string {
+  // With the repository's configuration (ADR 0049 addendum 2026-11-12), GarnetOps' rules extend that file, which extends gitleaks'
+  // defaults: GarnetOps' own rules come first, the repository's after, the defaults last.
+  const extend = opts.extendPath ? `path = ${literal(opts.extendPath)}` : "useDefault = true";
+  const lines = ['title = "GarnetOps secret scanning (ADR 0049)"', "", "[extend]", extend];
   for (const rule of SENSITIVE_FILE_RULES) {
     lines.push(
       "",
@@ -210,8 +213,17 @@ export function gitleaksConfig(): string {
   return `${lines.join("\n")}\n`;
 }
 
-/** The arguments every gitleaks run gets, besides the mode and the target: our configuration, never the repository's. */
-export function gitleaksArgs(opts: { configPath: string; emptyDir: string; reportPath: string }): string[] {
+/**
+ * The arguments every gitleaks run gets, besides the mode and the target: our configuration, never the repository's. The
+ * repository run of the opt-in (ADR 0049 addendum 2026-11-12) honours `gitleaks:allow` and reads the repository's ignore file from
+ * `emptyDir`; the strict run never does.
+ */
+export function gitleaksArgs(opts: {
+  configPath: string;
+  emptyDir: string;
+  reportPath: string;
+  repository?: boolean;
+}): string[] {
   return [
     "--no-banner",
     "--no-color",
@@ -222,7 +234,7 @@ export function gitleaksArgs(opts: { configPath: string; emptyDir: string; repor
     // An empty directory instead of the repository's .gitleaksignore, and its gitleaks:allow comments ignored.
     "--gitleaks-ignore-path",
     opts.emptyDir,
-    "--ignore-gitleaks-allow",
+    ...(opts.repository ? [] : ["--ignore-gitleaks-allow"]),
     "--max-target-megabytes",
     "5",
     "--max-decode-depth",

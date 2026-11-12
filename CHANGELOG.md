@@ -8,6 +8,14 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **The repository's own gitleaks configuration, on request** ([docs/secrets.md](docs/secrets.md), ADR 0049 addendum): an admin
+  can let a repository's `.gitleaks.toml`, `.gitleaksignore` and `gitleaks:allow` comments count, per repository, with a recent
+  sign-in. Its rules add findings; what its exceptions hide is never dropped but listed under **Ignored** as set aside by the
+  repository, not counted, not in the gate and not notified. Off by default; switching it off counts them again at once. The
+  repository's file cannot pull in other files, and a file GarnetOps refuses sets nothing aside.
+
 ## [0.1.5] - 2026-11-12
 <!-- title: Security fix for the secret history check, and secrets that are quicker to work through -->
 

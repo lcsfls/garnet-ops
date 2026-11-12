@@ -3067,6 +3067,9 @@ export const de: Messages = {
       doneSkipped:
         "{count, plural, one {# Secret geändert} other {# Secrets geändert}}; {skipped, plural, one {# war} other {# waren}} schon in diesem Status.",
     },
+    repoSetAside: "Von der gitleaks-Konfiguration des Repositorys beiseitegelegt",
+    repoSetAsideHint:
+      "Die eigenen Ausnahmen des Repositorys verbergen es überall, wo es gefunden wurde. Es zählt nicht; schalten Sie die Option in der Secrets-Karte des Repositorys aus, damit es wieder zählt.",
     export: {
       hint: "Mit den angezeigten Filtern, alle passenden Secrets. Nie ein Wert: GarnetOps hat ihn nicht.",
       title: "Secrets",
@@ -3099,6 +3102,23 @@ export const de: Messages = {
       checkQueued: "Die Prüfung der Historie ist eingereiht.",
       checkRecent: "Die Historie wurde vor weniger als einer Stunde geprüft.",
       checkRunning: "Ein Scan dieses Repositorys läuft bereits.",
+      repoConfig: "gitleaks-Konfiguration des Repositorys beachten",
+      repoConfigHint:
+        "Regeln aus .gitleaks.toml ergänzen Funde; was seine Ausnahmen (.gitleaksignore, gitleaks:allow, Allowlists) verbergen, steht unter Ignoriert und zählt nicht. Nur für Admins.",
+      repoConfigNextScan: "Gilt ab dem nächsten Scan.",
+      repoConfigLast:
+        "Letzter Scan mit {files}: {setAside, plural, =0 {nichts beiseitegelegt} one {# Secret beiseitegelegt} other {# Secrets beiseitegelegt}}, {added, plural, =0 {kein Fund ergänzt} one {# Fund ergänzt} other {# Funde ergänzt}}.",
+      repoConfigProblem: "Der letzte Scan hat nichts beiseitegelegt: {reason}.",
+      repoConfigReason: {
+        tooLarge: "eine Datei ist größer als 64 KiB",
+        notText: "die Konfiguration ist keine Textdatei",
+        extendForm: "die Konfiguration setzt extend in einer Form, die GarnetOps nicht annimmt",
+        reservedRuleId: "die Konfiguration benennt eine Regel wie eine von GarnetOps (garnetops-…)",
+        failed: "gitleaks konnte die Konfiguration nicht verwenden",
+        unsupported: "der Scanner-Dienst ist älter als diese Funktion",
+      },
+      repoConfigOn: "Die gitleaks-Konfiguration des Repositorys wird ab dem nächsten Scan beachtet.",
+      repoConfigOff: "Die gitleaks-Konfiguration des Repositorys wird nicht mehr beachtet.",
     },
   },
   earlyWarnings: {
@@ -4210,6 +4230,7 @@ export const de: Messages = {
       secret_revoked: "Secret als ausgetauscht markiert",
       secret_dismissed: "Secret als kein Secret markiert",
       secret_reopened: "Secret wieder geöffnet",
+      secret_repo_config_changed: "gitleaks-Konfiguration des Repositorys ein- oder ausgeschaltet",
       secret_ignore_rule_created: "Ausnahmeregel für Secrets hinzugefügt",
       secret_ignore_rule_deleted: "Ausnahmeregel für Secrets entfernt",
       repository_secret_history_enabled: "Prüfung der Historie auf Secrets eingeschaltet",

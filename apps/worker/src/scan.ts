@@ -128,7 +128,14 @@ export async function runScan(scanId: string): Promise<void> {
     const parsed = parseReport(json, repo.id);
     addAdvisoryDates(parsed.vulnerabilities, env.GARNETOPS_GRYPE_DB_DIR);
     // Secrets (ADR 0049) in the same clone; its outcome never fails the scan.
-    const secrets = await runSecretScan(src, out, repo.organizationId, secretHistory);
+    const secrets = await runSecretScan(
+      src,
+      out,
+      repo.organizationId,
+      secretHistory,
+      // The repository's own gitleaks configuration, when an admin switched it on (ADR 0049 addendum 2026-11-12).
+      repo.secretRepoConfigAt !== null,
+    );
     // A check of another ref (a pull request) must not change the repository's findings or
     // inventory, which describe its configured branch; it only records its gate result.
     if (scan.ref) await persistCheck(scan.id, repo, parsed, cloned, inventory, secrets);

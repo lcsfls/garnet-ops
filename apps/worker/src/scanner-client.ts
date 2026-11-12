@@ -110,8 +110,10 @@ export function requestSecrets(
   dir: string,
   history: boolean,
   outFile: string,
+  repo: { config: string | null; ignore: string | null } | null = null,
 ): Promise<void> {
-  return call(socket, "/v1/secrets", { json: { dir, history } }, outFile);
+  // A scanner service from before 0.1.6 ignores `repo`: its report then has no repository run, and nothing is set aside.
+  return call(socket, "/v1/secrets", { json: repo ? { dir, history, repo } : { dir, history } }, outFile);
 }
 
 /** The service's health answer: its release, or null when it does not answer. */

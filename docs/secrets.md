@@ -72,6 +72,23 @@ means it is not counted, not in the gate rule or the notifications, but listed u
 many secrets it sets aside, and removing it brings them back at once. A pattern that matches everything (`**`) is refused. Rules
 live in GarnetOps only: a repository's own `.gitleaksignore` is still ignored.
 
+## The repository's own gitleaks configuration
+
+Off by default: GarnetOps checks with its own rules and ignores whatever a repository says, so nobody who can commit can hide a
+secret from the check. Teams that keep their exceptions in the repository can let GarnetOps respect them, per repository:
+
+- An admin switches it on in the repository's **Secrets** card (**Respect the repository's gitleaks configuration**), with a
+  recent sign-in; it is audited.
+- Each scan then also runs gitleaks with the repository's `.gitleaks.toml` (or `gitleaks.toml`) on top of GarnetOps' rules, its
+  `.gitleaksignore` and its `gitleaks:allow` comments.
+- **Its own rules** add findings like any other.
+- **What its exceptions hide** is not dropped: it is listed under **Ignored** as *set aside by the repository's gitleaks
+  configuration*, and like a secret set aside by an ignore rule it is not counted, not in the gate and not notified. A secret is
+  set aside only when every place it is known at is.
+- The file may be at most 64 KiB. Its `[extend]` table may switch default rules off (`disabledRules`, which then counts as
+  hiding them) but cannot pull in another file; rule ids starting with `garnetops-` are refused. A file that is refused or that
+  gitleaks cannot read sets nothing aside, and the card says why.
+
 ## Gate rule and notifications
 
 - The quality gate rule **Secret in the code** counts open critical and high secrets in the checked commit. It is **Off** until

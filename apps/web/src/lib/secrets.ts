@@ -22,6 +22,8 @@ export interface SecretRow {
   inTree: boolean;
   /** The ignore rule that sets it aside, or null. */
   ignoredBy: string | null;
+  /** Set aside by the repository's own gitleaks configuration. */
+  setAsideByRepository: boolean;
   place: SecretPlace | null;
   treeLocationCount: number;
   historyLocationCount: number;
@@ -43,6 +45,8 @@ export interface SecretIgnoreRule {
 }
 
 export interface SecretDetail extends Omit<SecretRow, "place" | "ignoredBy"> {
+  /** Set aside by the repository's own gitleaks configuration (ADR 0049 addendum 2026-11-12). */
+  setAsideByRepository: boolean;
   ignoredBy: { id: string; pathPattern: string | null; ruleId: string | null; reason: string } | null;
   stateReason: string | null;
   stateAt: string | null;
@@ -60,6 +64,19 @@ export interface RepositorySecrets {
   open: Partial<Record<SecretSeverity, number>>;
   lastCheck: "done" | "skipped" | "failed" | null;
   history: { enabled: boolean; enabledAt: string | null; checkedAt: string | null };
+  /** The repository's own gitleaks configuration (ADR 0049 addendum 2026-11-12). */
+  repoConfig: {
+    enabled: boolean;
+    enabledAt: string | null;
+    last: {
+      file: string | null;
+      ignoreFile: boolean;
+      problem: string | null;
+      setAside: number;
+      added: number;
+      at: string;
+    } | null;
+  };
 }
 
 /** Shared by the page and the menu's count. */

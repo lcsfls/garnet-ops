@@ -13,7 +13,7 @@ import {
   visibleRepository,
 } from "@garnetops/db";
 import { LANGUAGES, resources } from "@garnetops/i18n";
-import { and, count, desc, eq, gt, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
@@ -89,6 +89,13 @@ const reasonBody = z.object({
     .transform((t) => t.replace(/[\p{Cc}\p{Cf}]/gu, " ")),
 });
 
+/**
+ * Set aside: by an ignore rule (ADR 0049 addendum) or by the repository's own gitleaks configuration (addendum 2026-11-12). Not
+ * counted, not in the gate, not notified; listed under "Ignored".
+ */
+const setAside = sql`(${s.ignoredBy} is not null or ${s.setAsideByRepository})`;
+const notSetAside = sql`(${s.ignoredBy} is null and not ${s.setAsideByRepository})`;
+
 function where(actor: { organizationId: string; userId: string }, input: z.infer<typeof listQuery>) {
   const like = input.q ? `%${input.q.replace(/[%_\\]/g, "\\$&")}%` : null;
   const inPlaces = (column: typeof s.treeLocations | typeof s.historyLocations) =>
@@ -101,9 +108,9 @@ function where(actor: { organizationId: string; userId: string }, input: z.infer
     input.state === "all"
       ? undefined
       : input.state === "open"
-        ? and(eq(s.state, "open"), isNull(s.ignoredBy))
+        ? and(eq(s.state, "open"), notSetAside)
         : input.state === "ignored"
-          ? and(eq(s.state, "open"), isNotNull(s.ignoredBy))
+          ? and(eq(s.state, "open"), setAside)
           : eq(s.state, input.state),
     input.severity.length ? inArray(s.severity, input.severity) : undefined,
     like ? or(ilike(s.ruleId, like), inPlaces(s.treeLocations), inPlaces(s.historyLocations)) : undefined,
@@ -119,6 +126,7 @@ const listColumns = {
   state: s.state,
   inTree: s.inTree,
   ignoredBy: s.ignoredBy,
+  setAsideByRepository: s.setAsideByRepository,
   treeLocations: s.treeLocations,
   treeLocationCount: s.treeLocationCount,
   historyLocationCount: s.historyLocationCount,
@@ -167,7 +175,7 @@ export const secretRoutes = new Hono<AppEnv>()
           severity: s.severity,
           ruleId: s.ruleId,
           state: s.state,
-          ignored: sql<boolean>`${s.ignoredBy} is not null`,
+          ignored: sql<boolean>`${setAside}`,
           repositoryName: r.name,
           inTree: s.inTree,
           treeLocations: s.treeLocations,
@@ -228,12 +236,12 @@ export const secretRoutes = new Hono<AppEnv>()
       .select({
         state: s.state,
         severity: s.severity,
-        ignored: sql<boolean>`${s.ignoredBy} is not null`,
+        ignored: sql<boolean>`${setAside}`,
         n: count(),
       })
       .from(s)
       .where(where(actor, { ...input, state: "all", severity: [] }))
-      .groupBy(s.state, s.severity, sql`${s.ignoredBy} is not null`);
+      .groupBy(s.state, s.severity, setAside);
     const states = { open: 0, ignored: 0, revoked: 0, dismissed: 0 };
     const open: Record<string, number> = {};
     for (const row of rows) {
@@ -372,6 +380,7 @@ export const secretRoutes = new Hono<AppEnv>()
       stateByName: row.stateByName,
       inTree: secret.inTree,
       ignoredBy: row.ignoreRule?.id ? row.ignoreRule : null,
+      setAsideByRepository: secret.setAsideByRepository,
       treeLocations: secret.treeLocations,
       treeLocationCount: secret.treeLocationCount,
       historyLocations: secret.historyLocations,
@@ -534,7 +543,7 @@ async function repositorySecrets(repo: typeof r.$inferSelect) {
   const rows = await db
     .select({ severity: s.severity, n: count() })
     .from(s)
-    .where(and(eq(s.repositoryId, repo.id), eq(s.state, "open"), isNull(s.ignoredBy)))
+    .where(and(eq(s.repositoryId, repo.id), eq(s.state, "open"), notSetAside))
     .groupBy(s.severity);
   const [lastScan] = await db
     .select({ secretScan: schema.scan.secretScan, finishedAt: schema.scan.finishedAt })
@@ -555,6 +564,12 @@ async function repositorySecrets(repo: typeof r.$inferSelect) {
       enabled: repo.secretHistoryAt !== null,
       enabledAt: repo.secretHistoryAt,
       checkedAt: repo.secretHistoryCheckedAt,
+    },
+    /** The repository's own gitleaks configuration (ADR 0049 addendum 2026-11-12), added in 0.1.6. */
+    repoConfig: {
+      enabled: repo.secretRepoConfigAt !== null,
+      enabledAt: repo.secretRepoConfigAt,
+      last: repo.secretRepoConfigAt ? (repo.secretRepoConfigResult ?? null) : null,
     },
   };
 }
@@ -587,6 +602,46 @@ export const repositorySecretRoutes = new Hono<AppEnv>()
         body.enabled ? "repository.secret_history_enabled" : "repository.secret_history_disabled",
         { type: "repository", id: repo.id },
         { url: repo.url },
+      );
+    }
+    const [after] = await db.select().from(r).where(eq(r.id, repo.id)).limit(1);
+    return c.json(await repositorySecrets(after ?? repo));
+  })
+  /**
+   * Respect the repository's own gitleaks configuration (ADR 0049 addendum 2026-11-12): admins only, with a recent sign-in, since
+   * it lets the repository set findings aside. Switching it off brings them back at once; switching it on applies from the next
+   * scan.
+   */
+  .put("/repo-config", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "admin");
+    requireRecentSignIn(actor);
+    const repo = await visibleRepo(actor, c.req.param("id"));
+    const body = historyBody.parse(await c.req.json());
+    if (body.enabled !== (repo.secretRepoConfigAt !== null)) {
+      const now = new Date();
+      await db.transaction(async (tx) => {
+        await tx
+          .update(r)
+          .set({
+            secretRepoConfigAt: body.enabled ? now : null,
+            secretRepoConfigBy: body.enabled ? actor.userId : null,
+            secretRepoConfigResult: null,
+            updatedAt: now,
+          })
+          .where(eq(r.id, repo.id));
+        if (!body.enabled) {
+          await tx
+            .update(s)
+            .set({ setAsideByRepository: false, updatedAt: now })
+            .where(and(eq(s.repositoryId, repo.id), eq(s.setAsideByRepository, true)));
+        }
+      });
+      await audit(
+        actor,
+        "secret.repo_config_changed",
+        { type: "repository", id: repo.id },
+        { enabled: body.enabled, url: repo.url },
       );
     }
     const [after] = await db.select().from(r).where(eq(r.id, repo.id)).limit(1);

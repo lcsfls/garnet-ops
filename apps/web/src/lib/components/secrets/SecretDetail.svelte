@@ -143,6 +143,12 @@
         </ol>
       </section>
 
+      {#if d.setAsideByRepository && !d.ignoredBy}
+        <section class="grid gap-1 border-t px-5 py-4 text-sm" data-testid="secret-set-aside-by-repository">
+          <h3 class="font-medium">{t("secrets.repoSetAside")}</h3>
+          <p class="text-muted-foreground">{t("secrets.repoSetAsideHint")}</p>
+        </section>
+      {/if}
       {#if d.ignoredBy}
         <section class="grid gap-1 border-t px-5 py-4 text-sm" data-testid="secret-ignored">
           <h3 class="font-medium">{t("secrets.ignore.setAside")}</h3>

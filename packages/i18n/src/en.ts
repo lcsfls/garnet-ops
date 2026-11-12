@@ -2978,6 +2978,9 @@ export const en = {
       doneSkipped:
         "{count, plural, one {# secret changed} other {# secrets changed}}; {skipped, plural, one {# was} other {# were}} already in that state.",
     },
+    repoSetAside: "Set aside by the repository's gitleaks configuration",
+    repoSetAsideHint:
+      "The repository's own exceptions hide it everywhere it was found. It is not counted; switch the option off in the repository's Secrets card to count it again.",
     export: {
       hint: "With the filters shown, every matching secret. Never a value: GarnetOps does not have it.",
       title: "Secrets",
@@ -3010,6 +3013,23 @@ export const en = {
       checkQueued: "The history check is queued.",
       checkRecent: "The history was checked less than an hour ago.",
       checkRunning: "A scan of this repository is already running.",
+      repoConfig: "Respect the repository's gitleaks configuration",
+      repoConfigHint:
+        "Its .gitleaks.toml rules add findings; what its exceptions (.gitleaksignore, gitleaks:allow, allowlists) hide is listed under Ignored and not counted. Admins only.",
+      repoConfigNextScan: "Applies from the next scan.",
+      repoConfigLast:
+        "Last scan used {files}: {setAside, plural, =0 {nothing set aside} one {# secret set aside} other {# secrets set aside}}, {added, plural, =0 {no finding added} one {# finding added} other {# findings added}}.",
+      repoConfigProblem: "The last scan set nothing aside: {reason}.",
+      repoConfigReason: {
+        tooLarge: "a file is larger than 64 KiB",
+        notText: "the configuration is not a text file",
+        extendForm: "the configuration sets extend in a form GarnetOps does not accept",
+        reservedRuleId: "the configuration names a rule like one of GarnetOps' own (garnetops-…)",
+        failed: "gitleaks could not use the configuration",
+        unsupported: "the scanner service is older than this feature",
+      },
+      repoConfigOn: "The repository's gitleaks configuration is respected from the next scan.",
+      repoConfigOff: "The repository's gitleaks configuration is no longer respected.",
     },
   },
   earlyWarnings: {
@@ -4098,6 +4118,7 @@ export const en = {
       secret_revoked: "Secret marked as revoked",
       secret_dismissed: "Secret marked as not a secret",
       secret_reopened: "Secret reopened",
+      secret_repo_config_changed: "Repository's gitleaks configuration switched on or off",
       secret_ignore_rule_created: "Secret ignore rule added",
       secret_ignore_rule_deleted: "Secret ignore rule removed",
       repository_secret_history_enabled: "History check for secrets switched on",

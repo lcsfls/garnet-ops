@@ -161,6 +161,36 @@ describe.skipIf(process.platform === "win32")("scanner service", () => {
     expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ history: null });
   });
 
+  it("runs the repository run with the repository's files, and refuses files that are too large (ADR 0049 addendum)", async () => {
+    const dir = clone("scan-R3pOcf");
+    const file = join(out, "secrets-repo.json");
+    await requestSecrets(socket, dir, false, file, {
+      config: '[[rules]]\nid = "acme-key"\nregex = "x"\n',
+      ignore: null,
+    });
+    const reports = JSON.parse(readFileSync(file, "utf8")) as {
+      repo?: { tree: unknown[]; problem: string | null };
+    };
+    expect(reports.repo?.problem).toBeNull();
+    // The fake gitleaks reads the clone from inside it in the repository run.
+    expect(reports.repo?.tree).toEqual([expect.objectContaining({ RuleID: "github-pat", File: "./app.js" })]);
+    // A refused file sets nothing aside and says why.
+    await requestSecrets(socket, dir, false, file, {
+      config: 'extend = { path = "/etc/passwd" }',
+      ignore: null,
+    });
+    expect(JSON.parse(readFileSync(file, "utf8")).repo).toEqual({
+      tree: [],
+      history: null,
+      problem: "extendForm",
+    });
+    const error = await requestSecrets(socket, dir, false, file, {
+      config: "#".repeat(64 * 1024 + 1),
+      ignore: null,
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ScannerRequestError);
+  });
+
   it("answers not_found for secrets when it has no gitleaks", async () => {
     const plainSocket = join(root, "plain.sock");
     const plain = createScannerService({

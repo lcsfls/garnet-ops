@@ -20,7 +20,8 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { runGitleaks } from "./gitleaks-run.ts";
+import { REPO_GITLEAKS_MAX_BYTES } from "@garnetops/core/repo-gitleaks";
+import { type RepoGitleaksFiles, runGitleaks } from "./gitleaks-run.ts";
 import { runGrype } from "./grype-run.ts";
 import { buildSbom } from "./syft.ts";
 
@@ -47,6 +48,8 @@ export function purlList(text: string): string | null {
   return `${lines.join("\n")}\n`;
 }
 const MAX_REQUEST_JSON_BYTES = 4 * 1024;
+/** A secrets request may carry the repository's own gitleaks files (two of at most 64 KiB, escaped as JSON). */
+const MAX_SECRETS_REQUEST_JSON_BYTES = 6 * 2 * REPO_GITLEAKS_MAX_BYTES + 4 * 1024;
 
 /** A clone as the worker names it: `<scan directory>/src` directly below the work directory. */
 const CLONE_DIR = /^scan-[A-Za-z0-9]{6}\/src$/;
@@ -102,17 +105,33 @@ function semaphore(slots: number) {
   };
 }
 
-async function readJson(req: IncomingMessage): Promise<unknown> {
+async function readJson(req: IncomingMessage, max = MAX_REQUEST_JSON_BYTES): Promise<unknown> {
   let body = "";
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > MAX_REQUEST_JSON_BYTES) throw new RequestError(413, "too_large");
+    if (body.length > max) throw new RequestError(413, "too_large");
   }
   try {
     return JSON.parse(body);
   } catch {
     throw new RequestError(400, "bad_request");
   }
+}
+
+/** The repository's own gitleaks files of the opt-in (ADR 0049 addendum 2026-11-12): text each, at most 64 KiB, or a 400. */
+function repoFiles(value: unknown): RepoGitleaksFiles | null {
+  if (value === undefined || value === null) return null;
+  const v = value as { config?: unknown; ignore?: unknown };
+  const text = (t: unknown) =>
+    t === null || t === undefined
+      ? null
+      : typeof t === "string" && Buffer.byteLength(t, "utf8") <= REPO_GITLEAKS_MAX_BYTES
+        ? t
+        : undefined;
+  const config = text(v.config);
+  const ignore = text(v.ignore);
+  if (config === undefined || ignore === undefined) throw new RequestError(400, "bad_request");
+  return { config, ignore };
 }
 
 /** The clone a request names, resolved inside the work directory, or a 400. */
@@ -169,12 +188,17 @@ export function createScannerService(config: ScannerServiceConfig): Server {
     }
     if (req.method === "POST" && req.url === "/v1/secrets" && config.gitleaksBin) {
       const gitleaks = config.gitleaksBin;
-      const body = (await readJson(req)) as { dir?: unknown; history?: unknown } | null;
+      const body = (await readJson(req, MAX_SECRETS_REQUEST_JSON_BYTES)) as {
+        dir?: unknown;
+        history?: unknown;
+        repo?: unknown;
+      } | null;
       const dir = await cloneDir(config.workDir, body?.dir);
       const history = body?.history === true;
+      const repo = repoFiles(body?.repo);
       await withScratch(async (scratch) => {
         // The values never leave this service: the report it sends holds their SHA-256 only (ADR 0049).
-        const report = await runGitleaks(gitleaks, dir, scratch, { history }).catch((error: Error) => {
+        const report = await runGitleaks(gitleaks, dir, scratch, { history, repo }).catch((error: Error) => {
           console.error(`scanner: gitleaks: ${error.message}`);
           throw new RequestError(422, "secrets_failed");
         });

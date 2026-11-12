@@ -93,9 +93,9 @@ describe.skipIf(!ready)("secret scanning with the real gitleaks", () => {
     return dir;
   }
 
-  async function scanAndStore(dir: string, history = false) {
+  async function scanAndStore(dir: string, history = false, repoConfig = false) {
     const out = await mkdtemp(join(workDir, "out-"));
-    const result = await mod.runSecretScan(dir, out, org, history);
+    const result = await mod.runSecretScan(dir, out, org, history, repoConfig);
     const scanId = `scan_${++scanCounter}`;
     const summary = await conn.db.transaction((tx) =>
       mod.persistSecrets(tx as never, scanId, repo, result, new Date()),
@@ -314,6 +314,72 @@ describe.skipIf(!ready)("secret scanning with the real gitleaks", () => {
       "tools/deploy.js",
       commit,
     ]);
+  });
+
+  it("respects the repository's own configuration when switched on: adds its rules' finds, sets aside what it hides", async () => {
+    const next = () =>
+      `ghp_${Array.from({ length: 36 }, () => {
+        seed = (seed * 1103515245 + 12345) % 2 ** 31;
+        return ALPHABET[seed % ALPHABET.length];
+      }).join("")}`;
+    const [open, inline, fixture, listed] = [next(), next(), next(), next()];
+    const acme = `acme_${next().slice(4, 28)}`;
+    const dir = await repository({
+      ".gitleaks.toml": [
+        "[extend]",
+        'path = "/etc/passwd"',
+        "",
+        "[[rules]]",
+        'id = "acme-key"',
+        'description = "ACME key"',
+        "regex = '''acme_[A-Za-z0-9]{24}'''",
+        "",
+        "[allowlist]",
+        "paths = ['''^test/fixtures/''']",
+        "",
+      ].join("\n"),
+      "app/open.js": `const a = "${open}";\n`,
+      "app/inline.js": `const b = "${inline}"; // gitleaks:allow\n`,
+      "test/fixtures/fake.js": `const c = "${fixture}";\n`,
+      "app/listed.js": `const d = "${listed}";\n`,
+      "app/acme.txt": `${acme}\n`,
+      ".gitleaksignore": "app/listed.js:github-pat:1\n",
+    });
+    const byPath = async (path: string) =>
+      (await rows()).find((r) => r.treeLocations.some((l) => l.path === path));
+
+    const on = await scanAndStore(dir, false, true);
+    expect(on.result.repo?.problem).toBeNull();
+    expect(on.result.repo?.file).toBe(".gitleaks.toml");
+    expect(on.result.repo?.ignoreFile).toBe(true);
+    for (const path of ["app/inline.js", "test/fixtures/fake.js", "app/listed.js"]) {
+      expect(await byPath(path), path).toMatchObject({ state: "open", setAsideByRepository: true });
+    }
+    expect(await byPath("app/open.js")).toMatchObject({ setAsideByRepository: false });
+    // The repository's own rule adds a finding.
+    expect(await byPath("app/acme.txt")).toMatchObject({ ruleId: "acme-key", setAsideByRepository: false });
+    const [r1] = await conn.db.select().from(schema.repository).where(eq(schema.repository.id, repo.id));
+    expect(r1?.secretRepoConfigResult).toMatchObject({
+      problem: null,
+      setAside: 3,
+      added: 1,
+      file: ".gitleaks.toml",
+    });
+    // The scan's summary counts neither what the repository hides; it counts its own rule's find.
+    expect(on.summary?.newSecrets).toBe(2);
+
+    // A file GarnetOps cannot use safely sets nothing aside.
+    writeFileSync(join(dir, ".gitleaks.toml"), 'extend = { path = "/etc/passwd" }\n');
+    writeFileSync(join(dir, ".gitleaksignore"), "app/listed.js:github-pat:1\n");
+    const refused = await scanAndStore(dir, false, true);
+    expect(refused.result.repo?.problem).toBe("extendForm");
+    expect(await byPath("app/listed.js")).toMatchObject({ setAsideByRepository: false });
+
+    // Switched off: the strict run alone, nothing set aside.
+    writeFileSync(join(dir, ".gitleaksignore"), "app/listed.js:github-pat:1\n");
+    const off = await scanAndStore(dir, false, false);
+    expect(off.result.repo).toBeUndefined();
+    expect((await rows()).filter((r) => r.setAsideByRepository)).toEqual([]);
   });
 
   it("leaves findings alone when the secret check did not run", async () => {

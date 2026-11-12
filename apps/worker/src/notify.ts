@@ -468,6 +468,7 @@ export async function eventsForScan(
         eq(schema.secretFinding.firstSeenScanId, scanId),
         eq(schema.secretFinding.state, "open"),
         isNull(schema.secretFinding.ignoredBy),
+        eq(schema.secretFinding.setAsideByRepository, false),
       ),
     );
   if (secretCounts && countFrom(secretCounts, "low") > 0) {

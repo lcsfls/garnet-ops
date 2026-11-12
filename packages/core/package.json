@@ -51,7 +51,8 @@
     "./secrets": "./src/secrets.ts",
     "./secret-fingerprint": "./src/secret-fingerprint.ts",
     "./exposed-files": "./src/exposed-files.ts",
-    "./code-view": "./src/code-view.ts"
+    "./code-view": "./src/code-view.ts",
+    "./repo-gitleaks": "./src/repo-gitleaks.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

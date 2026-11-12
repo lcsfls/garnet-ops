@@ -372,6 +372,13 @@
       "when": 1794416940461,
       "tag": "0052_exposed_files",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1794444717896,
+      "tag": "0053_secret_repo_config",
+      "breakpoints": true
     }
   ]
 }

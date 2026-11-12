@@ -1,5 +1,6 @@
 import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { cleanRepoGitleaksConfig, REPO_GITLEAKS_IGNORE_FILE } from "@garnetops/core/repo-gitleaks";
 import { redactGitleaksReport } from "@garnetops/core/secret-fingerprint";
 import { gitleaksArgs, gitleaksConfig } from "@garnetops/core/secrets";
 import { SCANNER_TIMEOUT_MS } from "./grype-run.ts";
@@ -11,6 +12,17 @@ export interface SecretReports {
   tree: unknown[];
   /** Every commit the clone has; null unless asked for. */
   history: unknown[] | null;
+  /**
+   * The repository run (ADR 0049 addendum 2026-11-12), only when the repository's configuration was handed in: the same, with the
+   * repository's configuration, ignore file and `gitleaks:allow` comments. `problem` says why it did not run.
+   */
+  repo?: { tree: unknown[]; history: unknown[] | null; problem: string | null };
+}
+
+/** The repository's own files, as the worker read them from its clone before the ignore file was removed. */
+export interface RepoGitleaksFiles {
+  config: string | null;
+  ignore: string | null;
 }
 
 /**
@@ -37,7 +49,7 @@ export async function runGitleaks(
   bin: string,
   dir: string,
   outDir: string,
-  opts: { history: boolean },
+  opts: { history: boolean; repo?: RepoGitleaksFiles | null },
 ): Promise<string> {
   await removeRepositoryIgnoreFile(dir);
   const config = join(outDir, "gitleaks.toml");
@@ -58,15 +70,26 @@ export async function runGitleaks(
     GIT_OPTIONAL_LOCKS: "0",
   };
 
-  const scan = async (mode: "dir" | "git", name: string): Promise<unknown[]> => {
+  const scan = async (
+    mode: "dir" | "git",
+    name: string,
+    repository?: { configPath: string; ignoreDir: string },
+  ): Promise<unknown[]> => {
     const raw = join(outDir, `${name}.raw.json`);
     try {
       const extra = mode === "git" ? ["--log-opts=--all"] : [];
-      await run(
-        bin,
-        [mode, dir, ...extra, ...gitleaksArgs({ configPath: config, emptyDir: empty, reportPath: raw })],
-        { env, timeoutMs: SCANNER_TIMEOUT_MS },
-      );
+      const args = gitleaksArgs({
+        configPath: repository?.configPath ?? config,
+        emptyDir: repository?.ignoreDir ?? empty,
+        reportPath: raw,
+        repository: Boolean(repository),
+      });
+      // The repository run reads the clone from inside it, so that paths in its .gitleaksignore (file mode) match.
+      await run(bin, [mode, repository && mode === "dir" ? "." : dir, ...extra, ...args], {
+        env,
+        timeoutMs: SCANNER_TIMEOUT_MS,
+        ...(repository ? { cwd: dir } : {}),
+      });
       return JSON.parse(redactGitleaksReport(await readFile(raw, "utf8"))) as unknown[];
     } finally {
       await rm(raw, { force: true });
@@ -75,6 +98,33 @@ export async function runGitleaks(
 
   const reports: SecretReports = { tree: await scan("dir", "tree"), history: null };
   if (opts.history) reports.history = await scan("git", "history");
+  if (opts.repo) {
+    // Anything wrong here sets nothing aside: the strict result above stands, and the problem is reported.
+    let problem: string | null = null;
+    const cleaned = opts.repo.config === null ? { config: "" } : cleanRepoGitleaksConfig(opts.repo.config);
+    if ("problem" in cleaned) problem = cleaned.problem;
+    else {
+      try {
+        const repoCopy = join(outDir, "repository-gitleaks.toml");
+        const merged = join(outDir, "gitleaks-with-repository.toml");
+        const ignoreDir = join(outDir, "repository-ignore");
+        await writeFile(repoCopy, cleaned.config || "[extend]\nuseDefault = true\n", { mode: 0o600 });
+        await writeFile(merged, gitleaksConfig({ extendPath: repoCopy }), { mode: 0o600 });
+        await mkdir(ignoreDir, { recursive: true });
+        if (opts.repo.ignore !== null) {
+          await writeFile(join(ignoreDir, REPO_GITLEAKS_IGNORE_FILE), opts.repo.ignore, { mode: 0o600 });
+        }
+        const repository = { configPath: merged, ignoreDir };
+        const tree = await scan("dir", "repository-tree", repository);
+        const history = opts.history ? await scan("git", "repository-history", repository) : null;
+        reports.repo = { tree, history, problem: null };
+      } catch (error) {
+        console.error(`gitleaks with the repository's configuration: ${(error as Error).message}`);
+        problem = "failed";
+      }
+    }
+    if (problem) reports.repo = { tree: [], history: null, problem };
+  }
   const out = join(outDir, "secrets.json");
   await writeFile(out, JSON.stringify(reports), { mode: 0o600 });
   return out;

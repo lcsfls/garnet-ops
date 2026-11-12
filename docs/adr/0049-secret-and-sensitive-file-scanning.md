@@ -157,3 +157,28 @@ random absolute path, which nobody can know. The worker now removes the file fro
 `runGitleaks` removes it again and refuses to run while it is still there. Tested with gitleaks 8.30.1 in both modes. Decision 4
 stands unchanged.
 
+## Addendum (2026-11-12): the repository's own gitleaks configuration, as an opt-in that hides nothing
+
+- Decided by: maintainer (teams keep their exceptions in `.gitleaks.toml`, `.gitleaksignore` and `gitleaks:allow` comments and
+  want GarnetOps to respect them; chosen: "set aside visibly", over "extra rules only" and over "as gitleaks does").
+- **Off by default**, switched on per repository by an admin with a recent sign-in, audited (`secret.repo_config_changed`).
+  Decision 4 stays the default: without the switch nothing of the repository's configuration is read.
+- With the switch, every scan runs gitleaks **twice**: first with GarnetOps' own configuration exactly as before (the strict
+  run), then with GarnetOps' configuration extended by the repository's `.gitleaks.toml` (or `gitleaks.toml`), its
+  `.gitleaksignore` and its `gitleaks:allow` comments (the repository run). The repository's file is read from the clone
+  (regular file, at most 64 KiB, text) and cleaned: its `[extend]` table is replaced by `useDefault = true` (its
+  `disabledRules` kept), so it cannot pull in another file or URL; rule ids starting with `garnetops-` are refused.
+- **What the repository run finds that the strict run did not** (its own rules) is added as ordinary findings.
+- **What the strict run finds that the repository run does not** (at the same path, line, commit and value) is **set aside
+  by the repository**: kept, listed under **Ignored** with that reason, and, like a secret set aside by an ignore rule, not
+  counted, not in the gate and not notified. A finding is set aside only when every place it is known at is.
+- Anything that goes wrong in the repository run (no file, an invalid file, a refused file, a timeout) **sets nothing aside**:
+  the strict result stands, and the repository's Secrets card says why.
+
+| Threat | Mitigation |
+| --- | --- |
+| A committer hides a secret with the repository's exceptions | Off unless an admin switches it on for that repository; what it hides stays listed under Ignored with the reason; the strict run is unchanged |
+| The repository's configuration reads other files (`[extend] path`) | `[extend]` replaced before use; inline or dotted `extend` keys refuse the file |
+| The configuration slows the scan down | gitleaks' regular expressions run in linear time (RE2); 64 KiB limit; the scanner's time limit |
+| A repository rule poses as one of GarnetOps' own | `garnetops-` rule ids refuse the file; GarnetOps' own rules take precedence over the repository's in the extension chain |
+

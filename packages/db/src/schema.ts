@@ -492,6 +492,21 @@ export const repository = pgTable(
     secretHistoryBy: text("secret_history_by").references(() => user.id, { onDelete: "set null" }),
     /** When a scan last checked the whole history for secrets. */
     secretHistoryCheckedAt: timestamp("secret_history_checked_at", { withTimezone: true }),
+    /**
+     * The repository's own gitleaks configuration is respected (ADR 0049 addendum 2026-11-12), switched on by an admin; null while
+     * off. Then what its exceptions hide is set aside visibly, and its own rules add findings.
+     */
+    secretRepoConfigAt: timestamp("secret_repo_config_at", { withTimezone: true }),
+    secretRepoConfigBy: text("secret_repo_config_by").references(() => user.id, { onDelete: "set null" }),
+    /** What the last scan made of it: the files it used, a problem, how many it set aside and added. */
+    secretRepoConfigResult: jsonb("secret_repo_config_result").$type<{
+      file: string | null;
+      ignoreFile: boolean;
+      problem: string | null;
+      setAside: number;
+      added: number;
+      at: string;
+    }>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -749,6 +764,11 @@ export const secretFinding = pgTable(
      * counted, not notified and not in the gate, but listed under "Ignored". Null otherwise.
      */
     ignoredBy: text("ignored_by").references(() => secretIgnoreRule.id, { onDelete: "set null" }),
+    /**
+     * Set aside by the repository's own gitleaks configuration (ADR 0049 addendum 2026-11-12): every place it is known at is
+     * hidden by the repository's exceptions, and the repository has that switched on. Treated like `ignoredBy`.
+     */
+    setAsideByRepository: boolean("set_aside_by_repository").notNull().default(false),
     /** Places in the current files, at most 50; and how many there were. */
     treeLocations: jsonb("tree_locations").$type<SecretLocation[]>().notNull(),
     treeLocationCount: integer("tree_location_count").notNull(),

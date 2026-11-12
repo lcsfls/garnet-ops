@@ -4544,6 +4544,43 @@ test.describe("secrets (ADR 0049)", () => {
     expect(problems).toEqual([]);
   });
 
+  test("respects the repository's own gitleaks configuration on request, and shows what it set aside", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await sql("delete from secret_finding where repository_id = $1", [REPO]);
+    await insertSecret("sec_e2e_r1", "github-pat", "critical", 5, true);
+    await insertSecret("sec_e2e_r2", "generic-api-key", "medium", 3, true);
+    await sql("update secret_finding set set_aside_by_repository = true where id = 'sec_e2e_r2'");
+
+    await signedInAt("now");
+    await page.goto(`/repositories/${REPO}`);
+    const card = page.getByTestId("secret-repo-config");
+    const option = card.getByRole("checkbox", { name: "Respect the repository's gitleaks configuration" });
+    await expect(option).not.toBeChecked();
+    await option.check();
+    await expect(card).toContainText("Applies from the next scan.");
+    await expect(page.getByTestId("repository-secrets")).toContainText("1 open secret");
+
+    await page.goto("/secrets?state=ignored");
+    const rows = page.getByTestId("secret-row");
+    await expect(rows).toHaveCount(1);
+    await rows.first().getByRole("link", { name: "generic-api-key" }).click();
+    await expect(page.getByTestId("secret-set-aside-by-repository")).toContainText(
+      "Set aside by the repository's gitleaks configuration",
+    );
+
+    // Off again: it counts at once.
+    await page.goto(`/repositories/${REPO}`);
+    await page
+      .getByTestId("secret-repo-config")
+      .getByRole("checkbox", { name: "Respect the repository's gitleaks configuration" })
+      .uncheck();
+    await expect(page.getByTestId("repository-secrets")).toContainText("2 open secrets");
+    await sql("delete from secret_finding where repository_id = $1", [REPO]);
+    expect(problems).toEqual([]);
+  });
+
   test("download as text and Excel with the filters that are set, never with a value", async ({ page }) => {
     const problems = watchForProblems(page);
     await sql("delete from secret_finding where repository_id = $1", [REPO]);

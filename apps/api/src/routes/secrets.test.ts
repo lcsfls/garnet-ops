@@ -374,6 +374,44 @@ describe.skipIf(!adminUrl)("secrets API", () => {
     ).toBe(403);
   });
 
+  it("the repository's own gitleaks configuration: admins with a recent sign-in, counted as ignored, back at once when off", async () => {
+    const own = await repo("own-config");
+    const hidden = await secret(own, "high");
+    await secret(own, "low");
+    await t.db
+      .update(schema.secretFinding)
+      .set({ setAsideByRepository: true })
+      .where(eq(schema.secretFinding.id, hidden));
+    const path = `/api/v1/repositories/${own}/secrets/repo-config`;
+
+    expect((await call("PUT", path, { body: { enabled: true } })).status).toBe(403);
+    expect(
+      (await call("PUT", path, { role: "admin", user: "usr_admin", stale: true, body: { enabled: true } }))
+        .status,
+    ).toBe(403);
+    const on = await call("PUT", path, { role: "admin", user: "usr_admin", body: { enabled: true } });
+    expect(on.status).toBe(200);
+    expect(on.json?.repoConfig).toMatchObject({ enabled: true, last: null });
+    // Set aside by the repository: listed under Ignored, not open, not counted.
+    expect(on.json?.open).toEqual({ low: 1 });
+    const ignored = await call("GET", `/api/v1/secrets?state=ignored&repositoryId=${own}`);
+    expect(ignored.json?.items.map((i: Json) => [i.id, i.setAsideByRepository])).toEqual([[hidden, true]]);
+    const counts = await call("GET", `/api/v1/secrets/counts?repositoryId=${own}`);
+    expect(counts.json?.states).toMatchObject({ open: 1, ignored: 1 });
+    expect((await call("GET", `/api/v1/secrets/${hidden}`)).json?.setAsideByRepository).toBe(true);
+
+    const off = await call("PUT", path, { role: "admin", user: "usr_admin", body: { enabled: false } });
+    expect(off.json?.repoConfig.enabled).toBe(false);
+    expect(off.json?.open).toEqual({ high: 1, low: 1 });
+    const [entry] = await t.db
+      .select()
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.action, "secret.repo_config_changed"))
+      .orderBy(desc(schema.auditLog.createdAt))
+      .limit(1);
+    expect(entry?.data).toMatchObject({ enabled: false });
+  });
+
   it("ignore rules: admins with a recent sign-in, set aside only what they cover, counted apart, and undone on delete", async () => {
     const before = (await call("GET", "/api/v1/secrets/counts")).json;
     const body = { pathPattern: "src/**", reason: "Example configuration in the docs" };
