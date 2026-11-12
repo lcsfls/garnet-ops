@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { toCsv } from "./csv.ts";
 import { type ExportRow, exportFileName, findingsReport } from "./findings-report.ts";
 import { toPdf } from "./pdf.ts";
+import { type SecretExportRow, secretsReport } from "./secrets-report.ts";
 import type { Report } from "./table.ts";
 import { toText } from "./txt.ts";
 import { toXlsx } from "./xlsx.ts";
@@ -187,5 +188,59 @@ describe("findings report", () => {
       "garnetops-findings-team-app-i-2026-10-21.xlsx",
     );
     expect(exportFileName("pdf", null, "UTC", now)).toBe("garnetops-findings-2026-10-21.pdf");
+  });
+});
+
+describe("secrets report", () => {
+  const base: SecretExportRow = {
+    severity: "high",
+    ruleId: "generic-api-key",
+    state: "open",
+    ignored: false,
+    repositoryName: "app",
+    inTree: true,
+    treeLocations: [{ path: "src/a.ts", line: 4 }],
+    treeLocationCount: 1,
+    historyLocations: [],
+    historyLocationCount: 0,
+    firstSeenAt: new Date("2026-11-01T10:00:00Z"),
+    lastSeenAt: new Date("2026-11-02T10:00:00Z"),
+    stateAt: null,
+    stateReason: null,
+  };
+  const context = { language: "en" as const, timeZone: "UTC", filters: [], repositoryName: null, total: 3 };
+
+  it("names the place in the files, else in the history, and the reason only for a closed one", () => {
+    const report = secretsReport(
+      [
+        base,
+        {
+          ...base,
+          ruleId: "garnetops-terraform-state",
+          ignored: true,
+          inTree: false,
+          treeLocations: [],
+          treeLocationCount: 0,
+          historyLocations: [{ path: "infra/terraform.tfstate", line: null, commit: "abc" }],
+          historyLocationCount: 2,
+        },
+        {
+          ...base,
+          state: "dismissed",
+          stateAt: new Date("2026-11-03T10:00:00Z"),
+          stateReason: "=HYPERLINK(1) a test value",
+        },
+      ],
+      { ...context, now: new Date("2026-11-12T00:00:00Z") },
+    );
+    expect(report.title).toBe("Secrets");
+    expect(report.meta).toContain("No filters: every secret");
+    expect(report.rows.map((r) => [r[1], r[3], r[5], r[6], r[8], r[11], r[12]])).toEqual([
+      ["generic-api-key", "Open", "src/a.ts:4", "yes", 0, null, null],
+      ["Terraform state", "Ignored", "infra/terraform.tfstate", "no", 2, null, null],
+      ["generic-api-key", "Dismissed", "src/a.ts:4", "yes", 0, "2026-11-03", "=HYPERLINK(1) a test value"],
+    ]);
+    // A typed reason never becomes a formula in a spreadsheet.
+    expect(toCsv(report).toString("utf8")).toContain("'=HYPERLINK(1) a test value");
   });
 });

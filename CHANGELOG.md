@@ -8,6 +8,11 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Export of the Secrets page** ([docs/secrets.md](docs/secrets.md#export)): CSV, Excel, PDF or text, as on the Findings page,
+  with the filters that are set. It lists where each secret was found, never a value, and is audited.
+
 ## [0.1.4] - 2026-11-11
 <!-- title: Ignore rules for secrets, and a check of proved websites for files that must not be public -->
 

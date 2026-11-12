@@ -43,11 +43,11 @@ export interface ReportContext {
 }
 
 /** `{name}` placeholders of a plain message (the export texts use no plural forms). */
-const fill = (template: string, params: Record<string, string | number>) =>
+export const fill = (template: string, params: Record<string, string | number>) =>
   template.replace(/\{(\w+)\}/g, (match, name: string) => (name in params ? String(params[name]) : match));
 
 /** "2026-10-21" in the report's zone: sortable in every spreadsheet and the same in every language. */
-function day(value: Date | null, timeZone: string): string | null {
+export function day(value: Date | null, timeZone: string): string | null {
   if (!value) return null;
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -57,7 +57,7 @@ function day(value: Date | null, timeZone: string): string | null {
   }).format(value);
 }
 
-function dayTime(value: Date, timeZone: string): string {
+export function dayTime(value: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -132,12 +132,14 @@ export function findingsReport(rows: ExportRow[], context: ReportContext): Repor
   };
 }
 
-/** `garnetops-findings-seeded-app-2026-10-21.csv`: safe characters only. */
+/** `garnetops-findings-seeded-app-2026-10-21.csv` (or `garnetops-secrets-…`): safe characters only. */
 export function exportFileName(
   format: ExportFormat,
   repositoryName: string | null,
   timeZone: string,
   now = new Date(),
+  /** What the file lists: "findings" or "secrets". */
+  kind = "findings",
 ) {
   const slug = repositoryName
     ? `-${repositoryName
@@ -146,5 +148,5 @@ export function exportFileName(
         .replace(/^-|-$/g, "")
         .slice(0, 60)}`
     : "";
-  return `garnetops-findings${slug}-${day(now, timeZone)}.${format}`;
+  return `garnetops-${kind}${slug}-${day(now, timeZone)}.${format}`;
 }

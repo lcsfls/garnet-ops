@@ -15,11 +15,20 @@
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   /**
-   * Downloads the findings list as CSV, Excel, PDF or text, with exactly the filters that are set (and only one
-   * repository on a repository's page). The server builds the file; the link carries the filters, so the download
-   * matches what the user sees.
+   * Downloads a list (findings, or secrets with `path` and `hint`) as CSV, Excel, PDF or text, with exactly the filters
+   * that are set (and only one repository on a repository's page). The server builds the file; the link carries the
+   * filters, so the download matches what the user sees.
    */
-  let { filters }: { filters: Record<string, string | number | undefined> } = $props();
+  let {
+    filters,
+    path = "/findings/export",
+    hint,
+  }: {
+    filters: Record<string, string | number | undefined>;
+    /** The API path of the export, below /api/v1. */
+    path?: string;
+    hint?: string;
+  } = $props();
   let open = $state(false);
   const panelId = $props.id();
   let root: HTMLDivElement | undefined = $state();
@@ -44,7 +53,7 @@
   });
 
   const href = (format: string) =>
-    `/api/v1/findings/export${toQuery({ ...filters, format, tz: timeZone, lang: language() })}`;
+    `/api/v1${path}${toQuery({ ...filters, format, tz: timeZone, lang: language() })}`;
 </script>
 
 <div bind:this={root} class="relative">
@@ -64,7 +73,7 @@
       id={panelId}
       class="absolute top-full right-0 z-30 mt-2 w-64 rounded-lg border bg-card p-2 text-card-foreground shadow-xs"
     >
-      <p class="px-2 pt-1 pb-2 text-sm text-muted-foreground">{t("export.hint")}</p>
+      <p class="px-2 pt-1 pb-2 text-sm text-muted-foreground">{hint ?? t("export.hint")}</p>
       <ul aria-label={t("export.menu")} class="grid gap-0.5">
         {#each FORMATS as { format, icon: Icon } (format)}
           <li>

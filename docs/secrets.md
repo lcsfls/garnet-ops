@@ -68,15 +68,24 @@ live in GarnetOps only: a repository's own `.gitleaksignore` is still ignored.
 - The notification **New secrets** tells channels (once ticked) and people (in the app by default) how many new secrets a scan
   found, by severity; never a path or a rule ([notifications.md](notifications.md)).
 
+## Export
+
+**Export** on the Secrets page downloads the list as CSV, Excel, PDF or text, with exactly the filters that are set (state,
+severity, repository): severity, what was found and its rule, state, repository, the first place (in the files, else in the
+history), how many places in the files and in the history, first and last seen, and for a closed secret when and why. Never a
+value: GarnetOps does not have one. Dates are in the browser's time zone, labels in its language; a PDF holds up to 5,000 rows,
+the other formats 50,000, and the file says when it does not hold every match. Each export is audited (**Secrets exported**).
+
 ## Not checked
 
 Secrets in container images, personal data and internal addresses. Secret findings are never sent to the AI, and are not part of
-the dependency counts, grades, exports or reports.
+the dependency counts, grades, findings exports or reports.
 
 ## API
 
 `GET /api/v1/secrets` (`state`, `severity`, `repositoryId`), `GET /api/v1/secrets/counts`, `GET /api/v1/secrets/{id}`,
-`POST /api/v1/secrets/{id}/revoke|dismiss` with `{ "reason" }`, `POST /api/v1/secrets/{id}/reopen`;
+`POST /api/v1/secrets/{id}/revoke|dismiss` with `{ "reason" }`, `POST /api/v1/secrets/{id}/reopen`; `GET /api/v1/secrets/export` (the list's filters plus `format` = `csv`, `xlsx`, `pdf` or
+`txt`, `lang` and `tz`);
 `GET /api/v1/repositories/{id}/secrets`, `PUT /api/v1/repositories/{id}/secrets/history` with `{ "enabled" }`,
 `POST /api/v1/repositories/{id}/secrets/history-check`; `GET /api/v1/secrets/ignore-rules`,
 `POST /api/v1/secrets/ignore-rules` with `{ "pathPattern", "ruleId", "repositoryId", "reason" }` (admins, recent sign-in),

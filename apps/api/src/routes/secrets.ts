@@ -7,14 +7,28 @@ import { IGNORE_PATTERN_MAX, ignorePatternProblem, SECRET_SEVERITIES } from "@ga
 import {
   activeRepository,
   applySecretIgnoreRules,
+  isTimeZone,
   repositoryVisibleTo,
   schema,
   visibleRepository,
 } from "@garnetops/db";
+import { LANGUAGES, resources } from "@garnetops/i18n";
 import { and, count, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
+import { toCsv } from "../export/csv.ts";
+import {
+  CONTENT_TYPES,
+  EXPORT_FORMATS,
+  type ExportFormat,
+  exportFileName,
+  fill,
+} from "../export/findings-report.ts";
+import { toPdf } from "../export/pdf.ts";
+import { secretsReport } from "../export/secrets-report.ts";
+import { toText } from "../export/txt.ts";
+import { toXlsx } from "../export/xlsx.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
 import { notFound, ProblemError } from "../lib/problem.ts";
@@ -51,6 +65,18 @@ const listQuery = z.object({
   severity: csv(SECRET_SEVERITIES),
   repositoryId: z.string().max(64).optional(),
 });
+
+/**
+ * The list as it is filtered, as a file (CSV, XLSX, PDF or text), like the findings export. The browser sends its zone (dates in
+ * the file) and UI language (column names). Never a value: there is none to export.
+ */
+const exportQuery = listQuery.extend({
+  format: z.enum(EXPORT_FORMATS),
+  lang: z.enum(LANGUAGES).default("en"),
+  tz: z.string().max(64).refine(isTimeZone, "Unknown time zone").default("UTC"),
+});
+const MAX_EXPORT_ROWS: Record<ExportFormat, number> = { csv: 50_000, xlsx: 50_000, txt: 50_000, pdf: 5_000 };
+const WRITERS = { csv: toCsv, xlsx: toXlsx, pdf: toPdf, txt: toText } as const;
 
 const reasonBody = z.object({
   reason: z
@@ -116,6 +142,75 @@ export const secretRoutes = new Hono<AppEnv>()
         place: firstPlace({ treeLocations }),
       })),
       more: rows.length > MAX_ROWS,
+    });
+  })
+  .get("/export", async (c) => {
+    const actor = c.get("actor");
+    const input = exportQuery.parse(c.req.query());
+    const [repository] = input.repositoryId
+      ? await db
+          .select({ name: r.name })
+          .from(r)
+          .where(and(eq(r.id, input.repositoryId), repositoryVisibleTo(actor)))
+      : [];
+    if (input.repositoryId && !repository) throw notFound("Repository");
+    const condition = where(actor, input);
+    const [rows, totalRow] = await Promise.all([
+      db
+        .select({
+          severity: s.severity,
+          ruleId: s.ruleId,
+          state: s.state,
+          ignored: sql<boolean>`${s.ignoredBy} is not null`,
+          repositoryName: r.name,
+          inTree: s.inTree,
+          treeLocations: s.treeLocations,
+          treeLocationCount: s.treeLocationCount,
+          historyLocations: s.historyLocations,
+          historyLocationCount: s.historyLocationCount,
+          firstSeenAt: s.firstSeenAt,
+          lastSeenAt: s.lastSeenAt,
+          stateAt: s.stateAt,
+          stateReason: s.stateReason,
+        })
+        .from(s)
+        .innerJoin(r, eq(r.id, s.repositoryId))
+        .where(condition)
+        .orderBy(desc(s.severityRank), desc(s.lastSeenAt), s.id)
+        .limit(MAX_EXPORT_ROWS[input.format]),
+      db.select({ n: count() }).from(s).where(condition),
+    ]);
+    const total = totalRow[0]?.n ?? 0;
+
+    // The filters in words, in the file's language.
+    const m = resources[input.lang].translation;
+    const filters = [
+      input.state !== "all" ? fill(m.export.filterState, { state: m.secrets.state[input.state] }) : null,
+      input.severity.length
+        ? fill(m.export.filterSeverity, { severity: input.severity.map((v) => m.severity[v]).join(", ") })
+        : null,
+      repository ? fill(m.export.filterRepository, { repository: repository.name }) : null,
+    ].filter((x): x is string => x !== null);
+
+    const now = new Date();
+    const report = secretsReport(rows, {
+      language: input.lang,
+      timeZone: input.tz,
+      filters,
+      repositoryName: repository?.name ?? null,
+      total,
+      now,
+    });
+    const file = WRITERS[input.format](report);
+    await audit(actor, "secret.exported", undefined, {
+      format: input.format,
+      count: rows.length,
+      filters: filters.join(", ") || null,
+    });
+    return c.body(new Uint8Array(file), 200, {
+      "content-type": CONTENT_TYPES[input.format],
+      "content-disposition": `attachment; filename="${exportFileName(input.format, repository?.name ?? null, input.tz, now, "secrets")}"`,
+      "cache-control": "no-store",
     });
   })
   /** Counts per state and, for open secrets, per severity: the page's toggles and the menu. */

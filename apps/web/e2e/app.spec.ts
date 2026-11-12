@@ -4496,6 +4496,31 @@ test.describe("secrets (ADR 0049)", () => {
     ]);
   });
 
+  test("download as text and Excel with the filters that are set, never with a value", async ({ page }) => {
+    const problems = watchForProblems(page);
+    await sql("delete from secret_finding where repository_id = $1", [REPO]);
+    await insertSecret("sec_e2e_xpat", "github-pat", "critical", 5, true);
+    await insertSecret("sec_e2e_xenv", "garnetops-env-file", "high", 4, false);
+
+    await page.goto("/secrets?severity=critical");
+    await expect(page.getByTestId("secret-row")).toHaveCount(1);
+    const txt = await download(page, "Text (TXT)");
+    expect(txt.name).toMatch(/^garnetops-secrets-\d{4}-\d{2}-\d{2}\.txt$/);
+    const text = txt.content.toString("utf8");
+    expect(text).toContain("Filters: state Open, severity Critical");
+    expect(text).toContain("Secrets: 1");
+    expect(text).toContain("src/config.js:12");
+    expect(text).not.toContain("Environment file with values");
+
+    await page.goto("/secrets");
+    await expect(page.getByTestId("secret-row")).toHaveCount(2);
+    const xlsx = await download(page, "Excel (XLSX)");
+    expect(xlsx.name).toMatch(/^garnetops-secrets-\d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(xlsx.content.subarray(0, 2).toString()).toBe("PK");
+    await sql("delete from secret_finding where repository_id = $1", [REPO]);
+    expect(problems).toEqual([]);
+  });
+
   test("lists secrets without values, closes one with a reason and reopens it, and sets the history check", async ({
     page,
   }) => {

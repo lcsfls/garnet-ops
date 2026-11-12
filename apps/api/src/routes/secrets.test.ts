@@ -5,7 +5,7 @@
  */
 import { schema } from "@garnetops/db";
 import { devDatabaseUrl, type TestDatabase } from "@garnetops/db/testing";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -181,6 +181,56 @@ describe.skipIf(!adminUrl)("secrets API", () => {
       states: { open: 3, ignored: 0, revoked: 0, dismissed: 1 },
       open: { critical: 1, high: 1, medium: 1 },
     });
+  });
+
+  it("exports the list as filtered, of the repositories the person sees, without any value, and audits it", async () => {
+    const download = (query: string, user = "usr_member") =>
+      app.request(`/api/v1/secrets/export?${query}`, {
+        headers: { "x-org": ORG, "x-role": "member", "x-user": user },
+      });
+    const txt = await download("format=txt&lang=en&tz=Europe/Berlin");
+    expect(txt.status).toBe(200);
+    expect(txt.headers.get("content-type")).toContain("text/plain");
+    expect(txt.headers.get("cache-control")).toBe("no-store");
+    expect(txt.headers.get("content-disposition")).toMatch(
+      /filename="garnetops-secrets-\d{4}-\d{2}-\d{2}\.txt"/,
+    );
+    const text = await txt.text();
+    const lines = text.split("\n");
+    expect(lines[0]).toBe("Secrets");
+    expect(text).toContain("Filters: state Open");
+    expect(text).toContain("Secrets: 3");
+    expect(text).toContain("No values: GarnetOps never stores them");
+    // Worst first; the rule's name for GarnetOps' own file rules; "theirs" is not in it.
+    const body = lines.slice(lines.findIndex((l) => l.startsWith("---")) + 1).filter(Boolean);
+    expect(body.map((l) => l.split(/\s{2,}/).slice(0, 2))).toEqual([
+      ["Critical", "github-pat"],
+      ["High", "Environment file with values"],
+      ["Medium", "Environment file with values"],
+    ]);
+    expect(text).toContain("src/config.js:3");
+    expect(text).not.toMatch(/theirs|fp-\d/);
+
+    // One repository and every state, in German, as a spreadsheet.
+    const xlsx = await download(`format=xlsx&lang=de&state=all&repositoryId=${shared}`);
+    expect(xlsx.status).toBe(200);
+    expect(xlsx.headers.get("content-disposition")).toContain("garnetops-secrets-shared-");
+    expect(
+      Buffer.from(await xlsx.arrayBuffer())
+        .subarray(0, 2)
+        .toString(),
+    ).toBe("PK");
+    // A repository the person does not see is not found, and a bad format is refused.
+    expect((await download(`format=csv&repositoryId=${theirs}`)).status).toBe(404);
+    expect((await download("format=doc")).status).toBe(422);
+
+    const [entry] = await t.db
+      .select()
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.action, "secret.exported"))
+      .orderBy(desc(schema.auditLog.createdAt))
+      .limit(1);
+    expect(entry?.data).toMatchObject({ format: "xlsx", count: 3 });
   });
 
   it("closes a secret with a reason, audits it, keeps it closed, and reopens it", async () => {

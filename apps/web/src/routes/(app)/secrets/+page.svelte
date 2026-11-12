@@ -3,6 +3,7 @@
   import { createQuery, keepPreviousData } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import Card from "#lib/components/Card.svelte";
+  import ExportMenu from "#lib/components/ExportMenu.svelte";
   import PageHeader from "#lib/components/PageHeader.svelte";
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import RepositoryLink from "#lib/components/RepositoryLink.svelte";
@@ -93,7 +94,14 @@
       : null;
 </script>
 
-<PageHeader title={t("secrets.title")} description={t("secrets.description")} />
+{#snippet headerActions()}
+  <ExportMenu
+    path="/secrets/export"
+    hint={t("secrets.export.hint")}
+    filters={{ state: view, severity: severity.join(",") || undefined, repositoryId }}
+  />
+{/snippet}
+<PageHeader title={t("secrets.title")} description={t("secrets.description")} actions={headerActions} />
 <div class="mb-4 flex flex-wrap items-center gap-3">
   <Segmented
     label={t("secrets.stateLabel")}
