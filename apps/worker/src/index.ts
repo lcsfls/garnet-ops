@@ -3,6 +3,7 @@ import type { WebhookRegisterJob, WebhookUnregisterJob } from "@garnetops/core/w
 import { PgBoss } from "pg-boss";
 import { AI_PROBE_QUEUE, AI_QUEUE, runGeneration, runProbe, sweepAi } from "./ai.ts";
 import { BACKUP_QUEUE, type BackupJob, runBackupBuild, sweepBackups } from "./backup.ts";
+import { CODE_QUEUE, runCodeRequest, sweepCodeRequests } from "./code-view.ts";
 import { pool } from "./db.ts";
 import {
   DIRECTORY_QUEUE,
@@ -74,6 +75,7 @@ await boss.createQueue(EXPOSURE_RUN_QUEUE);
 await boss.createQueue(WEBHOOK_REGISTER_QUEUE);
 await boss.createQueue(WEBHOOK_UNREGISTER_QUEUE);
 await boss.createQueue(BACKUP_QUEUE);
+await boss.createQueue(CODE_QUEUE);
 // Queues and schedules of the modules removed in 0.0.4 (ADR 0025) would otherwise stay in the database.
 const retired = await removeRetiredQueues(boss);
 if (retired.length > 0) console.log(`worker: removed ${retired.length} retired queues`);
@@ -179,6 +181,21 @@ const webhookSweep = setInterval(
   5 * 60_000,
 );
 sweepWebhookRegistrations().catch((error: Error) => console.error("webhook sweep:", error.name));
+// The code viewer (ADR 0048): a person waits for it, so the queue is polled twice a second; two clones at a time in total (the API
+// allows one per organisation), so code views never starve scans. No retries: the person asks again.
+for (let i = 0; i < 2; i++) {
+  await boss.work<{ requestId: string }>(
+    CODE_QUEUE,
+    { batchSize: 1, pollingIntervalSeconds: 0.5 },
+    async ([job]) => {
+      if (job) await runCodeRequest(job.data.requestId);
+    },
+  );
+}
+const codeSweep = setInterval(
+  () => sweepCodeRequests().catch((error: Error) => console.error("code sweep:", error.name)),
+  60_000,
+);
 // Backups (ADR 0046): one at a time, never retried (a new backup is one click); the file is deleted an hour after it is ready.
 await boss.work<BackupJob>(BACKUP_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await runBackupBuild(job.data);
@@ -232,6 +249,7 @@ async function shutdown() {
   clearInterval(directorySweep);
   clearInterval(webhookSweep);
   clearInterval(backupSweep);
+  clearInterval(codeSweep);
   await boss.stop({ graceful: true, timeout: 30_000 }).catch(() => {});
   await pool.end().catch(() => {});
   process.exit(0);

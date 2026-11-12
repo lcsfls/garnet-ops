@@ -4126,6 +4126,7 @@ export const en = {
       finding_reopened: "Finding reopened",
       finding_exported: "Findings exported",
       secret_exported: "Secrets exported",
+      code_viewed: "Code of a finding viewed",
       report_exported: "Report downloaded",
       organization_scan_schedule_changed: "Nightly scan changed",
       repository_ssh_host_keys_cleared: "Pinned host key forgotten",

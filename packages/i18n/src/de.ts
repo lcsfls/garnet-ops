@@ -4238,6 +4238,7 @@ export const de: Messages = {
       finding_reopened: "Finding wieder geöffnet",
       finding_exported: "Findings exportiert",
       secret_exported: "Secrets exportiert",
+      code_viewed: "Code eines Findings angesehen",
       report_exported: "Bericht heruntergeladen",
       organization_scan_schedule_changed: "Nächtlicher Scan geändert",
       repository_ssh_host_keys_cleared: "Festgelegter Host-Key vergessen",

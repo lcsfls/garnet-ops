@@ -36,6 +36,8 @@ export const QUEUES = {
   webhookUnregister: "repository-webhook.unregister",
   /** A backup of the whole installation (ADR 0046): built by the worker, which alone can open the stored secrets. */
   backupBuild: "backup.build",
+  /** The code viewer (ADR 0048): one job per request a person waits for, carrying the request's id only. */
+  codeFetch: "code.fetch",
   /** Reading the open pull requests again (ADR 0032). */
   pullRequestRefresh: "pull-requests.refresh",
   /**
