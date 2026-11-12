@@ -10,6 +10,10 @@ Security-relevant changes are listed under **Security** in every release.
 
 ### Added
 
+- **The code of a finding** ([docs/code-viewer.md](docs/code-viewer.md), ADR 0048): **Show code** on a finding reads the
+  repository on request and shows where the vulnerable package is declared (manifests and the lockfile, the lines marked) and
+  where the code imports it, with syntax highlighting. Read by the worker from a short-lived clone at the scanned commit,
+  handed over once, never stored or cached, audited; members and above who see the repository.
 - **The repository's own gitleaks configuration, on request** ([docs/secrets.md](docs/secrets.md), ADR 0049 addendum): an admin
   can let a repository's `.gitleaks.toml`, `.gitleaksignore` and `gitleaks:allow` comments count, per repository, with a recent
   sign-in. Its rules add findings; what its exceptions hide is never dropped but listed under **Ignored** as set aside by the

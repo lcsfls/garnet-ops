@@ -37,6 +37,7 @@
   import Button from "../ui/Button.svelte";
   import ButtonLink from "../ui/ButtonLink.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
+  import CodeViewer from "./CodeViewer.svelte";
   import FindingNotes from "./FindingNotes.svelte";
   import FindingStateActions from "./FindingStateActions.svelte";
 
@@ -201,6 +202,9 @@
     {/if}
 
     <FindingNotes findingId={data.id} />
+
+    <!-- The code (ADR 0048): members and above, who may act on what they see. -->
+    {#if canEdit}<CodeViewer findingId={data.id} />{/if}
 
     <!-- The decisions about this finding, as real buttons: accept the risk (or reopen it), ask the AI. -->
     {#if canEdit || onAskAi}

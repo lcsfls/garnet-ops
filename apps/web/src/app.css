@@ -31,6 +31,10 @@
   --border: oklch(0.92 0.005 67.8); /* #e7e4e1 */
   --input-border: oklch(0.864 0.008 61.4); /* #d6d1cd, added */
   --control-border: oklch(0.604 0.013 67.6); /* #878079, added: form controls, 3:1 (WCAG 1.4.11) */
+  --code-keyword: oklch(0.533 0.13 300); /* #7958ac, added: code viewer keywords (ADR 0048) */
+  --code-string: oklch(0.509 0.09 195); /* #007576, added: code viewer strings */
+  --code-number: oklch(0.522 0.13 255); /* #2e6ab2, added: code viewer numbers and literals */
+  --code-attr: oklch(0.515 0.1 230); /* #0a7196, added: code viewer attributes and properties */
   --text: oklch(0.216 0.006 56); /* #1c1917 */
   --text-muted: oklch(0.444 0.01 73.6); /* #57534e */
   --nav-active-bg: oklch(0.935 0.003 67.8); /* #ebe9e7 */
@@ -101,6 +105,10 @@
     --border: oklch(0.282 0.01 48.3); /* #2e2825 */
     --input-border: oklch(0.359 0.013 48.3); /* #433b37, added */
     --control-border: oklch(0.558 0.013 54.3); /* #7a726d, added: form controls, 3:1 (WCAG 1.4.11) */
+    --code-keyword: oklch(0.661 0.104 300); /* #9c84c9, added: code viewer keywords (ADR 0048) */
+    --code-string: oklch(0.642 0.072 195); /* #539b9a, added: code viewer strings */
+    --code-number: oklch(0.65 0.104 255); /* #6292ce, added: code viewer numbers and literals */
+    --code-attr: oklch(0.647 0.08 230); /* #5798b6, added: code viewer attributes and properties */
     --text: oklch(0.952 0.006 43.3); /* #f3eeec */
     --text-muted: oklch(0.711 0.011 48.6); /* #a8a09c */
     --nav-active-bg: oklch(0.275 0.01 39.3); /* #2c2624 */
@@ -166,6 +174,10 @@
   --border: oklch(0.282 0.01 48.3); /* #2e2825 */
   --input-border: oklch(0.359 0.013 48.3); /* #433b37, added */
   --control-border: oklch(0.558 0.013 54.3); /* #7a726d, added: form controls, 3:1 (WCAG 1.4.11) */
+  --code-keyword: oklch(0.661 0.104 300); /* #9c84c9, added: code viewer keywords (ADR 0048) */
+  --code-string: oklch(0.642 0.072 195); /* #539b9a, added: code viewer strings */
+  --code-number: oklch(0.65 0.104 255); /* #6292ce, added: code viewer numbers and literals */
+  --code-attr: oklch(0.647 0.08 230); /* #5798b6, added: code viewer attributes and properties */
   --text: oklch(0.952 0.006 43.3); /* #f3eeec */
   --text-muted: oklch(0.711 0.011 48.6); /* #a8a09c */
   --nav-active-bg: oklch(0.275 0.01 39.3); /* #2c2624 */
@@ -528,4 +540,41 @@
       block-size: auto;
     }
   }
+}
+
+/*
+ * The code viewer (ADR 0048): highlight.js token classes, the only markup the viewer keeps from it. Restrained on purpose: no
+ * red, green or severity colours in code; comments are muted, names are heavier.
+ */
+.code-view .hljs-keyword,
+.code-view .hljs-selector-tag,
+.code-view .hljs-literal,
+.code-view .hljs-type {
+  color: var(--code-keyword);
+}
+.code-view .hljs-string,
+.code-view .hljs-regexp,
+.code-view .hljs-symbol {
+  color: var(--code-string);
+}
+.code-view .hljs-number {
+  color: var(--code-number);
+}
+.code-view .hljs-attr,
+.code-view .hljs-attribute,
+.code-view .hljs-property,
+.code-view .hljs-variable,
+.code-view .hljs-params {
+  color: var(--code-attr);
+}
+.code-view .hljs-comment,
+.code-view .hljs-quote,
+.code-view .hljs-meta {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.code-view .hljs-title,
+.code-view .hljs-section,
+.code-view .hljs-built_in {
+  font-weight: 600;
 }

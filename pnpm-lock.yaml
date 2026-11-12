@@ -285,6 +285,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      highlight.js:
+        specifier: ^11.12.0
+        version: 11.12.0
       i18next:
         specifier: ^26.5.3
         version: 26.5.3(typescript@6.0.3)
@@ -1740,6 +1743,10 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+
+  highlight.js@11.12.0:
+    resolution: {integrity: sha512-nbfWpyRMcMrPMmDwJB+dhX/eiaPKtc2RB+0QZskqJ3WjRA/FDS0e9hZrx8EC/lbEv8gXy98FcDbNa/dspAaJMg==}
+    engines: {node: '>=12.0.0'}
 
   hono@4.13.13:
     resolution: {integrity: sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA==}
@@ -3297,6 +3304,8 @@ snapshots:
       resolve-pkg-maps: 1.0.0
 
   graceful-fs@4.2.11: {}
+
+  highlight.js@11.12.0: {}
 
   hono@4.13.13: {}
 

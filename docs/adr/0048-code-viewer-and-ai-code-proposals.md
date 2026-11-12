@@ -184,3 +184,21 @@ viewer offers the change as a patch file to download instead (`git apply`-compat
 - New dependency: highlight.js (BSD-3-Clause), in the web bundle only.
 - Code-level findings (SAST, secrets) are not part of this decision; when they come (Phase 5), the viewer shows their lines the same
   way.
+
+## Addendum (2026-11-12): the viewer as built (0.1.6)
+
+- **One shallow clone** per request, at the commit of the scan that last saw the finding; when the forge refuses a single commit,
+  the branch head, and the viewer says which commit it read. The forge contents API of section 2 is not used yet: one path for
+  declarations and usages keeps the code smaller, and a request is one round trip from the browser's view.
+- Declarations and usages come in **one request** (no `kind`), polled by the browser for up to three minutes.
+- The clone goes to the worker's own work directory (`GARNETOPS_WORK_DIR`), not to the scanner's volume: the scanner never
+  sees it.
+- Routes: `POST /api/v1/code/findings/{id}` and `GET /api/v1/code/requests/{id}` (instead of `/findings/{id}/code`), with the
+  checks, limits, audit and hand-over of section 2.
+- **Rendering** (section 3): highlight.js core with twelve languages, chosen by file name, line by line. Its HTML is not parsed
+  by `DOMParser` but by a stricter reader that accepts only `<span class="hljs-…">`, `</span>` and highlight.js' five escapes;
+  everything else stays text, and Svelte renders tokens as text nodes. Code colours are their own tokens (`--code-*`), tested
+  for contrast in both themes; no red, green or severity colour appears in code.
+- Rate limits as in section 2; one clone per organisation is enforced by the API (a running request makes a new one wait with
+  `409 busy`), two in total by the worker's concurrency.
+

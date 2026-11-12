@@ -4736,6 +4736,33 @@ export const de: Messages = {
     passkey: "Mit Passkey bestätigen",
     confirm: "Bestätigen",
   },
+  codeView: {
+    title: "Code",
+    show: "Code anzeigen",
+    hint: "Wo das Paket deklariert ist und wo der Code es importiert, auf Anfrage aus dem Repository gelesen. Nichts wird gespeichert.",
+    loading: "Das Repository wird gelesen …",
+    failed: "Der Code konnte nicht gelesen werden. Versuchen Sie es später erneut.",
+    timeout: "Das Lesen des Repositorys hat zu lange gedauert. Versuchen Sie es später erneut.",
+    busy: "Gerade wird Code dieser Organisation gelesen. Versuchen Sie es gleich noch einmal.",
+    rateLimited: "Zu viele Anfragen nach Code. Versuchen Sie es in einer Minute erneut.",
+    commit: "Commit {commit} auf {branch}.",
+    notScanCommit:
+      "Der Scan sah Commit {commit}; die Forge gab diesen Commit nicht heraus, daher ist dies der aktuelle Stand des Branches.",
+    declared: "Wo es deklariert ist",
+    noDeclarations: "Kein Manifest und keine Lockfile, die GarnetOps liest, nennt dieses Paket.",
+    used: "Wo der Code es verwendet",
+    noSearch:
+      "Bei dieser Art von Paket verrät der Name nicht, wie Code es anspricht, daher gibt es keine Suche.",
+    usageSummary:
+      "{count, plural, =0 {Kein Import gefunden} one {# Import} other {# Importe}} in {files, plural, =0 {keiner Datei} one {# Datei} other {# Dateien}}, von {searched} durchsuchten Dateien.",
+    byName:
+      "Eine Suche nach dem Namen: Sie kann dynamische Importe übersehen oder Namensvettern einschließen.",
+    stopped: { files: "Die Suche endete nach 20.000 Dateien.", time: "Die Suche endete nach 30 Sekunden." },
+    moreUsages: "Es wurden mehr Stellen gefunden als angezeigt.",
+    role: { manifest: "Manifest", lockfile: "Lockfile", usage: "Import" },
+    gap: "ausgelassene Zeilen",
+    cut: "(Zeile gekürzt)",
+  },
   export: {
     button: "Exportieren",
     menu: "Liste herunterladen",

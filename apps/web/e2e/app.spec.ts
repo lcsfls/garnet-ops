@@ -625,6 +625,78 @@ async function download(page: Page, format: "CSV" | "Excel (XLSX)" | "PDF" | "Te
   return { name: file.suggestedFilename(), content: readFileSync(path) };
 }
 
+test("the code of a finding: declarations and usages as text with highlighting, never as markup (ADR 0048)", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  // The worker's part (clone, read) is replaced here: the browser sees exactly what the API hands over.
+  const hostile = '<img src=x onerror="document.title=\'owned\'"> // "</span><script>alert(1)</script>"';
+  const view = {
+    commit: "b".repeat(40),
+    branch: "main",
+    scanCommit: "a".repeat(40),
+    ecosystem: "npm",
+    declarations: [
+      {
+        path: "package.json",
+        role: "manifest",
+        language: "json",
+        lines: [
+          { n: 2, text: '  "dependencies": {' },
+          { n: 3, text: '    "pkg-2": "^1.0.0"' },
+          { n: 4, text: "  }" },
+        ],
+        marks: [3],
+      },
+    ],
+    usages: [
+      {
+        path: "src/app.ts",
+        role: "usage",
+        language: "typescript",
+        lines: [
+          { n: 1, text: 'import pkg from "pkg-2";' },
+          { n: 2, text: hostile },
+          { n: 40, text: "pkg.run();" },
+        ],
+        marks: [1, 40],
+      },
+    ],
+    usageCount: 2,
+    usageFileCount: 1,
+    search: { ran: true, files: 12, stopped: null },
+  };
+  let polls = 0;
+  await page.route("**/api/v1/code/findings/*", (route) =>
+    route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ id: "cod_e2e" }) }),
+  );
+  await page.route("**/api/v1/code/requests/cod_e2e", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(polls++ === 0 ? { state: "running" } : { state: "done", result: view }),
+    }),
+  );
+  await page.goto("/findings?id=fnd_e2e0000000000000002");
+  const viewer = page.getByTestId("code-viewer");
+  await expect(viewer).toContainText("Nothing is kept");
+  await viewer.getByRole("button", { name: "Show code" }).click();
+  await expect(viewer.getByTestId("code-commit")).toContainText("Commit bbbbbbbbbbbb on main.");
+  await expect(viewer.getByTestId("code-commit")).toContainText("The scan saw commit aaaaaaaaaaaa");
+  const excerpts = viewer.getByTestId("code-excerpt");
+  await expect(excerpts).toHaveCount(2);
+  await expect(excerpts.first()).toContainText("package.json");
+  await expect(excerpts.first().locator('tr[data-marked="true"]')).toContainText('"pkg-2": "^1.0.0"');
+  await expect(viewer).toContainText("2 imports in 1 file, of 12 files searched.");
+  // Highlighted: the keyword and the string carry highlight.js classes.
+  await expect(excerpts.nth(1).locator(".hljs-keyword").first()).toHaveText("import");
+  // The hostile line is text: no image, no script, the title untouched; a gap marks the lines left out.
+  await expect(excerpts.nth(1)).toContainText(hostile);
+  await expect(viewer.locator("img, script")).toHaveCount(0);
+  expect(await page.title()).not.toBe("owned");
+  await expect(excerpts.nth(1).getByLabel("lines left out")).toHaveCount(1);
+  expect(problems).toEqual([]);
+});
+
 test("findings download as CSV, Excel, PDF and text, with the filters that are set", async ({ page }) => {
   const problems = watchForProblems(page);
   await page.goto("/findings?severity=critical");

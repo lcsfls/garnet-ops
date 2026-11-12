@@ -103,6 +103,7 @@ npm packages, so its upstream repository still has to be checked.
 | i18next | 26.5.3 | MIT | verified | https://github.com/i18next/i18next | Localisation | |
 | i18next-icu | 2.6.1 | MIT | verified | https://github.com/i18next/i18next-icu | ICU message format | |
 | intl-messageformat | 12.1.4 | BSD-3-Clause | verified | https://github.com/formatjs/formatjs | ICU message parser (used by i18next-icu) | Notice in THIRD_PARTY_NOTICES |
+| highlight.js | 11.12.0 | BSD-3-Clause | verified | https://github.com/highlightjs/highlight.js | Syntax highlighting in the code viewer (ADR 0048): core plus twelve bundled languages; its HTML is read back by a strict parser, never inserted | Notice in THIRD_PARTY_NOTICES |
 | uqr | 0.1.3 | MIT | verified | https://github.com/unjs/uqr | QR code for TOTP enrolment, rendered locally | Based on Project Nayuki's QR generator (MIT) |
 | @fontsource/inter-tight | 5.3.0 | SIL OFL 1.1 | verified | https://github.com/fontsource/font-files | UI font, bundled by Vite | Font license shipped with the build |
 | @fontsource/ibm-plex-mono | 5.3.0 | SIL OFL 1.1 | verified | https://github.com/fontsource/font-files | Monospace font, bundled by Vite | Font license shipped with the build |

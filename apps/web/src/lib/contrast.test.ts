@@ -140,6 +140,9 @@ function pairs(): Pair[] {
     // The pill's level: filled bars in the fg colour against the empty, neutral ones and against the pill.
     add(`${s}-fg`, "input-border", 3, `${s} pill, filled against empty level bars`);
   }
+  // The code viewer's token colours (ADR 0048) on every surface a code excerpt or its marked lines sit on.
+  for (const token of ["code-keyword", "code-string", "code-number", "code-attr"])
+    for (const bg of SURFACES) add(token, bg, 4.5, "code viewer");
   for (const bg of SURFACES) add("ring", bg, 3, "focus ring");
   // WCAG 1.4.11: the border of a text field, select, checkbox or radio is what shows it is there, on any surface it sits on.
   for (const bg of SURFACES) add("control-border", bg, 3, "form control border");
