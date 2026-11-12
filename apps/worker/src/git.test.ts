@@ -23,6 +23,9 @@ describe("cloneCommand", () => {
         "core.symlinks=false",
         "credential.helper=",
         "http.followRedirects=false",
+        // No background maintenance writing in the clone while it is read.
+        "maintenance.auto=false",
+        "gc.auto=0",
       ]),
     );
     expect(config.some((c) => c.startsWith("core.hooksPath="))).toBe(true);

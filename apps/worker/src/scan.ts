@@ -25,16 +25,25 @@ const f = schema.finding;
 
 class UserFacingError extends Error {}
 
+/** A catch handler that turns "no such file" into `value` and rethrows anything else. */
+const gone =
+  <T>(value: T) =>
+  (error: NodeJS.ErrnoException): T => {
+    if (error.code === "ENOENT") return value;
+    throw error;
+  };
+
 async function directorySizeMb(dir: string, limitMb: number): Promise<number> {
   let bytes = 0;
   const limit = limitMb * 1024 * 1024;
   const stack = [dir];
   while (stack.length) {
     const current = stack.pop() as string;
-    for (const entry of await readdir(current, { withFileTypes: true })) {
+    // A file or folder that goes away while it is counted (a lock file of git) counts as nothing.
+    for (const entry of await readdir(current, { withFileTypes: true }).catch(gone([]))) {
       // Symlinks are not followed (core.symlinks=false also checks them out as plain files).
       if (entry.isDirectory()) stack.push(join(current, entry.name));
-      else if (entry.isFile()) bytes += (await stat(join(current, entry.name))).size;
+      else if (entry.isFile()) bytes += (await stat(join(current, entry.name)).catch(gone(null)))?.size ?? 0;
       if (bytes > limit) return bytes / 1024 / 1024;
     }
   }

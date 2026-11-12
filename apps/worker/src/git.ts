@@ -222,6 +222,11 @@ function hardenedGit(options: CloneOptions): { config: string[]; env: NodeJS.Pro
     `core.hooksPath=${nullDevice}`,
     "-c",
     "core.symlinks=false",
+    // No background maintenance after the fetch: nothing may keep writing in a clone while it is read and then removed.
+    "-c",
+    "maintenance.auto=false",
+    "-c",
+    "gc.auto=0",
     "-c",
     "credential.helper=",
     "-c",
