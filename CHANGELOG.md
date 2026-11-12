@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-12
+<!-- title: The code of a finding, and the repository's own gitleaks configuration on request -->
+
 ### Added
 
 - **The code of a finding** ([docs/code-viewer.md](docs/code-viewer.md), ADR 0048): **Show code** on a finding reads the
@@ -1590,7 +1593,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/lcsfls/garnet-ops/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/lcsfls/garnet-ops/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/lcsfls/garnet-ops/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/lcsfls/garnet-ops/compare/v0.1.2...v0.1.3
