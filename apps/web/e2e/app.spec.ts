@@ -4051,6 +4051,8 @@ test.describe("hosts and containers (ADR 0034)", () => {
   }) => {
     const go = ["/usr/local/go/bin/go", "/usr/bin/go"].find((p) => existsSync(p));
     test.skip(!go, "Go is not installed");
+    // The test builds the agent first: on a runner without a warm Go build cache that alone can take most of the default 30 s.
+    test.setTimeout(120_000);
     const problems = watchForProblems(page);
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     await page.goto("/hosts");
@@ -4184,6 +4186,8 @@ test.describe("hosts and containers (ADR 0034)", () => {
   }) => {
     const go = ["/usr/local/go/bin/go", "/usr/bin/go"].find((p) => existsSync(p));
     test.skip(!go, "Go is not installed");
+    // The test builds the agent first: on a runner without a warm Go build cache that alone can take most of the default 30 s.
+    test.setTimeout(120_000);
     const problems = watchForProblems(page);
     await page.goto("/hosts");
     await page
@@ -4327,6 +4331,8 @@ test.describe("hosts and containers (ADR 0034)", () => {
   }) => {
     const go = ["/usr/local/go/bin/go", "/usr/bin/go"].find((p) => existsSync(p));
     test.skip(!go, "Go is not installed");
+    // The test builds the agent first: on a runner without a warm Go build cache that alone can take most of the default 30 s.
+    test.setTimeout(120_000);
     const problems = watchForProblems(page);
     await page.goto("/hosts");
     await page
