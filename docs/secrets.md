@@ -50,6 +50,17 @@ secret**. Both need a reason of at least 10 characters, are in the audit log, an
 Members and above can do it; a scan never closes a secret, and one that is no longer in the files stays open with "Only in the
 history now".
 
+## Working through the list
+
+- **Search** (Rule or path) narrows the list to secrets whose rule id or one of whose places matches.
+- **Tick** secrets (or all shown with the box in the header) to mark them as revoked, not a secret or reopen them in one go,
+  with one reason for all. Only the ones you see and that are in the right state change; the message says how many did not.
+  Each one is audited on its own, as when closed one by one.
+- The reason field offers **common reasons** (rotated, the service is gone, a test value, an example, a public key); they fill
+  the field, which stays editable.
+- Closing the secret that is shown moves on to the next one in the list. Beside the list (at 1080p and wider) the detail and the
+  bar of ticked secrets stay in view while the list scrolls; on smaller screens the detail comes first.
+
 ## Ignore rules
 
 Where a repository holds test fixtures or examples, an admin can set them aside with an **ignore rule** on the Secrets page, or
@@ -71,7 +82,7 @@ live in GarnetOps only: a repository's own `.gitleaksignore` is still ignored.
 ## Export
 
 **Export** on the Secrets page downloads the list as CSV, Excel, PDF or text, with exactly the filters that are set (state,
-severity, repository): severity, what was found and its rule, state, repository, the first place (in the files, else in the
+severity, repository, search): severity, what was found and its rule, state, repository, the first place (in the files, else in the
 history), how many places in the files and in the history, first and last seen, and for a closed secret when and why. Never a
 value: GarnetOps does not have one. Dates are in the browser's time zone, labels in its language; a PDF holds up to 5,000 rows,
 the other formats 50,000, and the file says when it does not hold every match. Each export is audited (**Secrets exported**).
@@ -83,8 +94,9 @@ the dependency counts, grades, findings exports or reports.
 
 ## API
 
-`GET /api/v1/secrets` (`state`, `severity`, `repositoryId`), `GET /api/v1/secrets/counts`, `GET /api/v1/secrets/{id}`,
-`POST /api/v1/secrets/{id}/revoke|dismiss` with `{ "reason" }`, `POST /api/v1/secrets/{id}/reopen`; `GET /api/v1/secrets/export` (the list's filters plus `format` = `csv`, `xlsx`, `pdf` or
+`GET /api/v1/secrets` (`state`, `severity`, `repositoryId`, `q`), `GET /api/v1/secrets/counts`, `GET /api/v1/secrets/{id}`,
+`POST /api/v1/secrets/{id}/revoke|dismiss` with `{ "reason" }`, `POST /api/v1/secrets/{id}/reopen`; `POST /api/v1/secrets/bulk` with `{ "ids", "action": "revoke" | "dismiss" | "reopen",
+"reason" }` (answers `{ "changed", "skipped" }`); `GET /api/v1/secrets/export` (the list's filters plus `format` = `csv`, `xlsx`, `pdf` or
 `txt`, `lang` and `tz`);
 `GET /api/v1/repositories/{id}/secrets`, `PUT /api/v1/repositories/{id}/secrets/history` with `{ "enabled" }`,
 `POST /api/v1/repositories/{id}/secrets/history-check`; `GET /api/v1/secrets/ignore-rules`,

@@ -2957,6 +2957,27 @@ export const en = {
       "garnetops-wordpress-db-password": "WordPress database password",
       "garnetops-ai-agent-local-settings": "Personal AI agent settings",
     },
+    search: "Rule or path",
+    presetsLabel: "Common reasons",
+    presets: {
+      rotated: "Rotated; the old value was withdrawn where it was issued.",
+      gone: "The account or service it belonged to no longer exists.",
+      test: "A value used only in automated tests.",
+      example: "An example or placeholder, not a real credential.",
+      public: "A public key or identifier, not a secret.",
+    },
+    bulk: {
+      label: "Ticked secrets",
+      ticked: "{count, plural, one {# ticked} other {# ticked}}",
+      clear: "Clear",
+      all: "Tick all secrets shown",
+      one: "Tick {rule} in {repository}",
+      revokeTitle: "Mark {count} secrets as revoked",
+      dismissTitle: "{count} secrets: not a secret",
+      done: "{count, plural, one {# secret changed.} other {# secrets changed.}}",
+      doneSkipped:
+        "{count, plural, one {# secret changed} other {# secrets changed}}; {skipped, plural, one {# was} other {# were}} already in that state.",
+    },
     export: {
       hint: "With the filters shown, every matching secret. Never a value: GarnetOps does not have it.",
       title: "Secrets",

@@ -12,6 +12,14 @@ Security-relevant changes are listed under **Security** in every release.
 
 - **Export of the Secrets page** ([docs/secrets.md](docs/secrets.md#export)): CSV, Excel, PDF or text, as on the Findings page,
   with the filters that are set. It lists where each secret was found, never a value, and is audited.
+- **Several secrets at once**: tick secrets (or all shown) and mark them as revoked, not a secret or reopen them with one
+  reason; each one is audited on its own. Common reasons are one click away in the reason field.
+- **Search** the secrets by rule or path.
+
+### Changed
+
+- The Secrets page is quicker to work through: the whole row opens a secret, closing the shown one moves on to the next, the
+  detail and the bar of ticked secrets stay in view while the list scrolls, and on smaller screens the detail comes first.
 
 ## [0.1.4] - 2026-11-11
 <!-- title: Ignore rules for secrets, and a check of proved websites for files that must not be public -->

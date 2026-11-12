@@ -282,6 +282,63 @@ describe.skipIf(!adminUrl)("secrets API", () => {
     expect((await call("GET", `/api/v1/secrets/${id}`, { org: OTHER })).status).toBe(404);
   });
 
+  it("closes several at once with one reason, only what the person sees and what is open, and reopens them", async () => {
+    const bulk = await repo("bulk");
+    const a = await secret(bulk, "high");
+    const b = await secret(bulk, "low");
+    const closed = await secret(bulk, "medium", { state: "dismissed" });
+    const hidden = await secret(theirs, "high");
+    const reason = "Placeholders in the documentation";
+
+    // A reason is needed to close, not to reopen; viewers cannot.
+    expect(
+      (await call("POST", "/api/v1/secrets/bulk", { body: { ids: [a], action: "revoke" } })).status,
+    ).toBe(422);
+    expect(
+      (
+        await call("POST", "/api/v1/secrets/bulk", {
+          role: "viewer",
+          body: { ids: [a], action: "dismiss", reason },
+        })
+      ).status,
+    ).toBe(403);
+
+    const done = await call("POST", "/api/v1/secrets/bulk", {
+      body: { ids: [a, b, closed, hidden, a], action: "dismiss", reason },
+    });
+    expect(done.json).toEqual({ changed: 2, skipped: 2 });
+    const list = await call("GET", `/api/v1/secrets?state=dismissed&repositoryId=${bulk}`);
+    expect(list.json?.items.map((i: Json) => i.id).sort()).toEqual([a, b, closed].sort());
+    const [theirsRow] = await t.db
+      .select()
+      .from(schema.secretFinding)
+      .where(eq(schema.secretFinding.id, hidden));
+    expect(theirsRow?.state).toBe("open");
+    const [stored] = await t.db.select().from(schema.secretFinding).where(eq(schema.secretFinding.id, a));
+    expect(stored).toMatchObject({ stateReason: reason, stateBy: "usr_member" });
+    const entries = await t.db
+      .select()
+      .from(schema.auditLog)
+      .where(and(eq(schema.auditLog.action, "secret.dismissed"), eq(schema.auditLog.targetId, b)));
+    expect(entries[0]?.data).toMatchObject({ bulk: true });
+
+    const reopened = await call("POST", "/api/v1/secrets/bulk", {
+      body: { ids: [a, b, closed], action: "reopen" },
+    });
+    expect(reopened.json).toEqual({ changed: 3, skipped: 0 });
+    expect((await call("GET", `/api/v1/secrets?repositoryId=${bulk}`)).json?.items).toHaveLength(3);
+  });
+
+  it("searches the rule and the paths", async () => {
+    const found = await call("GET", "/api/v1/secrets?state=all&q=CONFIG.js");
+    expect(found.json?.items.length).toBeGreaterThan(0);
+    expect(found.json?.items.every((i: Json) => i.place?.path === "src/config.js")).toBe(true);
+    const byRule = await call("GET", "/api/v1/secrets?state=all&q=github");
+    expect(byRule.json?.items.every((i: Json) => i.ruleId === "github-pat")).toBe(true);
+    // Wildcards are taken literally.
+    expect((await call("GET", "/api/v1/secrets?state=all&q=%25")).json?.items).toEqual([]);
+  });
+
   it("switches history checks on for admins, or a member's own private repository, and audits it", async () => {
     expect(
       (await call("PUT", `/api/v1/repositories/${shared}/secrets/history`, { body: { enabled: true } }))

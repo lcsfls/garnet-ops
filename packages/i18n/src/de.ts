@@ -3046,6 +3046,27 @@ export const de: Messages = {
       "garnetops-wordpress-db-password": "WordPress-Datenbankpasswort",
       "garnetops-ai-agent-local-settings": "Persönliche Einstellungen eines KI-Agenten",
     },
+    search: "Regel oder Pfad",
+    presetsLabel: "Häufige Begründungen",
+    presets: {
+      rotated: "Ausgetauscht; der alte Wert wurde dort zurückgezogen, wo er ausgestellt wurde.",
+      gone: "Das Konto oder der Dienst, zu dem er gehörte, existiert nicht mehr.",
+      test: "Ein Wert, der nur in automatischen Tests verwendet wird.",
+      example: "Ein Beispiel oder Platzhalter, kein echter Zugangsschlüssel.",
+      public: "Ein öffentlicher Schlüssel oder eine Kennung, kein Geheimnis.",
+    },
+    bulk: {
+      label: "Markierte Secrets",
+      ticked: "{count, plural, one {# markiert} other {# markiert}}",
+      clear: "Auswahl aufheben",
+      all: "Alle angezeigten Secrets markieren",
+      one: "{rule} in {repository} markieren",
+      revokeTitle: "{count} Secrets als ausgetauscht markieren",
+      dismissTitle: "{count} Secrets: kein Secret",
+      done: "{count, plural, one {# Secret geändert.} other {# Secrets geändert.}}",
+      doneSkipped:
+        "{count, plural, one {# Secret geändert} other {# Secrets geändert}}; {skipped, plural, one {# war} other {# waren}} schon in diesem Status.",
+    },
     export: {
       hint: "Mit den angezeigten Filtern, alle passenden Secrets. Nie ein Wert: GarnetOps hat ihn nicht.",
       title: "Secrets",

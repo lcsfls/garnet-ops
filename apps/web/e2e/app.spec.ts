@@ -4496,6 +4496,48 @@ test.describe("secrets (ADR 0049)", () => {
     ]);
   });
 
+  test("closes several at once with a common reason, searches by path, and reopens them", async ({
+    page,
+  }) => {
+    const problems = watchForProblems(page);
+    await sql("delete from secret_finding where repository_id = $1", [REPO]);
+    await insertSecret("sec_e2e_b1", "github-pat", "critical", 5, true);
+    await insertSecret("sec_e2e_b2", "generic-api-key", "medium", 3, true);
+    await insertSecret("sec_e2e_b3", "garnetops-env-file", "high", 4, false);
+
+    await page.goto("/secrets");
+    const rows = page.getByTestId("secret-row");
+    await expect(rows).toHaveCount(3);
+    // The search narrows to the paths and rules that match; ticking all ticks what is shown.
+    await page.getByRole("searchbox", { name: "Rule or path" }).fill("config.js");
+    await expect(rows).toHaveCount(2);
+    await page.getByRole("checkbox", { name: "Tick all secrets shown" }).check();
+    const bar = page.getByTestId("secrets-bulk");
+    await expect(bar).toContainText("2 ticked");
+    await bar.getByRole("button", { name: "Not a secret" }).click();
+    const dialog = page.getByRole("dialog", { name: "2 secrets: not a secret" });
+    await dialog.getByRole("button", { name: "A value used only in automated tests." }).click();
+    await expect(dialog.getByLabel("Reason", { exact: true })).toHaveValue(
+      "A value used only in automated tests.",
+    );
+    await dialog.getByRole("button", { name: "Not a secret", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText("2 secrets changed.")).toBeVisible();
+    await expect(rows).toHaveCount(0);
+    await expect(bar).toBeHidden();
+
+    // Back again: one ticked at a time, from the Dismissed tab.
+    await page.getByRole("searchbox", { name: "Rule or path" }).fill("");
+    await page.getByRole("button", { name: /^Dismissed/ }).click();
+    await expect(rows).toHaveCount(2);
+    await rows.first().getByRole("checkbox").check();
+    await expect(page.getByRole("checkbox", { name: "Tick all secrets shown" })).not.toBeChecked();
+    await bar.getByRole("button", { name: "Reopen" }).click();
+    await expect(rows).toHaveCount(1);
+    await sql("delete from secret_finding where repository_id = $1", [REPO]);
+    expect(problems).toEqual([]);
+  });
+
   test("download as text and Excel with the filters that are set, never with a value", async ({ page }) => {
     const problems = watchForProblems(page);
     await sql("delete from secret_finding where repository_id = $1", [REPO]);
@@ -4551,14 +4593,17 @@ test.describe("secrets (ADR 0049)", () => {
     await expect(detail).toContainText("This file does not belong in a repository");
     await detail.getByRole("button", { name: "Not a secret" }).click();
     const dialog = page.getByRole("dialog", { name: "Not a secret" });
-    await dialog.getByLabel("Reason").fill("An empty template for local development");
-    await dialog.getByRole("button", { name: "Not a secret" }).click();
+    await dialog.getByLabel("Reason", { exact: true }).fill("An empty template for local development");
+    await dialog.getByRole("button", { name: "Not a secret", exact: true }).click();
     await expect(dialog).toBeHidden();
-    await expect(detail).toContainText("Dismissed by");
-    await expect(detail).toContainText("An empty template for local development");
+    // Closing the shown one moves on to the next in the list.
     await expect(rows).toHaveCount(1);
+    await expect(detail).toContainText("github-pat");
     await page.getByRole("button", { name: /^Dismissed/ }).click();
     await expect(rows).toHaveCount(1);
+    await rows.first().getByRole("link", { name: "Environment file with values" }).click();
+    await expect(detail).toContainText("Dismissed by");
+    await expect(detail).toContainText("An empty template for local development");
     await detail.getByRole("button", { name: "Reopen" }).click();
     await expect(detail).not.toContainText("Dismissed by");
 

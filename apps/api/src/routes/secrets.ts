@@ -13,7 +13,7 @@ import {
   visibleRepository,
 } from "@garnetops/db";
 import { LANGUAGES, resources } from "@garnetops/i18n";
-import { and, count, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
@@ -64,6 +64,8 @@ const listQuery = z.object({
   state: z.enum([...SECRET_STATES, "ignored", "all"]).default("open"),
   severity: csv(SECRET_SEVERITIES),
   repositoryId: z.string().max(64).optional(),
+  /** Part of the rule id or of a path where it was found (0.1.5). */
+  q: z.string().trim().max(120).optional(),
 });
 
 /**
@@ -88,6 +90,9 @@ const reasonBody = z.object({
 });
 
 function where(actor: { organizationId: string; userId: string }, input: z.infer<typeof listQuery>) {
+  const like = input.q ? `%${input.q.replace(/[%_\\]/g, "\\$&")}%` : null;
+  const inPlaces = (column: typeof s.treeLocations | typeof s.historyLocations) =>
+    sql`exists (select 1 from jsonb_array_elements(${column}) as place where place->>'path' ilike ${like})`;
   return and(
     eq(s.organizationId, actor.organizationId),
     visibleRepository(s.repositoryId, actor),
@@ -101,6 +106,7 @@ function where(actor: { organizationId: string; userId: string }, input: z.infer
           ? and(eq(s.state, "open"), isNotNull(s.ignoredBy))
           : eq(s.state, input.state),
     input.severity.length ? inArray(s.severity, input.severity) : undefined,
+    like ? or(ilike(s.ruleId, like), inPlaces(s.treeLocations), inPlaces(s.historyLocations)) : undefined,
   );
 }
 
@@ -190,6 +196,7 @@ export const secretRoutes = new Hono<AppEnv>()
         ? fill(m.export.filterSeverity, { severity: input.severity.map((v) => m.severity[v]).join(", ") })
         : null,
       repository ? fill(m.export.filterRepository, { repository: repository.name }) : null,
+      input.q ? fill(m.export.filterText, { text: input.q }) : null,
     ].filter((x): x is string => x !== null);
 
     const now = new Date();
@@ -373,6 +380,49 @@ export const secretRoutes = new Hono<AppEnv>()
       lastSeenAt: secret.lastSeenAt,
     });
   })
+  /**
+   * Closes or reopens several secrets with one reason. Only the ones the person sees and that are in the right state change; the
+   * answer counts the rest. Each one is audited on its own, as if closed one by one.
+   */
+  .post("/bulk", async (c) => {
+    const actor = c.get("actor");
+    requireRole(actor, "member");
+    const input = bulkBody.parse(await c.req.json());
+    const ids = [...new Set(input.ids)];
+    const now = new Date();
+    const reopen = input.action === "reopen";
+    const state = input.action === "revoke" ? "revoked" : input.action === "dismiss" ? "dismissed" : "open";
+    const rows = await db
+      .update(s)
+      .set({
+        state,
+        stateReason: reopen ? null : (input.reason ?? null),
+        stateBy: actor.userId,
+        stateAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          inArray(s.id, ids),
+          eq(s.organizationId, actor.organizationId),
+          visibleRepository(s.repositoryId, actor),
+          reopen ? sql`${s.state} <> 'open'` : eq(s.state, "open"),
+        ),
+      )
+      .returning({ id: s.id, repositoryId: s.repositoryId, ruleId: s.ruleId });
+    const action = reopen ? "secret.reopened" : state === "revoked" ? "secret.revoked" : "secret.dismissed";
+    for (const row of rows) {
+      await audit(
+        actor,
+        action,
+        { type: "secret", id: row.id },
+        reopen
+          ? { repositoryId: row.repositoryId, bulk: true }
+          : { repositoryId: row.repositoryId, rule: row.ruleId, bulk: true },
+      );
+    }
+    return c.json({ changed: rows.length, skipped: ids.length - rows.length });
+  })
   .post("/:id/revoke", (c) => close(c, "revoked"))
   .post("/:id/dismiss", (c) => close(c, "dismissed"))
   .post("/:id/reopen", async (c) => {
@@ -432,6 +482,18 @@ async function close(c: Context<AppEnv>, state: "revoked" | "dismissed"): Promis
   );
   return c.json({ ok: true });
 }
+
+/** Several secrets at once (0.1.5): the ones from the list the person ticked, with one reason for all. */
+const bulkBody = z
+  .object({
+    ids: z.array(z.string().min(1).max(64)).min(1).max(MAX_ROWS),
+    action: z.enum(["revoke", "dismiss", "reopen"]),
+    reason: reasonBody.shape.reason.optional(),
+  })
+  .refine((b) => b.action === "reopen" || b.reason !== undefined, {
+    message: "Explain in at least 10 characters",
+    path: ["reason"],
+  });
 
 const ignoreRuleBody = z
   .object({

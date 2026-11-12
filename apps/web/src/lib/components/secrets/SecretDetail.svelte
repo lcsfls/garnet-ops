@@ -11,10 +11,9 @@
   import QueryStatus from "../QueryStatus.svelte";
   import RepositoryLink from "../RepositoryLink.svelte";
   import Button from "../ui/Button.svelte";
-  import Dialog from "../ui/Dialog.svelte";
-  import DialogFooter from "../ui/DialogFooter.svelte";
   import SeverityBadge from "../ui/SeverityBadge.svelte";
   import Facts from "../websites/Facts.svelte";
+  import CloseSecretsDialog from "./CloseSecretsDialog.svelte";
   import type { IgnoreDraft } from "./IgnoreRules.svelte";
 
   /**
@@ -26,12 +25,15 @@
     canEdit,
     canIgnore = false,
     onIgnoreSimilar,
+    onClosed,
   }: {
     id: string;
     canEdit: boolean;
     /** Admins can make an ignore rule from it (ADR 0049 addendum). */
     canIgnore?: boolean;
     onIgnoreSimilar?: (draft: IgnoreDraft) => void;
+    /** Called once it is closed, before the lists are read again: the page moves on to the next one. */
+    onClosed?: () => void;
   } = $props();
   const queryClient = useQueryClient();
   const detail = createQuery(() => ({
@@ -53,6 +55,7 @@
     onSuccess: async () => {
       closing = null;
       toast.success(t("secrets.closed"));
+      onClosed?.();
       await refresh();
     },
     onError: (e: Error) => {
@@ -66,12 +69,10 @@
     onError: () => toast.error(t("errors.actionFailed")),
   }));
 
-  function submit(event: SubmitEvent) {
-    event.preventDefault();
+  function submit(reason: string) {
     if (!closing) return;
     reasonError = null;
-    const form = new FormData(event.currentTarget as HTMLFormElement);
-    close.mutate({ action: closing, reason: String(form.get("reason")).trim() });
+    close.mutate({ action: closing, reason });
   }
 
   const commitText = (commit: string | undefined, when: string | null | undefined) =>
@@ -189,32 +190,10 @@
   </div>
 </Card>
 
-<Dialog
-  open={closing !== null}
+<CloseSecretsDialog
+  action={closing}
+  pending={close.isPending}
+  error={reasonError}
+  onSubmit={submit}
   onClose={() => (closing = null)}
-  title={closing === "dismiss" ? t("secrets.dismissTitle") : t("secrets.revokeTitle")}
-  description={closing === "dismiss" ? t("secrets.dismissDescription") : t("secrets.revokeDescription")}
->
-  <form class="grid gap-4" onsubmit={submit}>
-    <div class="grid gap-1.5">
-      <label for="secret-reason" class="text-sm font-medium">{t("secrets.reason")}</label>
-      <textarea
-        id="secret-reason"
-        name="reason"
-        required
-        minlength={10}
-        maxlength={1000}
-        rows={3}
-        aria-describedby="secret-reason-hint"
-        class="rounded-md border border-control bg-card px-3 py-2 text-base shadow-xs"
-      ></textarea>
-      <p id="secret-reason-hint" class="text-sm text-muted-foreground">{reasonError ?? t("secrets.reasonHint")}</p>
-    </div>
-    <DialogFooter>
-      <Button variant="secondary" onclick={() => (closing = null)}>{t("common.cancel")}</Button>
-      <Button variant="primary" type="submit" disabled={close.isPending}>
-        {closing === "dismiss" ? t("secrets.dismiss") : t("secrets.revoke")}
-      </Button>
-    </DialogFooter>
-  </form>
-</Dialog>
+/>
