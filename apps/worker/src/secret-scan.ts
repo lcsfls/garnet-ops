@@ -20,7 +20,7 @@ import type { SecretLocation } from "@garnetops/db/schema";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "./db.ts";
 import { env } from "./env.ts";
-import { runGitleaks, type SecretReports } from "./gitleaks-run.ts";
+import { removeRepositoryIgnoreFile, runGitleaks, type SecretReports } from "./gitleaks-run.ts";
 import { requestSecrets, ScannerRequestError } from "./scanner-client.ts";
 import { openSecretText, sealSecret } from "./vault-secrets.ts";
 import type { Tx } from "./vulnerability-store.ts";
@@ -83,6 +83,8 @@ export async function runSecretScan(
   const none = (state: "skipped" | "failed"): SecretScanResult => ({ state, tree: [], history: null });
   let file: string;
   try {
+    // The clone is the worker's: its .gitleaksignore goes before any scanner sees it, also the scanner service's (ADR 0049).
+    await removeRepositoryIgnoreFile(src);
     const socket = env.GARNETOPS_SCANNER_SOCKET;
     if (socket) {
       file = join(out, "secrets.json");

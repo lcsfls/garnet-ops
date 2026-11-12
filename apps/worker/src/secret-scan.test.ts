@@ -291,6 +291,31 @@ describe.skipIf(!ready)("secret scanning with the real gitleaks", () => {
     expect((await rows()).every((r) => r.ignoredBy === null)).toBe(true);
   });
 
+  it("never lets the repository's .gitleaksignore hide a secret, in the files or in the history", async () => {
+    // A second token, so that it is new to this repository's findings.
+    const hidden = `ghp_${Array.from({ length: 36 }, () => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return ALPHABET[seed % ALPHABET.length];
+    }).join("")}`;
+    const dir = await repository({ "tools/deploy.js": `const key = "${hidden}";\n` });
+    const commit = execFileSync("git", ["-C", dir, "rev-parse", "HEAD"]).toString().trim();
+    // The fingerprints gitleaks itself prints for this place, in history and in file mode.
+    writeFileSync(
+      join(dir, ".gitleaksignore"),
+      `${commit}:tools/deploy.js:github-pat:1\ntools/deploy.js:github-pat:1\n${join(dir, "tools/deploy.js")}:github-pat:1\n`,
+    );
+    git(dir, "add", "-A");
+    git(dir, "commit", "-qm", "ignore it");
+
+    const { result } = await scanAndStore(dir, true);
+    expect(result.tree.map((h) => [h.ruleId, h.path])).toContainEqual(["github-pat", "tools/deploy.js"]);
+    expect(result.history?.map((h) => [h.ruleId, h.path, h.commit])).toContainEqual([
+      "github-pat",
+      "tools/deploy.js",
+      commit,
+    ]);
+  });
+
   it("leaves findings alone when the secret check did not run", async () => {
     const before = await rows();
     const summary = await conn.db.transaction((tx) =>

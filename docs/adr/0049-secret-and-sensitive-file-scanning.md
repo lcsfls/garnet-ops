@@ -148,3 +148,12 @@ all, with a reason of at least 10 characters, a recent sign-in, and an audit ent
 | --- | --- | --- |
 | An admin hides real secrets with a wide rule | A leak goes unseen | Recent sign-in, reason, audit entry, rules visible to everyone with their count, set-aside findings still listed, a match-everything pattern refused, the same value elsewhere still counts |
 
+## Addendum (2026-11-12): the repository's `.gitleaksignore` in the scanned directory
+
+gitleaks reads a `.gitleaksignore` from the scanned directory as well as from `--gitleaks-ignore-path`, so passing an empty
+directory there did not keep the repository's file out. In history mode its entries (`commit:path:rule:line`) match, so a
+committer could hide a secret in the history from the check (0.1.3 and 0.1.4); in file mode an entry has to name the clone's
+random absolute path, which nobody can know. The worker now removes the file from its clone before any scanner sees it, and
+`runGitleaks` removes it again and refuses to run while it is still there. Tested with gitleaks 8.30.1 in both modes. Decision 4
+stands unchanged.
+

@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { redactGitleaksReport } from "@garnetops/core/secret-fingerprint";
 import { gitleaksArgs, gitleaksConfig } from "@garnetops/core/secrets";
@@ -14,6 +14,21 @@ export interface SecretReports {
 }
 
 /**
+ * gitleaks reads a `.gitleaksignore` from the scanned directory as well as from `--gitleaks-ignore-path`, and its entries (file,
+ * history and absolute fingerprints alike) hide findings. A repository's own file must never do that (ADR 0049), so it is removed
+ * from the clone before every run, and the run refuses to start if it is still there.
+ */
+export async function removeRepositoryIgnoreFile(dir: string): Promise<void> {
+  const file = join(dir, ".gitleaksignore");
+  await rm(file, { recursive: true, force: true });
+  const left = await lstat(file).then(
+    () => true,
+    () => false,
+  );
+  if (left) throw new Error("The repository's .gitleaksignore could not be removed from the clone");
+}
+
+/**
  * Runs gitleaks on a clone with GarnetOps' own configuration, never the repository's, and returns the path of the redacted
  * result in `outDir`. The raw reports, which hold the values, are deleted as soon as they are read. Shared by the worker and the
  * scanner service (ADR 0028), like grype.
@@ -24,6 +39,7 @@ export async function runGitleaks(
   outDir: string,
   opts: { history: boolean },
 ): Promise<string> {
+  await removeRepositoryIgnoreFile(dir);
   const config = join(outDir, "gitleaks.toml");
   const empty = join(outDir, "no-ignore");
   await writeFile(config, gitleaksConfig(), { mode: 0o600 });
