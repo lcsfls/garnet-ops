@@ -14,7 +14,8 @@ Security-relevant changes are listed under **Security** in every release.
   default. Once an admin switches it on, GarnetOps asks the npm registry, PyPI and crates.io (or your own registries, also in
   your own network) which of your packages their maintainers deprecated or yanked, and shows the maintainers' message on the
   Packages page (filter **Deprecated or yanked**) and on each repository. Only package names are sent; npm scopes and name
-  patterns you exclude never are. Not findings: no severity, no change to grades.
+  patterns you exclude never are. Not findings: no severity, no change to grades. The organisation report (PDF and the
+  scheduled mail) and each repository's report count them.
 - Quality gate rule **Deprecated or yanked package**, off by default.
 
 ## [0.1.6] - 2026-11-12

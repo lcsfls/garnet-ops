@@ -29,6 +29,7 @@ import {
 import { detectSoftware, judgeSoftware, SOFTWARE_NAMES } from "@garnetops/core/software";
 import { vulnDbReportSchema } from "@garnetops/core/system-status";
 import { type SQL, sql } from "drizzle-orm";
+import { deprecatedCounts } from "./deprecation.ts";
 import type { Database } from "./index.ts";
 import * as schema from "./schema.ts";
 import { isTimeZone } from "./trend.ts";
@@ -303,6 +304,8 @@ export async function organizationReport(
     },
     gates: { passed: gateBy.passed ?? 0, notes: gateBy.notes ?? 0, blocked: gateBy.blocked ?? 0 },
     earlyWarnings: { repositories: warnings.rows[0]?.n ?? 0, runtime: hosts ? hosts.warnings : null },
+    // Deprecated and yanked packages (ADR 0051), in the repositories the person sees; null while the module is off.
+    deprecated: await deprecatedCounts(db, org, seen),
     accepted: {
       total: accepted.rows[0]?.total ?? 0,
       expired: accepted.rows[0]?.expired ?? 0,

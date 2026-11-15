@@ -246,6 +246,8 @@ export interface RepositoryReport {
   /** The newest quality gate result. */
   gate: { result: "passed" | "notes" | "blocked"; at: string } | null;
   earlyWarnings: { open: number; worst: ReportSeverity | null };
+  /** Packages its registry calls deprecated or yanked (ADR 0051, 0.1.7); null or absent while the module is off. */
+  deprecated?: number | null;
   /** Up to ten open findings, worst first. */
   top: ReportFindingRow[];
   nextSteps: NextStep[];
@@ -358,6 +360,8 @@ export interface OrganizationReport {
   };
   gates: { passed: number; notes: number; blocked: number };
   earlyWarnings: { repositories: number; runtime: number | null };
+  /** Deprecated or yanked packages and in how many repositories (ADR 0051, 0.1.7); null or absent while the module is off. */
+  deprecated?: { packages: number; repositories: number } | null;
   accepted: { total: number; expired: number; endingSoon: number };
   top: { repositories: RiskRow[]; hosts: RiskRow[] | null };
   /** Null while the hosts module is off. */

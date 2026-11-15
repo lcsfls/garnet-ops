@@ -5,7 +5,7 @@
  */
 import { schema } from "@garnetops/db";
 import { devDatabaseUrl, type TestDatabase } from "@garnetops/db/testing";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -168,6 +168,13 @@ describe.skipIf(!adminUrl)("deprecated packages API", () => {
     expect((await call("POST", "/api/v1/deprecated/check")).status).toBe(202);
     expect(holder.sent.at(-1)?.[1]).toEqual({ organizationId: ORG });
     expect((await call("POST", "/api/v1/deprecated/check")).status).toBe(429);
+  });
+
+  it("counts them for the reports: packages and repositories, null while off", async () => {
+    const { deprecatedCounts } = await import("@garnetops/db");
+    const all = (column: unknown) => sql`${column} is not null`;
+    expect(await deprecatedCounts(t.db, ORG, all)).toEqual({ packages: 2, repositories: 1 });
+    expect(await deprecatedCounts(t.db, "org_without_module", all)).toBeNull();
   });
 
   it("settings: admins with a recent sign-in, https registries, excluded names; an own registry forgets the old answers", async () => {

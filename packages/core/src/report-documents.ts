@@ -74,6 +74,7 @@ export interface ReportMessages {
       | "accepted"
       | "acceptedValue"
       | "earlyWarnings"
+      | "deprecated"
       | "branch"
       | "defaultBranch"
       | "inactive"
@@ -119,6 +120,8 @@ export interface ReportMessages {
       | "earlyWarnings"
       | "earlyWarningsValue"
       | "earlyWarningsRepositories"
+      | "deprecated"
+      | "deprecatedValue"
       | "accepted"
       | "acceptedValue"
       | "coverage"
@@ -167,6 +170,7 @@ export interface ReportMessages {
       | "gates"
       | "websitesDown"
       | "hostsNotReporting"
+      | "deprecated"
       | "attached"
       | "link"
       | "scope"
@@ -394,6 +398,7 @@ export function repositoryReportDocument(
       value: fill(t.acceptedValue, { total: report.accepted.total, expired: report.accepted.expired }),
     },
     { label: t.earlyWarnings, value: String(report.earlyWarnings.open) },
+    ...(report.deprecated != null ? [{ label: t.deprecated, value: String(report.deprecated) }] : []),
   ];
   return {
     title: fill(t.title, { name: report.repository.name }),
@@ -614,6 +619,9 @@ export function organizationReportDocument(
               runtime: report.earlyWarnings.runtime,
             }),
     },
+    ...(report.deprecated
+      ? [{ label: t.deprecated, value: fill(t.deprecatedValue, report.deprecated) }]
+      : []),
     {
       label: t.accepted,
       value: fill(t.acceptedValue, {
@@ -740,6 +748,9 @@ export function reportMail(
     ...(down > 0 ? [fill(t.websitesDown, { count: down })] : []),
     ...(report.hosts && report.hosts.notReporting.length > 0
       ? [fill(t.hostsNotReporting, { count: report.hosts.notReporting.length })]
+      : []),
+    ...(report.deprecated && report.deprecated.packages > 0
+      ? [fill(t.deprecated, { count: report.deprecated.packages })]
       : []),
     "",
     ...report.nextSteps.slice(0, 5).map((s) => `- ${nextStepText(m, s, ctx.language)}`),

@@ -37,6 +37,8 @@ that does not answer is shown with its reason under the settings; its packages c
 
 - **Packages**: the filter **Deprecated or yanked**, and on each such package the registry's message (as text).
 - **Repository**: a card with its deprecated and yanked packages.
+- **Reports**: the organisation report (PDF and the scheduled mail) counts them and in how many repositories; a repository's
+  report counts its own. While the module is off the line is left out.
 - **Quality gates**: the rule **Deprecated or yanked package**, **off** by default; set to Report or Block it counts the checked
   commit's packages known to be deprecated or yanked ([quality-gates.md](quality-gates.md)). A package GarnetOps has not asked
   about yet does not count.

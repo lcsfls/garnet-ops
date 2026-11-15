@@ -108,6 +108,23 @@ describe("organisation report document and mail", () => {
     expect(text).toContain("6 open: 2 critical, 3 high, 0 medium, 1 low");
   });
 
+  it("counts deprecated and yanked packages only while the module is on (ADR 0051)", () => {
+    const off = pageText(toPdfDocument(organizationReportDocument(organizationReport(), en, ctx)));
+    expect(off).not.toContain("Deprecated or yanked");
+    const on = { ...organizationReport(), deprecated: { packages: 7, repositories: 2 } };
+    expect(pageText(toPdfDocument(organizationReportDocument(on, en, ctx)))).toContain("7 in 2 repositories");
+    const mail = reportMail(on, "weekly", en, ctx, {
+      origin: "https://garnetops.example.com",
+      attached: true,
+    });
+    expect(mail.text).toContain("Deprecated or yanked packages: 7.");
+    const without = reportMail(organizationReport(), "weekly", en, ctx, {
+      origin: "https://garnetops.example.com",
+      attached: true,
+    });
+    expect(without.text).not.toContain("Deprecated");
+  });
+
   it("keeps the mail short: counts and links, no names of repositories", () => {
     const mail = reportMail(organizationReport(), "weekly", en, ctx, {
       origin: "https://garnetops.example.com",
@@ -217,6 +234,12 @@ describe("repository and host documents", () => {
     expect(text).toContain("CVE-2099-0001");
     expect(text).toContain("left-pad\\(");
     expect(text).toContain("Standard-Branch");
+    // Deprecated packages (ADR 0051): a line only while the module is on.
+    expect(text).not.toContain("Veraltete");
+    const withDeprecated = pageText(
+      toPdfDocument(repositoryReportDocument({ ...report, deprecated: 3 }, de, ctx)),
+    );
+    expect(withDeprecated).toContain("Veraltete oder zur");
   });
 
   it("a host report counts kernel, host packages and images apart", () => {

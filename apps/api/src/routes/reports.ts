@@ -27,6 +27,7 @@ import {
   vulnDbState,
 } from "@garnetops/core/reports";
 import {
+  deprecatedCounts,
   isTimeZone,
   mailChannelAvailable,
   organizationReport,
@@ -198,6 +199,8 @@ export async function repositoryReport(
       order by x.severity_rank desc, v.known_exploited desc, v.cvss_score desc nulls last, x.vulnerability_id, x.package_name
       limit ${TOP}`),
   ]);
+  // Deprecated and yanked packages of this repository (ADR 0051); null while the module is off.
+  const deprecated = await deprecatedCounts(db, actor.organizationId, (column) => sql`${column} = ${row.id}`);
   const grades = await gradeFieldsOf(db, REPOSITORY_FINDINGS, actor.organizationId, [
     { id: row.id, scanned: row.lastScanId !== null, failed: lastScan[0]?.state === "failed" },
   ]);
@@ -234,6 +237,7 @@ export async function repositoryReport(
       open: warning?.n ?? 0,
       worst: warning?.worst && isReportSeverity(warning.worst) ? warning.worst : null,
     },
+    deprecated: deprecated ? deprecated.packages : null,
     top: top.rows.map(findingRow).filter((x): x is ReportFindingRow => x !== null),
   };
   return { ...base, nextSteps: repositoryNextSteps(base) };

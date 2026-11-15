@@ -93,3 +93,31 @@ export async function deprecatedPackages(
   for (const key of out.keys()) if (!wanted.has(key)) out.delete(key);
   return out;
 }
+
+/**
+ * Deprecated or yanked packages in the inventories that `repositories` selects (an SQL condition on a repository id), and in how
+ * many repositories; null while the module is off (the reports then leave the line out).
+ */
+export async function deprecatedCounts(
+  db: Reader,
+  organizationId: string,
+  repositories: (column: SQL) => SQL,
+): Promise<{ packages: number; repositories: number } | null> {
+  const view = await deprecationView(db, organizationId);
+  if (!view.enabled) return null;
+  const p = schema.repositoryPackage;
+  const [row] = await db
+    .select({
+      packages: sql<number>`count(*)::int`,
+      repositories: sql<number>`count(distinct ${p.repositoryId})::int`,
+    })
+    .from(p)
+    .where(
+      and(
+        eq(p.organizationId, organizationId),
+        repositories(sql`${p.repositoryId}`),
+        deprecatedSql(view, { type: p.type, name: p.name, version: p.version }),
+      ),
+    );
+  return { packages: row?.packages ?? 0, repositories: row?.repositories ?? 0 };
+}

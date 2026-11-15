@@ -31,7 +31,8 @@ customer's network, which AGENTS.md rule 1 allows only as a visible opt-in.
    2,000 names per run, four at a time, with timeouts and size limits. Answers are kept per registry (the public registries' answers
    are shared by the installation, an organisation's own registry's answers by that organisation only) and replaced after 24 hours.
 5. **Where it shows**: the **Packages** page gets a filter "Deprecated or yanked" with the registry's message; a repository gets a
-   card listing its deprecated and yanked packages; nothing becomes a finding, nothing has a severity, the grade does not change.
+   card listing its deprecated and yanked packages; the organisation report (PDF and mail) and a repository's report count them;
+   nothing becomes a finding, nothing has a severity, the grade does not change.
 6. **Gate rule `deprecated-package`**, **off by default** (rule 2): set to report or block, it counts the packages of the checked
    commit known to be deprecated or yanked.
 
