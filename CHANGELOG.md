@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-15
+<!-- title: Deprecated and yanked packages, as a module -->
+
 ### Added
 
 - **Deprecated and yanked packages, as a module** ([docs/deprecated-packages.md](docs/deprecated-packages.md), ADR 0051): off by
@@ -1603,7 +1606,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/lcsfls/garnet-ops/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/lcsfls/garnet-ops/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/lcsfls/garnet-ops/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/lcsfls/garnet-ops/compare/v0.1.3...v0.1.4
