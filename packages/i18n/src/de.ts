@@ -3282,6 +3282,7 @@ export const de: Messages = {
       "high-fixable": "Hohe Schwachstelle mit Fix",
       "license-denied": "Nicht erlaubte Lizenz",
       "secret-found": "Secret im Code",
+      "deprecated-package": "Veraltetes oder zurückgezogenes Paket",
     },
     ruleHint: {
       "critical-fixable":
@@ -3291,6 +3292,8 @@ export const de: Messages = {
       "license-denied": "Ein Paket nutzt nur Lizenzen aus Ihrer Sperrliste.",
       "secret-found":
         "Ein kritisches oder hohes Secret in den geprüften Dateien, das niemand als ausgetauscht oder verworfen markiert hat. Standardmäßig aus.",
+      "deprecated-package":
+        "Ein Paket des geprüften Commits, das seine Registry als veraltet oder zurückgezogen führt (Modul Veraltete Pakete). Standardmäßig aus.",
     },
     deniedLicenses: "Gesperrte Lizenzen",
     deniedLicensesHint: "SPDX-IDs, durch Komma oder Zeilen getrennt, z. B. AGPL-3.0-only, SSPL-1.0.",

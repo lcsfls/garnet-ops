@@ -10,11 +10,11 @@ import { ProblemError } from "./problem.ts";
  * containers (ADR 0034) accept reports from agents on the organisation's servers. Both are off until an owner or admin
  * switches them on.
  */
-export const MODULES = ["websites", "hosts"] as const;
+export const MODULES = ["websites", "hosts", "deprecated"] as const;
 export type ModuleName = (typeof MODULES)[number];
 
 export async function modulesOf(organizationId: string): Promise<Record<ModuleName, boolean>> {
-  const [[websites], [hosts]] = await Promise.all([
+  const [[websites], [hosts], [deprecated]] = await Promise.all([
     db
       .select({ enabled: schema.exposureSettings.enabled })
       .from(schema.exposureSettings)
@@ -25,8 +25,18 @@ export async function modulesOf(organizationId: string): Promise<Record<ModuleNa
       .from(schema.hostSettings)
       .where(eq(schema.hostSettings.organizationId, organizationId))
       .limit(1),
+    // Deprecated and yanked packages (ADR 0051): asks package registries about package names.
+    db
+      .select({ enabled: schema.deprecationSettings.enabled })
+      .from(schema.deprecationSettings)
+      .where(eq(schema.deprecationSettings.organizationId, organizationId))
+      .limit(1),
   ]);
-  return { websites: websites?.enabled === true, hosts: hosts?.enabled === true };
+  return {
+    websites: websites?.enabled === true,
+    hosts: hosts?.enabled === true,
+    deprecated: deprecated?.enabled === true,
+  };
 }
 
 /** Answers 409 `module-off` for every route of a module that is switched off. */

@@ -113,6 +113,14 @@ export const organizationRoutes = new Hono<AppEnv>()
     }
     const now = new Date();
     const set = { enabled: input.enabled, enabledBy: actor.userId, enabledAt: now, updatedAt: now };
+    if (name === "deprecated") {
+      // Switching off stops every request to a registry at once; the settings and the answers already kept stay.
+      const d = schema.deprecationSettings;
+      await db
+        .insert(d)
+        .values({ organizationId: actor.organizationId, ...set })
+        .onConflictDoUpdate({ target: d.organizationId, set });
+    }
     if (name === "hosts") {
       // Hosts keep their keys while the module is off; the agent endpoints refuse until it is on again.
       const h = schema.hostSettings;

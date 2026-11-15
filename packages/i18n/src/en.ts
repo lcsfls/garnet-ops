@@ -3193,6 +3193,7 @@ export const en = {
       "high-fixable": "High vulnerability with a fix",
       "license-denied": "Licence not allowed",
       "secret-found": "Secret in the code",
+      "deprecated-package": "Deprecated or yanked package",
     },
     ruleHint: {
       "critical-fixable":
@@ -3202,6 +3203,8 @@ export const en = {
       "license-denied": "A package uses only licences from your deny list.",
       "secret-found":
         "A critical or high secret in the checked files that nobody marked as revoked or dismissed. Off by default.",
+      "deprecated-package":
+        "A package of the checked commit that its registry calls deprecated or yanked (module Deprecated packages). Off by default.",
     },
     deniedLicenses: "Denied licences",
     deniedLicensesHint: "SPDX ids, separated by commas or lines, e.g. AGPL-3.0-only, SSPL-1.0.",

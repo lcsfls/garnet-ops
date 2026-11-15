@@ -12,6 +12,7 @@ export const GATE_RULES = [
   "high-fixable",
   "license-denied",
   "secret-found",
+  "deprecated-package",
 ] as const;
 export type GateRule = (typeof GATE_RULES)[number];
 
@@ -25,6 +26,8 @@ export const GATE_DEFAULTS: Readonly<Record<GateRule, GateMode>> = Object.freeze
   "license-denied": "off",
   // Secret scanning (ADR 0049): off, because even "report" would turn a passing run into one with notes.
   "secret-found": "off",
+  // Deprecated and yanked packages (ADR 0051): off, like every rule added after a release (AGENTS.md rule 2).
+  "deprecated-package": "off",
 });
 
 export type GateResult = "passed" | "notes" | "blocked";
@@ -40,6 +43,8 @@ export interface GateFinding {
 export interface GatePackage {
   /** Licence expressions as syft reports them, e.g. "MIT" or "(MIT OR Apache-2.0)". */
   licenses: string[] | null;
+  /** Known to be deprecated or yanked by its registry (ADR 0051); absent when not known. */
+  deprecated?: boolean;
 }
 
 /** A secret in the checked commit's files that nobody closed as revoked or dismissed (ADR 0049). */
@@ -72,7 +77,7 @@ export function licenseDenied(expression: string, denied: ReadonlySet<string>): 
 }
 
 const RULE_MATCHES: Record<
-  Exclude<GateRule, "license-denied" | "secret-found">,
+  Exclude<GateRule, "license-denied" | "secret-found" | "deprecated-package">,
   (f: GateFinding) => boolean
 > = {
   "critical-fixable": (f) => f.fixable && (f.severity === "critical" || (f.cvssScore ?? 0) >= 9),
@@ -102,7 +107,9 @@ export function evaluateGate(input: {
         ? input.packages.filter((p) => (p.licenses ?? []).some((l) => licenseDenied(l, denied))).length
         : rule === "secret-found"
           ? (input.secrets ?? []).filter((s) => s.severity === "critical" || s.severity === "high").length
-          : input.findings.filter(RULE_MATCHES[rule]).length;
+          : rule === "deprecated-package"
+            ? input.packages.filter((p) => p.deprecated === true).length
+            : input.findings.filter(RULE_MATCHES[rule]).length;
     if (count > 0) matches[rule] = { count, mode };
   }
   const hits = Object.values(matches);

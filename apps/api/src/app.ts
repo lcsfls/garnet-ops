@@ -14,6 +14,7 @@ import { aiRoutes } from "./routes/ai.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { backupRoutes } from "./routes/backup.ts";
 import { codeRoutes } from "./routes/code.ts";
+import { deprecatedRoutes } from "./routes/deprecated.ts";
 import { directoryRoutes } from "./routes/directory.ts";
 import { earlyWarningRoutes } from "./routes/early-warnings.ts";
 import { exposureRoutes } from "./routes/exposure.ts";
@@ -139,6 +140,7 @@ const v1 = new Hono<AppEnv>()
   .route("/findings", findingRoutes)
   .route("/secrets", secretRoutes)
   .route("/code", codeRoutes)
+  .route("/deprecated", deprecatedRoutes)
   .route("/early-warnings", earlyWarningRoutes)
   .route("/fixes", fixRoutes)
   .route("/ai", aiRoutes)

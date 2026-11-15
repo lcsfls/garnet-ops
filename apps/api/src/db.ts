@@ -38,6 +38,8 @@ export const QUEUES = {
   backupBuild: "backup.build",
   /** The code viewer (ADR 0048): one job per request a person waits for, carrying the request's id only. */
   codeFetch: "code.fetch",
+  /** Deprecated and yanked packages (ADR 0051): ask the registries now, for one organisation. */
+  deprecatedCheck: "deprecated.check",
   /** Reading the open pull requests again (ADR 0032). */
   pullRequestRefresh: "pull-requests.refresh",
   /**

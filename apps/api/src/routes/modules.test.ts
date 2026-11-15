@@ -82,10 +82,12 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
     expect((await call("GET", "/api/v1/organization/modules", "viewer")).json).toEqual({
       websites: false,
       hosts: false,
+      deprecated: false,
     });
     expect(modulesOf((await call("GET", "/api/v1/me", "viewer")).json)).toEqual({
       websites: false,
       hosts: false,
+      deprecated: false,
     });
     for (const role of ["viewer", "member"]) {
       expect(
@@ -96,10 +98,11 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
       (await call("PUT", "/api/v1/organization/modules/unknown", "admin", { enabled: true })).status,
     ).toBe(404);
     const on = await call("PUT", "/api/v1/organization/modules/websites", "admin", { enabled: true });
-    expect(on).toEqual({ status: 200, json: { websites: true, hosts: false } });
+    expect(on).toEqual({ status: 200, json: { websites: true, hosts: false, deprecated: false } });
     expect(modulesOf((await call("GET", "/api/v1/me", "viewer")).json)).toEqual({
       websites: true,
       hosts: false,
+      deprecated: false,
     });
     const audits = await t.db.select().from(schema.auditLog).where(eq(schema.auditLog.organizationId, ORG));
     expect(audits.map((a) => [a.action, a.data])).toEqual([
@@ -140,6 +143,16 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
     ]);
   });
 
+  it("switches the deprecated packages module (ADR 0051) like the others", async () => {
+    expect(
+      (await call("PUT", "/api/v1/organization/modules/deprecated", "member", { enabled: true })).status,
+    ).toBe(403);
+    const on = await call("PUT", "/api/v1/organization/modules/deprecated", "admin", { enabled: true });
+    expect(on.json).toMatchObject({ deprecated: true });
+    const off = await call("PUT", "/api/v1/organization/modules/deprecated", "admin", { enabled: false });
+    expect(off.json).toMatchObject({ deprecated: false });
+  });
+
   it("switching website monitoring off switches stage 2 off and drops waiting runs", async () => {
     await t.db.insert(schema.exposureAsset).values({
       id: "exa_mod1",
@@ -161,7 +174,7 @@ describe.skipIf(!adminUrl)("modules (ADR 0033)", () => {
       trigger: "schedule",
     });
     const off = await call("PUT", "/api/v1/organization/modules/websites", "owner", { enabled: false });
-    expect(off).toEqual({ status: 200, json: { websites: false, hosts: false } });
+    expect(off).toEqual({ status: 200, json: { websites: false, hosts: false, deprecated: false } });
     const [asset] = await t.db
       .select()
       .from(schema.exposureAsset)

@@ -1,5 +1,12 @@
 import { pageSizeSchema } from "@garnetops/core/pagination";
-import { activeRepository, schema, visibleRepository } from "@garnetops/db";
+import {
+  activeRepository,
+  deprecatedSql,
+  deprecationView,
+  packageStatusMatch,
+  schema,
+  visibleRepository,
+} from "@garnetops/db";
 import { and, count, eq, ilike, like, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -26,6 +33,8 @@ const listQuery = z.object({
   repositoryId: z.string().max(40).optional(),
   /** "1" = only packages with open findings. */
   vulnerable: z.enum(["1"]).optional(),
+  /** "1" = only packages their registry calls deprecated or yanked (ADR 0051; nothing while the module is off). */
+  deprecated: z.enum(["1"]).optional(),
   /** Without a sort the list is by name and version. */
   sort: z.enum(["name", "type", "repository", "findings", "severity"]).optional(),
   dir: z.enum(["asc", "desc"]).optional(),
@@ -42,6 +51,7 @@ type Row = {
   repositoryName: string;
   openFindings: number;
   worstSeverityRank: number | null;
+  deprecation: { state: string; message: string | null } | null;
 };
 
 const spec: KeysetSpec<Row> = {
@@ -82,6 +92,8 @@ export const packageRoutes = new Hono<AppEnv>().get("/", async (c) => {
   const at = input.q ? input.q.lastIndexOf("@") : -1;
   const name = input.q && at > 0 ? input.q.slice(0, at) : input.q;
   const version = input.q && at > 0 ? input.q.slice(at + 1) : undefined;
+  const view = await deprecationView(db, actor.organizationId);
+  const pkg = { type: p.type, name: p.name, version: p.version };
   const where = and(
     eq(p.organizationId, actor.organizationId),
     visibleRepository(p.repositoryId, actor),
@@ -91,7 +103,9 @@ export const packageRoutes = new Hono<AppEnv>().get("/", async (c) => {
     version ? like(p.version, `${escapeLike(version)}%`) : undefined,
     input.repositoryId ? eq(p.repositoryId, input.repositoryId) : undefined,
     input.vulnerable ? sql`exists (select 1 from ${f} where ${openFor})` : undefined,
+    input.deprecated ? deprecatedSql(view, pkg) : undefined,
   );
+  const ps = schema.packageStatus;
   const sorted = input.sort ? sortSpec(SORTS[input.sort], input.dir, p.id) : null;
   const activeSpec = (sorted?.spec ?? spec) as KeysetSpec<Row & { sortKeys?: (string | number | Date)[] }>;
   const q = keysetQuery(activeSpec, input.cursor, input.pageSize);
@@ -109,6 +123,14 @@ export const packageRoutes = new Hono<AppEnv>().get("/", async (c) => {
         repositoryName: schema.repository.name,
         openFindings: sql<number>`(select count(*)::int from ${f} where ${openFor})`,
         worstSeverityRank: sql<number | null>`(select max(${f.severityRank}) from ${f} where ${openFor})`,
+        /** Added in 0.1.7: what the registry said, when it is deprecated or yanked and the module is on (ADR 0051). */
+        deprecation: view.enabled
+          ? sql<{
+              state: string;
+              message: string | null;
+            } | null>`(select jsonb_build_object('state', ${ps.state}, 'message', ${ps.message})
+              from ${ps} where ${packageStatusMatch(view, pkg)} and ${ps.state} in ('deprecated', 'yanked') limit 1)`
+          : sql<null>`null`,
       })
       .from(p)
       .innerJoin(schema.repository, eq(schema.repository.id, p.repositoryId))

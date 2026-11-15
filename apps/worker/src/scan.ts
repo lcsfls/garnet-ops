@@ -3,12 +3,13 @@ import { join, relative, sep } from "node:path";
 import { newId, scanErrorMessage } from "@garnetops/core";
 import {
   evaluateGate,
+  GATE_DEFAULTS,
   GATE_RULES,
   type GateMode,
   type GateRule,
   type GateSecret,
 } from "@garnetops/core/gates";
-import { schema } from "@garnetops/db";
+import { deprecatedPackages, schema } from "@garnetops/db";
 import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "./db.ts";
 import { env } from "./env.ts";
@@ -421,11 +422,30 @@ async function evaluateScanGate(
           fixable: p.fixedIn.length > 0,
         };
       }),
-    packages: (inventory?.packages ?? []).map((pkg) => ({ licenses: pkg.licenses })),
+    packages: await gatePackages(tx, repo.organizationId, inventory, modes),
     secrets,
     modes,
     deniedLicenses,
   });
+}
+
+/**
+ * The inventory as the gate sees it: licences, and whether the registry called a package deprecated or yanked (ADR 0051), asked
+ * only when that rule is on. A package not known yet (the registry is asked after the scan) does not count.
+ */
+async function gatePackages(
+  tx: Tx,
+  organizationId: string,
+  inventory: Inventory | null,
+  modes: Partial<Record<GateRule, GateMode>>,
+) {
+  const packages = inventory?.packages ?? [];
+  const rule = modes["deprecated-package"] ?? GATE_DEFAULTS["deprecated-package"];
+  const known = rule === "off" ? new Map() : await deprecatedPackages(tx, organizationId, packages);
+  return packages.map((pkg) => ({
+    licenses: pkg.licenses,
+    deprecated: known.has(`${pkg.type}\u0000${pkg.name}\u0000${pkg.version}`),
+  }));
 }
 
 async function insertGateRun(

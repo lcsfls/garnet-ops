@@ -17,6 +17,22 @@ const finding = (patch: Partial<GateFinding>): GateFinding => ({
 });
 
 describe("gate defaults", () => {
+  test("deprecated or yanked packages count only once the rule is on (ADR 0051)", () => {
+    const packages = [
+      { licenses: null, deprecated: true },
+      { licenses: null, deprecated: false },
+      { licenses: null },
+    ];
+    expect(evaluateGate({ findings: [], packages, modes: {}, deniedLicenses: [] }).result).toBe("passed");
+    expect(
+      evaluateGate({ findings: [], packages, modes: { "deprecated-package": "report" }, deniedLicenses: [] }),
+    ).toEqual({ result: "notes", matches: { "deprecated-package": { count: 1, mode: "report" } } });
+    expect(
+      evaluateGate({ findings: [], packages, modes: { "deprecated-package": "block" }, deniedLicenses: [] })
+        .result,
+    ).toBe("blocked");
+  });
+
   test("no rule blocks unless an admin says so (AGENTS.md rule 2)", () => {
     expect(GATE_DEFAULTS).toEqual({
       "critical-fixable": "report",
@@ -24,6 +40,7 @@ describe("gate defaults", () => {
       "high-fixable": "report",
       "license-denied": "off",
       "secret-found": "off",
+      "deprecated-package": "off",
     });
     const { result } = evaluateGate({
       findings: [finding({ severity: "critical", fixable: true, knownExploited: true })],

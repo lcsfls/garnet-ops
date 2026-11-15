@@ -380,7 +380,13 @@ export type GateResult = "passed" | "notes" | "blocked";
 export type GateMatches = Record<string, { count: number; mode: GateMode }>;
 
 export interface GateRuleState {
-  rule: "critical-fixable" | "known-exploited" | "high-fixable" | "license-denied" | "secret-found";
+  rule:
+    | "critical-fixable"
+    | "known-exploited"
+    | "high-fixable"
+    | "license-denied"
+    | "secret-found"
+    | "deprecated-package";
   mode: GateMode;
   defaultMode: GateMode;
   deniedLicenses?: string[];
