@@ -394,13 +394,13 @@ test("packages: the repositories page's filters, counts in the menu, and the lis
   page,
 }) => {
   const problems = watchForProblems(page);
-  const counts = (await (await page.request.get(`${E2E.publicUrl}/api/v1/packages/counts`)).json()) as Record<
-    string,
-    number
-  >;
+  type StatusCounts = { all: number; blocked: number; attention: number };
+  const counts = (await (
+    await page.request.get(`${E2E.publicUrl}/api/v1/packages/counts`)
+  ).json()) as StatusCounts;
   const repositories = (await (
     await page.request.get(`${E2E.publicUrl}/api/v1/repositories/counts`)
-  ).json()) as Record<string, number>;
+  ).json()) as StatusCounts;
   expect(counts.all).toBe(SEEDED.packages);
   expect(counts.blocked).toBeGreaterThan(0);
   await page.goto("/packages");
