@@ -8,6 +8,15 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Deprecated and yanked packages, as a module** ([docs/deprecated-packages.md](docs/deprecated-packages.md), ADR 0051): off by
+  default. Once an admin switches it on, GarnetOps asks the npm registry, PyPI and crates.io (or your own registries, also in
+  your own network) which of your packages their maintainers deprecated or yanked, and shows the maintainers' message on the
+  Packages page (filter **Deprecated or yanked**) and on each repository. Only package names are sent; npm scopes and name
+  patterns you exclude never are. Not findings: no severity, no change to grades.
+- Quality gate rule **Deprecated or yanked package**, off by default.
+
 ## [0.1.6] - 2026-11-12
 <!-- title: The code of a finding, and the repository's own gitleaks configuration on request -->
 

@@ -3498,6 +3498,18 @@ export const en = {
     moduleHostsOffText:
       "Agents can no longer report and nothing is matched. Hosts, containers and findings are kept, and the agents report again once you switch the module on.",
     moduleHostsOpen: "Open Agents",
+    moduleDeprecatedTitle: "Deprecated packages",
+    moduleDeprecatedText:
+      "Asks the package registries (npm, PyPI, crates.io, or your own) which packages in your repositories their maintainers deprecated or withdrew (yanked), with their message. Shown on the Packages page and on each repository; nothing becomes a finding.",
+    moduleDeprecatedOffNote:
+      "Off by default: once it is on, the names of your packages are sent to the registries. Names you exclude never are.",
+    moduleDeprecatedOn:
+      "Deprecated packages is on. The registries are asked after the next scan, or now from its settings.",
+    moduleDeprecatedOffDone: "Deprecated packages is off. No registry is asked any more.",
+    moduleDeprecatedOffTitle: "Switch off deprecated packages?",
+    moduleDeprecatedOffText:
+      "No registry is asked any more and nothing is shown. The settings are kept for when you switch it on again.",
+    moduleDeprecatedOpen: "Show deprecated packages",
     helpModulesTitle: "What a module changes",
     helpModulesText:
       "A module that is off does nothing; only owners and admins see it in the menu, to switch it on. Switching one on or off is in the audit log, and data stays when you switch it off.",
@@ -4122,6 +4134,7 @@ export const en = {
       secret_dismissed: "Secret marked as not a secret",
       secret_reopened: "Secret reopened",
       secret_repo_config_changed: "Repository's gitleaks configuration switched on or off",
+      deprecated_settings_changed: "Deprecated packages settings changed",
       secret_ignore_rule_created: "Secret ignore rule added",
       secret_ignore_rule_deleted: "Secret ignore rule removed",
       repository_secret_history_enabled: "History check for secrets switched on",
@@ -4618,6 +4631,34 @@ export const en = {
     passkey: "Confirm with a passkey",
     passwordAccepted: "Password accepted. Enter the current code from your authenticator app.",
     confirm: "Confirm",
+  },
+  deprecated: {
+    settingsTitle: "Registries and names that stay inside",
+    settingsText:
+      "Each package name is sent to the registry of its ecosystem: the public one, or your own. Excluded names are never sent and show as not checked.",
+    registry: { npm: "npm registry", pypi: "PyPI", crates: "crates.io index" },
+    registryHint:
+      "Empty for the public registry; your own as an https:// address (private addresses allowed).",
+    excluded: "Never send",
+    excludedHint: "One per line: an npm scope (@acme) or a name pattern with * (acme-*).",
+    save: "Save",
+    saved: "Saved. Applies to the next check.",
+    checkNow: "Check now",
+    checkQueued: "The registries are asked now.",
+    checkRecent: "The registries were asked a few minutes ago.",
+    lastRun:
+      "Last asked {when}: {asked, plural, =0 {no name was due} one {# name} other {# names}}, {failed, plural, =0 {none failed} other {# failed}}, {skipped, plural, =0 {none excluded} other {# not sent}}.",
+    problem: "{registry} did not answer ({code}).",
+    neverRun: "Not asked yet.",
+    filter: "Deprecated or yanked",
+    deprecated: "Deprecated",
+    yanked: "Yanked",
+    cardTitle: "Deprecated packages",
+    cardDescription:
+      "Packages their registry calls deprecated or withdrawn (yanked), with the maintainers' message.",
+    cardNone: "None known. Packages are checked after each scan.",
+    cardCount: "{count, plural, one {# package} other {# packages}}",
+    cardShowAll: "Show on the Packages page",
   },
   codeView: {
     title: "Code",

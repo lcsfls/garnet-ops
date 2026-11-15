@@ -5,6 +5,7 @@
   import Card from "../../Card.svelte";
   import CardHeader from "../../CardHeader.svelte";
   import Alert from "../../ui/Alert.svelte";
+  import DeprecatedSettings from "./DeprecatedSettings.svelte";
   import ModuleCard from "./ModuleCard.svelte";
 
   /**
@@ -16,6 +17,7 @@
   const canEdit = $derived(isAdmin(me));
   const websites = $derived(me.organization.modules?.websites === true);
   const hosts = $derived(me.organization.modules?.hosts === true);
+  const deprecated = $derived(me.organization.modules?.deprecated === true);
 </script>
 
 <Card>
@@ -24,6 +26,8 @@
     {#if !canEdit}<Alert tone="info">{t("settings.modulesViewerHint")}</Alert>{/if}
     <ModuleCard module="websites" on={websites} {canEdit} openHref="/websites" />
     <ModuleCard module="hosts" on={hosts} {canEdit} openHref="/hosts" />
+    <ModuleCard module="deprecated" on={deprecated} {canEdit} openHref="/packages?deprecated=1" />
+    {#if deprecated}<DeprecatedSettings {me} />{/if}
   </div>
 </Card>
 

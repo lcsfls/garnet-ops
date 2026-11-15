@@ -10,6 +10,7 @@
   import QueryStatus from "#lib/components/QueryStatus.svelte";
   import RepositoryReportCard from "#lib/components/reports/RepositoryReportCard.svelte";
   import ActivityCard from "#lib/components/repositories/ActivityCard.svelte";
+  import DeprecatedCard from "#lib/components/repositories/DeprecatedCard.svelte";
   import GradeSummary from "#lib/components/repositories/GradeSummary.svelte";
   import PatchHistory from "#lib/components/repositories/PatchHistory.svelte";
   import RepositoryFacts from "#lib/components/repositories/RepositoryFacts.svelte";
@@ -130,6 +131,7 @@
     </div>
     <div class="grid items-start gap-4 @wide:grid-cols-2">
       <SecretsCard repo={data} {me} />
+      {#if me.organization.modules?.deprecated}<DeprecatedCard repo={data} />{/if}
       <WriteAccessCard repo={data} {me} />
     </div>
     <WebhookCard repositoryId={id} {me} />

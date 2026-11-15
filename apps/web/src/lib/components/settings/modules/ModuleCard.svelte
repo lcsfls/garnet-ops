@@ -15,9 +15,10 @@
     on,
     canEdit,
     openHref,
-  }: { module: "websites" | "hosts"; on: boolean; canEdit: boolean; openHref: string } = $props();
+  }: { module: "websites" | "hosts" | "deprecated"; on: boolean; canEdit: boolean; openHref: string } =
+    $props();
 
-  const key = $derived(module === "websites" ? "Websites" : "Hosts");
+  const key = $derived(module === "websites" ? "Websites" : module === "hosts" ? "Hosts" : "Deprecated");
   const queryClient = useQueryClient();
   let confirmOff = $state(false);
 
@@ -45,7 +46,11 @@
     <div class="flex flex-wrap gap-2">
       {#if on}
         <ButtonLink href={openHref}>
-          {module === "websites" ? t("settings.moduleOpen") : t("settings.moduleHostsOpen")}
+          {module === "websites"
+            ? t("settings.moduleOpen")
+            : module === "hosts"
+              ? t("settings.moduleHostsOpen")
+              : t("settings.moduleDeprecatedOpen")}
         </ButtonLink>
         <Button variant="secondary" disabled={save.isPending} onclick={() => (confirmOff = true)}>
           {t("settings.moduleSwitchOff")}

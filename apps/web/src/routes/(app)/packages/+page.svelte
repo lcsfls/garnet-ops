@@ -9,6 +9,7 @@
   import RepositoryLink from "#lib/components/RepositoryLink.svelte";
   import SearchInput from "#lib/components/SearchInput.svelte";
   import SortHeader, { type SortDir } from "#lib/components/SortHeader.svelte";
+  import Badge from "#lib/components/ui/Badge.svelte";
   import Checkbox from "#lib/components/ui/Checkbox.svelte";
   import Select from "#lib/components/ui/Select.svelte";
   import SeverityBadge from "#lib/components/ui/SeverityBadge.svelte";
@@ -30,12 +31,16 @@
     repositoryName: string;
     openFindings: number;
     worstSeverityRank: number | null;
+    /** What the registry said, when deprecated or yanked and the module is on (ADR 0051). */
+    deprecation: { state: "deprecated" | "yanked"; message: string | null } | null;
   }
 
   const severityOfRank = (rank: number): Severity =>
     SEVERITIES.find((s) => SEVERITY_RANK[s] === rank) ?? "unknown";
 
   const search: PackageSearch = $derived(parseSearch(packageSearch, new URL(page.url.href)));
+  /** Deprecated and yanked packages (ADR 0051) show only while the module is on. */
+  const deprecatedOn = $derived(page.data.me?.organization.modules?.deprecated === true);
   const list = createQuery(() => ({
     queryKey: ["packages", search],
     queryFn: () => api<Page<PackageRow>>(`/packages${toQuery(search)}`),
@@ -77,6 +82,15 @@
     />
     {t("packages.vulnerableOnly")}
   </label>
+  {#if deprecatedOn}
+    <label class="flex items-center gap-2 text-sm whitespace-nowrap">
+      <Checkbox
+        checked={search.deprecated === "1"}
+        onchange={(e) => setSearch({ deprecated: e.currentTarget.checked ? "1" : undefined })}
+      />
+      {t("deprecated.filter")}
+    </label>
+  {/if}
   <SearchInput
     class="ml-auto"
     label={t("packages.search")}
@@ -113,7 +127,15 @@
     <tbody>
       {#each list.data?.items ?? [] as p (p.id)}
         <tr class="border-b align-top last:border-0">
-          <td class="px-5 py-2.5 font-mono text-sm break-all">{p.name}</td>
+          <td class="px-5 py-2.5 text-sm" data-testid="package-name">
+            <span class="font-mono break-all">{p.name}</span>
+            {#if p.deprecation}
+              <span class="mt-1 flex flex-wrap items-baseline gap-1.5" data-testid="package-deprecation">
+                <Badge tone="neutral">{t(`deprecated.${p.deprecation.state}`)}</Badge>
+                {#if p.deprecation.message}<span class="text-muted-foreground">{p.deprecation.message}</span>{/if}
+              </span>
+            {/if}
+          </td>
           <td class="px-3 py-2.5 font-mono text-sm break-all">{p.version || "–"}</td>
           <td class="hidden px-3 py-2.5 text-sm @3xl:table-cell">{p.type}</td>
           <td class="px-3 py-2.5">

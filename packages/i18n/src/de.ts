@@ -3597,6 +3597,18 @@ export const de: Messages = {
     moduleHostsOffText:
       "Agents können nicht mehr melden und es wird nichts abgeglichen. Hosts, Container und Befunde bleiben erhalten, und die Agents melden wieder, sobald Sie das Modul einschalten.",
     moduleHostsOpen: "Agents öffnen",
+    moduleDeprecatedTitle: "Veraltete Pakete",
+    moduleDeprecatedText:
+      "Fragt die Paket-Registries (npm, PyPI, crates.io oder Ihre eigene), welche Pakete Ihrer Repositorys von ihren Maintainern als veraltet markiert oder zurückgezogen (yanked) wurden, mit deren Hinweis. Angezeigt auf der Packages-Seite und an jedem Repository; daraus wird kein Finding.",
+    moduleDeprecatedOffNote:
+      "Standardmäßig aus: Ist es an, gehen die Namen Ihrer Pakete an die Registries. Ausgenommene Namen nie.",
+    moduleDeprecatedOn:
+      "Veraltete Pakete ist an. Die Registries werden nach dem nächsten Scan gefragt, oder sofort aus den Einstellungen.",
+    moduleDeprecatedOffDone: "Veraltete Pakete ist aus. Keine Registry wird mehr gefragt.",
+    moduleDeprecatedOffTitle: "Veraltete Pakete ausschalten?",
+    moduleDeprecatedOffText:
+      "Keine Registry wird mehr gefragt und nichts mehr angezeigt. Die Einstellungen bleiben für das nächste Einschalten erhalten.",
+    moduleDeprecatedOpen: "Veraltete Pakete anzeigen",
     helpModulesTitle: "Was ein Modul ändert",
     helpModulesText:
       "Ein ausgeschaltetes Modul tut nichts; nur Owner und Admins sehen es im Menü, um es einzuschalten. Ein- und Ausschalten steht im Audit-Log, und die Daten bleiben beim Ausschalten erhalten.",
@@ -4234,6 +4246,7 @@ export const de: Messages = {
       secret_dismissed: "Secret als kein Secret markiert",
       secret_reopened: "Secret wieder geöffnet",
       secret_repo_config_changed: "gitleaks-Konfiguration des Repositorys ein- oder ausgeschaltet",
+      deprecated_settings_changed: "Einstellungen für veraltete Pakete geändert",
       secret_ignore_rule_created: "Ausnahmeregel für Secrets hinzugefügt",
       secret_ignore_rule_deleted: "Ausnahmeregel für Secrets entfernt",
       repository_secret_history_enabled: "Prüfung der Historie auf Secrets eingeschaltet",
@@ -4738,6 +4751,34 @@ export const de: Messages = {
     passwordAccepted: "Passwort akzeptiert. Geben Sie den aktuellen Code aus Ihrer Authenticator-App ein.",
     passkey: "Mit Passkey bestätigen",
     confirm: "Bestätigen",
+  },
+  deprecated: {
+    settingsTitle: "Registries und Namen, die im Haus bleiben",
+    settingsText:
+      "Jeder Paketname geht an die Registry seines Ökosystems: die öffentliche oder Ihre eigene. Ausgenommene Namen werden nie gesendet und erscheinen als nicht geprüft.",
+    registry: { npm: "npm-Registry", pypi: "PyPI", crates: "crates.io-Index" },
+    registryHint:
+      "Leer für die öffentliche Registry; Ihre eigene als https://-Adresse (private Adressen erlaubt).",
+    excluded: "Nie senden",
+    excludedHint: "Eins pro Zeile: ein npm-Scope (@acme) oder ein Namensmuster mit * (acme-*).",
+    save: "Speichern",
+    saved: "Gespeichert. Gilt ab der nächsten Prüfung.",
+    checkNow: "Jetzt prüfen",
+    checkQueued: "Die Registries werden jetzt gefragt.",
+    checkRecent: "Die Registries wurden vor wenigen Minuten gefragt.",
+    lastRun:
+      "Zuletzt gefragt {when}: {asked, plural, =0 {kein Name war fällig} one {# Name} other {# Namen}}, {failed, plural, =0 {keiner fehlgeschlagen} other {# fehlgeschlagen}}, {skipped, plural, =0 {keiner ausgenommen} other {# nicht gesendet}}.",
+    problem: "{registry} hat nicht geantwortet ({code}).",
+    neverRun: "Noch nicht gefragt.",
+    filter: "Veraltet oder zurückgezogen",
+    deprecated: "Veraltet",
+    yanked: "Zurückgezogen",
+    cardTitle: "Veraltete Pakete",
+    cardDescription:
+      "Pakete, die ihre Registry als veraltet oder zurückgezogen (yanked) führt, mit dem Hinweis der Maintainer.",
+    cardNone: "Keine bekannt. Pakete werden nach jedem Scan geprüft.",
+    cardCount: "{count, plural, one {# Paket} other {# Pakete}}",
+    cardShowAll: "Auf der Packages-Seite zeigen",
   },
   codeView: {
     title: "Code",

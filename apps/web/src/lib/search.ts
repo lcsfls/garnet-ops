@@ -144,6 +144,8 @@ export const packageSearch = z.object({
   q: text(200),
   repositoryId: text(40),
   vulnerable: flag,
+  /** Only packages their registry calls deprecated or yanked (ADR 0051). */
+  deprecated: flag,
   cursor: text(512),
   pageSize,
   sort: sortOf(PACKAGE_SORTS),

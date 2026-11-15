@@ -4540,6 +4540,79 @@ test.describe("hosts and containers (ADR 0034)", () => {
   });
 });
 
+test("deprecated packages: a module that asks only the registries it is given, and shows the maintainers' message (ADR 0051)", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  const REPO = "repo_e2eseeded000000001";
+  await signedInAt("now");
+  await page.goto("/settings?section=modules");
+  const card = page.getByTestId("module-deprecated");
+  await expect(card).toContainText("Off");
+  await expect(card).toContainText("Names you exclude never are.");
+  await card.getByRole("button", { name: "Switch on" }).click();
+  await expect(card).toContainText("On");
+
+  // Own registries everywhere (a name that never resolves): nothing leaves the test, and excluded names stay inside.
+  const settings = page.getByTestId("deprecated-settings");
+  await expect(settings).toContainText("Not asked yet.");
+  for (const label of ["npm registry", "PyPI", "crates.io index"]) {
+    await settings.getByLabel(label).fill("https://registry.example.test/mirror");
+  }
+  await settings.getByLabel("Never send").fill("@acme\nacme-*");
+  await settings.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved. Applies to the next check.")).toBeVisible();
+  await settings.getByLabel("npm registry").fill("http://registry.example.test");
+  await settings.getByRole("button", { name: "Save" }).click();
+  await expect(settings).toContainText("https://");
+  await settings.getByLabel("npm registry").fill("https://registry.example.test/mirror");
+
+  // What the registry said, as the worker keeps it for this organisation's own registry.
+  const [row] = await sql<{ org: string }>("select organization_id as org from repository where id = $1", [
+    REPO,
+  ]);
+  const org = row?.org as string;
+  await sql(
+    `insert into repository_package (id, organization_id, repository_id, scan_id, name, version, type)
+     values ('pkg_e2edep1', $1, $2, 'scan_x', 'rimraf', '2.7.1', 'npm'),
+            ('pkg_e2edep2', $1, $2, 'scan_x', 'requests', '2.0.0', 'python')`,
+    [org, REPO],
+  );
+  await sql(
+    `insert into package_status (scope, ecosystem, name, version, state, message, checked_at) values
+       ($1, 'npm', 'rimraf', '2.7.1', 'deprecated', 'Rimraf versions prior to v4 are no longer supported <b>x</b>', now()),
+       ($1, 'pypi', 'requests', '2.0.0', 'yanked', null, now())`,
+    [org],
+  );
+  try {
+    await page.goto("/packages?deprecated=1");
+    const names = page.getByTestId("package-name");
+    await expect(names).toHaveCount(2);
+    const rimraf = names.filter({ hasText: "rimraf" });
+    await expect(rimraf.getByTestId("package-deprecation")).toContainText("Deprecated");
+    // The message is text: the tag shows as typed, it is not markup.
+    await expect(rimraf.getByTestId("package-deprecation")).toContainText("no longer supported <b>x</b>");
+    await expect(names.filter({ hasText: "requests" })).toContainText("Yanked");
+
+    await page.goto(`/repositories/${REPO}`);
+    const repoCard = page.getByTestId("repository-deprecated");
+    await expect(repoCard).toContainText("2 packages");
+    await expect(repoCard).toContainText("rimraf@2.7.1");
+
+    // The gate rule is there, and off.
+    await page.goto("/gates");
+    await expect(page.getByText("Deprecated or yanked package").first()).toBeVisible();
+  } finally {
+    await sql("delete from repository_package where id in ('pkg_e2edep1', 'pkg_e2edep2')");
+    await sql("delete from package_status where scope = $1", [org]);
+    await page.goto("/settings?section=modules");
+    await page.getByTestId("module-deprecated").getByRole("button", { name: "Switch off" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Switch off" }).click();
+    await expect(page.getByTestId("module-deprecated")).toContainText("Off");
+  }
+  expect(problems).toEqual([]);
+});
+
 test.describe("secrets (ADR 0049)", () => {
   const REPO = "repo_e2eseeded000000001";
   const insertSecret = (id: string, rule: string, severity: string, rank: number, tree: boolean) =>
