@@ -95,6 +95,8 @@ export const BACKUP_EXCLUDED_TABLES: ReadonlySet<string> = new Set([
   "worker_heartbeat",
   // Code a person viewed (ADR 0048): never kept beyond the hand-over, never in a backup.
   "code_request",
+  // What package registries said (ADR 0051): a cache, asked again within a day.
+  "package_status",
   "updater_journal_cursor",
 ]);
 

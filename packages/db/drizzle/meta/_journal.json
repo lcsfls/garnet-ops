@@ -386,6 +386,13 @@
       "when": 1794446462636,
       "tag": "0054_code_request",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794752212877,
+      "tag": "0055_deprecated_packages",
+      "breakpoints": true
     }
   ]
 }

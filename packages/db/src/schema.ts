@@ -3332,6 +3332,56 @@ export const hostSettings = pgTable("host_settings", {
   updatedAt: updatedAt(),
 });
 
+/**
+ * Deprecated and yanked packages (ADR 0051), a module: off by default, because it asks package registries about package names.
+ * `registries` replaces a public registry by the organisation's own (https only); `excluded` names npm scopes and name patterns
+ * that are never sent.
+ */
+export const deprecationSettings = pgTable("deprecation_settings", {
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  enabledBy: text("enabled_by").references(() => user.id, { onDelete: "set null" }),
+  enabledAt: timestamp("enabled_at", { withTimezone: true }),
+  registries: jsonb("registries")
+    .$type<{ npm?: string | null; pypi?: string | null; crates?: string | null }>()
+    .notNull()
+    .default({}),
+  excluded: jsonb("excluded").$type<string[]>().notNull().default([]),
+  /** The last run: when, how many names were asked, how many failed, and why a whole registry did not answer. */
+  lastRun: jsonb("last_run").$type<{
+    at: string;
+    asked: number;
+    failed: number;
+    skipped: number;
+    problems: Record<string, string>;
+  }>(),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * What a registry said about one package version (ADR 0051), kept for 24 hours. `scope` is `public` for the public registries'
+ * answers (shared by the installation) or the organisation's id for answers of its own registry (never shared).
+ */
+export const packageStatus = pgTable(
+  "package_status",
+  {
+    scope: text("scope").notNull(),
+    ecosystem: text("ecosystem", { enum: ["npm", "pypi", "crates"] }).notNull(),
+    name: text("name").notNull(),
+    version: text("version").notNull(),
+    state: text("state", { enum: ["deprecated", "yanked", "current", "unknown"] }).notNull(),
+    /** The registry's message (npm) or reason (PyPI), cleaned; never a link to follow. */
+    message: text("message"),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.scope, t.ecosystem, t.name, t.version] }),
+    index("package_status_checked_idx").on(t.checkedAt),
+  ],
+);
+
 /** A one-time code a host enrols with: only its SHA-256 is stored, valid for a day and one host. */
 export const agentEnrolment = pgTable(
   "agent_enrolment",
