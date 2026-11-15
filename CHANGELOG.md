@@ -8,6 +8,17 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Packages: the filters of the Repositories page, and an export** ([docs/packages.md](docs/packages.md)): **All**,
+  **Critical**, **High** and **No critical or high** by the worst open finding, each with its number; the grade each package
+  gives by the repository grade rules (a column, a sort and a filter); packages of repositories set aside on request; a
+  filter by package type. **Export** downloads the list as filtered as CSV, Excel, PDF or text.
+- **Counts in the menu for Repositories and Packages**: how many have an open critical or high finding, the same numbers as
+  the pages' **Critical** and **High**.
+- **Pull requests**: each gate filter says how many pull requests it shows.
+- **Quality gates → Recent runs**: filter by result (with the number of each) and by repository.
+
 ## [0.1.7] - 2026-11-15
 <!-- title: Deprecated and yanked packages, as a module -->
 

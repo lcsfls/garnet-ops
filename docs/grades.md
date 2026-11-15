@@ -57,6 +57,8 @@ F and E vermilion, D orange, C amber, B grey. The letter is always shown; colour
   search filters by one grade or by "Not graded", with the number in each.
 - The page of a repository shows the grade and its reason under the title.
 - **How grades work** above the table repeats the rules.
+- **Packages** (0.1.8): each package gets the grade its own open findings give by the same rules, with a filter and a
+  sort, so you see which packages give a repository its grade ([packages.md](packages.md)).
 
 ## For scripts
 

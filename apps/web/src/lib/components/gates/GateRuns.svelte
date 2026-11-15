@@ -4,31 +4,51 @@
   import { formatDateTime, formatRelative } from "../../format.ts";
   import { t } from "../../i18n.svelte.ts";
   import { type GateSearch, toQuery } from "../../search.ts";
-  import type { GateRunRow, Page } from "../../types.ts";
+  import type { GateRunRow, Page, RepositoryRow } from "../../types.ts";
   import Card from "../Card.svelte";
   import CardHeader from "../CardHeader.svelte";
   import GateBadge from "../GateBadge.svelte";
   import Pagination from "../Pagination.svelte";
   import QueryStatus from "../QueryStatus.svelte";
   import RepositoryLink from "../RepositoryLink.svelte";
+  import Segmented from "../Segmented.svelte";
+  import Select from "../ui/Select.svelte";
   import { gateReason } from "./gate-reason.ts";
 
-  /** The latest gate runs, newest first. */
+  /** The latest gate runs, newest first; by result (with counts) and repository, as on the repositories page. */
   let {
     search,
     onCursor,
     onPageSize,
+    onFilter,
   }: {
     search: GateSearch;
     onCursor: (cursor: string | undefined) => void;
     onPageSize: (pageSize: GateSearch["pageSize"]) => void;
+    onFilter: (patch: Pick<GateSearch, "result" | "runsRepositoryId">) => void;
   } = $props();
 
+  const RESULTS = ["all", "passed", "notes", "blocked"] as const;
+  const filters = $derived({ result: search.result, repositoryId: search.runsRepositoryId });
   const runs = createQuery(() => ({
-    queryKey: ["gate-runs", search.cursor, search.pageSize],
+    queryKey: ["gate-runs", search.cursor, search.pageSize, filters],
     queryFn: () =>
-      api<Page<GateRunRow>>(`/gates/runs${toQuery({ cursor: search.cursor, pageSize: search.pageSize })}`),
+      api<Page<GateRunRow>>(
+        `/gates/runs${toQuery({ cursor: search.cursor, pageSize: search.pageSize, ...filters })}`,
+      ),
     placeholderData: keepPreviousData,
+  }));
+  const counts = createQuery(() => ({
+    queryKey: ["gate-run-counts", filters.repositoryId],
+    queryFn: () =>
+      api<Record<(typeof RESULTS)[number], number>>(
+        `/gates/runs/counts${toQuery({ repositoryId: filters.repositoryId })}`,
+      ),
+    placeholderData: keepPreviousData,
+  }));
+  const repositories = createQuery(() => ({
+    queryKey: ["repositories", { pageSize: 100 }],
+    queryFn: () => api<Page<RepositoryRow>>("/repositories?pageSize=100"),
   }));
 
   function duration(run: GateRunRow) {
@@ -42,9 +62,34 @@
 
 <Card>
   <CardHeader title={t("gates.runsTitle")} description={t("gates.runsDescription")} />
+  <div class="flex flex-wrap items-center gap-3 px-5 pb-4">
+    <Segmented
+      label={t("gates.resultFilter")}
+      value={search.result ?? "all"}
+      options={RESULTS.map((r) => ({
+        value: r,
+        label: r === "all" ? t("pullRequests.gateAll") : t(`gates.result.${r}`),
+        count: counts.data ? counts.data[r] : null,
+      }))}
+      onChange={(result) => onFilter({ result: result === "all" ? undefined : result })}
+    />
+    <Select
+      aria-label={t("gates.runsRepository")}
+      value={search.runsRepositoryId ?? ""}
+      onchange={(e) => onFilter({ runsRepositoryId: e.currentTarget.value || undefined })}
+      class="max-w-56"
+    >
+      <option value="">{t("findings.allRepositories")}</option>
+      {#each repositories.data?.items ?? [] as r (r.id)}
+        <option value={r.id}>{r.name}</option>
+      {/each}
+    </Select>
+  </div>
   <QueryStatus query={runs} />
   {#if runs.data && runs.data.items.length === 0}
-    <p class="px-5 pb-6 text-muted-foreground">{t("gates.runsEmpty")}</p>
+    <p class="px-5 pb-6 text-muted-foreground">
+      {filters.result || filters.repositoryId ? t("gates.runsEmptyFiltered") : t("gates.runsEmpty")}
+    </p>
   {/if}
   {#if runs.data && runs.data.items.length > 0}
     <table class="w-full text-left">

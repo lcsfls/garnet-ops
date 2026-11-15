@@ -30,11 +30,23 @@ const ruleBody = z.object({
     .optional(),
 });
 
-const runsQuery = z.object({
+const runsFilter = z.object({
+  repositoryId: z.string().max(40).optional(),
+  /** Added in 0.1.8: only runs with this result. */
+  result: z.enum(["passed", "notes", "blocked"]).optional(),
+});
+const runsQuery = runsFilter.extend({
   cursor: z.string().optional(),
   pageSize: pageSizeSchema,
-  repositoryId: z.string().max(40).optional(),
 });
+
+const runsWhere = (actor: Viewer, input: z.infer<typeof runsFilter>) =>
+  and(
+    eq(run.organizationId, actor.organizationId),
+    visibleRepository(run.repositoryId, actor),
+    input.repositoryId ? eq(run.repositoryId, input.repositoryId) : undefined,
+    input.result ? eq(run.result, input.result) : undefined,
+  );
 
 type RunRow = { id: string; createdAt: Date } & Record<string, unknown>;
 const runSpec: KeysetSpec<RunRow> = {
@@ -128,11 +140,7 @@ export const gateRoutes = new Hono<AppEnv>()
   .get("/runs", async (c) => {
     const actor = c.get("actor");
     const input = runsQuery.parse(c.req.query());
-    const where = and(
-      eq(run.organizationId, actor.organizationId),
-      visibleRepository(run.repositoryId, actor),
-      input.repositoryId ? eq(run.repositoryId, input.repositoryId) : undefined,
-    );
+    const where = runsWhere(actor, input);
     const q = keysetQuery(runSpec, input.cursor, input.pageSize);
     const [rows, totalRow] = await Promise.all([
       db
@@ -162,6 +170,23 @@ export const gateRoutes = new Hono<AppEnv>()
     return c.json(
       toPage(runSpec, q, rows, totalRow[0]?.n ?? 0, input.pageSize, Boolean(input.cursor), (r) => r),
     );
+  })
+  /** Runs per result over the other filters, for the toggles of the runs list (0.1.8). */
+  .get("/runs/counts", async (c) => {
+    const actor = c.get("actor");
+    const input = runsFilter.parse(c.req.query());
+    const rows = await db
+      .select({ result: run.result, n: count() })
+      .from(run)
+      .where(runsWhere(actor, { ...input, result: undefined }))
+      .groupBy(run.result);
+    const of = (result: string) => rows.find((r) => r.result === result)?.n ?? 0;
+    return c.json({
+      all: rows.reduce((sum, r) => sum + r.n, 0),
+      passed: of("passed"),
+      notes: of("notes"),
+      blocked: of("blocked"),
+    });
   })
   /** The latest gate result per repository, for the repositories list. */
   .get("/latest", async (c) => {

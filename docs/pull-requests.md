@@ -29,6 +29,8 @@ settings ([fix-prs.md](fix-prs.md)), else from the host name (`github.com`, `cod
 | Being checked … | a check of that commit is queued or running |
 | Not checked | no gate run for that commit yet |
 
+Each of these filters says how many pull requests it shows (with the repository and search applied).
+
 **Check now** (members and above) checks the pull request's head (`refs/pull/<number>/head`) exactly as a CI pipeline
 would: the same rules and the same result, and nothing is written to the pull request. A check that is already waiting for
 that commit is reused. Every request is in the audit log (`gate.check_requested`).
@@ -44,7 +46,8 @@ that commit is reused. Every request is in the audit log (`gate.check_requested`
 ## API
 
 - `GET /api/v1/pull-requests` (`repositoryId`, `gate` = `passed` | `notes` | `blocked` | `checking` | `none`, `q`):
-  at most 500, most recently updated first; `truncated` says whether there are more.
+  at most 500, most recently updated first; `truncated` says whether there are more; `counts` (since 0.1.8) how many of
+  them each `gate` filter shows, with `all`.
 - `GET /api/v1/pull-requests/sources`: per repository when it was last read and the problem code, if any.
 - `POST /api/v1/pull-requests/refresh`: read again (members and above, rate limited).
 - `POST /api/v1/pull-requests/{id}/check`: check the head commit (members and above, rate limited); answers the `scanId`.

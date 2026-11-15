@@ -287,6 +287,12 @@ describe.skipIf(!adminUrl)("private repositories and personal connections", () =
     const counts = await call("GET", "/api/v1/findings/counts", SAM);
     expect(counts.json?.open).toMatchObject({ critical: 1 });
     expect((await call("GET", "/api/v1/findings/counts", ALEX)).json?.open).toMatchObject({ critical: 2 });
+    // The counts behind the toggles and the menu (0.1.8) count only what the person sees.
+    expect((await call("GET", "/api/v1/packages/counts", SAM)).json).toMatchObject({ all: 1, blocked: 1 });
+    expect((await call("GET", "/api/v1/packages/counts", ALEX)).json).toMatchObject({ all: 2, blocked: 2 });
+    expect((await call("GET", "/api/v1/packages/grades", SAM)).json).toMatchObject({ E: 1 });
+    expect((await call("GET", "/api/v1/gates/runs/counts", SAM)).json?.all).toBe(1);
+    expect((await call("GET", "/api/v1/gates/runs/counts", ALEX)).json?.all).toBe(2);
   });
 
   it("answers 404 for the ids of someone else's private repository and what belongs to it", async () => {

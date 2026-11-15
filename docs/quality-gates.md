@@ -64,6 +64,13 @@ no write access to your forge.
 If GarnetOps uses its own certificate authority (`GARNETOPS_TLS=internal`), give the runner
 its root certificate (`curl --cacert root.crt …`) or use a certificate the runner trusts.
 
+## Recent runs
+
+**Recent runs** on the Quality gates page lists every scan and pipeline check with its result, newest first. Filter by result
+(**Passed**, **With notes**, **Blocked**, each with its number) and by repository. The API is
+`GET /api/v1/gates/runs` (`result`, `repositoryId`, `cursor`, `pageSize`) and `GET /api/v1/gates/runs/counts` (`repositoryId`):
+`all`, `passed`, `notes`, `blocked`.
+
 ## What a check does
 
 - `POST /api/v1/gate/checks` with `ref` (a branch, tag or pull request ref such as

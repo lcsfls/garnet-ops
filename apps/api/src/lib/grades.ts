@@ -243,3 +243,16 @@ export async function gradeDistribution(
   }
   return out;
 }
+
+/**
+ * The grade one package gives by the same rules (ADR 0018, addendum 2026-11-15): 0 (A) to 5 (F) from its worst open finding.
+ * `match` is a condition over the finding alias `f` that picks the package's findings. A package always comes from a scan, so it
+ * is never "not graded".
+ */
+export function packageGradeRankSql(match: SQL): SQL<number> {
+  return sql<number>`coalesce((
+    select max(${findingRank})
+    from finding f join vulnerability v on v.id = f.vulnerability_id
+    where ${match} and ${REPOSITORY_FINDINGS.open}
+  ), 0)`;
+}

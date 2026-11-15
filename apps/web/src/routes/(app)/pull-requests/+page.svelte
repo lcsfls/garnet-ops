@@ -48,9 +48,11 @@
     return {
       queryKey: ["pull-requests", search],
       queryFn: () =>
-        api<{ items: PullRequestRow[]; truncated: boolean }>(
-          href("/pull-requests", { repositoryId: search.repositoryId, gate: search.gate, q: search.q }),
-        ),
+        api<{
+          items: PullRequestRow[];
+          truncated: boolean;
+          counts?: Record<(typeof GATES)[number], number>;
+        }>(href("/pull-requests", { repositoryId: search.repositoryId, gate: search.gate, q: search.q })),
       placeholderData: keepPreviousData,
       // A queued check turns into a result a little later.
       refetchInterval: (query: { state: { data?: { items: PullRequestRow[] } } }) =>
@@ -121,6 +123,7 @@
             : g === "none"
               ? t("pullRequests.gateNone")
               : t(`gates.result.${g}`),
+      count: list.data?.counts ? list.data.counts[g] : null,
     }))}
     onChange={(gate) => setSearch({ gate: gate === "all" ? undefined : (gate as PullRequestSearch["gate"]) })}
   />

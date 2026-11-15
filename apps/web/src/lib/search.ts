@@ -52,7 +52,7 @@ export const FIX_SORTS = [
   "status",
 ] as const;
 export const REPOSITORY_SORTS = ["name", "grade", "critical", "high", "medium", "lastScan"] as const;
-export const PACKAGE_SORTS = ["name", "type", "repository", "findings", "severity"] as const;
+export const PACKAGE_SORTS = ["name", "type", "repository", "findings", "severity", "grade"] as const;
 
 /** Comma-separated severities, e.g. "critical,high". Unknown values are dropped. */
 const severities = z
@@ -146,6 +146,11 @@ export const packageSearch = z.object({
   vulnerable: flag,
   /** Only packages their registry calls deprecated or yanked (ADR 0051). */
   deprecated: flag,
+  /** As on the repositories page (0.1.8): by the worst open finding, by grade, and the packages of repositories set aside. */
+  status: z.enum(["all", "blocked", "attention", "clean"]).optional().catch(undefined),
+  grade,
+  activity: z.enum(["inactive", "all"]).optional().catch(undefined),
+  type: text(40),
   cursor: text(512),
   pageSize,
   sort: sortOf(PACKAGE_SORTS),
@@ -197,6 +202,9 @@ export const gateSearch = z.object({
   repositoryId: text(40),
   /** Opens the step-by-step setup (repository, token, workflow file). */
   wizard: flag,
+  /** The runs list (0.1.8): one result, one repository. */
+  result: z.enum(["passed", "notes", "blocked"]).optional().catch(undefined),
+  runsRepositoryId: text(40),
 });
 export type GateSearch = z.infer<typeof gateSearch>;
 

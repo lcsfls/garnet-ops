@@ -173,9 +173,12 @@ describe.skipIf(!adminUrl)("pull request overview", () => {
       [2, null, true],
       [3, null, false],
     ]);
-    expect(
-      (await call("GET", "/api/v1/pull-requests?gate=none")).json?.items.map((i: Json) => i.number),
-    ).toEqual([3]);
+    // The toggles' counts (0.1.8), whatever the gate filter is.
+    const counts = { all: 3, passed: 1, notes: 0, blocked: 0, checking: 1, none: 1 };
+    expect(json?.counts).toEqual(counts);
+    const none = await call("GET", "/api/v1/pull-requests?gate=none");
+    expect(none.json?.items.map((i: Json) => i.number)).toEqual([3]);
+    expect(none.json?.counts).toEqual(counts);
     expect(
       (await call("GET", "/api/v1/pull-requests?gate=checking")).json?.items.map((i: Json) => i.number),
     ).toEqual([2]);

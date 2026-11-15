@@ -135,6 +135,13 @@ database update can change it. A is neutral grey, with the same letter badge as 
   `finding(repository_id, state)` and `host_finding(host_id, state, ...)`. Organisations with thousands of
   repositories should be watched; a stored grade is possible later without changing the API.
 
+## Addendum 2026-11-15: the grade of a package
+
+The Packages page gets the filters of the Repositories page (0.1.8). A package gets the grade its own open findings give by the
+same rules and the same SQL expression (`packageGradeRankSql`, over the finding's repository, name, version and type), shown as
+a column with a sort and a filter. It is display only like every grade; a package always comes from a scan, so there is no
+"not graded". The cost is one more correlated subquery per row, on the same index as the open findings of a package.
+
 ## Consequences
 
 - No migration. Existing API fields are unchanged; clients that ignore the new fields keep working.

@@ -390,6 +390,56 @@ test("packages: find which repository contains a package, and its open findings"
   expect(problems).toEqual([]);
 });
 
+test("packages: the repositories page's filters, counts in the menu, and the list as a file (0.1.8)", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  const counts = (await (await page.request.get(`${E2E.publicUrl}/api/v1/packages/counts`)).json()) as Record<
+    string,
+    number
+  >;
+  const repositories = (await (
+    await page.request.get(`${E2E.publicUrl}/api/v1/repositories/counts`)
+  ).json()) as Record<string, number>;
+  expect(counts.all).toBe(SEEDED.packages);
+  expect(counts.blocked).toBeGreaterThan(0);
+  await page.goto("/packages");
+  // The menu counts packages and repositories with open critical or high findings, as the pages' "Critical" and "High" do.
+  await expect(page.getByTestId("nav-badge-packages")).toHaveText(String(counts.blocked + counts.attention));
+  await expect(page.getByTestId("nav-badge-repositories")).toHaveText(
+    String(repositories.blocked + repositories.attention),
+  );
+
+  const status = page.getByRole("group", { name: "Show packages" });
+  await expect(status.getByRole("button", { name: /^Critical/ })).toContainText(String(counts.blocked));
+  await status.getByRole("button", { name: /^Critical/ }).click();
+  await expect(page).toHaveURL(/status=blocked/);
+  await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
+    `${counts.blocked} entries`,
+  );
+  await status.getByRole("button", { name: /^No critical or high/ }).click();
+  await expect(page.getByRole("row", { name: /left-pad/ })).toBeVisible();
+
+  // Grade A: no open findings; left-pad is one.
+  await status.getByRole("button", { name: /^All/ }).click();
+  await expect(page).not.toHaveURL(/status=/);
+  await page.getByLabel("Grade").selectOption("A");
+  await expect(page).toHaveURL(/grade=A/);
+  const clean = page.getByRole("row", { name: /left-pad/ });
+  await expect(clean.getByTestId("package-grade")).toHaveText("A");
+  await expect(page.getByLabel("Grade").locator("option", { hasText: "Not graded" })).toHaveCount(0);
+
+  // The file holds what the page shows.
+  const file = await download(page, "Text (TXT)");
+  expect(file.name).toMatch(/^garnetops-packages-\d{4}-\d{2}-\d{2}\.txt$/);
+  const text = file.content.toString("utf8");
+  expect(text.split("\n")[0]).toBe("Packages");
+  expect(text).toContain("Filters: grade A");
+  expect(text).toContain("left-pad");
+  expect(text).not.toContain("pkg-1 ");
+  expect(problems).toEqual([]);
+});
+
 test("hostile scanner content is shown as text, never as markup or script links", async ({ page }) => {
   const problems = watchForProblems(page);
   await page.goto("/findings");
@@ -1165,7 +1215,7 @@ test("sorting: every column pages through all rows exactly once, both directions
       path: "/findings?state=all",
       sorts: ["vulnerability", "cvss", "epss", "published", "package", "repository", "firstSeen"],
     },
-    { path: "/packages?", sorts: ["name", "type", "repository", "findings", "severity"] },
+    { path: "/packages?", sorts: ["name", "type", "repository", "findings", "severity", "grade"] },
     { path: "/repositories?", sorts: ["name", "grade", "critical", "high", "medium", "lastScan"] },
   ];
   for (const { path, sorts } of lists) {
@@ -1257,9 +1307,20 @@ test("quality gates: report by default, an admin blocks a rule, a pipeline check
   await expect(runs.getByRole("row", { name: /seeded-app/ })).toContainText(
     "2 × Critical vulnerability with a fix",
   );
+  // By result, with counts, and by repository (0.1.8).
+  const results = runs.getByRole("group", { name: "Show runs" });
+  await expect(results.getByRole("button", { name: /^With notes/ })).toContainText("1");
+  await results.getByRole("button", { name: /^Blocked/ }).click();
+  await expect(page).toHaveURL(/result=blocked/);
+  await expect(runs.getByText("No runs match these filters.")).toBeVisible();
+  await results.getByRole("button", { name: /^All/ }).click();
+  await expect(page).not.toHaveURL(/result=/);
+  await runs.getByRole("combobox", { name: "Repository of the runs" }).selectOption({ label: "seeded-app" });
+  await expect(page).toHaveURL(/runsRepositoryId=/);
+  await expect(runs.getByRole("row", { name: /seeded-app/ })).toBeVisible();
 
   // A token for the seeded repository, shown once.
-  await page.getByRole("combobox", { name: "Repository" }).selectOption({ label: "seeded-app" });
+  await page.getByRole("combobox", { name: "Repository", exact: true }).selectOption({ label: "seeded-app" });
   await page.getByLabel("Name of the token").fill("e2e pipeline");
   await page.getByRole("button", { name: "Create token" }).click();
   const token = (await page.locator("code").filter({ hasText: /^gog_/ }).textContent())?.trim() ?? "";
@@ -2637,6 +2698,10 @@ test.describe("pull request overview (ADR 0032)", () => {
         "select ref, expected_sha from scan where ref = 'refs/pull/42/head'",
       ),
     ).toEqual([{ ref: "refs/pull/42/head", expected_sha: "4".repeat(40) }]);
+    // Each toggle says how many it shows (0.1.8).
+    const gates = page.getByRole("group", { name: "Gate result" });
+    await expect(gates.getByRole("button", { name: "Being checked" })).toContainText("1");
+    await expect(gates.getByRole("button", { name: "Not checked" })).toContainText("0");
     await page
       .getByRole("group", { name: "Gate result" })
       .getByRole("button", { name: "Not checked" })

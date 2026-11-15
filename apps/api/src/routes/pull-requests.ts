@@ -78,13 +78,19 @@ export const pullRequestRoutes = new Hono<AppEnv>()
       )
       .orderBy(desc(pr.updatedAt), desc(pr.number))
       .limit(PULL_REQUEST_LIMIT);
-    const items = rows.filter((row) => {
-      if (!input.gate) return true;
-      if (input.gate === "checking") return row.checking;
-      if (input.gate === "none") return !row.gate && !row.checking;
-      return row.gate?.result === input.gate;
-    });
-    return c.json({ items, truncated: rows.length === PULL_REQUEST_LIMIT });
+    const matches = (row: (typeof rows)[number], gate: (typeof GATE_FILTERS)[number]) =>
+      gate === "checking"
+        ? row.checking
+        : gate === "none"
+          ? !row.gate && !row.checking
+          : row.gate?.result === gate;
+    const items = rows.filter((row) => !input.gate || matches(row, input.gate));
+    /** Added in 0.1.8: how many of the listed pull requests each gate filter shows, for the page's toggles. */
+    const counts = Object.fromEntries([
+      ["all", rows.length],
+      ...GATE_FILTERS.map((g) => [g, rows.filter((row) => matches(row, g)).length]),
+    ]);
+    return c.json({ items, truncated: rows.length === PULL_REQUEST_LIMIT, counts });
   })
   /** Per repository: when its pull requests were last read, and why that failed, if it did. */
   .get("/sources", async (c) => {

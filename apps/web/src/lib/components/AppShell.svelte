@@ -43,6 +43,19 @@
   // Secrets that need rotating (ADR 0049): open critical and high ones.
   const secrets = createQuery(() => ({ ...secretCountsQuery(), refetchInterval: 60_000 }));
   const seriousSecrets = $derived((secrets.data?.open.critical ?? 0) + (secrets.data?.open.high ?? 0));
+  // Repositories and packages with open critical or high findings (0.1.8): the same numbers as the pages' "Critical" and "High".
+  type StatusCounts = { blocked: number; attention: number };
+  const repositoryCounts = createQuery(() => ({
+    queryKey: ["repository-counts", ""],
+    queryFn: () => api<StatusCounts>("/repositories/counts"),
+    refetchInterval: 60_000,
+  }));
+  const packageCounts = createQuery(() => ({
+    queryKey: ["package-counts", "nav"],
+    queryFn: () => api<StatusCounts>("/packages/counts"),
+    refetchInterval: 60_000,
+  }));
+  const serious = (c: StatusCounts | undefined) => (c ? c.blocked + c.attention : 0);
   // What needs a look under Infrastructure: the same "attention" the pages filter by.
   type Attention = { count: number; worst: "critical" | "high" | null };
   const hostsAttention = createQuery(() => ({
@@ -70,6 +83,15 @@
       return seriousSecrets > 0
         ? { count: seriousSecrets, label: t("shell.openSecretsBadge", { count: seriousSecrets }) }
         : null;
+    if (item.to === "/repositories" || item.to === "/packages") {
+      const repositories = item.to === "/repositories";
+      const n = serious(repositories ? repositoryCounts.data : packageCounts.data);
+      if (n === 0) return null;
+      return {
+        count: n,
+        label: t(repositories ? "shell.repositoriesBadge" : "shell.packagesBadge", { count: n }),
+      };
+    }
     const attention =
       item.to === "/hosts"
         ? hostsAttention.data

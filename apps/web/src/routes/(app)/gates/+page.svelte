@@ -38,6 +38,7 @@
       {search}
       onCursor={(cursor) => setSearch({ cursor })}
       onPageSize={(pageSize) => setSearch({ pageSize, cursor: undefined })}
+      onFilter={(patch) => setSearch({ ...patch, cursor: undefined })}
     />
   </div>
   <div class="min-w-0 @wide:[grid-area:pipeline]">

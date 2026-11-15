@@ -9,10 +9,13 @@
     value,
     counts,
     onChange,
+    withNone = true,
   }: {
     value: Grade | "none" | undefined;
     counts: Record<Grade | "none", number> | undefined;
     onChange: (value: Grade | "none" | undefined) => void;
+    /** "Not graded": repositories before their first scan. Packages always have a grade. */
+    withNone?: boolean;
   } = $props();
   const count = (key: Grade | "none") => (counts ? String(counts[key]) : "–");
   const worstFirst = [...GRADES].reverse();
@@ -31,5 +34,7 @@
   {#each worstFirst as grade (grade)}
     <option value={grade}>{t("grades.filterOption", { grade, count: count(grade) })}</option>
   {/each}
-  <option value="none">{t("grades.filterNone", { count: count("none") })}</option>
+  {#if withNone}
+    <option value="none">{t("grades.filterNone", { count: count("none") })}</option>
+  {/if}
 </Select>
