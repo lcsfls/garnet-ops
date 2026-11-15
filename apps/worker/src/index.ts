@@ -5,6 +5,7 @@ import { AI_PROBE_QUEUE, AI_QUEUE, runGeneration, runProbe, sweepAi } from "./ai
 import { BACKUP_QUEUE, type BackupJob, runBackupBuild, sweepBackups } from "./backup.ts";
 import { CODE_QUEUE, runCodeRequest, sweepCodeRequests } from "./code-view.ts";
 import { pool } from "./db.ts";
+import { queueAfterScan, startDeprecatedChecks } from "./deprecated.ts";
 import {
   DIRECTORY_QUEUE,
   runDirectoryRequest,
@@ -85,6 +86,10 @@ for (let i = 0; i < env.GARNETOPS_SCAN_CONCURRENCY; i++) {
     if (!job) return;
     const started = performance.now(); // monotonic: unaffected by clock changes (ADR 0005)
     await runScan(job.data.scanId);
+    // Deprecated and yanked packages (ADR 0051): the scan's new names, for organisations that switched the module on.
+    await queueAfterScan(boss, job.data.scanId).catch((error: Error) =>
+      console.error(`deprecated packages after scan ${job.data.scanId}:`, error.name),
+    );
     console.log(`scan ${job.data.scanId} finished in ${Math.round((performance.now() - started) / 1000)} s`);
     // Notifications never fail a scan: a broken channel is recorded on the channel, not here.
     const events = await eventsForScan(job.data.scanId).catch((error: Error) => {
@@ -196,6 +201,8 @@ const codeSweep = setInterval(
   () => sweepCodeRequests().catch((error: Error) => console.error("code sweep:", error.name)),
   60_000,
 );
+// Deprecated and yanked packages (ADR 0051): hourly, each organisation with the module on at most once a day.
+await startDeprecatedChecks(boss);
 // Backups (ADR 0046): one at a time, never retried (a new backup is one click); the file is deleted an hour after it is ready.
 await boss.work<BackupJob>(BACKUP_QUEUE, { batchSize: 1 }, async ([job]) => {
   if (job) await runBackupBuild(job.data);

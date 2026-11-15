@@ -62,14 +62,24 @@ export function systemAddresses(hostname: string, options: object = {}): Promise
   );
 }
 
-/** A lookup that resolves with `resolveAll` and refuses the name unless every answer is a public address. */
+/** Whether an address may be connected to: public ones, and with `allowPrivate` also private ones (never loopback or metadata). */
+function allowedAddress(address: string, allowPrivate: boolean): boolean {
+  const scope = classifyAddress(address);
+  return scope === "public" || (allowPrivate && scope !== "forbidden");
+}
+
+/**
+ * A lookup that resolves with `resolveAll` and refuses the name unless every answer is a public address, or with `allowPrivate`
+ * a public or private one (an organisation's own server, ADR 0051); loopback, link-local and metadata addresses never.
+ */
 export function lookupVia(
   resolveAll: (hostname: string, options: object) => Promise<LookupAddress[]>,
+  allowPrivate = false,
 ): Lookup {
   return (hostname, options, callback) => {
     resolveAll(hostname, options).then(
       (list) => {
-        if (list.length === 0 || list.some((a) => classifyAddress(a.address) !== "public")) {
+        if (list.length === 0 || list.some((a) => !allowedAddress(a.address, allowPrivate))) {
           return callback(Object.assign(new Error("refused address"), { code: "EREFUSED_ADDRESS" }), []);
         }
         if ((options as { all?: boolean }).all) return callback(null, list);
@@ -83,6 +93,8 @@ export function lookupVia(
 
 /** Resolves a name through the system resolver and refuses it unless every answer is a public address. */
 export const publicLookup: Lookup = lookupVia(systemAddresses);
+/** The same for a server an admin named as the organisation's own (a package registry, ADR 0051): private addresses too. */
+export const ownServerLookup: Lookup = lookupVia(systemAddresses, true);
 
 export interface OutboundOptions {
   host: string;
@@ -96,6 +108,13 @@ export interface OutboundOptions {
   connectTimeoutMs?: number;
   /** A lookup in place of `publicLookup` (one that also asks the organisation's public DNS); it must keep the address policy. */
   lookup?: Lookup;
+  /**
+   * The host is a server an admin named as the organisation's own (ADR 0051): private addresses are allowed too, loopback,
+   * link-local and metadata addresses still never.
+   */
+  allowPrivate?: boolean;
+  /** Another port than 443, for such a server. */
+  port?: number;
   /** Tests only: another lookup (to reach a local server), its certificate, and its port. */
   test?: { lookup?: Lookup; ca?: string; port?: number };
 }
@@ -136,7 +155,7 @@ function mapError(error: unknown): OutboundError {
 export function httpsGet(options: OutboundOptions): Promise<OutboundResponse> {
   // A name goes through `publicLookup`; an address literal never would, so it is checked here.
   const literal = options.host.replace(/^\[|\]$/g, "");
-  if (isIP(literal) !== 0 && !options.test && classifyAddress(literal) !== "public") {
+  if (isIP(literal) !== 0 && !options.test && !allowedAddress(literal, options.allowPrivate === true)) {
     return Promise.reject(new OutboundError("refusedAddress"));
   }
   return new Promise((resolve, reject) => {
@@ -149,11 +168,12 @@ export function httpsGet(options: OutboundOptions): Promise<OutboundResponse> {
     };
     const req = request({
       host: options.host,
-      port: options.test?.port ?? 443,
+      port: options.test?.port ?? options.port ?? 443,
       path: options.path,
       method: options.method ?? "GET",
       servername: options.host,
-      lookup: options.test?.lookup ?? options.lookup ?? publicLookup,
+      lookup:
+        options.test?.lookup ?? options.lookup ?? (options.allowPrivate ? ownServerLookup : publicLookup),
       ...(options.test?.ca ? { ca: options.test.ca } : {}),
       minVersion: "TLSv1.2",
       rejectUnauthorized: true,
