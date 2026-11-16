@@ -1384,9 +1384,10 @@ describe.skipIf(!openssl || !adminUrl)(
           await tcpListener((s) => s.write(`220 \u001b[31mred\u0000 <script>alert(1)</script>\r\n`)),
         );
         const flood = track(await tcpListener((s) => s.write("A".repeat(5000))));
-        const shut = await closedPort();
         const tlsOk = track(await tlsListener({ key: good.key, cert: good.cert }));
         const notTls = track(await tcpListener((s) => s.end("HTTP/1.1 400 Bad Request\r\n\r\n")));
+        // Freed last: a listener opened after it could be given the same port, which would then be listed twice and be open.
+        const shut = await closedPort();
         const list = [
           spec(ssh.port, { banner: true, service: "ssh" }),
           spec(silent.port, { banner: true, service: "smtp" }),
