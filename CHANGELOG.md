@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-11-16
+<!-- title: Vulnerabilities by email, and update tests with data -->
+
 ### Added
 
 - **Vulnerabilities by email** ([docs/reports.md](docs/reports.md), ADR 0047 addendum): on Account → Notifications, a daily or
@@ -1644,7 +1647,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.10...HEAD
+[0.1.10]: https://github.com/lcsfls/garnet-ops/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/lcsfls/garnet-ops/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/lcsfls/garnet-ops/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/lcsfls/garnet-ops/compare/v0.1.6...v0.1.7
