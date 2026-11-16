@@ -232,14 +232,25 @@ class Socket(Base):
                 break
             time.sleep(0.02)
 
-    def call(self, method: str, path: str, body: bytes | None = None) -> tuple[int, dict]:
+    def call(
+        self, method: str, path: str, body: bytes | None = None, *, announce: int | None = None
+    ) -> tuple[int, dict]:
+        """`announce` sends only the headers, with that content-length: the server refuses a body that is too large before
+        reading it, so sending the body itself would race against the closing socket (a broken pipe, seen in CI)."""
+
         class Conn(http.client.HTTPConnection):
             def connect(self) -> None:
                 self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self.sock.connect(builder.SOCKET)
 
         conn = Conn("localhost")
-        conn.request(method, path, body=body, headers={"content-type": "application/json"})
+        if announce is None:
+            conn.request(method, path, body=body, headers={"content-type": "application/json"})
+        else:
+            conn.putrequest(method, path)
+            conn.putheader("content-type", "application/json")
+            conn.putheader("content-length", str(announce))
+            conn.endheaders()
         res = conn.getresponse()
         data = json.loads(res.read() or b"{}")
         conn.close()
@@ -263,7 +274,7 @@ class Socket(Base):
     def test_refuses_what_it_does_not_know(self) -> None:
         self.assertEqual(self.call("GET", "/v1/other")[0], 404)
         self.assertEqual(self.call("POST", "/v1/build", b"[1]")[0], 400)
-        self.assertEqual(self.call("POST", "/v1/build", b"x" * (builder.MAX_BODY + 1))[0], 413)
+        self.assertEqual(self.call("POST", "/v1/build", announce=builder.MAX_BODY + 1)[0], 413)
 
     def test_one_build_at_a_time(self) -> None:
         assert builder.SERVICE is not None
