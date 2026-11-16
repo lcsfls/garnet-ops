@@ -77,6 +77,7 @@ export const RELEASE_USAGE = `Usage: cicd-updater release <command> [flags]
               [--env-example .env.example] [--health-version-path P] [--expect-version V]
               [--upgrade-from previous|none|V --feed-type T --feed-url U [--feed-allow-private-host H]]
               [--updater-config F --updater-image I] [--env KEY=VALUE ...]
+              [--before-upgrade CMD] [--after-upgrade CMD]   (sh, with $CICD_UPDATER_SMOKE_COMPOSE)
               [--timeout-seconds 600] [--report report.md]
   check-tag   --tag vX.Y.Z [--changelog CHANGELOG.md] [--package package.json ...]
   build       --images <json|@file> --version V [--platforms linux/amd64,linux/arm64] [--no-push]
@@ -188,6 +189,8 @@ export async function runReleaseCli(
         "feed-url": { type: "string" },
         "updater-config": { type: "string" },
         "updater-image": { type: "string" },
+        "before-upgrade": { type: "string" },
+        "after-upgrade": { type: "string" },
         "timeout-seconds": { type: "string" },
         report: { type: "string" },
         changelog: { type: "string" },
@@ -448,6 +451,10 @@ export async function runReleaseCli(
             updater: str("updater-config")
               ? { configFile: need("updater-config"), image: need("updater-image") }
               : null,
+            hooks: {
+              beforeUpgrade: str("before-upgrade") ?? null,
+              afterUpgrade: str("after-upgrade") ?? null,
+            },
           },
           {
             exec: deps.exec,

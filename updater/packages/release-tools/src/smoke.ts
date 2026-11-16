@@ -49,6 +49,14 @@ export interface SmokeOptions {
    * sidecar image to run.
    */
   updater?: { configFile: string; image: string; service?: string; profile?: string } | null;
+  /**
+   * Shell commands of the project around the upgrade, run in `cwd` on the runner: `beforeUpgrade` once
+   * the previous release is healthy (to put data in), `afterUpgrade` once the new one is (to check the
+   * data survived). They reach the stack through `$CICD_UPDATER_SMOKE_COMPOSE`, a script that runs
+   * `docker compose` with the smoke's project, files and env file (`"$CICD_UPDATER_SMOKE_COMPOSE" exec
+   * -T db psql ...`). A command that exits non-zero fails the smoke. Only with an upgrade.
+   */
+  hooks?: { beforeUpgrade?: string | null; afterUpgrade?: string | null } | null;
   /** Working directory (the repository checkout). */
   cwd: string;
 }
@@ -163,6 +171,27 @@ export async function runSmoke(options: SmokeOptions, deps: SmokeDeps): Promise<
       envFile,
       ...args,
     ] as [string, ...string[]];
+  /** Single quotes for sh: the paths come from the runner, the project name is generated. */
+  const quote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
+  const composeScript = path.join(work, "compose.sh");
+  const hook = async (command: string): Promise<string> => {
+    await fs.writeFile(
+      composeScript,
+      `#!/bin/sh\nexec ${compose([]).map(quote).join(" ")} "$@"\n`,
+      { mode: 0o700 },
+    );
+    const result = await exec(["sh", "-c", command], {
+      cwd: options.cwd,
+      env: { CICD_UPDATER_SMOKE_COMPOSE: composeScript },
+      // Like Compose itself: runner variables named like env file keys would override the smoke's values.
+      unsetEnv: [...envKeys],
+      timeoutMs: options.timeoutSeconds * 1000,
+    });
+    if (result.exitCode !== 0) {
+      throw new Error(`exit ${result.exitCode}: ${(result.stderr || result.stdout).slice(-1500)}`);
+    }
+    return result.stdout.trim().split("\n").at(-1)?.slice(0, 300) || "done";
+  };
   const step = async (name: string, action: () => Promise<string>): Promise<void> => {
     const started = deps.now();
     try {
@@ -294,6 +323,11 @@ export async function runSmoke(options: SmokeOptions, deps: SmokeDeps): Promise<
     await step("health", () =>
       waitHealthy(options.upgradeFrom ? options.upgradeFrom.version : options.expectVersion),
     );
+    const beforeUpgrade = options.upgradeFrom ? options.hooks?.beforeUpgrade : null;
+    const afterUpgrade = options.upgradeFrom ? options.hooks?.afterUpgrade : null;
+    if (beforeUpgrade) {
+      await step("before upgrade", () => hook(beforeUpgrade));
+    }
     if (options.upgradeFrom && options.updater) {
       const updater = options.updater;
       await step("upgrade through the sidecar", async () => {
@@ -361,6 +395,9 @@ export async function runSmoke(options: SmokeOptions, deps: SmokeDeps): Promise<
         }
       });
       await step("health after upgrade", () => waitHealthy(options.expectVersion));
+      if (afterUpgrade) {
+        await step("after upgrade", () => hook(afterUpgrade));
+      }
     } else if (options.upgradeFrom) {
       await writeEnv(options.images);
       await step("upgrade", async () => {
@@ -374,6 +411,9 @@ export async function runSmoke(options: SmokeOptions, deps: SmokeDeps): Promise<
         return "recreated with the new digests";
       });
       await step("health after upgrade", () => waitHealthy(options.expectVersion));
+      if (afterUpgrade) {
+        await step("after upgrade", () => hook(afterUpgrade));
+      }
     }
   } catch (error) {
     if (!(error instanceof StepFailed)) {

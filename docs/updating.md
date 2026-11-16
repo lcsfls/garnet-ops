@@ -5,6 +5,12 @@ version (AGENTS.md rule 2): migrations only add, and a pipeline that passed yest
 not fail tomorrow because of an update. Security fixes are published for every supported
 version line, free of charge.
 
+**How each release is tested as an update.** Before a release is published, its workflow starts the release before it with
+the production Compose file, puts example rows into its database (an organisation, a person, a repository with a scan, a
+finding and a package, an audit entry; `scripts/upgrade-check/`), updates to the new images through the update service, and
+checks that every row is still there unchanged, that every migration of the new release ran, and that the API and the worker
+run. A release that fails this is not published.
+
 Signed releases are published since 0.0.3. An installation that builds its images from
 this repository updates by building the newest release tag; one that runs the signed
 release images updates with the optional update service or by hand.

@@ -585,6 +585,77 @@ describe("smoke", () => {
     expect(result.steps.at(-1)?.name).toBe("teardown");
   });
 
+  it("runs the project's commands before and after the upgrade, with a compose script of the smoke's stack", async () => {
+    await project();
+    const w = world();
+    const hooks: { command: string; script: string; text: string }[] = [];
+    const exec: Exec = async (argv, execOptions) => {
+      if (argv[0] === "sh") {
+        const script = execOptions?.env?.CICD_UPDATER_SMOKE_COMPOSE ?? "";
+        hooks.push({ command: argv[2] ?? "", script, text: await fs.readFile(script, "utf8") });
+        return argv[2] === "fail"
+          ? { exitCode: 3, stdout: "", stderr: "seed rows missing" }
+          : { exitCode: 0, stdout: "first\n7 rows kept\n", stderr: "" };
+      }
+      return w.deps.exec(argv, execOptions);
+    };
+    const upgrade = {
+      version: "1.3.0",
+      images: { app: { repository: "ghcr.io/acme/notes", digest: DIGEST_WEB } },
+    };
+    const result = await runSmoke(
+      {
+        ...options(),
+        healthVersionPath: null,
+        upgradeFrom: upgrade,
+        hooks: { beforeUpgrade: "seed", afterUpgrade: "check" },
+      },
+      { ...w.deps, exec },
+    );
+    expect(result.ok).toBe(true);
+    expect(result.steps.map((step) => step.name)).toEqual([
+      "env-check",
+      "compose config",
+      "start 1.3.0",
+      "health",
+      "before upgrade",
+      "upgrade",
+      "health after upgrade",
+      "after upgrade",
+      "teardown",
+    ]);
+    expect(result.steps.find((step) => step.name === "after upgrade")?.detail).toBe("7 rows kept");
+    expect(hooks.map((h) => h.command)).toEqual(["seed", "check"]);
+    expect(hooks[0]?.text).toMatch(
+      /^#!\/bin\/sh\nexec 'docker' 'compose' '-p' 'cicd-updater-smoke-[0-9a-f]{6}' '-f' 'docker-compose.yml'/,
+    );
+    expect(hooks[0]?.text).toContain(" '--env-file' ");
+    expect(hooks[0]?.text.trimEnd().endsWith('"$@"')).toBe(true);
+
+    // A failing command fails the smoke and still tears down; without an upgrade the commands do not run.
+    const failed = await runSmoke(
+      {
+        ...options(),
+        healthVersionPath: null,
+        upgradeFrom: upgrade,
+        hooks: { beforeUpgrade: "fail" },
+      },
+      { ...w.deps, exec },
+    );
+    expect(failed.ok).toBe(false);
+    expect(failed.steps.find((step) => step.name === "before upgrade")).toMatchObject({
+      ok: false,
+      detail: "exit 3: seed rows missing",
+    });
+    expect(failed.steps.at(-1)?.name).toBe("teardown");
+    hooks.length = 0;
+    await runSmoke(
+      { ...options(), hooks: { beforeUpgrade: "seed", afterUpgrade: "check" } },
+      { ...w.deps, exec },
+    );
+    expect(hooks).toEqual([]);
+  });
+
   it("upgrades from the previous release by recreating with the new digests", async () => {
     await project();
     const { calls, deps } = world();

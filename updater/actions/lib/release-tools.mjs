@@ -30059,6 +30059,28 @@ async function runSmoke(options, deps) {
     envFile,
     ...args
   ];
+  const quote = (value) => `'${value.replace(/'/g, "'\\''")}'`;
+  const composeScript = path4.join(work, "compose.sh");
+  const hook = async (command) => {
+    await fs5.writeFile(
+      composeScript,
+      `#!/bin/sh
+exec ${compose([]).map(quote).join(" ")} "$@"
+`,
+      { mode: 448 }
+    );
+    const result = await exec2(["sh", "-c", command], {
+      cwd: options.cwd,
+      env: { CICD_UPDATER_SMOKE_COMPOSE: composeScript },
+      // Like Compose itself: runner variables named like env file keys would override the smoke's values.
+      unsetEnv: [...envKeys],
+      timeoutMs: options.timeoutSeconds * 1e3
+    });
+    if (result.exitCode !== 0) {
+      throw new Error(`exit ${result.exitCode}: ${(result.stderr || result.stdout).slice(-1500)}`);
+    }
+    return result.stdout.trim().split("\n").at(-1)?.slice(0, 300) || "done";
+  };
   const step = async (name, action) => {
     const started = deps.now();
     try {
@@ -30183,6 +30205,11 @@ async function runSmoke(options, deps) {
       "health",
       () => waitHealthy(options.upgradeFrom ? options.upgradeFrom.version : options.expectVersion)
     );
+    const beforeUpgrade = options.upgradeFrom ? options.hooks?.beforeUpgrade : null;
+    const afterUpgrade = options.upgradeFrom ? options.hooks?.afterUpgrade : null;
+    if (beforeUpgrade) {
+      await step("before upgrade", () => hook(beforeUpgrade));
+    }
     if (options.upgradeFrom && options.updater) {
       const updater = options.updater;
       await step("upgrade through the sidecar", async () => {
@@ -30246,6 +30273,9 @@ async function runSmoke(options, deps) {
         }
       });
       await step("health after upgrade", () => waitHealthy(options.expectVersion));
+      if (afterUpgrade) {
+        await step("after upgrade", () => hook(afterUpgrade));
+      }
     } else if (options.upgradeFrom) {
       await writeEnv(options.images);
       await step("upgrade", async () => {
@@ -30259,6 +30289,9 @@ async function runSmoke(options, deps) {
         return "recreated with the new digests";
       });
       await step("health after upgrade", () => waitHealthy(options.expectVersion));
+      if (afterUpgrade) {
+        await step("after upgrade", () => hook(afterUpgrade));
+      }
     }
   } catch (error62) {
     if (!(error62 instanceof StepFailed)) {
@@ -30444,6 +30477,7 @@ var RELEASE_USAGE = `Usage: cicd-updater release <command> [flags]
               [--env-example .env.example] [--health-version-path P] [--expect-version V]
               [--upgrade-from previous|none|V --feed-type T --feed-url U [--feed-allow-private-host H]]
               [--updater-config F --updater-image I] [--env KEY=VALUE ...]
+              [--before-upgrade CMD] [--after-upgrade CMD]   (sh, with $CICD_UPDATER_SMOKE_COMPOSE)
               [--timeout-seconds 600] [--report report.md]
   check-tag   --tag vX.Y.Z [--changelog CHANGELOG.md] [--package package.json ...]
   build       --images <json|@file> --version V [--platforms linux/amd64,linux/arm64] [--no-push]
@@ -30539,6 +30573,8 @@ async function runReleaseCli(argv2, deps) {
         "feed-url": { type: "string" },
         "updater-config": { type: "string" },
         "updater-image": { type: "string" },
+        "before-upgrade": { type: "string" },
+        "after-upgrade": { type: "string" },
         "timeout-seconds": { type: "string" },
         report: { type: "string" },
         changelog: { type: "string" },
@@ -30781,7 +30817,11 @@ async function runReleaseCli(argv2, deps) {
             timeoutSeconds: Number(str("timeout-seconds") ?? "600"),
             extraEnv: envAssignments(flags.env ?? []),
             cwd: process.cwd(),
-            updater: str("updater-config") ? { configFile: need("updater-config"), image: need("updater-image") } : null
+            updater: str("updater-config") ? { configFile: need("updater-config"), image: need("updater-image") } : null,
+            hooks: {
+              beforeUpgrade: str("before-upgrade") ?? null,
+              afterUpgrade: str("after-upgrade") ?? null
+            }
           },
           {
             exec: deps.exec,

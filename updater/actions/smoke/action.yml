@@ -54,6 +54,12 @@ inputs:
   updater-image:
     description: The sidecar image (pinned by digest) for the upgrade through the sidecar.
     default: ""
+  before-upgrade:
+    description: Shell command run once the previous release is healthy, before the upgrade (put data in); it reaches the stack through "$CICD_UPDATER_SMOKE_COMPOSE" (docker compose with the smoke's project). Empty skips it.
+    default: ""
+  after-upgrade:
+    description: Shell command run once the upgraded release is healthy (check the data survived), like before-upgrade. Empty skips it.
+    default: ""
   timeout-seconds:
     description: Overall time limit.
     default: "600"
@@ -125,6 +131,8 @@ runs:
         UPDATER_CONFIG: ${{ inputs.updater-config }}
         UPDATER_IMAGE: ${{ inputs.updater-image }}
         TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        BEFORE_UPGRADE: ${{ inputs.before-upgrade }}
+        AFTER_UPGRADE: ${{ inputs.after-upgrade }}
       run: |
         set -euo pipefail
         if [ -z "$EXPECT_VERSION" ] && [ "$GITHUB_REF_TYPE" = tag ]; then
@@ -146,6 +154,8 @@ runs:
         if [ -n "$HEALTH_VERSION_PATH" ]; then args+=(--health-version-path "$HEALTH_VERSION_PATH"); fi
         if [ -n "$EXPECT_VERSION" ]; then args+=(--expect-version "$EXPECT_VERSION"); fi
         if [ -n "$FEED_TYPE" ]; then args+=(--feed-type "$FEED_TYPE"); fi
+        if [ -n "$BEFORE_UPGRADE" ]; then args+=(--before-upgrade "$BEFORE_UPGRADE"); fi
+        if [ -n "$AFTER_UPGRADE" ]; then args+=(--after-upgrade "$AFTER_UPGRADE"); fi
         if [ -n "$FEED_URL" ]; then args+=(--feed-url "$FEED_URL"); fi
         if [ -n "$FEED_ALLOW_PRIVATE_HOST" ]; then args+=(--feed-allow-private-host "$FEED_ALLOW_PRIVATE_HOST"); fi
         while IFS= read -r assignment; do

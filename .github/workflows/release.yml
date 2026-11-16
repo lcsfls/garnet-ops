@@ -116,6 +116,9 @@ jobs:
           # The version is only told to the sidecar's token, so the runner checks readiness only.
           health-url: http://127.0.0.1:3000/api/healthz
           upgrade-from: previous
+          # Example rows in the release before, checked after the upgrade: nothing lost, every migration ran (AGENTS.md rule 2).
+          before-upgrade: scripts/upgrade-check/run.sh seed
+          after-upgrade: scripts/upgrade-check/run.sh verify
           updater-config: updater.yaml
           # The sidecar image built above, by digest: the upgrade test runs on the sidecar that ships.
           updater-image: ${{ env.UPDATER_REPOSITORY }}@${{ steps.updater.outputs.digest }}
