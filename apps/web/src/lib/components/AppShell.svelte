@@ -51,8 +51,9 @@
     refetchInterval: 60_000,
   }));
   const packageCounts = createQuery(() => ({
-    queryKey: ["package-counts", "nav"],
-    queryFn: () => api<StatusCounts>("/packages/counts"),
+    // Packages as the Packages page lists them by default: one per package with open findings (0.1.9).
+    queryKey: ["package-counts", "affected", "nav"],
+    queryFn: () => api<StatusCounts>("/packages/affected/counts"),
     refetchInterval: 60_000,
   }));
   const serious = (c: StatusCounts | undefined) => (c ? c.blocked + c.attention : 0);

@@ -52,7 +52,15 @@ export const FIX_SORTS = [
   "status",
 ] as const;
 export const REPOSITORY_SORTS = ["name", "grade", "critical", "high", "medium", "lastScan"] as const;
-export const PACKAGE_SORTS = ["name", "type", "repository", "findings", "severity", "grade"] as const;
+export const PACKAGE_SORTS = [
+  "name",
+  "type",
+  "repository",
+  "findings",
+  "severity",
+  "grade",
+  "repositories",
+] as const;
 
 /** Comma-separated severities, e.g. "critical,high". Unknown values are dropped. */
 const severities = z
@@ -141,6 +149,8 @@ export const repositoryDetailSearch = z.object({
 export type RepositoryDetailSearch = z.infer<typeof repositoryDetailSearch>;
 
 export const packageSearch = z.object({
+  /** The full inventory instead of the packages with open findings (0.1.9). */
+  view: z.enum(["inventory"]).optional().catch(undefined),
   q: text(200),
   repositoryId: text(40),
   vulnerable: flag,

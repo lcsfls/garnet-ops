@@ -366,7 +366,7 @@ test("the finding detail: key figures, the fix proposal, where else it is, and i
 
 test("packages: find which repository contains a package, and its open findings", async ({ page }) => {
   const problems = watchForProblems(page);
-  await page.goto("/packages");
+  await page.goto("/packages?view=inventory");
   await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
     `${SEEDED.packages} entries`,
   );
@@ -379,6 +379,7 @@ test("packages: find which repository contains a package, and its open findings"
   await expect(page.locator("tbody tr")).toHaveCount(1);
 
   await page.getByLabel("Filter by name, or name@version").fill("");
+  await page.getByRole("button", { name: "More filters" }).click();
   await page.getByLabel("With open findings only").check();
   await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(`${SEEDED.total} entries`);
   // The open findings badge leads to the findings; the repository name leads to its page.
@@ -390,53 +391,103 @@ test("packages: find which repository contains a package, and its open findings"
   expect(problems).toEqual([]);
 });
 
-test("packages: the repositories page's filters, counts in the menu, and the list as a file (0.1.8)", async ({
+test("packages: the affected view by default, one row per package, the inventory, counts in the menu, and the files", async ({
   page,
 }) => {
   const problems = watchForProblems(page);
-  type StatusCounts = { all: number; blocked: number; attention: number };
-  const counts = (await (
-    await page.request.get(`${E2E.publicUrl}/api/v1/packages/counts`)
-  ).json()) as StatusCounts;
-  const repositories = (await (
-    await page.request.get(`${E2E.publicUrl}/api/v1/repositories/counts`)
-  ).json()) as StatusCounts;
-  expect(counts.all).toBe(SEEDED.packages);
-  expect(counts.blocked).toBeGreaterThan(0);
-  await page.goto("/packages");
-  // The menu counts packages and repositories with open critical or high findings, as the pages' "Critical" and "High" do.
-  await expect(page.getByTestId("nav-badge-packages")).toHaveText(String(counts.blocked + counts.attention));
-  await expect(page.getByTestId("nav-badge-repositories")).toHaveText(
-    String(repositories.blocked + repositories.attention),
+  // pkg-2 also in a second repository, removed again at the end.
+  await sql(
+    `insert into repository (id, organization_id, name, url, auth_kind)
+     select 'repo_e2epkgtwo00000001', organization_id, 'second-app', 'https://git.example.test/team/second-app.git', 'none'
+     from repository where id = 'repo_e2eseeded000000001'`,
   );
-
-  const status = page.getByRole("group", { name: "Show packages" });
-  await expect(status.getByRole("button", { name: /^Critical/ })).toContainText(String(counts.blocked));
-  await status.getByRole("button", { name: /^Critical/ }).click();
-  await expect(page).toHaveURL(/status=blocked/);
-  await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
-    `${counts.blocked} entries`,
+  await sql(
+    `insert into repository_package (id, organization_id, repository_id, scan_id, name, version, type, purl, licenses)
+     select 'pkg_e2epkgtwo00000001', organization_id, 'repo_e2epkgtwo00000001', scan_id, name, version, type, purl, licenses
+     from repository_package where repository_id = 'repo_e2eseeded000000001' and name = 'pkg-2'`,
   );
-  await status.getByRole("button", { name: /^No critical or high/ }).click();
-  await expect(page.getByRole("row", { name: /left-pad/ })).toBeVisible();
+  await sql(
+    `insert into finding (id, organization_id, repository_id, vulnerability_id, dedup_key, package_name,
+       package_version, package_type, fixed_in, severity, severity_rank, state, first_seen_scan_id, last_seen_scan_id,
+       first_seen_at, last_seen_at)
+     select 'fnd_e2epkgtwo00000001', organization_id, 'repo_e2epkgtwo00000001', vulnerability_id, 'pkg-two', package_name,
+       package_version, package_type, fixed_in, severity, severity_rank, 'open', first_seen_scan_id, last_seen_scan_id,
+       first_seen_at, last_seen_at
+     from finding where id = 'fnd_e2e0000000000000002'`,
+  );
+  try {
+    type StatusCounts = { all: number; blocked: number; attention: number };
+    const affected = (await (
+      await page.request.get(`${E2E.publicUrl}/api/v1/packages/affected/counts`)
+    ).json()) as StatusCounts;
+    const repositories = (await (
+      await page.request.get(`${E2E.publicUrl}/api/v1/repositories/counts`)
+    ).json()) as StatusCounts;
+    // Every vulnerable package once, though pkg-2 is in two repositories.
+    expect(affected.all).toBe(SEEDED.total);
+    await page.goto("/packages");
+    // The menu counts packages and repositories with open critical or high findings, as the pages' "Critical" and "High" do.
+    await expect(page.getByTestId("nav-badge-packages")).toHaveText(
+      String(affected.blocked + affected.attention),
+    );
+    await expect(page.getByTestId("nav-badge-repositories")).toHaveText(
+      String(repositories.blocked + repositories.attention),
+    );
 
-  // Grade A: no open findings; left-pad is one.
-  await status.getByRole("button", { name: /^All/ }).click();
-  await expect(page).not.toHaveURL(/status=/);
-  await page.getByLabel("Grade").selectOption("A");
-  await expect(page).toHaveURL(/grade=A/);
-  const clean = page.getByRole("row", { name: /left-pad/ });
-  await expect(clean.getByTestId("package-grade")).toHaveText("A");
-  await expect(page.getByLabel("Grade").locator("option", { hasText: "Not graded" })).toHaveCount(0);
+    // By default only packages with open findings, worst first; the clean ones are in the inventory.
+    const table = page.getByTestId("packages-affected");
+    await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
+      `${affected.all} entries`,
+    );
+    await expect(table.getByRole("row", { name: /left-pad/ })).toHaveCount(0);
+    const two = table.getByTestId("affected-row").filter({ hasText: /pkg-2\s/ });
+    await expect(two.getByTestId("package-fix")).toContainText("1.0.1");
+    await two.getByRole("button", { name: "Show the repositories with pkg-2 1.0.0" }).click();
+    const list = page.getByTestId("affected-repositories");
+    await expect(list.getByRole("link", { name: "second-app" })).toBeVisible();
+    await expect(list.getByRole("link", { name: SEEDED.repositoryName })).toBeVisible();
 
-  // The file holds what the page shows.
-  const file = await download(page, "Text (TXT)");
-  expect(file.name).toMatch(/^garnetops-packages-\d{4}-\d{2}-\d{2}\.txt$/);
-  const text = file.content.toString("utf8");
-  expect(text.split("\n")[0]).toBe("Packages");
-  expect(text).toContain("Filters: grade A");
-  expect(text).toContain("left-pad");
-  expect(text).not.toContain("pkg-1 ");
+    const status = page.getByRole("group", { name: "Show packages" });
+    await expect(status.getByRole("button", { name: /^Critical/ })).toContainText(String(affected.blocked));
+    await status.getByRole("button", { name: /^Critical/ }).click();
+    await expect(page).toHaveURL(/status=blocked/);
+    await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
+      `${affected.blocked} entries`,
+    );
+    const affectedFile = await download(page, "Text (TXT)");
+    const affectedText = affectedFile.content.toString("utf8");
+    expect(affectedText.split("\n")[0]).toBe("Packages with vulnerabilities");
+    expect(affectedText).not.toContain("left-pad");
+
+    // The inventory: every package in every repository, with the same filters.
+    await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Inventory" }).click();
+    await expect(page).toHaveURL(/view=inventory/);
+    await status.getByRole("button", { name: /^No critical or high/ }).click();
+    await expect(page.getByRole("row", { name: /left-pad/ })).toBeVisible();
+    await status.getByRole("button", { name: /^All/ }).click();
+    await expect(page).not.toHaveURL(/status=/);
+    // The rarer filters are behind "More filters", which stays open while one is set.
+    await expect(page.getByTestId("package-more-filters")).toHaveCount(0);
+    await page.getByRole("button", { name: "More filters" }).click();
+    await page.getByLabel("Grade").selectOption("A");
+    await expect(page).toHaveURL(/grade=A/);
+    await expect(page.getByRole("button", { name: "More filters (1)" })).toBeDisabled();
+    const clean = page.getByRole("row", { name: /left-pad/ });
+    await expect(clean.getByTestId("package-grade")).toHaveText("A");
+    await expect(page.getByLabel("Grade").locator("option", { hasText: "Not graded" })).toHaveCount(0);
+
+    const file = await download(page, "Text (TXT)");
+    expect(file.name).toMatch(/^garnetops-packages-\d{4}-\d{2}-\d{2}\.txt$/);
+    const text = file.content.toString("utf8");
+    expect(text.split("\n")[0]).toBe("Packages");
+    expect(text).toContain("Filters: grade A");
+    expect(text).toContain("left-pad");
+    expect(text).not.toContain("pkg-1 ");
+  } finally {
+    await sql("delete from finding where id = 'fnd_e2epkgtwo00000001'");
+    await sql("delete from repository_package where id = 'pkg_e2epkgtwo00000001'");
+    await sql("delete from repository where id = 'repo_e2epkgtwo00000001'");
+  }
   expect(problems).toEqual([]);
 });
 
@@ -4650,7 +4701,7 @@ test("deprecated packages: a module that asks only the registries it is given, a
     [org],
   );
   try {
-    await page.goto("/packages?deprecated=1");
+    await page.goto("/packages?view=inventory&deprecated=1");
     const names = page.getByTestId("package-name");
     await expect(names).toHaveCount(2);
     const rimraf = names.filter({ hasText: "rimraf" });

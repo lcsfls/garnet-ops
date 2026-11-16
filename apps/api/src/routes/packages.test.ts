@@ -184,6 +184,64 @@ describe.skipIf(!adminUrl)("packages API", () => {
     expect((await get("/grades?status=blocked")).json).toMatchObject({ E: 1, A: 0 });
   });
 
+  it("the affected view: one row per package over its repositories, worst first, with the version that fixes all", async () => {
+    // "alpha" again in a second repository, with a critical fixed in 1.2.0 and a medium fixed in 1.0.5.
+    const second = await repo("second");
+    await pkg(second, "alpha", "npm", ["critical"]);
+    await t.db
+      .insert(schema.vulnerability)
+      .values({ id: "CVE-2099-0303", severity: "critical" })
+      .onConflictDoNothing();
+    await t.db
+      .update(schema.finding)
+      .set({ fixedIn: ["1.2.0"], vulnerabilityId: "CVE-2099-0303" })
+      .where(eq(schema.finding.repositoryId, second));
+    try {
+      const { json } = await get("/affected");
+      expect(json?.total).toBe(3);
+      const items = (json?.items ?? []) as Json[];
+      expect(
+        items.map((i) => [i.name, i.repositories, i.openFindings, i.worstSeverityRank, i.grade]),
+      ).toEqual([
+        ["alpha", 2, 3, 5, "E"],
+        ["bravo", 1, 1, 4, "D"],
+        ["charlie", 1, 1, 3, "C"],
+      ]);
+      const alpha = items[0];
+      expect(alpha?.repositoryList.map((r: Json) => r.name)).toEqual(["second", "shared"]);
+      expect(alpha?.fix).toEqual({ version: "1.2.0", majorUpgrade: false, unresolved: 0 });
+      // Clean packages are only in the inventory; another person sees only their repositories.
+      expect(JSON.stringify(json)).not.toContain("delta");
+      expect(names((await get("/affected?status=attention")).json)).toEqual(["bravo"]);
+      expect(names((await get("/affected?status=clean")).json)).toEqual(["charlie"]);
+      expect(names((await get("/affected?sort=name&dir=desc")).json)).toEqual(["charlie", "bravo", "alpha"]);
+      expect(names((await get("/affected?grade=E")).json)).toEqual(["alpha"]);
+      const first = (await get("/affected?pageSize=25")).json;
+      expect(first?.next).toBeNull();
+      expect((await get("/affected?cursor=x")).status).toBe(422);
+      expect((await get("/affected/counts")).json).toEqual({
+        all: 3,
+        blocked: 1,
+        attention: 1,
+        clean: 1,
+        grades: { A: 0, B: 0, C: 1, D: 1, E: 1, F: 0, none: 0 },
+      });
+      expect((await get("/affected/counts", "usr_other")).json).toMatchObject({ all: 4, blocked: 2 });
+
+      const file = await app.request("/api/v1/packages/export?format=txt&view=affected&lang=en", {
+        headers: { "x-org": ORG, "x-role": "member", "x-user": "usr_member" },
+      });
+      const text = await file.text();
+      expect(text.split("\n")[0]).toBe("Packages with vulnerabilities");
+      expect(text).toMatch(/alpha\s+1\.0\.0\s+npm\s+Critical\s+3\s+1\.2\.0\s+2\s+second, shared/);
+      expect(text).not.toContain("delta");
+    } finally {
+      await t.db.delete(schema.finding).where(eq(schema.finding.repositoryId, second));
+      await t.db.delete(schema.repositoryPackage).where(eq(schema.repositoryPackage.repositoryId, second));
+      await t.db.delete(schema.repository).where(eq(schema.repository.id, second));
+    }
+  });
+
   it("exports the list as filtered, and audits it", async () => {
     const download = (query: string) =>
       app.request(`/api/v1/packages/export?${query}`, {

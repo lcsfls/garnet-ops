@@ -8,6 +8,14 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Changed
+
+- **Packages opens on the packages with vulnerabilities** ([docs/packages.md](docs/packages.md)): one row per package over all
+  the repositories that have it, what to fix first at the top, with the version that fixes all its open findings (and whether
+  that is a major upgrade). The full list of every package stays one click away under **Inventory**. The rarer filters (grade,
+  type, set aside, deprecated) moved behind **More filters**, and the export follows the view.
+- The number next to **Packages** in the menu counts each package once, as the page lists them.
+
 ## [0.1.8] - 2026-11-15
 <!-- title: The repositories filters on packages, gate runs and pull requests -->
 

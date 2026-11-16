@@ -74,3 +74,75 @@ export function packagesReport(rows: PackageExportRow[], context: ReportContext)
         : undefined,
   };
 }
+
+/** A package of the affected view (0.1.9): one row over all the repositories that have it. */
+export interface AffectedExportRow {
+  name: string;
+  version: string;
+  type: string;
+  repositories: number;
+  repositoryList: { name: string }[];
+  openFindings: number;
+  worstSeverityRank: number;
+  grade: string | null;
+  fix: { version: string; majorUpgrade: boolean; unresolved: number } | null;
+  deprecation: { state: string; message: string | null } | null;
+}
+
+/** The affected view as a report: worst first, with the version that fixes every open finding. */
+export function affectedPackagesReport(rows: AffectedExportRow[], context: ReportContext): Report {
+  const m: Messages = resources[context.language].translation;
+  const e = m.export;
+  const x = m.packages.export;
+  const columns: Column[] = [
+    { label: m.packages.columnName, width: 24 },
+    { label: m.packages.columnVersion, width: 12 },
+    { label: m.packages.columnType, width: 10, wide: true },
+    { label: x.columnWorst, width: 9 },
+    { label: m.packages.columnOpen, width: 8, kind: "number" },
+    { label: x.columnFix, width: 14 },
+    { label: x.columnRepositories, width: 8, kind: "number" },
+    { label: x.columnRepositoryNames, width: 30 },
+    { label: m.grades.column, width: 6, wide: true },
+    { label: x.columnRegistry, width: 12, wide: true },
+  ];
+  const severityOfRank = (rank: number) => {
+    const severity = SEVERITIES.find((s) => SEVERITY_RANK[s] === rank);
+    return severity ? ((m.severity as Record<string, string>)[severity] ?? severity) : null;
+  };
+  const fixText = (fix: AffectedExportRow["fix"]) =>
+    fix ? (fix.majorUpgrade ? fill(x.fixMajor, { version: fix.version }) : fix.version) : x.noFix;
+  const now = context.now ?? new Date();
+  return {
+    title: context.repositoryName
+      ? fill(x.titleAffectedRepository, { repository: context.repositoryName })
+      : x.titleAffected,
+    meta: [
+      fill(e.created, { when: dayTime(now, context.timeZone), zone: context.timeZone }),
+      context.filters.length ? fill(e.filters, { filters: context.filters.join(", ") }) : x.noFiltersAffected,
+      fill(x.count, { count: context.total }),
+    ],
+    columns,
+    rows: rows.map((r) => [
+      r.name,
+      r.version || null,
+      r.type,
+      severityOfRank(r.worstSeverityRank),
+      r.openFindings,
+      fixText(r.fix),
+      r.repositories,
+      r.repositoryList.map((l) => l.name).join(", ") +
+        (r.repositories > r.repositoryList.length ? ", …" : ""),
+      r.grade,
+      r.deprecation?.state === "deprecated"
+        ? m.deprecated.deprecated
+        : r.deprecation?.state === "yanked"
+          ? m.deprecated.yanked
+          : null,
+    ]),
+    note:
+      rows.length < context.total
+        ? fill(x.truncated, { shown: rows.length, total: context.total })
+        : undefined,
+  };
+}
