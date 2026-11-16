@@ -334,4 +334,62 @@ describe.skipIf(!adminUrl)("report API", () => {
     await call("PUT", "/api/v1/me/report-mail", SAM, { frequency: null });
     expect(await t.db.select().from(schema.reportSubscription)).toHaveLength(0);
   });
+
+  it("the vulnerability mail: severity, the person's own repositories and an enabled mail channel", async () => {
+    const idOf = async (name: string) =>
+      (
+        await t.db
+          .select({ id: schema.repository.id })
+          .from(schema.repository)
+          .where(eq(schema.repository.name, name))
+      )[0]?.id as string;
+    const shared = await idOf("shared-app");
+    const secret = await idOf("alex-private-app");
+    // The report mail test above left an enabled SMTP channel.
+    const before = await call("GET", "/api/v1/me/vulnerability-mail", SAM);
+    expect(before.json).toMatchObject({
+      frequency: null,
+      minSeverity: "high",
+      repositoryIds: null,
+      channelId: null,
+      channels: [{ id: "nch_rep", name: "Mail", kind: "smtp" }],
+      mailAvailable: true,
+    });
+    const put = (who: string, body: unknown) => call("PUT", "/api/v1/me/vulnerability-mail", who, body);
+    // Only repositories the person sees, at least one; only the organisation's enabled mail channels.
+    expect((await put(SAM, { frequency: "weekly", repositoryIds: [secret] })).status).toBe(422);
+    expect((await put(SAM, { frequency: "weekly", repositoryIds: [] })).status).toBe(422);
+    expect((await put(SAM, { frequency: "weekly", channelId: "nch_elsewhere" })).status).toBe(422);
+    expect((await put(SAM, { frequency: "monthly" })).status).toBe(422);
+    const saved = await put(SAM, {
+      frequency: "weekly",
+      minSeverity: "critical",
+      repositoryIds: [shared, shared],
+      channelId: "nch_rep",
+    });
+    expect(saved.json).toMatchObject({
+      frequency: "weekly",
+      minSeverity: "critical",
+      repositoryIds: [shared],
+      channelId: "nch_rep",
+    });
+    expect((await put(ALEX, { frequency: "daily", repositoryIds: [secret] })).status).toBe(200);
+    // A channel switched off shows as the default; the mail then goes through the first enabled one.
+    await t.db
+      .update(schema.notificationChannel)
+      .set({ enabled: false })
+      .where(eq(schema.notificationChannel.id, "nch_rep"));
+    expect((await call("GET", "/api/v1/me/vulnerability-mail", SAM)).json).toMatchObject({
+      frequency: null,
+      channelId: null,
+      mailAvailable: false,
+    });
+    await t.db
+      .update(schema.notificationChannel)
+      .set({ enabled: true })
+      .where(eq(schema.notificationChannel.id, "nch_rep"));
+    await put(SAM, { frequency: null });
+    await put(ALEX, { frequency: null });
+    expect(await t.db.select().from(schema.vulnerabilityMail)).toHaveLength(0);
+  });
 });

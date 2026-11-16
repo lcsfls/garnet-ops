@@ -362,6 +362,36 @@ export const reportSubscription = pgTable(
 );
 
 /**
+ * A person's vulnerability mail (ADR 0047 addendum 2026-11-16): the vulnerabilities found since the last mail, from a minimum
+ * severity, in all the repositories the person sees or the ones they chose, with package, version and fix, known exploited
+ * first. Off without a row. It goes to the person's own sign-in address through the mail channel they chose (SMTP or Microsoft
+ * Graph), or the organisation's first one; its runs are recorded in report_mail_run with the key prefix "vulnerabilities:".
+ */
+export const vulnerabilityMail = pgTable(
+  "vulnerability_mail",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    frequency: text("frequency", { enum: ["daily", "weekly"] }).notNull(),
+    minSeverity: text("min_severity", { enum: ["critical", "high", "medium"] })
+      .notNull()
+      .default("high"),
+    /** Repository ids the person chose; null is every repository they see. Ones they no longer see are left out when sent. */
+    repositoryIds: jsonb("repository_ids").$type<string[]>(),
+    /** A mail channel (SMTP or Graph) of the organisation; null, or one that is gone or off, is the first enabled one. */
+    channelId: text("channel_id"),
+    /** When the frequency was last chosen: a period whose send time came before it is not sent. */
+    since: timestamp("since", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.userId] })],
+);
+
+/**
  * One report mail per person and period (ADR 0005 point 6): the key names the frequency and the period's first local day.
  * The row is written before the mail is sent, so a repeated hour, a second worker or a retry never sends it twice.
  */

@@ -235,4 +235,90 @@ describe.skipIf(!adminUrl)("report mail in the worker", () => {
     });
     expect(await tick(MONDAY)).toBe(0);
   });
+
+  describe("vulnerability mail", () => {
+    const vmail: (Sent & { channel: string })[] = [];
+    const vsend: import("./report-mail.ts").ReportMailSender = async (ch, subject, text, to, attachments) => {
+      vmail.push({ channel: ch.id, to, subject, text, attachments });
+    };
+    const vtick = (now: Date) => mod.sendDueVulnerabilityMails({ now: () => now, send: vsend });
+    async function want(
+      userId: string,
+      patch: Partial<typeof schema.vulnerabilityMail.$inferInsert> & { frequency: "daily" | "weekly" },
+    ) {
+      await t.db
+        .insert(schema.vulnerabilityMail)
+        .values({ organizationId: ORG, userId, since: new Date("2026-10-01T00:00:00Z"), ...patch });
+    }
+
+    beforeEach(async () => {
+      vmail.length = 0;
+      await t.db.delete(schema.vulnerabilityMail);
+      // An earlier test lets u_sam leave the organisation.
+      await t.db
+        .insert(schema.membership)
+        .values({ organizationId: ORG, userId: "u_sam", role: "member" })
+        .onConflictDoNothing();
+      await channel();
+      await t.db.insert(schema.notificationChannel).values({
+        id: "nch_graph",
+        organizationId: ORG,
+        name: "Microsoft 365",
+        kind: "graph",
+        events: [],
+        config: { tenantId: "t", clientId: "c", sender: "noreply@example.test", to: [] },
+        createdAt: new Date("2030-01-01T00:00:00Z"),
+      });
+    });
+
+    it("lists the new vulnerabilities each person sees, to their own address, through the channel they chose", async () => {
+      await want("u_alex", { frequency: "weekly", minSeverity: "high" });
+      await want("u_sam", { frequency: "weekly", minSeverity: "critical", channelId: "nch_graph" });
+      expect(await vtick(MONDAY)).toBe(2);
+      const alex = vmail.find((m) => m.to[0] === "u_alex@example.test");
+      const sam = vmail.find((m) => m.to[0] === "u_sam@example.test");
+      expect(vmail.every((m) => m.to.length === 1 && m.attachments.length === 0)).toBe(true);
+      // The first enabled channel by default, the chosen one when chosen.
+      expect(alex?.channel).toBe("nch_rm");
+      expect(sam?.channel).toBe("nch_graph");
+      expect(alex?.subject).toBe("2 new vulnerabilities this week: Example Org");
+      expect(alex?.text).toContain("alex-secret-tool: 1 new, 1 open from High");
+      expect(alex?.text).toContain("  -  CVE-2099-0301  Critical");
+      expect(alex?.text).toContain("     lib 1.0.0 (npm), no fix known yet");
+      expect(sam?.subject).toBe("1 neue Schwachstelle diese Woche: Example Org");
+      expect(sam?.text).toContain("shared-portal: 1 neu");
+      expect(sam?.text).not.toContain("alex-secret-tool");
+      // Once per period, however often the tick runs.
+      expect(await vtick(MONDAY)).toBe(0);
+      expect(
+        (await t.db.select().from(schema.reportMailRun)).filter((r) =>
+          r.periodKey.startsWith("vulnerabilities:"),
+        ).length,
+      ).toBe(2);
+    });
+
+    it("only the chosen repositories; a period without anything new sends nothing; another channel when the chosen one is off", async () => {
+      await want("u_alex", {
+        frequency: "daily",
+        repositoryIds: ["repo_rm_shared"],
+        channelId: "nch_graph",
+      });
+      await t.db
+        .update(schema.notificationChannel)
+        .set({ enabled: false })
+        .where(eq(schema.notificationChannel.id, "nch_graph"));
+      // Thursday 29 October, 13:00 in Berlin: the day before is when both findings were found.
+      expect(await vtick(new Date("2026-10-29T12:00:00Z"))).toBe(1);
+      expect(vmail[0]?.channel).toBe("nch_rm");
+      expect(vmail[0]?.text).toContain("shared-portal: 1 new");
+      expect(vmail[0]?.text).not.toContain("alex-secret-tool");
+      // The day after: nothing new, no mail, recorded as skipped.
+      expect(await vtick(new Date("2026-10-30T12:00:00Z"))).toBe(0);
+      const runs = await t.db.select().from(schema.reportMailRun);
+      expect(runs.find((r) => r.periodKey === "vulnerabilities:daily:2026-10-29")).toMatchObject({
+        state: "skipped",
+        error: "nothing-new",
+      });
+    });
+  });
 });

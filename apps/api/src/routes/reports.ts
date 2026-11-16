@@ -27,6 +27,10 @@ import {
   vulnDbState,
 } from "@garnetops/core/reports";
 import {
+  VULNERABILITY_MAIL_FREQUENCIES,
+  VULNERABILITY_MAIL_SEVERITIES,
+} from "@garnetops/core/vulnerability-mail";
+import {
   deprecatedCounts,
   isTimeZone,
   mailChannelAvailable,
@@ -36,7 +40,7 @@ import {
   websitesOverview,
 } from "@garnetops/db";
 import { LANGUAGES, resources } from "@garnetops/i18n";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
@@ -464,6 +468,68 @@ export const reportRoutes = new Hono<AppEnv>()
 /* The report mail (per person, opt-in)                                        */
 /* -------------------------------------------------------------------------- */
 
+const vulnerabilityMailBody = z.object({
+  frequency: z.enum(VULNERABILITY_MAIL_FREQUENCIES).nullable(),
+  minSeverity: z.enum(VULNERABILITY_MAIL_SEVERITIES).default("high"),
+  /** Null is every repository the person sees, also ones added later. */
+  repositoryIds: z.array(z.string().max(64)).max(500).nullable().default(null),
+  /** Null is the organisation's first enabled mail channel. */
+  channelId: z.string().max(64).nullable().default(null),
+});
+
+/** The organisation's enabled mail channels (SMTP or Microsoft Graph), oldest first: names and kinds only. */
+const mailChannelsOf = (organizationId: string) =>
+  db
+    .select({
+      id: schema.notificationChannel.id,
+      name: schema.notificationChannel.name,
+      kind: schema.notificationChannel.kind,
+    })
+    .from(schema.notificationChannel)
+    .where(
+      and(
+        eq(schema.notificationChannel.organizationId, organizationId),
+        eq(schema.notificationChannel.enabled, true),
+        inArray(schema.notificationChannel.kind, ["smtp", "graph"]),
+      ),
+    )
+    .orderBy(asc(schema.notificationChannel.createdAt));
+
+async function vulnerabilityMailView(actor: Actor) {
+  const v = schema.vulnerabilityMail;
+  const [[row], [person], channels] = await Promise.all([
+    db
+      .select()
+      .from(v)
+      .where(and(eq(v.organizationId, actor.organizationId), eq(v.userId, actor.userId)))
+      .limit(1),
+    db
+      .select({
+        email: schema.user.email,
+        userZone: schema.user.timeZone,
+        organizationZone: schema.organization.scanTimeZone,
+      })
+      .from(schema.user)
+      .innerJoin(schema.organization, eq(schema.organization.id, actor.organizationId))
+      .where(eq(schema.user.id, actor.userId))
+      .limit(1),
+    mailChannelsOf(actor.organizationId),
+  ]);
+  const mailAvailable = channels.length > 0;
+  return {
+    // A stored choice is reported as off while no mail channel exists, as for the report mail.
+    frequency: mailAvailable ? (row?.frequency ?? null) : null,
+    minSeverity: row?.minSeverity ?? "high",
+    repositoryIds: row?.repositoryIds ?? null,
+    // A chosen channel that was switched off or removed shows as the default.
+    channelId: row?.channelId && channels.some((ch) => ch.id === row.channelId) ? row.channelId : null,
+    channels,
+    mailAvailable,
+    email: person?.email ?? null,
+    timeZone: reportTimeZone(person?.userZone, person?.organizationZone),
+  };
+}
+
 const reportMailBody = z.object({
   frequency: z.enum(REPORT_FREQUENCIES).nullable(),
   attachPdf: z.boolean().default(true),
@@ -540,4 +606,61 @@ export const reportMailRoutes = new Hono<AppEnv>()
         },
       });
     return c.json(await reportMailView(actor));
+  })
+  /** The vulnerability mail (ADR 0047 addendum 2026-11-16): the person's choice and the mail channels they can choose from. */
+  .get("/vulnerability-mail", async (c) => c.json(await vulnerabilityMailView(c.get("actor"))))
+  /**
+   * Chooses the vulnerability mail, or switches it off. Personal and not audited, like the report mail: it only ever goes to the
+   * person's own sign-in address and only lists repositories they see when it is sent. Chosen repositories must be ones they
+   * see now; the channel must be an enabled mail channel (SMTP or Graph) of the organisation.
+   */
+  .put("/vulnerability-mail", async (c) => {
+    const actor = c.get("actor");
+    await rateLimit(`vulnerability-mail:${actor.userId}`, 30);
+    const input = vulnerabilityMailBody.parse(await c.req.json());
+    const v = schema.vulnerabilityMail;
+    const where = and(eq(v.organizationId, actor.organizationId), eq(v.userId, actor.userId));
+    if (input.frequency === null) {
+      await db.delete(v).where(where);
+      return c.json(await vulnerabilityMailView(actor));
+    }
+    const channels = await mailChannelsOf(actor.organizationId);
+    const invalid = (path: string, message: string) =>
+      new ProblemError(422, "validation", "The request is not valid", undefined, {
+        errors: [{ path, message }],
+      });
+    if (channels.length === 0) throw invalid("frequency", "Your organisation has no mail channel");
+    if (input.channelId && !channels.some((ch) => ch.id === input.channelId))
+      throw invalid("channelId", "Not an enabled mail channel of your organisation");
+    if (input.repositoryIds) {
+      const ids = [...new Set(input.repositoryIds)];
+      const seen = ids.length
+        ? await db
+            .select({ id: schema.repository.id })
+            .from(schema.repository)
+            .where(and(inArray(schema.repository.id, ids), repositoryVisibleTo(actor)))
+        : [];
+      if (ids.length === 0 || seen.length !== ids.length)
+        throw invalid("repositoryIds", "Choose repositories you can see");
+      input.repositoryIds = ids;
+    }
+    const values = {
+      frequency: input.frequency,
+      minSeverity: input.minSeverity,
+      repositoryIds: input.repositoryIds,
+      channelId: input.channelId,
+    };
+    await db
+      .insert(v)
+      .values({ organizationId: actor.organizationId, userId: actor.userId, ...values })
+      .onConflictDoUpdate({
+        target: [v.organizationId, v.userId],
+        set: {
+          ...values,
+          // A new frequency starts from now; the same one keeps its start.
+          since: sql`case when ${v.frequency} = ${input.frequency} then ${v.since} else now() end`,
+          updatedAt: sql`now()`,
+        },
+      });
+    return c.json(await vulnerabilityMailView(actor));
   });

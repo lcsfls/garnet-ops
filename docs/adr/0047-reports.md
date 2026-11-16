@@ -63,3 +63,32 @@ organisation over a period. The roadmap's "weekly digest" (ADR 0005, point 6) wa
 - `docs/reports.md` describes the reports; the ROADMAP's weekly digest item is done in this form.
 - Open: reports in further formats (CSV of the organisation report), a report for one team or a chosen set of repositories, and
   compliance mappings (NIS2, ISO 27001), which stay on the roadmap.
+
+## Addendum 2026-11-16: the vulnerability mail
+
+Decided by the maintainer: besides the summary, a person can choose a mail that lists vulnerabilities by name, so a team sees
+what came in without opening GarnetOps; known exploited ones (such as Log4Shell) first.
+
+1. **Opt-in per person**, on Account → Notifications: daily or weekly, from a minimum severity (critical, high or medium), for
+   every repository the person sees (also ones added later) or the ones they choose, through the mail channel they choose (SMTP
+   or Microsoft Graph; by default the organisation's first enabled one, and that one when the chosen one is off or removed).
+2. **What it lists**: the vulnerabilities first seen in the period (the person's calendar days, as for the report mail) that are
+   still open, per repository, with the vulnerability id, severity, known exploited, package, version and the versions that fix
+   it; how many are open per repository from that severity; how many known exploited ones are still open. At most 150 lines;
+   the rest is a count and a link. **Nothing new, no mail**: the period is recorded as skipped.
+3. **Names in the mail.** Unlike the summary, this mail names vulnerabilities, packages and repositories. It is built with the
+   person's visibility at sending time (a private repository of someone else, a repository set aside or one they no longer see
+   is never in it), goes only to their own sign-in address, and the card says so before they switch it on. No code, paths or
+   secrets.
+4. **Once per period**, recorded in `report_mail_run` with keys `vulnerabilities:daily:…` and `vulnerabilities:weekly:…`, like
+   the report mail. Personal and not audited, like the report mail.
+
+| Threat | Control |
+| --- | --- |
+| Vulnerability and package names of repositories the recipient may not see | Built per recipient at sending time with ADR 0030 visibility and active repositories only; chosen repositories are checked when saved and filtered again when sent; tested with a private repository and two recipients. |
+| Data leaving the network | Opt-in, own address only, through the organisation's own mail channel; the card names the address and says the mail names vulnerabilities and packages. |
+| Hostile package names or versions (scanned content) in the mail | Plain text; control, line-break and bidirectional characters removed, values cut; the subject carries counts and the organisation's name only. |
+| A channel of another organisation | Only enabled mail channels of the person's own organisation can be chosen (422 otherwise); a chosen one that is off falls back to the first enabled one. |
+
+Consequences: migration 0056 (additive): `vulnerability_mail`. API (additive): `GET` and `PUT /api/v1/me/vulnerability-mail`.
+

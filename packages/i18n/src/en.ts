@@ -5127,6 +5127,44 @@ export const en = {
         "Only what you can see in GarnetOps is included. Change or stop this mail under Account → Notifications: {link}",
       footer: "GarnetOps, {organization}",
     },
+    vulnerabilityMail: {
+      title: "Vulnerabilities by email",
+      description:
+        "The vulnerabilities found since the last mail, per repository, with package, version and the version that fixes them; known exploited ones (such as Log4Shell) first. Nothing new, no mail. It comes at 7:00 in your time zone ({zone}).",
+      frequency: "How often",
+      off: "Off",
+      daily: "Daily (found the day before)",
+      weekly: "Weekly (found Monday to Sunday, on Mondays)",
+      minSeverity: "From severity",
+      repositories: "Repositories",
+      allRepositories: "All repositories I see, also new ones",
+      chosenRepositories: "Only these",
+      noRepositoryChosen: "Choose at least one repository.",
+      channel: "Sent through",
+      channelFirst: "The organisation's first mail channel",
+      names:
+        "This mail names vulnerabilities, packages and repositories. It goes only to your own address: {email}.",
+      saved: "Vulnerability mail saved.",
+      save: "Save vulnerability mail",
+      subjectDaily:
+        "{count, plural, one {# new vulnerability} other {# new vulnerabilities}}: {organization}",
+      subjectWeekly:
+        "{count, plural, one {# new vulnerability} other {# new vulnerabilities}} this week: {organization}",
+      subjectExploited:
+        "{count, plural, one {# new vulnerability} other {# new vulnerabilities}}, {exploited} known exploited: {organization}",
+      intro:
+        "{count, plural, one {# vulnerability} other {# vulnerabilities}} from {severity} found in {organization}, {from} to {to} ({zone}), and still open:",
+      repository: "{repository}: {count} new, {open} open from {severity}",
+      exploited: "known exploited",
+      fixedIn: "fixed in {versions}",
+      noFix: "no fix known yet",
+      more: "… and {count} more. Open GarnetOps for all of them.",
+      exploitedOpen: "Known to be exploited and still open from this severity: {count}.",
+      link: "Open GarnetOps: {link}",
+      scope:
+        "Only repositories you can see in GarnetOps are included. Change or stop this mail under Account → Notifications: {link}",
+      footer: "GarnetOps, {organization}",
+    },
   },
   toast: {
     region: "Messages",

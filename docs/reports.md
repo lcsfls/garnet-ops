@@ -66,6 +66,29 @@ Under **Account → Notifications → Security report by email**, choose how oft
 - Choosing a frequency starts from then on: the period that ended just before is not sent at once. Choosing **Off** stops it at once.
 - Leaving the organisation stops it.
 
+## Vulnerabilities by email
+
+Under **Account → Notifications → Vulnerabilities by email**, choose a mail that lists the vulnerabilities found since the last
+one (ADR 0047 addendum):
+
+| Setting | Choices |
+| --- | --- |
+| How often | Off (default); daily, with what was found the day before; weekly, on Mondays, with what was found Monday to Sunday. From 07:00 in your time zone. |
+| From severity | Critical, high (default) or medium: vulnerabilities from this severity up. |
+| Repositories | Every repository you see, also ones added later (default), or only the ones you tick. |
+| Sent through | The organisation's first enabled mail channel (default), or another one: SMTP or Microsoft Graph (Microsoft 365). Shown when the organisation has more than one. |
+
+The mail lists, per repository, each vulnerability found in the period and still open: its id, severity, **known exploited**
+(CISA KEV, for example Log4Shell) with a mark, the package and version, and the versions that fix it, or that no fix is known
+yet. Known exploited ones come first, then by severity. Below that: how many are open per repository from the chosen
+severity, how many known exploited ones are still open, and a link to the findings.
+
+- **Nothing new, no mail.**
+- Unlike the security report, this mail **names vulnerabilities, packages and repositories**. It is built with your access when
+  it is sent and goes only to your own sign-in address; the card says so.
+- At most 150 vulnerabilities are listed; the rest is a count and the link.
+- Each period is sent once, like the security report; a mail that fails is not retried.
+
 ## API
 
 All under `/api/v1`, with the session of the signed-in person:
@@ -77,3 +100,4 @@ All under `/api/v1`, with the session of the signed-in person:
 | `GET /reports/websites` | The websites at a glance, worst first. 409 `module-off` while website monitoring is off. |
 | `GET /reports/organization?days=7\|30&tz=…` | The organisation report for the period; `format=pdf` and `lang` as above. |
 | `GET /me/report-mail`, `PUT /me/report-mail` | Your report mail: `{ "frequency": null \| "daily" \| "weekly" \| "monthly", "attachPdf": true }`. A frequency is refused (422) while the organisation has no mail channel. |
+| `GET /me/vulnerability-mail`, `PUT /me/vulnerability-mail` | Your vulnerability mail: `{ "frequency": null \| "daily" \| "weekly", "minSeverity": "critical" \| "high" \| "medium", "repositoryIds": null \| [ids], "channelId": null \| id }`; the answer adds `channels` (the organisation's enabled mail channels: id, name, kind), `mailAvailable`, `email` and `timeZone`. Repositories you cannot see, an empty list or a channel that is not an enabled mail channel of your organisation are refused (422). |

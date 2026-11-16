@@ -8,6 +8,19 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Vulnerabilities by email** ([docs/reports.md](docs/reports.md), ADR 0047 addendum): on Account → Notifications, a daily or
+  weekly mail with the vulnerabilities found since the last one, from a minimum severity (critical, high or medium), in every
+  repository you see or the ones you choose, through the mail channel you choose (SMTP or Microsoft Graph). Per repository it
+  names each vulnerability, its package and version and the versions that fix it; known exploited ones (such as Log4Shell)
+  first. Nothing new, no mail. It goes only to your own address and only lists what you can see.
+
+### Changed
+
+- Every release is now tested as an update from the release before with data in it: example rows are put in before the update
+  and checked after it (nothing lost, every migration run, API and worker running). A release that fails is not published.
+
 ## [0.1.9] - 2026-11-16
 <!-- title: Packages open on the packages with vulnerabilities -->
 

@@ -28,8 +28,9 @@ async function downloadFrom(page: Page, link: Locator) {
 
 test.afterAll(async () => {
   await sql("delete from report_subscription");
+  await sql("delete from vulnerability_mail");
   await sql("delete from report_mail_run");
-  await sql("delete from notification_channel where id = 'nch_e2ereport'");
+  await sql("delete from notification_channel where id in ('nch_e2ereport', 'nch_e2egraph')");
   await sql("delete from finding where repository_id = $1", [PRIVATE_REPOSITORY]);
   await sql("delete from repository where id = $1", [PRIVATE_REPOSITORY]);
   await sql(`delete from membership where user_id = 'user_e2ereportpat'`);
@@ -250,5 +251,63 @@ test("the report mail is chosen on the account page, and only with a mail channe
   await card.getByLabel("Off").check();
   await card.getByRole("button", { name: "Save report mail" }).click();
   await expect.poll(async () => (await sql("select 1 from report_subscription")).length).toBe(0);
+  expect(problems).toEqual([]);
+});
+
+test("the vulnerability mail: how often, from which severity, which repositories, through which mail channel", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  // The test before left an SMTP channel; a Microsoft Graph one joins it.
+  await sql(
+    `insert into notification_channel (id, organization_id, name, kind, events, config, created_at)
+     values ('nch_e2egraph', $1, 'Microsoft 365', 'graph', '[]'::jsonb, $2::jsonb, now() + interval '1 hour')
+     on conflict do nothing`,
+    [
+      await organizationId(),
+      JSON.stringify({ tenantId: "t", clientId: "c", sender: "noreply@example.test", to: [] }),
+    ],
+  );
+  await page.goto("/account?section=notifications");
+  const card = page.locator("#vulnerability-mail");
+  await expect(card.getByRole("heading", { name: "Vulnerabilities by email" })).toBeVisible();
+  await expect(card).toContainText(`It goes only to your own address: ${OWNER.email}.`);
+  await expect(card.getByLabel("Off")).toBeChecked();
+  await expect(card.getByLabel("From severity")).toBeDisabled();
+  await card.getByLabel("Weekly (found Monday to Sunday, on Mondays)").check();
+  await card.getByLabel("From severity").selectOption("critical");
+  await card.getByLabel("Sent through").selectOption({ label: "Microsoft 365 (Microsoft Graph)" });
+  await card.getByLabel("Only these").check();
+  // At least one repository.
+  await expect(card.getByRole("button", { name: "Save vulnerability mail" })).toBeDisabled();
+  await card.getByTestId("vulnerability-mail-repositories").getByLabel(SEEDED.repositoryName).check();
+  await card.getByRole("button", { name: "Save vulnerability mail" }).click();
+  await expect(page.getByText("Vulnerability mail saved.")).toBeVisible();
+  const rows = await sql<{
+    frequency: string;
+    min_severity: string;
+    repository_ids: string[];
+    channel_id: string;
+  }>(
+    "select frequency, min_severity, repository_ids, channel_id from vulnerability_mail where user_id = $1",
+    [await ownerId()],
+  );
+  expect(rows).toEqual([
+    {
+      frequency: "weekly",
+      min_severity: "critical",
+      repository_ids: [REPOSITORY],
+      channel_id: "nch_e2egraph",
+    },
+  ]);
+
+  await page.reload();
+  await expect(card.getByLabel("Weekly (found Monday to Sunday, on Mondays)")).toBeChecked();
+  await expect(
+    card.getByTestId("vulnerability-mail-repositories").getByLabel(SEEDED.repositoryName),
+  ).toBeChecked();
+  await card.getByLabel("Off").check();
+  await card.getByRole("button", { name: "Save vulnerability mail" }).click();
+  await expect.poll(async () => (await sql("select 1 from vulnerability_mail")).length).toBe(0);
   expect(problems).toEqual([]);
 });

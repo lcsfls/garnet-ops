@@ -5248,6 +5248,44 @@ export const de: Messages = {
         "Enthalten ist nur, was Sie in GarnetOps sehen. Ändern oder beenden Sie diese E-Mail unter Konto → Benachrichtigungen: {link}",
       footer: "GarnetOps, {organization}",
     },
+    vulnerabilityMail: {
+      title: "Schwachstellen per E-Mail",
+      description:
+        "Die seit der letzten Mail gefundenen Schwachstellen, je Repository, mit Paket, Version und der Version, die sie behebt; bekannt ausgenutzte (wie Log4Shell) zuerst. Nichts Neues, keine Mail. Sie kommt um 7:00 Uhr in Ihrer Zeitzone ({zone}).",
+      frequency: "Wie oft",
+      off: "Aus",
+      daily: "Täglich (am Vortag gefunden)",
+      weekly: "Wöchentlich (Montag bis Sonntag gefunden, montags)",
+      minSeverity: "Ab Schweregrad",
+      repositories: "Repositories",
+      allRepositories: "Alle Repositories, die ich sehe, auch neue",
+      chosenRepositories: "Nur diese",
+      noRepositoryChosen: "Wählen Sie mindestens ein Repository.",
+      channel: "Versand über",
+      channelFirst: "Den ersten Mail-Kanal der Organisation",
+      names:
+        "Diese Mail nennt Schwachstellen, Pakete und Repositories. Sie geht nur an Ihre eigene Adresse: {email}.",
+      saved: "Schwachstellen-Mail gespeichert.",
+      save: "Schwachstellen-Mail speichern",
+      subjectDaily:
+        "{count, plural, one {# neue Schwachstelle} other {# neue Schwachstellen}}: {organization}",
+      subjectWeekly:
+        "{count, plural, one {# neue Schwachstelle} other {# neue Schwachstellen}} diese Woche: {organization}",
+      subjectExploited:
+        "{count, plural, one {# neue Schwachstelle} other {# neue Schwachstellen}}, {exploited} bekannt ausgenutzt: {organization}",
+      intro:
+        "{count, plural, one {# Schwachstelle} other {# Schwachstellen}} ab {severity} in {organization} gefunden, {from} bis {to} ({zone}), noch offen:",
+      repository: "{repository}: {count} neu, {open} offen ab {severity}",
+      exploited: "bekannt ausgenutzt",
+      fixedIn: "behoben in {versions}",
+      noFix: "noch kein Fix bekannt",
+      more: "… und {count} weitere. Alle in GarnetOps.",
+      exploitedOpen: "Bekannt ausgenutzt und noch offen ab diesem Schweregrad: {count}.",
+      link: "GarnetOps öffnen: {link}",
+      scope:
+        "Nur Repositories, die Sie in GarnetOps sehen, sind enthalten. Ändern oder abbestellen unter Konto → Benachrichtigungen: {link}",
+      footer: "GarnetOps, {organization}",
+    },
   },
   toast: {
     region: "Meldungen",

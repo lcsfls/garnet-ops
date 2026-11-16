@@ -393,6 +393,13 @@
       "when": 1794752212877,
       "tag": "0055_deprecated_packages",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794826718444,
+      "tag": "0056_vulnerability_mail",
+      "breakpoints": true
     }
   ]
 }
