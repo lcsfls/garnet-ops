@@ -77,7 +77,8 @@ vi.mock("./git.ts", () => ({
 
 const SCAN_TIMEOUT = 120_000;
 
-describe.skipIf(!ready)("scan with the real scanner", () => {
+// Real scanner and git processes per test: 5 s is too short on a busy runner (seen in CI).
+describe.skipIf(!ready)("scan with the real scanner", { timeout: 30_000 }, () => {
   const dbName = `garnetops_scan_test_${process.pid}`;
   const org = "org_scan";
   const repo = "repo_scan";

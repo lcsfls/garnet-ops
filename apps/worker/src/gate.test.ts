@@ -62,7 +62,8 @@ vi.mock("./grype.ts", async (original) => ({
   addAdvisoryDates: () => {},
 }));
 
-describe.skipIf(!adminUrl)("quality gate of a scan", () => {
+// Real scanner and git processes per test: 5 s is too short on a busy runner (seen in CI).
+describe.skipIf(!adminUrl)("quality gate of a scan", { timeout: 30_000 }, () => {
   const dbName = `garnetops_gate_test_${process.pid}`;
   const org = "org_gate";
   const repo = "repo_gate";

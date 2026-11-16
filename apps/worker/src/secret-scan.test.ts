@@ -51,7 +51,9 @@ const token = `ghp_${Array.from({ length: 36 }, () => {
 }).join("")}`;
 const awsKey = `AKIA${"QX7RT2LMNB4VWZ5K"}`;
 
-describe.skipIf(!ready)("secret scanning with the real gitleaks", () => {
+// Every test runs real gitleaks and git processes (up to four gitleaks runs in one test): 5 s is too short on a busy runner
+// (seen in CI).
+describe.skipIf(!ready)("secret scanning with the real gitleaks", { timeout: 30_000 }, () => {
   const dbName = `garnetops_secret_test_${process.pid}`;
   const org = "org_secrets";
   const repo = { id: "repo_secrets", organizationId: org };
