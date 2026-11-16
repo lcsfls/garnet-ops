@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateVaultKeyPair } from "@garnetops/core/vault";
 import { createDb, schema } from "@garnetops/db";
+import { dropTestDatabase } from "@garnetops/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -143,7 +144,7 @@ describe.skipIf(!adminUrl)("deprecated packages in the worker", () => {
       pool?.on?.("error", () => {});
     await workerPool?.end();
     await conn?.pool.end();
-    await admin?.pool.query(`drop database if exists ${dbName} with (force)`);
+    if (admin) await dropTestDatabase(admin.pool, dbName);
     await admin?.pool.end();
     if (workDir) await rm(workDir, { recursive: true, force: true });
   });

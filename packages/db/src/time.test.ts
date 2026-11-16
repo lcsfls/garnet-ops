@@ -7,47 +7,22 @@
  * spring forward 2026-03-29 01:00 UTC (02:00 -> 03:00 local, a 23-hour day),
  * fall back 2026-10-25 01:00 UTC (03:00 -> 02:00 local, a 25-hour day).
  */
-import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  createDb,
-  type Database,
-  openFindingsTrend,
-  openTotalsByRepository,
-  runMigrations,
-  schema,
-} from "./index.ts";
-
-function devDatabaseUrl(): string | null {
-  try {
-    const line = readFileSync(new URL("../../../.data/dev.env", import.meta.url), "utf8")
-      .split("\n")
-      .find((l) => l.startsWith("DATABASE_URL="));
-    return line ? line.slice("DATABASE_URL=".length).trim() : null;
-  } catch {
-    return null;
-  }
-}
+import { type Database, openFindingsTrend, openTotalsByRepository, schema } from "./index.ts";
+import { createTestDatabase, devDatabaseUrl, type TestDatabase } from "./testing.ts";
 
 const adminUrl = devDatabaseUrl();
-const dbName = `garnetops_test_${process.pid}`;
 
 describe.skipIf(!adminUrl)("time handling in the database", () => {
-  let admin: ReturnType<typeof createDb>;
-  let conn: ReturnType<typeof createDb>;
+  let t: TestDatabase;
   let db: Database;
   const org = "org_time";
   const repo = "repo_time";
 
   beforeAll(async () => {
-    admin = createDb(adminUrl as string, { max: 1 });
-    await admin.pool.query(`drop database if exists ${dbName} with (force)`);
-    await admin.pool.query(`create database ${dbName}`);
-    const url = new URL(adminUrl as string);
-    url.pathname = `/${dbName}`;
-    conn = createDb(url.toString(), { max: 2 });
-    db = conn.db;
-    await runMigrations(db);
+    // The shared helper drops the database only once every connection has closed (no unhandled termination errors).
+    t = await createTestDatabase(adminUrl as string, "time");
+    db = t.db;
     await db.insert(schema.organization).values({ id: org, name: "Time" });
     await db
       .insert(schema.repository)
@@ -56,9 +31,7 @@ describe.skipIf(!adminUrl)("time handling in the database", () => {
   }, 60_000);
 
   afterAll(async () => {
-    await conn?.pool.end();
-    await admin?.pool.query(`drop database if exists ${dbName} with (force)`);
-    await admin?.pool.end();
+    await t?.drop();
   });
 
   async function finding(id: string, firstSeen: string, resolved: string | null = null) {
@@ -83,22 +56,19 @@ describe.skipIf(!adminUrl)("time handling in the database", () => {
   }
 
   it("runs every session in UTC, whatever the server's zone is", async () => {
-    const { rows } = await conn.pool.query("show timezone");
+    const { rows } = await t.pool.query("show timezone");
     expect(rows[0].TimeZone).toBe("UTC");
   });
 
   it("returns SQL dates as plain strings, not shifted Date objects", async () => {
-    const { rows } = await conn.pool.query("select '2026-10-25'::date as d");
+    const { rows } = await t.pool.query("select '2026-10-25'::date as d");
     expect(rows[0].d).toBe("2026-10-25");
   });
 
   it("stores and returns instants unchanged across the autumn switch", async () => {
     const before = new Date("2026-10-25T00:30:00Z"); // 02:30 CEST, first pass
     const after = new Date("2026-10-25T01:30:00Z"); // 02:30 CET, second pass
-    const { rows } = await conn.pool.query("select $1::timestamptz as a, $2::timestamptz as b", [
-      before,
-      after,
-    ]);
+    const { rows } = await t.pool.query("select $1::timestamptz as a, $2::timestamptz as b", [before, after]);
     expect(rows[0].a.toISOString()).toBe(before.toISOString());
     expect(rows[0].b.toISOString()).toBe(after.toISOString());
     expect(rows[0].b.getTime() - rows[0].a.getTime()).toBe(3600_000);

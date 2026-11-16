@@ -43,18 +43,28 @@ export async function createTestDatabase(adminUrl: string, label: string): Promi
     pool: conn.pool,
     async drop() {
       await conn.pool.end();
-      // pool.end() resolves before every socket has closed. Dropping with force right away
-      // would terminate those sockets and surface as unhandled errors, so wait for them.
-      for (let attempt = 0; attempt < 50; attempt++) {
-        const dropped = await admin.pool.query(`drop database if exists ${name}`).then(
-          () => true,
-          () => false,
-        );
-        if (dropped) break;
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      await admin.pool.query(`drop database if exists ${name} with (force)`);
+      await dropTestDatabase(admin.pool, name);
       await admin.pool.end();
     },
   };
+}
+
+/**
+ * Drops a test database once its connections are gone. pool.end() resolves before every socket has closed; dropping with force
+ * right away would terminate those sockets and surface as unhandled errors (57P01) in the test run, so wait for them first and
+ * force only as the last resort. `name` is a test database name, never user input.
+ */
+export async function dropTestDatabase(
+  admin: { query(text: string): Promise<unknown> },
+  name: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const dropped = await admin.query(`drop database if exists ${name}`).then(
+      () => true,
+      () => false,
+    );
+    if (dropped) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await admin.query(`drop database if exists ${name} with (force)`);
 }

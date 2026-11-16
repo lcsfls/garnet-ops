@@ -14,6 +14,7 @@ import { newId } from "@garnetops/core";
 import { generateDeployKey } from "@garnetops/core/ssh";
 import { generateVaultKeyPair, loadVaultPublicKey, seal } from "@garnetops/core/vault";
 import { createDb, schema } from "@garnetops/db";
+import { dropTestDatabase } from "@garnetops/db/testing";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { copyFixtureRepo } from "../test/fixture-repo.ts";
@@ -164,7 +165,7 @@ describe.skipIf(!ready)("scan with the real scanner", () => {
   afterAll(async () => {
     await workerPool?.end();
     await conn?.pool.end();
-    await admin?.pool.query(`drop database if exists ${dbName} with (force)`);
+    if (admin) await dropTestDatabase(admin.pool, dbName);
     await admin?.pool.end();
     if (workDir) await rm(workDir, { recursive: true, force: true });
   });
