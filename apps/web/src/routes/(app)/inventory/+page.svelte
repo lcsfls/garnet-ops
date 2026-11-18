@@ -148,8 +148,8 @@
           <th class="px-5 py-2.5 font-medium">{t("inventory.columnSystem")}</th>
           <th class="hidden px-3 py-2.5 font-medium @3xl:table-cell">{t("inventory.columnKind")}</th>
           <th class="px-3 py-2.5 font-medium">{t("inventory.columnSoftware")}</th>
-          <th class="hidden px-3 py-2.5 font-medium @3xl:table-cell">{t("inventory.columnSource")}</th>
-          <th class="hidden px-3 py-2.5 font-medium @wide:table-cell">{t("inventory.columnChanged")}</th>
+          <th class="hidden px-3 py-2.5 font-medium whitespace-nowrap @3xl:table-cell">{t("inventory.columnSource")}</th>
+          <th class="hidden px-3 py-2.5 font-medium whitespace-nowrap @wide:table-cell">{t("inventory.columnChanged")}</th>
           {#if canEdit}<th class="px-5 py-2.5"><span class="sr-only">{t("inventory.columnActions")}</span></th>{/if}
         </tr>
       </thead>
@@ -174,13 +174,20 @@
                 {t(`inventory.kind.${row.kind}`)} · {t(`inventory.source.${row.source}`)}
               </span>
             </td>
-            <td class="hidden px-3 py-2.5 @3xl:table-cell">{t(`inventory.kind.${row.kind}`)}</td>
+            <td class="hidden px-3 py-2.5 whitespace-nowrap @3xl:table-cell">{t(`inventory.kind.${row.kind}`)}</td>
             <td class="px-3 py-2.5 text-sm">
               {#if row.softwareCount === 0}
                 <span class="text-muted-foreground">{t("inventory.noSoftware")}</span>
               {:else}
-                <span class="font-mono break-all">
-                  {row.software.map((s) => (s.version ? `${s.name} ${s.version}` : s.name)).join(", ")}
+                <!-- A line breaks between two pieces of software, inside one only when it is longer than the column. -->
+                <span class="font-mono wrap-anywhere">
+                  {#each row.software as item, i (i)}
+                    <span class="inline-block max-w-full"
+                      >{item.version ? `${item.name} ${item.version}` : item.name}{i < row.software.length - 1
+                        ? ","
+                        : ""}</span
+                    >{" "}
+                  {/each}
                 </span>
                 {#if row.softwareCount > row.software.length}
                   <span class="text-muted-foreground">
@@ -189,7 +196,7 @@
                 {/if}
               {/if}
             </td>
-            <td class="hidden px-3 py-2.5 text-sm @3xl:table-cell">
+            <td class="hidden px-3 py-2.5 text-sm whitespace-nowrap @3xl:table-cell">
               {t(`inventory.source.${row.source}`)}
               {#if row.reportedAt}
                 <span class="block text-muted-foreground" title={formatDateTime(row.reportedAt)}>
@@ -197,7 +204,7 @@
                 </span>
               {/if}
             </td>
-            <td class="hidden px-3 py-2.5 text-sm text-muted-foreground @wide:table-cell" title={formatDateTime(row.updatedAt)}>
+            <td class="hidden px-3 py-2.5 text-sm whitespace-nowrap text-muted-foreground @wide:table-cell" title={formatDateTime(row.updatedAt)}>
               {formatRelative(row.updatedAt)}
             </td>
             {#if canEdit}
