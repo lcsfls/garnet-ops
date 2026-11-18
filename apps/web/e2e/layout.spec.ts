@@ -118,6 +118,7 @@ test.describe("signed in", () => {
       "/repositories",
       "/repositories/repo_e2eseeded000000001",
       "/packages",
+      "/inventory",
       "/gates",
       "/fixes",
       `/fixes?id=${FIXES.key("pkg-2")}`,
@@ -837,6 +838,91 @@ test.describe("signed in, with hosts and containers on", () => {
       await page.waitForLoadState("networkidle");
       expect(await hasNoHorizontalScroll(page)).toBe(true);
       expect(await overflowingCards(page)).toEqual([]);
+      await page.screenshot({ path: info.outputPath(`${name}.png`), fullPage: true });
+      expect(problems).toEqual([]);
+    });
+  }
+});
+
+/** The inventory (ADR 0053): systems with long names, many tags and a long software list, and a token of each scope. */
+test.describe("signed in, with an inventory", () => {
+  test.use({ storageState: STATE_FILE });
+  test.beforeAll(async () => {
+    const [org] = await sql<{ id: string }>("select id from organization limit 1");
+    for (const [id, key, name, kind, source] of [
+      [
+        "inv_layout1",
+        "web-frontend-with-a-long-name-01.example.lan",
+        "Web frontend with a long name 01",
+        "vm",
+        "manual",
+      ],
+      ["inv_layout2", "sw-core-01", "Core switch", "network", "script"],
+      ["inv_layout3", "nas-backup", "Backup storage in the second server room", "appliance", "manual"],
+    ]) {
+      await sql(
+        `insert into inventory_system (id, organization_id, key, name, kind, environment, notes, tags, source, reported_at)
+         values ($1, $2, $3, $4, $5, 'production', 'Asks for a reboot window', $6, $7, $8) on conflict do nothing`,
+        [
+          id,
+          org?.id,
+          key,
+          name,
+          kind,
+          JSON.stringify(["customer-a", "second-server-room", "dmz", "needs-a-maintenance-window"]),
+          source,
+          source === "script" ? new Date() : null,
+        ],
+      );
+    }
+    await sql(
+      `insert into inventory_software (system_id, organization_id, name, version)
+       select 'inv_layout1', $1, 'package-with-a-rather-long-name-' || n, '1.' || n || '.0-1+deb12u' || n
+       from generate_series(1, 40) n on conflict do nothing`,
+      [org?.id],
+    );
+    for (const [id, scope] of [
+      ["itok_layout1", "write"],
+      ["itok_layout2", "read"],
+    ]) {
+      await sql(
+        `insert into inventory_token (id, organization_id, token_hash, prefix, label, scope)
+         values ($1, $2, $3, 'goi_layout', $4, $5) on conflict do nothing`,
+        [
+          id,
+          org?.id,
+          (scope === "write" ? "a" : "b").repeat(64),
+          `Nightly report of every server (${scope})`,
+          scope,
+        ],
+      );
+    }
+  });
+  test.afterAll(async () => {
+    await sql("delete from inventory_system where id like 'inv_layout%'");
+    await sql("delete from inventory_token where id like 'itok_layout%'");
+  });
+
+  for (const { path, name, dialog } of [
+    { path: "/inventory", name: "inventory" },
+    { path: "/inventory?view=software&q=package", name: "inventory-software" },
+    {
+      path: "/inventory?id=inv_layout1",
+      name: "inventory-details",
+      dialog: "Web frontend with a long name 01",
+    },
+    { path: "/inventory?edit=inv_layout1", name: "inventory-edit", dialog: "Edit the system" },
+    { path: "/inventory?add=1", name: "inventory-add", dialog: "Add a system" },
+  ]) {
+    test(`${name} fits without horizontal scrolling`, async ({ page }, info) => {
+      const problems = watchForProblems(page);
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: "Inventory", exact: true, level: 1 })).toBeVisible();
+      if (dialog) await expect(page.getByRole("dialog", { name: dialog })).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      expect(await hasNoHorizontalScroll(page)).toBe(true);
+      expect(await overflowingCards(page)).toEqual([]);
+      expect(await misalignedFormRows(page)).toEqual([]);
       await page.screenshot({ path: info.outputPath(`${name}.png`), fullPage: true });
       expect(problems).toEqual([]);
     });

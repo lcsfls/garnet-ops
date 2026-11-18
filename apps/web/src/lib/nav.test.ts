@@ -43,6 +43,7 @@ describe("navigation of the developer pipeline", () => {
       "/pull-requests",
       "/fixes",
       "/packages",
+      "/inventory",
       "/settings",
     ]);
   });
@@ -52,10 +53,12 @@ describe("navigation of the developer pipeline", () => {
       navFor(m)
         .find((g) => g.label === "shell.groupInfrastructure")
         ?.items.map((i) => i.to);
-    expect(infra(me("owner"))).toEqual(["/hosts", "/websites"]);
-    expect(infra(me("admin"))).toEqual(["/hosts", "/websites"]);
-    expect(infra(me("viewer"))).toBeUndefined();
-    expect(infra(me("member", true))).toEqual(["/websites"]);
+    expect(infra(me("owner"))).toEqual(["/hosts", "/websites", "/inventory"]);
+    expect(infra(me("admin"))).toEqual(["/hosts", "/websites", "/inventory"]);
+    // The inventory is not a module: everyone has it.
+    expect(infra(me("viewer"))).toEqual(["/inventory"]);
+    expect(infra(me("member", true))).toEqual(["/websites", "/inventory"]);
+    expect(navTrail("/inventory")?.item.label).toBe("nav.inventory");
     expect(navTrail("/websites/exa_1")?.group).toBe("shell.groupInfrastructure");
     expect(navTrail("/hosts/hst_1")?.item.label).toBe("nav.agents");
   });

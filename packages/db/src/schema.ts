@@ -419,6 +419,88 @@ export const reportMailRun = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/* Inventory (ADR 0053): systems and their software, told by people or scripts */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A system somebody runs, as a person or a script described it. GarnetOps never connects to it and never checks its software
+ * against the vulnerability database: it is a list, not a scan.
+ */
+export const inventorySystem = pgTable(
+  "inventory_system",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** The stable name a script addresses the system by (for example its host name); unique in the organisation. */
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    kind: text("kind").notNull().default("server"),
+    environment: text("environment"),
+    notes: text("notes"),
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    /** Who wrote the software list last: a person in the app, or a script with a token. */
+    source: text("source", { enum: ["manual", "script"] }).notNull(),
+    /** When a script last reported the system, and with which token (kept when the token is revoked). */
+    reportedAt: timestamp("reported_at", { withTimezone: true }),
+    reportedByToken: text("reported_by_token"),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("inventory_system_key_uq").on(t.organizationId, t.key),
+    index("inventory_system_name_idx").on(t.organizationId, t.name),
+  ],
+);
+
+/** One piece of software on an inventory system: a name and a version as told (free text, not a package identity). */
+export const inventorySoftware = pgTable(
+  "inventory_software",
+  {
+    systemId: text("system_id")
+      .notNull()
+      .references(() => inventorySystem.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    version: text("version").notNull().default(""),
+  },
+  (t) => [
+    primaryKey({ columns: [t.systemId, t.name, t.version] }),
+    index("inventory_software_name_idx").on(t.organizationId, t.name),
+  ],
+);
+
+/**
+ * A token a script reads or fills the inventory with (ADR 0053). Shown once; only its SHA-256 hash is kept. One scope each:
+ * `write` puts and deletes systems and reads nothing, `read` reads and changes nothing.
+ */
+export const inventoryToken = pgTable(
+  "inventory_token",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    prefix: text("prefix").notNull(),
+    label: text("label").notNull(),
+    scope: text("scope", { enum: ["read", "write"] }).notNull(),
+    createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("inventory_token_hash_uq").on(t.tokenHash),
+    index("inventory_token_org_idx").on(t.organizationId),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
 /* Secrets vault (ADR 0004). Plaintext never touches the database.             */
 /* -------------------------------------------------------------------------- */
 

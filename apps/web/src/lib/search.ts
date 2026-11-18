@@ -5,6 +5,7 @@
  */
 import { DEFAULT_PAGE_SIZE, FINDING_STATES, PAGE_SIZES, SEVERITIES } from "@garnetops/core";
 import { GRADE_FILTER_VALUES } from "@garnetops/core/grades";
+import { INVENTORY_KINDS } from "@garnetops/core/inventory";
 import { z } from "zod";
 
 export { PAGE_SIZES };
@@ -163,6 +164,21 @@ export const situationDetailSearch = z.object({
   side: z.enum(["server", "repository", "none"]).optional().catch(undefined),
 });
 export type SituationDetailSearch = z.infer<typeof situationDetailSearch>;
+
+/** The inventory (ADR 0053): the systems, or where a piece of software runs. */
+export const inventorySearch = z.object({
+  view: z.enum(["software"]).optional().catch(undefined),
+  q: text(120),
+  kind: z.enum(INVENTORY_KINDS).optional().catch(undefined),
+  source: z.enum(["manual", "script"]).optional().catch(undefined),
+  cursor: text(16),
+  pageSize,
+  /** The add dialog, or the system shown or edited. */
+  add: flag,
+  id: text(40),
+  edit: text(40),
+});
+export type InventorySearch = z.infer<typeof inventorySearch>;
 
 export const packageSearch = z.object({
   /** The full inventory instead of the packages with open findings (0.1.9). */

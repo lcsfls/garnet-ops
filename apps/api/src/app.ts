@@ -25,6 +25,8 @@ import { forgeAppRoutes, forgeSignInRoutes } from "./routes/forge-sign-in.ts";
 import { gateCiRoutes } from "./routes/gate-ci.ts";
 import { gateRoutes } from "./routes/gates.ts";
 import { hostRoutes } from "./routes/hosts.ts";
+import { inventoryRoutes } from "./routes/inventory.ts";
+import { inventoryFeedRoutes } from "./routes/inventory-feed.ts";
 import { invitationRoutes } from "./routes/invitations.ts";
 import { meRoutes } from "./routes/me.ts";
 import { notificationRoutes } from "./routes/notifications.ts";
@@ -108,6 +110,8 @@ export const app = new Hono()
   .route("/api/v1/gate", gateCiRoutes)
   /** The host agent (ADR 0034): a one-time code to enrol, then requests signed with the host's key; no cookies. */
   .route("/api/v1/agent", agentRoutes)
+  /** The inventory for scripts (ADR 0053): a bearer inventory token only, no cookies, like the gate API. */
+  .route("/api/v1/inventory-feed", inventoryFeedRoutes)
   /** Scan on push (ADR 0045): a forge's delivery, signed with the webhook's secret; no cookies, so before the same-origin check. */
   .route("/api/v1/hooks", webhookDeliveryRoutes)
   .use("/api/v1/*", sameOrigin)
@@ -136,6 +140,7 @@ const v1 = new Hono<AppEnv>()
   .route("/pull-requests", pullRequestRoutes)
   .route("/exposure", exposureRoutes)
   .route("/hosts", hostRoutes)
+  .route("/inventory", inventoryRoutes)
   .route("/scans", scanRoutes)
   .route("/search", searchRoutes)
   .route("/findings", findingRoutes)

@@ -14,6 +14,12 @@ Security-relevant changes are listed under **Security** in every release.
   across repositories, running containers and hosts, known exploited first. A vulnerability's page shows every system that has
   it and what fixes it: an update on the server, a newer image, a commit in a repository (a dependency, or the base image of an
   image you build), or nobody yet. What could not be checked is listed on its own and never counted as fine.
+- **Inventory** ([docs/inventory.md](docs/inventory.md), ADR 0053): a page under Infrastructure for systems and the software on
+  them, entered by hand or reported by a script, for everything no scan reaches. Scripts use inventory tokens with one scope
+  each: write (report and remove systems, read nothing) or read (read the inventory, change nothing). **Where does it run?**
+  searches a software name across the inventory, hosts, running containers and repositories. Nothing is connected to, so no
+  proof of control is asked for; inventory software is not checked against the vulnerability database, and the page says so.
+  With filters and an export (CSV, Excel, PDF, text).
 
 ## [0.1.10] - 2026-11-16
 <!-- title: Vulnerabilities by email, and update tests with data -->

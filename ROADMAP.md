@@ -227,6 +227,9 @@ What was removed, and the items that were open when it was:
       system and what fixes it (server, repository, or nobody yet); what could not be checked is listed, never counted as fine.
       Still open: dependencies without a fixed version as "not checked"; configuration facts from the agent (nginx HTTP/2 first)
       for "not reachable"; advisories from open feeds with the customer's model proposing and a person confirming; websites
+- [x] An inventory of systems and their software, entered by hand or reported by a script with tokens of its own (read or
+      write), with a search for where a piece of software runs (ADR 0053). Not checked against the vulnerability database.
+      Still open: inventory systems on the situation page as "not checked"; importing a CSV
 - [~] Mail via SMTP or Microsoft Graph and webhooks (Discord, Slack-compatible, JSON) for
       alerts (ADR 0010); per-channel minimum severity and repositories, Discord embeds (0.0.10); the security report by email, daily,
       weekly or monthly per person in their own zone, sent once per period (ADR 0047). Still open: invitation mail

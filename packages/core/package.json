@@ -50,6 +50,7 @@
     "./report-documents": "./src/report-documents.ts",
     "./vulnerability-mail": "./src/vulnerability-mail.ts",
     "./situation": "./src/situation.ts",
+    "./inventory": "./src/inventory.ts",
     "./secrets": "./src/secrets.ts",
     "./secret-fingerprint": "./src/secret-fingerprint.ts",
     "./exposed-files": "./src/exposed-files.ts",

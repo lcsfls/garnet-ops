@@ -46,6 +46,8 @@ an optional host agent that reports the containers running on your servers, the 
 each was built from, or, on servers without Docker, the host's own packages as a small systemd service ([docs/hosts.md](docs/hosts.md)),
 an optional module that watches your own websites from the outside, including DNSSEC, with port checks only for names you proved
 with a DNS TXT record ([docs/websites.md](docs/websites.md)),
+an inventory of systems and their software for everything no scan reaches, filled by hand or by a script
+([docs/inventory.md](docs/inventory.md)),
 audit log, a Docker Compose stack and optional signed in-app updates.
 
 ## Screenshots

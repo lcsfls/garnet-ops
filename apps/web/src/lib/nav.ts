@@ -2,6 +2,7 @@ import {
   Activity,
   Bug,
   ChartColumn,
+  ClipboardList,
   GitBranch,
   GitPullRequest,
   GitPullRequestArrow,
@@ -35,6 +36,7 @@ export type NavTo =
   | "/packages"
   | "/websites"
   | "/hosts"
+  | "/inventory"
   | "/settings"
   | "/team"
   | "/audit-log"
@@ -94,6 +96,8 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
         module: "websites",
         add: { to: "/websites?add=1", label: "nav.addWebsite" },
       },
+      // The inventory (ADR 0053) is a list people keep, not a module: always there.
+      { to: "/inventory", label: "nav.inventory", icon: ClipboardList },
     ],
   },
   {

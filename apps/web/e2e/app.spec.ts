@@ -5,7 +5,7 @@ import { createServer as createHttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, request as playwrightRequest, test } from "@playwright/test";
 import { E2E } from "./env.ts";
 import { OWNER, STATE_FILE, totp, watchForProblems } from "./helpers.ts";
 import {
@@ -617,6 +617,216 @@ test("situation: one vulnerability across a repository, a host and a container, 
     await sql("delete from agent_host where id like 'agh_e2esituation%'");
     if (before) await sql("update host_settings set enabled = $1", [before.enabled]);
     else await sql("delete from host_settings");
+  }
+  expect(problems).toEqual([]);
+});
+
+test("inventory: systems added by hand and by a script, found by their software, never checked (ADR 0053)", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  // A script has no session: its requests carry the token and nothing else (a new context would take this test's cookies).
+  const script = await playwrightRequest.newContext({
+    baseURL: E2E.publicUrl,
+    storageState: { cookies: [], origins: [] },
+  });
+  const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
+  try {
+    await page.goto("/");
+    await page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Inventory" })
+      .click();
+    await expect(page).toHaveURL(/\/inventory$/);
+    await expect(page.getByRole("heading", { name: "Inventory", level: 1 })).toBeVisible();
+    await expect(page.getByText("No system yet. Add one, or let a script report them.")).toBeVisible();
+    await expect(page.getByTestId("inventory-not-checked")).toContainText("Not checked");
+
+    // By hand: the key follows the name until somebody types one.
+    await page.getByRole("button", { name: "Add system" }).click();
+    const add = page.getByRole("dialog", { name: "Add a system" });
+    await add.getByLabel("Name").fill("Web Server 1");
+    await expect(add.getByLabel("Key")).toHaveValue("web-server-1");
+    await add.getByLabel("Key").fill("bad key");
+    await add.getByRole("button", { name: "Save system" }).click();
+    await expect(add).toContainText("Letters, digits, dot, dash, underscore and colon");
+    await add.getByLabel("Key").fill("web-1.example.lan");
+    await add.getByLabel("Kind").selectOption("vm");
+    await add.getByLabel("Environment").fill("production");
+    await add.getByLabel("Tags").fill("web, customer-a");
+    await add.getByLabel("Software").fill("nginx 1.26.0\nphp 8.3.12\nexim");
+    await add.getByLabel("Notes").fill("Rack 4");
+    await add.getByRole("button", { name: "Save system" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "System saved." })).toBeVisible();
+    await expect(page).toHaveURL(/\/inventory$/);
+    const rows = page.getByTestId("inventory-row");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Web Server 1");
+    await expect(rows.first()).toContainText("web-1.example.lan");
+    await expect(rows.first()).toContainText("exim, nginx 1.26.0, php 8.3.12");
+    await expect(rows.first()).toContainText("By hand");
+
+    // A key belongs to one system.
+    await page.getByRole("button", { name: "Add system" }).click();
+    await add.getByLabel("Name").fill("Copy");
+    await add.getByLabel("Key").fill("web-1.example.lan");
+    await add.getByRole("button", { name: "Save system" }).click();
+    await expect(add).toContainText("Another system already has this key.");
+    await add.getByRole("button", { name: "Cancel" }).click();
+    await expect(rows).toHaveCount(1);
+
+    // A token needs a recent sign-in, is shown once and is stored as a hash.
+    const tokens = page.getByTestId("inventory-tokens");
+    await expect(tokens).toContainText("No token yet.");
+    await expect(tokens).toContainText(`${E2E.publicUrl}/api/v1/inventory-feed/systems`);
+    await signedInAt("an hour ago");
+    try {
+      await tokens.getByLabel("Name of the token").fill("cron");
+      await tokens.getByRole("button", { name: "Create token" }).click();
+      await expect(page.getByRole("dialog", { name: "Confirm it is you" })).toBeVisible();
+      await page
+        .getByRole("dialog", { name: "Confirm it is you" })
+        .getByRole("button", { name: "Cancel" })
+        .click();
+      expect(await sql("select 1 from inventory_token")).toHaveLength(0);
+    } finally {
+      await signedInAt("now");
+    }
+    await tokens.getByLabel("Name of the token").fill("cron");
+    await tokens.getByRole("button", { name: "Create token" }).click();
+    const shown = page.getByTestId("inventory-token-created").locator("code");
+    await expect(shown).toHaveText(/^goi_[A-Za-z0-9_-]{43}$/);
+    const write = (await shown.textContent()) ?? "";
+    await expect(tokens.getByRole("listitem")).toContainText("cron");
+    await expect(tokens.getByRole("listitem")).toContainText("never used");
+    expect(JSON.stringify(await sql("select * from inventory_token"))).not.toContain(write);
+    expect(JSON.stringify(await sql("select data from audit_log"))).not.toContain(write);
+
+    // The script reports a system; its name is text wherever it is shown. A write token reads nothing.
+    const reported = await script.put("/api/v1/inventory-feed/systems/app-1", {
+      headers: bearer(write),
+      data: {
+        name: "app <b>one</b><img src=x onerror=\"document.title='pwned'\">",
+        kind: "container",
+        software: [
+          { name: "Django", version: "5.0.14" },
+          { name: "nginx", version: "1.27.0" },
+        ],
+      },
+    });
+    expect(reported.status()).toBe(201);
+    expect((await script.get("/api/v1/inventory-feed/systems", { headers: bearer(write) })).status()).toBe(
+      403,
+    );
+    expect((await script.get("/api/v1/inventory-feed/systems")).status()).toBe(401);
+    // The session's routes do not take the token, and the token's routes do not take the session.
+    expect((await script.get("/api/v1/inventory", { headers: bearer(write) })).status()).toBe(401);
+    expect((await page.request.get("/api/v1/inventory-feed/systems")).status()).toBe(401);
+
+    await page.reload();
+    await expect(rows).toHaveCount(2);
+    const scripted = rows.filter({ hasText: "app-1" });
+    await expect(scripted).toContainText("app <b>one</b>");
+    await expect(scripted).toContainText("Script");
+    await expect(page.getByTestId("inventory-list").locator("b, img")).toHaveCount(0);
+    expect(await page.title()).not.toContain("pwned");
+    await expect(tokens.getByRole("listitem")).toContainText("last used");
+
+    // Filters live in the URL.
+    await page.getByLabel("Entered by").selectOption("script");
+    await expect(page).toHaveURL(/source=script/);
+    await expect(rows).toHaveCount(1);
+    await page.getByLabel("Entered by").selectOption("");
+    await page.getByLabel("Filter by name, key, tag or software").fill("php");
+    await expect(page).toHaveURL(/q=php/);
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Web Server 1");
+    const csv = await page.request.get("/api/v1/inventory/export?format=csv&q=php");
+    expect(csv.status()).toBe(200);
+    expect(await csv.text()).toContain("web-1.example.lan");
+    expect(await csv.text()).not.toContain("app-1");
+    await page.getByLabel("Filter by name, key, tag or software").fill("");
+    await expect(rows).toHaveCount(2);
+
+    // Everything about one system, with its whole software list.
+    await page.getByRole("link", { name: "Show Web Server 1" }).click();
+    await expect(page).toHaveURL(/id=inv_/);
+    const details = page.getByRole("dialog", { name: "Web Server 1" });
+    await expect(details).toContainText("Virtual machine");
+    await expect(details).toContainText("customer-a");
+    await expect(details).toContainText("Rack 4");
+    await expect(details).toContainText("Software (3)");
+    await expect(details).toContainText("Not checked");
+    // Edited from there: the software list as lines.
+    await details.getByRole("button", { name: "Edit Web Server 1" }).click();
+    const edit = page.getByRole("dialog", { name: "Edit the system" });
+    await expect(edit.getByLabel("Software")).toHaveValue("exim\nnginx 1.26.0\nphp 8.3.12");
+    await edit.getByLabel("Software").fill("nginx 1.26.2\nphp 8.3.12");
+    await edit.getByRole("button", { name: "Save system" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "System saved." })).toBeVisible();
+    await expect(page).toHaveURL(/\/inventory$/);
+    await expect(rows.filter({ hasText: "web-1.example.lan" })).toContainText("nginx 1.26.2, php 8.3.12");
+
+    // Where does it run: the inventory next to what scans know, each row saying whether it was checked.
+    await page
+      .getByRole("group", { name: "View" })
+      .getByRole("button", { name: "Where does it run?" })
+      .click();
+    await expect(page).toHaveURL(/view=software/);
+    await expect(page.getByTestId("inventory-software-hint")).toBeVisible();
+    await page.getByLabel("Software name, for example php").fill("nginx");
+    const hits = page.getByTestId("software-hit");
+    await expect(hits).toHaveCount(2);
+    await expect(hits.filter({ hasText: "Web Server 1" })).toContainText("1.26.2");
+    await expect(hits.filter({ hasText: "Web Server 1" })).toContainText("Not checked");
+    await page.getByLabel("Software name, for example php").fill("pkg-1");
+    await expect(
+      page.locator('[data-testid="software-hit"][data-source="repository"]').first(),
+    ).toContainText(SEEDED.repositoryName);
+    await expect(
+      page.locator('[data-testid="software-hit"][data-source="repository"]').first(),
+    ).toContainText("By scans");
+
+    // Removing an entry asks first; a revoked token stops working at once.
+    await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Systems" }).click();
+    await page.getByRole("button", { name: "More actions for Web Server 1" }).click();
+    await page.getByRole("menuitem", { name: "Remove Web Server 1" }).click();
+    const confirm = page.getByRole("dialog", { name: "Remove Web Server 1?" });
+    await expect(confirm).toContainText("Nothing changes on the system itself.");
+    await confirm.getByRole("button", { name: "Remove system" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "System removed." })).toBeVisible();
+    await expect(rows).toHaveCount(1);
+    await tokens.getByRole("button", { name: "Revoke cron" }).click();
+    await page
+      .getByRole("dialog", { name: "Revoke cron?" })
+      .getByRole("button", { name: "Revoke token" })
+      .click();
+    await expect(page.getByRole("status").filter({ hasText: "Token revoked." })).toBeVisible();
+    expect(
+      (
+        await script.put("/api/v1/inventory-feed/systems/app-1", {
+          headers: bearer(write),
+          data: { software: [] },
+        })
+      ).status(),
+    ).toBe(401);
+
+    await page.goto("/audit-log");
+    for (const action of [
+      "Inventory token revoked",
+      "Inventory system removed",
+      "Inventory exported",
+      "Inventory system changed",
+      "Inventory token created",
+      "Inventory system added",
+    ]) {
+      await expect(page.getByRole("cell", { name: action, exact: true }).first()).toBeVisible();
+    }
+  } finally {
+    await script.dispose();
+    await sql("delete from inventory_system");
+    await sql("delete from inventory_token");
+    await sql("delete from rate_limit where key like 'inventory:%'");
   }
   expect(problems).toEqual([]);
 });
