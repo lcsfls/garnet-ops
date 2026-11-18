@@ -376,6 +376,32 @@ this next to every result.
 Add the label when you build your images, for example with `docker build --label org.opencontainers.image.source=https://git.example.com/team/app`
 or the `LABEL` instruction; GitHub's and Gitea's build actions set it by default.
 
+## In the image, or only in the repository
+
+A repository scan reads what the repository declares: lockfiles, `go.mod`, manifests. Much of that never reaches the image: build
+tools, test libraries, a front-end framework whose output is static files. Once a container built from the repository runs on a
+host with the agent (the link above), each **finding of the repository** says which it is (ADR 0054):
+
+| Mark | Meaning |
+| --- | --- |
+| **In a running image** | The package list of a running image built from the repository names the package. The finding shows the container, the host and the version found there, which can differ from the repository's when an older build is running. |
+| **Not in the image** | The running images built from the repository were read, and none names the package. |
+| no mark | No answer: the Agents module is off, no agent reports a container built from the repository, or its image is not read yet. Never shown as "not in the image". |
+
+On **Findings**, the filters **In a running image** and **Not in the image** show one or the other in one click; they also apply
+to the counts and the export. Findings without an answer are in neither.
+
+What it is good for: start with what runs. What it is not:
+
+- **Not a verdict.** The finding stays open with its severity; grades, gates, notifications and reports do not change. Accepting
+  a risk stays your decision, with your reason.
+- **Not proof of absence for every kind of package.** A Go binary names the modules compiled into it, and installed packages
+  (deb, apk, rpm, Python, PHP, Ruby, jars) are found by their files. But front-end packages (npm) are compiled into script files
+  where no list names them, and a Rust binary names its crates only when built with `cargo auditable`. For these the finding says
+  so.
+- **Not reachability.** "In the image" says the module is there, not that the vulnerable function is called. For Go,
+  `govulncheck ./...` in the repository answers that.
+
 ## Newer images (optional)
 
 **Settings → External services → Checks of public container registries** (owners and admins, recent sign-in, an acknowledgement). Off by

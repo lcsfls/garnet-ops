@@ -831,6 +831,114 @@ test("inventory: systems added by hand and by a script, found by their software,
   expect(problems).toEqual([]);
 });
 
+test("findings say whether the package is in a running image built from the repository, with a filter each (ADR 0054)", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  const [before] = await sql<{ enabled: boolean }>(
+    "select enabled from host_settings where organization_id = (select organization_id from repository where id = 'repo_e2eseeded000000001')",
+  );
+  // The agent's part is played by rows: a container of an image built from the seeded repository (its source label is the
+  // repository's address), whose package list names pkg-1 and nothing else the repository declares.
+  await sql(
+    `insert into host_settings (organization_id, enabled)
+     select organization_id, true from repository where id = 'repo_e2eseeded000000001'
+     on conflict (organization_id) do update set enabled = true`,
+  );
+  await sql(
+    `insert into agent_host (id, organization_id, name, hostname, public_key, enrolled_at, last_seen_at, last_inventory_at)
+     select 'agh_e2eimage000000001', organization_id, 'app-1', 'app-1.example.lan', repeat('k', 43), now(), now(), now()
+     from repository where id = 'repo_e2eseeded000000001'`,
+  );
+  await sql(
+    `insert into container_image (organization_id, image_id, source_key, packages, packages_at, matched_at, first_seen_at,
+       last_seen_at)
+     select organization_id, 'img_e2eimage', 'git.example.test/team/seeded-app',
+       '[{"name":"pkg-1","version":"1.0.0","type":"npm","purl":"pkg:npm/pkg-1@1.0.0"},
+         {"name":"musl","version":"1.2.5-r9","type":"apk","purl":"pkg:apk/alpine/musl@1.2.5-r9"}]',
+       now(), now(), now(), now() from repository where id = 'repo_e2eseeded000000001'`,
+  );
+  await sql(
+    `insert into host_container (host_id, container_id, organization_id, name, image_ref, image_id, state, first_seen_at,
+       last_seen_at)
+     select 'agh_e2eimage000000001', 'c_e2eimage', organization_id, 'seeded-app',
+       'git.example.test/team/seeded-app:1.4.0', 'img_e2eimage', 'running', now(), now()
+     from repository where id = 'repo_e2eseeded000000001'`,
+  );
+  try {
+    await page.goto("/findings?pageSize=100");
+    // The rows of the list (an open finding has a table of its own).
+    const rows = page.locator("tr.row-link");
+    await expect(rows).toHaveCount(SEEDED.total);
+    // Each row says it in words; one package is in the image, the others are only declared in the repository.
+    await expect(page.getByTestId("finding-in-image")).toHaveCount(1);
+    await expect(page.getByTestId("finding-not-in-image")).toHaveCount(SEEDED.total - 1);
+    await expect(rows.filter({ has: page.getByTestId("finding-in-image") })).toContainText("pkg-1 1.0.0");
+
+    // One click: only what runs.
+    await page.getByTestId("toggle-in-image").click();
+    await expect(page).toHaveURL(/image=in(&|$)/);
+    await expect(page.getByTestId("toggle-in-image")).toHaveAttribute("aria-pressed", "true");
+    await expect(rows).toHaveCount(1);
+    await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText("1 entry");
+    await rows.first().getByRole("button", { name: SEEDED.hostileId }).click();
+    const inImage = page.getByTestId("finding-image");
+    await expect(inImage).toHaveAttribute("data-state", "in-image");
+    await expect(inImage).toContainText("This package is in a running image built from this repository.");
+    await expect(inImage).toContainText("on app-1");
+    await expect(inImage).toContainText("git.example.test/team/seeded-app:1.4.0");
+    await expect(inImage).toContainText("the version of the finding");
+    await expect(inImage.getByRole("link", { name: "seeded-app" })).toHaveAttribute(
+      "href",
+      "/hosts/agh_e2eimage000000001",
+    );
+    // A fact, not a decision.
+    await expect(inImage).toContainText("the finding, grades and gates stay as they are");
+
+    // The other click: what the repository declares and the image does not carry. The two exclude each other.
+    await page.getByTestId("toggle-not-in-image").click();
+    await expect(page).toHaveURL(/image=not-in/);
+    await expect(page.getByTestId("toggle-in-image")).toHaveAttribute("aria-pressed", "false");
+    await expect(rows).toHaveCount(SEEDED.total - 1);
+    await expect(page.getByTestId("finding-in-image")).toHaveCount(0);
+    await rows.first().getByRole("button").first().click();
+    const notIn = page.getByTestId("finding-image");
+    await expect(notIn).toHaveAttribute("data-state", "not-in-image");
+    await expect(notIn).toContainText("It was not found in the running images built from it.");
+    // Not good news by itself: a front-end package can be compiled into script files.
+    await expect(notIn).toContainText("Front-end packages are compiled into script files");
+    await expect(notIn).toContainText("Not found");
+    // The export follows the filter and names it.
+    const file = await page.request.get("/api/v1/findings/export?format=txt&image=in");
+    expect(file.status()).toBe(200);
+    expect(await file.text()).toContain("Only packages in a running image");
+    expect(await file.text()).not.toContain("pkg-2");
+    await page.getByRole("button", { name: "Clear filters" }).click();
+    await expect(page).not.toHaveURL(/image=/);
+
+    // Nothing changed for it: every finding is still open, and the repository's grade is what it was.
+    expect(
+      await sql("select 1 from finding where repository_id = 'repo_e2eseeded000000001' and state = 'open'"),
+    ).toHaveLength(SEEDED.total);
+
+    // Without the Agents module there is no answer, and the page does not offer the filters.
+    await sql("update host_settings set enabled = false");
+    await page.goto(`/findings?id=fnd_e2e0000000000000001`);
+    await expect(page.getByTestId("finding-image")).toHaveAttribute("data-state", "module-off");
+    await expect(page.getByTestId("finding-image")).toContainText("the Agents module is off");
+    await expect(page.getByTestId("toggle-in-image")).toHaveCount(0);
+    await expect(page.getByTestId("finding-in-image")).toHaveCount(0);
+    await expect(page.getByTestId("finding-not-in-image")).toHaveCount(0);
+  } finally {
+    await sql("delete from host_container where container_id = 'c_e2eimage'");
+    await sql("delete from container_image where image_id = 'img_e2eimage'");
+    await sql("delete from agent_host where id = 'agh_e2eimage000000001'");
+    if (before) await sql("update host_settings set enabled = $1", [before.enabled]);
+    else await sql("delete from host_settings");
+  }
+  expect(problems).toEqual([]);
+});
+
 test("hostile scanner content is shown as text, never as markup or script links", async ({ page }) => {
   const problems = watchForProblems(page);
   await page.goto("/findings");

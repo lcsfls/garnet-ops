@@ -20,6 +20,11 @@ Security-relevant changes are listed under **Security** in every release.
   searches a software name across the inventory, hosts, running containers and repositories. Nothing is connected to, so no
   proof of control is asked for; inventory software is not checked against the vulnerability database, and the page says so.
   With filters and an export (CSV, Excel, PDF, text).
+- **In the image, or only in the repository** ([docs/hosts.md](docs/hosts.md), ADR 0054): a finding now says whether its package
+  is in a running image built from its repository, as the agent read the image: in a running image, not in the image, or no
+  answer. Two filters on Findings, **In a running image** and **Not in the image**, one click each; the finding lists the
+  containers, hosts and versions the answer rests on. It is a fact, not a decision: findings, grades and gates stay as they are,
+  and a package not found in the image is never shown as good news (front-end code can be compiled into script files).
 
 ## [0.1.10] - 2026-11-16
 <!-- title: Vulnerabilities by email, and update tests with data -->

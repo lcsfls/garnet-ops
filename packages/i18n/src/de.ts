@@ -3483,6 +3483,8 @@ export const de: Messages = {
     stateFilter: "Status der Findings",
     knownExploitedOnly: "Nur aktiv ausgenutzte",
     fixableOnly: "Nur mit verfügbarem Fix",
+    inImageOnly: "Nur Pakete in einem laufenden Image",
+    notInImageOnly: "Nur Pakete, die in den laufenden Images nicht gefunden wurden",
     clearFilters: "Filter zurücksetzen",
     firstSeenRange: "Erstmals gefunden {range}",
     resolvedRange: "Behoben {range}",
@@ -3527,6 +3529,38 @@ export const de: Messages = {
     columnDetected: "Erkannt",
     toggleKnownExploited: "Aktiv ausgenutzt",
     toggleFixable: "Fix verfügbar",
+    toggleInImage: "In laufendem Image",
+    toggleNotInImage: "Nicht im Image",
+    inImage: "In laufendem Image",
+    notInImage: "Nicht im Image",
+    image: {
+      title: "Im Image?",
+      in: "Dieses Paket ist in einem laufenden Image, das aus diesem Repository gebaut wurde.",
+      notIn:
+        "Dieses Paket ist im Repository deklariert. In den laufenden Images, die daraus gebaut wurden, wurde es nicht gefunden.",
+      unknown: {
+        "module-off":
+          "Dieses Paket ist im Repository deklariert. Ob es in einem Image ist, ist nicht bekannt: Das Modul Agents ist aus.",
+        "no-image":
+          "Dieses Paket ist im Repository deklariert. Ob es in einem Image ist, ist nicht bekannt: Kein Agent meldet einen laufenden Container, der aus diesem Repository gebaut wurde.",
+        "not-read":
+          "Dieses Paket ist im Repository deklariert. Ob es in einem Image ist, ist nicht bekannt: Die Pakete des laufenden Images sind noch nicht gelesen.",
+      },
+      caveat: {
+        bundled:
+          "Frontend-Pakete werden in Skript-Dateien kompiliert, in denen keine Paketliste sie nennt: Ihr Code kann im Image sein, ohne dass das Paket gefunden wird.",
+        compiled:
+          "Ein kompiliertes Binary nennt seine Crates nur, wenn es dafür gebaut wurde (cargo auditable): Der Code kann im Image sein, ohne dass das Paket gefunden wird.",
+      },
+      nothingChanges:
+        "Das ist eine Tatsache über das Image, keine Entscheidung: Fund, Noten und Gates bleiben, wie sie sind.",
+      columnContainer: "Container",
+      columnVersion: "Version im Image",
+      onHost: "auf {host}",
+      notFound: "Nicht gefunden",
+      notRead: "Noch nicht gelesen",
+      sameVersion: "die Version des Funds",
+    },
     fixedInLabel: "behoben in {versions}",
     epssExplained: "Ausnutzungschance, 30 Tage",
     package: "Paket",

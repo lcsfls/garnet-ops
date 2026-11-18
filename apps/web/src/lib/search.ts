@@ -5,6 +5,7 @@
  */
 import { DEFAULT_PAGE_SIZE, FINDING_STATES, PAGE_SIZES, SEVERITIES } from "@garnetops/core";
 import { GRADE_FILTER_VALUES } from "@garnetops/core/grades";
+import { IMAGE_FILTERS } from "@garnetops/core/image-presence";
 import { INVENTORY_KINDS } from "@garnetops/core/inventory";
 import { z } from "zod";
 
@@ -88,6 +89,8 @@ export const findingSearch = z.object({
   scanId: text(40),
   kev: flag,
   fixable: flag,
+  /** The package is, or is not, in a running image built from the repository (ADR 0054). */
+  image: z.enum(IMAGE_FILTERS).optional().catch(undefined),
   q: text(120),
   /** First seen or resolved on these calendar days of the viewer's zone, inclusive (a day or week of the statistics). */
   firstSeenFrom: day,

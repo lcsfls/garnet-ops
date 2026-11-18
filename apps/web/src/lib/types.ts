@@ -2,6 +2,7 @@
 import type { FindingState, ScanState, Severity } from "@garnetops/core";
 import type { AiError, TriageResult } from "@garnetops/core/ai";
 import type { Grade, GradeRule } from "@garnetops/core/grades";
+import type { ImagePresence, PresenceCaveat, PresenceUnknown } from "@garnetops/core/image-presence";
 import type { TrendSeverity } from "./trend.ts";
 
 export type { FindingState, Grade, GradeRule, ScanState, Severity };
@@ -199,6 +200,8 @@ export interface FindingRow {
   repositoryName: string;
   firstSeenAt: string;
   lastSeenAt: string;
+  /** Whether the package is in a running image built from the repository (ADR 0054); null without an answer. */
+  image: ImagePresence | null;
 }
 
 export interface FindingDetail {
@@ -240,6 +243,20 @@ export interface FindingDetail {
   }[];
   /** The fix proposal that closes it, when there is one. */
   fixProposal: { key: string; repositoryId: string; targetVersion: string } | null;
+  /** Whether the package is in a running image built from the repository (ADR 0054), and the containers that says. */
+  image: {
+    state: ImagePresence | null;
+    reason: PresenceUnknown | null;
+    caveat: PresenceCaveat | null;
+    containers: {
+      hostId: string;
+      hostName: string;
+      name: string;
+      imageRef: string;
+      read: boolean;
+      version: string | null;
+    }[];
+  };
 }
 
 /** `GET /repositories/:id`: one repository with its latest scan and finding counts. */

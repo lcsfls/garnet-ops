@@ -3391,6 +3391,8 @@ export const en = {
     stateFilter: "Finding state",
     knownExploitedOnly: "Known exploited only",
     fixableOnly: "Fix available only",
+    inImageOnly: "Only packages in a running image",
+    notInImageOnly: "Only packages not found in the running images",
     clearFilters: "Clear filters",
     firstSeenRange: "First seen {range}",
     resolvedRange: "Resolved {range}",
@@ -3435,6 +3437,38 @@ export const en = {
     columnDetected: "Detected",
     toggleKnownExploited: "Known exploited",
     toggleFixable: "Fix available",
+    toggleInImage: "In a running image",
+    toggleNotInImage: "Not in the image",
+    inImage: "In a running image",
+    notInImage: "Not in the image",
+    image: {
+      title: "In the image?",
+      in: "This package is in a running image built from this repository.",
+      notIn:
+        "This package is declared in the repository. It was not found in the running images built from it.",
+      unknown: {
+        "module-off":
+          "This package is declared in the repository. Whether it is in an image is not known: the Agents module is off.",
+        "no-image":
+          "This package is declared in the repository. Whether it is in an image is not known: no agent reports a running container built from this repository.",
+        "not-read":
+          "This package is declared in the repository. Whether it is in an image is not known: the packages of its running image are not read yet.",
+      },
+      caveat: {
+        bundled:
+          "Front-end packages are compiled into script files, where no package list names them: their code can be in the image without the package being found.",
+        compiled:
+          "A compiled binary names its crates only when it was built to (cargo auditable): the code can be in the image without the package being found.",
+      },
+      nothingChanges:
+        "This is a fact about the image, not a decision: the finding, grades and gates stay as they are.",
+      columnContainer: "Container",
+      columnVersion: "Version in the image",
+      onHost: "on {host}",
+      notFound: "Not found",
+      notRead: "Not read yet",
+      sameVersion: "the version of the finding",
+    },
     fixedInLabel: "fixed in {versions}",
     epssExplained: "exploit chance, 30 days",
     package: "Package",

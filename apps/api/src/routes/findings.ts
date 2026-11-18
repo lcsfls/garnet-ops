@@ -1,4 +1,5 @@
 import { FINDING_STATES, SEVERITIES } from "@garnetops/core";
+import { IMAGE_FILTERS } from "@garnetops/core/image-presence";
 import { pageSizeSchema } from "@garnetops/core/pagination";
 import {
   activeRepository,
@@ -9,7 +10,7 @@ import {
   visibleRepository,
 } from "@garnetops/db";
 import { LANGUAGES, resources } from "@garnetops/i18n";
-import { and, count, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, ne, or, type SQL, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.ts";
@@ -27,6 +28,7 @@ import { toXlsx } from "../export/xlsx.ts";
 import { audit } from "../lib/audit.ts";
 import { type AppEnv, requireRole } from "../lib/context.ts";
 import { loadProposals } from "../lib/fix-proposals.ts";
+import { presenceCondition, presenceDetail, presenceOf, presenceScope } from "../lib/image-presence.ts";
 import {
   type KeysetSpec,
   keysetQuery,
@@ -79,6 +81,8 @@ export const findingFilters = z.object({
   scanId: z.string().max(40).optional(),
   kev: z.enum(["1"]).optional(),
   fixable: z.enum(["1"]).optional(),
+  /** The package is, or is not, in a running image built from the repository (ADR 0054). Findings without an answer are in neither. */
+  image: z.enum(IMAGE_FILTERS).optional(),
   q: z.string().trim().max(120).optional(),
   /** Calendar days, inclusive, in `tz`: first seen, or resolved, on these days (a day or week of the statistics). */
   firstSeenFrom: day.optional(),
@@ -153,7 +157,8 @@ const spec: KeysetSpec<Row> = {
   parse: [parseInt10, parseDate, parseText],
 };
 
-export function findingWhere(viewer: Viewer, input: z.infer<typeof findingFilters>) {
+/** `image` is the condition of the image filter ({@link presenceCondition}), which needs the organisation's running images. */
+export function findingWhere(viewer: Viewer, input: z.infer<typeof findingFilters>, image?: SQL) {
   const like = input.q ? `%${input.q.replace(/[%_\\]/g, "\\$&")}%` : null;
   return and(
     eq(f.organizationId, viewer.organizationId),
@@ -166,6 +171,7 @@ export function findingWhere(viewer: Viewer, input: z.infer<typeof findingFilter
     input.scanId ? eq(f.firstSeenScanId, input.scanId) : undefined,
     input.kev ? eq(v.knownExploited, true) : undefined,
     input.fixable ? sql`jsonb_array_length(coalesce(${f.fixedIn}, '[]'::jsonb)) > 0` : undefined,
+    image,
     like ? or(ilike(f.packageName, like), ilike(f.vulnerabilityId, like)) : undefined,
     input.firstSeenFrom ? sql`${f.firstSeenAt} >= ${startOf(input.firstSeenFrom, input.tz)}` : undefined,
     input.firstSeenTo ? sql`${f.firstSeenAt} < ${endOf(input.firstSeenTo, input.tz)}` : undefined,
@@ -191,7 +197,8 @@ export const findingRoutes = new Hono<AppEnv>()
   .get("/", async (c) => {
     const actor = c.get("actor");
     const input = listQuery.parse(c.req.query());
-    const where = findingWhere(actor, input);
+    const presence = await presenceScope(actor.organizationId);
+    const where = findingWhere(actor, input, input.image && presenceCondition(presence, input.image));
     const sorted = input.sort ? sortSpec(SORTS[input.sort], input.dir, f.id) : null;
     const activeSpec = (sorted?.spec ?? spec) as KeysetSpec<Row & { sortKeys?: (string | number | Date)[] }>;
     const q = keysetQuery(activeSpec, input.cursor, input.pageSize);
@@ -226,6 +233,8 @@ export const findingRoutes = new Hono<AppEnv>()
         .limit(q.limit),
       db.select({ n: count() }).from(f).innerJoin(v, eq(v.id, f.vulnerabilityId)).where(where),
     ]);
+    /** `image` (ADR 0054): whether the package is in a running image built from the repository; null without an answer. */
+    const inImage = new Map((await presenceOf(presence, rows)).map((state, i) => [rows[i]?.id, state]));
     return c.json(
       toPage(
         activeSpec,
@@ -234,14 +243,18 @@ export const findingRoutes = new Hono<AppEnv>()
         totalRow[0]?.n ?? 0,
         input.pageSize,
         Boolean(input.cursor),
-        ({ sortKeys: _keys, ...row }) => row,
+        ({ sortKeys: _keys, ...row }) => ({ ...row, image: inImage.get(row.id) ?? null }),
       ),
     );
   })
   .get("/export", async (c) => {
     const actor = c.get("actor");
     const input = exportQuery.parse(c.req.query());
-    const where = findingWhere(actor, input);
+    const where = findingWhere(
+      actor,
+      input,
+      input.image && presenceCondition(await presenceScope(actor.organizationId), input.image),
+    );
     const [repository] = input.repositoryId
       ? await db
           .select({ name: schema.repository.name })
@@ -291,6 +304,11 @@ export const findingRoutes = new Hono<AppEnv>()
       repository ? words(m.export.filterRepository, { repository: repository.name }) : null,
       input.kev ? m.findings.knownExploitedOnly : null,
       input.fixable ? m.findings.fixableOnly : null,
+      input.image === "in"
+        ? m.findings.inImageOnly
+        : input.image === "not-in"
+          ? m.findings.notInImageOnly
+          : null,
       input.q ? words(m.export.filterText, { text: input.q }) : null,
       input.scanId ? words(m.export.filterScan, { scan: input.scanId }) : null,
       input.firstSeenFrom || input.firstSeenTo
@@ -325,12 +343,13 @@ export const findingRoutes = new Hono<AppEnv>()
   .get("/counts", async (c) => {
     const actor = c.get("actor");
     const input = countsQuery.parse(c.req.query());
+    const image = input.image && presenceCondition(await presenceScope(actor.organizationId), input.image);
     const countBy = (filters: z.infer<typeof findingFilters>) =>
       db
         .select({ state: f.state, severity: f.severity, n: count() })
         .from(f)
         .innerJoin(v, eq(v.id, f.vulnerabilityId))
-        .where(findingWhere(actor, filters))
+        .where(findingWhere(actor, filters, image))
         .groupBy(f.state, f.severity);
     // The severity toggles count under every other filter but their own, so a toggle shows what it would add.
     const [rows, bySeverity] = await Promise.all([
@@ -373,7 +392,7 @@ export const findingRoutes = new Hono<AppEnv>()
       .limit(1);
     if (!row) throw notFound("Finding");
     const { dedupKey: _internal, ...finding } = row.finding;
-    const [alsoIn, { proposals }] = await Promise.all([
+    const [alsoIn, { proposals }, image] = await Promise.all([
       // The same vulnerability in the same package in other repositories the viewer sees, not resolved.
       db
         .select({
@@ -402,6 +421,7 @@ export const findingRoutes = new Hono<AppEnv>()
       finding.state === "open" && (finding.fixedIn?.length ?? 0) > 0
         ? loadProposals(actor, finding.repositoryId)
         : { proposals: [] },
+      presenceScope(actor.organizationId).then((scope) => presenceDetail(scope, finding)),
     ]);
     const proposal = proposals.find((p) => p.targetVersion !== null && p.findingIds.includes(finding.id));
     return c.json({
@@ -414,6 +434,8 @@ export const findingRoutes = new Hono<AppEnv>()
       fixProposal: proposal
         ? { key: proposal.key, repositoryId: proposal.repositoryId, targetVersion: proposal.targetVersion }
         : null,
+      /** ADR 0054: whether the package is in a running image built from the repository, and the containers that says. */
+      image,
     });
   })
   /** Notes on a finding, newest first. Today they come from people taking over an AI suggestion (ADR 0013). */

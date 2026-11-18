@@ -39,6 +39,7 @@
   import SeverityBadge from "../ui/SeverityBadge.svelte";
   import CodeViewer from "./CodeViewer.svelte";
   import FindingNotes from "./FindingNotes.svelte";
+  import ImagePresence from "./ImagePresence.svelte";
   import FindingStateActions from "./FindingStateActions.svelte";
 
   /**
@@ -200,6 +201,8 @@
         </ul>
       </div>
     {/if}
+
+    <ImagePresence image={data.image} version={data.packageVersion} />
 
     <FindingNotes findingId={data.id} />
 

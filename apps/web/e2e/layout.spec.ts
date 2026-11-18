@@ -800,7 +800,8 @@ test.describe("signed in, with hosts and containers on", () => {
     await sql(
       `insert into container_image (organization_id, image_id, tags, digests, labels, source_key, distro, packages, package_count, packages_at, matched_at, first_seen_at, last_seen_at)
        values ($1, $2, '["git.example.test/team/seeded-app:1.4.0"]', '[]', '{"org.opencontainers.image.source":"https://git.example.test/team/seeded-app"}',
-               'git.example.test/team/seeded-app', 'Alpine Linux v3.24', '[]', 0, now(), now(), now(), now())
+               'git.example.test/team/seeded-app', 'Alpine Linux v3.24',
+               '[{"name":"pkg-1","version":"1.0.0","type":"npm","purl":"pkg:npm/pkg-1@1.0.0"}]', 1, now(), now(), now(), now())
        on conflict do nothing`,
       [org?.id, IMAGE],
     );
@@ -830,6 +831,9 @@ test.describe("signed in, with hosts and containers on", () => {
     { path: "/hosts/hst_layout", heading: "build-runner-with-a-long-name-01", name: "host" },
     { path: `/hosts/images/${IMAGE}`, heading: "git.example.test/team/seeded-app:1.4.0", name: "host-image" },
     { path: "/repositories/repo_e2eseeded000000001", heading: "seeded-app", name: "repository-running" },
+    // The findings with the image marks and filters (ADR 0054), and a finding with the containers it was looked for in.
+    { path: "/findings", heading: "Findings", name: "findings-image" },
+    { path: "/findings?id=fnd_e2e0000000000000001", heading: "Findings", name: "findings-image-detail" },
   ]) {
     test(`${name} fits without horizontal scrolling`, async ({ page }, info) => {
       const problems = watchForProblems(page);

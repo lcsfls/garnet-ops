@@ -227,6 +227,9 @@ What was removed, and the items that were open when it was:
       system and what fixes it (server, repository, or nobody yet); what could not be checked is listed, never counted as fine.
       Still open: dependencies without a fixed version as "not checked"; configuration facts from the agent (nginx HTTP/2 first)
       for "not reachable"; advisories from open feeds with the customer's model proposing and a person confirming; websites
+- [x] Findings say whether their package is in a running image built from the repository, with a filter each (ADR 0054). Still
+      open: the same mark on the situation page and the package list; reachability of the vulnerable code; images read from a
+      registry without an agent
 - [x] An inventory of systems and their software, entered by hand or reported by a script with tokens of its own (read or
       write), with a search for where a piece of software runs (ADR 0053). Not checked against the vulnerability database.
       Still open: inventory systems on the situation page as "not checked"; importing a CSV

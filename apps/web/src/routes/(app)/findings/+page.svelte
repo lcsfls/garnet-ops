@@ -9,7 +9,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import { Check, ScanSearch, ShieldAlert, X } from "@lucide/svelte";
+  import { Check, Container, ScanSearch, ShieldAlert, X } from "@lucide/svelte";
   import { createMutation, createQuery, keepPreviousData, useQueryClient } from "@tanstack/svelte-query";
   import { api } from "#lib/api.ts";
   import { cn } from "#lib/cn.ts";
@@ -138,6 +138,7 @@
         search.scanId ||
         search.kev ||
         search.fixable ||
+        search.image ||
         search.q ||
         search.state ||
         dated,
@@ -265,6 +266,25 @@
       false,
       "toggle-fixable",
     )}
+    <!-- In the image or only in the repository (ADR 0054): one click each, while agents report running containers. -->
+    {#if me.organization.modules?.hosts === true}
+      {#snippet inImageLabel()}<Container aria-hidden="true" class="size-3.5" />{t("findings.toggleInImage")}{/snippet}
+      {@render toggle(
+        search.image === "in",
+        () => setSearch({ image: search.image === "in" ? undefined : "in" }),
+        inImageLabel,
+        false,
+        "toggle-in-image",
+      )}
+      {#snippet notInImageLabel()}{t("findings.toggleNotInImage")}{/snippet}
+      {@render toggle(
+        search.image === "not-in",
+        () => setSearch({ image: search.image === "not-in" ? undefined : "not-in" }),
+        notInImageLabel,
+        false,
+        "toggle-not-in-image",
+      )}
+    {/if}
     {#if search.firstSeenFrom || search.firstSeenTo}
       {@render dateChip(t("findings.firstSeenRange", { range: dayRange(search.firstSeenFrom, search.firstSeenTo) }), {
         firstSeenFrom: undefined,
@@ -376,7 +396,7 @@
           >
             <td class="py-1.5 pr-2 pl-5 align-middle whitespace-nowrap"><SeverityBadge severity={f.severity} /></td>
             <td class="px-3 py-1.5">
-              <div class="flex items-center gap-1.5 leading-5">
+              <div class="flex flex-wrap items-center gap-x-1.5 leading-5">
                 <button
                   type="button"
                   onclick={() => setSearch({ id: f.id, cursor: search.cursor })}
@@ -389,6 +409,16 @@
                   <span class="inline-flex items-center gap-1 text-sm whitespace-nowrap text-critical">
                     <ShieldAlert aria-hidden="true" class="size-3.5" />{t("findings.kev")}
                   </span>
+                {/if}
+                <!-- A fact in neutral words (ADR 0054): never a colour, "not in the image" is not good news by itself. -->
+                {#if f.image === "in-image"}
+                  <span class="inline-flex items-center gap-1 text-sm whitespace-nowrap" data-testid="finding-in-image">
+                    <Container aria-hidden="true" class="size-3.5" />{t("findings.inImage")}
+                  </span>
+                {:else if f.image === "not-in-image"}
+                  <span class="text-sm whitespace-nowrap text-muted-foreground" data-testid="finding-not-in-image"
+                    >{t("findings.notInImage")}</span
+                  >
                 {/if}
               </div>
               <div class="font-mono text-sm leading-5 break-all text-muted-foreground">
