@@ -2316,11 +2316,11 @@ test.describe("focus on the developer pipeline (ADR 0025)", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
     const nav = page.getByRole("navigation", { name: "Main navigation" });
-    // Infrastructure holds only the two modules of the developer pipeline (ADR 0033, 0034).
+    // Infrastructure holds the two modules of the developer pipeline (ADR 0033, 0034) and the inventory (ADR 0053).
     const infrastructure = nav
       .locator("div")
       .filter({ has: page.getByText("Infrastructure", { exact: true }) });
-    await expect(infrastructure.getByRole("link")).toHaveText(["Agents", "Websites"]);
+    await expect(infrastructure.getByRole("link")).toHaveText(["Agents", "Websites", "Inventory"]);
     for (const name of ["Servers", "Exposure", "XDR", "Attacks"]) {
       await expect(nav.getByRole("link", { name })).toHaveCount(0);
     }
