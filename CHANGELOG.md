@@ -8,6 +8,9 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-11-18
+<!-- title: The situation per vulnerability, an inventory, and what is in the image -->
+
 ### Added
 
 - **Situation** ([docs/situation.md](docs/situation.md), ADR 0052): a page under Daily that lists each open vulnerability once,
@@ -1665,7 +1668,8 @@ tagged; everything built until then is listed here.
 - Renovate (AGPL-3.0) excluded from the product; Semgrep Registry rules
   excluded because their license forbids competing products.
 
-[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.10...HEAD
+[Unreleased]: https://github.com/lcsfls/garnet-ops/compare/v0.1.11...HEAD
+[0.1.11]: https://github.com/lcsfls/garnet-ops/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/lcsfls/garnet-ops/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/lcsfls/garnet-ops/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/lcsfls/garnet-ops/compare/v0.1.7...v0.1.8
