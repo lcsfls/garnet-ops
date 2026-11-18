@@ -491,6 +491,136 @@ test("packages: the affected view by default, one row per package, the inventory
   expect(problems).toEqual([]);
 });
 
+test("situation: one vulnerability across a repository, a host and a container, and who has to fix it (ADR 0052)", async ({
+  page,
+}) => {
+  const problems = watchForProblems(page);
+  // The worker's part is played by rows: a host with nginx from apt, a host that stopped reporting, and a container of an image
+  // nobody here builds, all with the seeded critical vulnerability the repository has too.
+  const [before] = await sql<{ enabled: boolean }>(
+    "select enabled from host_settings where organization_id = (select organization_id from repository where id = 'repo_e2eseeded000000001')",
+  );
+  await sql(
+    `insert into host_settings (organization_id, enabled)
+     select organization_id, true from repository where id = 'repo_e2eseeded000000001'
+     on conflict (organization_id) do update set enabled = true`,
+  );
+  await sql(
+    `insert into agent_host (id, organization_id, name, hostname, public_key, enrolled_at, last_seen_at, last_inventory_at,
+       host_packages_at, host_packages_matched_at)
+     select v.id, r.organization_id, v.name, v.name || '.example.lan', repeat('k', 43), now(), now(), v.seen, now(), now()
+     from repository r, (values ('agh_e2esituation00001', 'web-1', now()),
+                                ('agh_e2esituation00002', 'old-1', now() - interval '3 days')) as v(id, name, seen)
+     where r.id = 'repo_e2eseeded000000001'`,
+  );
+  await sql(
+    `insert into host_package_finding (id, organization_id, host_id, vulnerability_id, package_name, package_version,
+       package_type, fixed_in, severity, severity_rank, first_seen_at, last_seen_at)
+     select 'hpf_e2esituation00001', organization_id, 'agh_e2esituation00001', $1, 'nginx', '1.26.0-1', 'deb',
+       '["1.26.3-1"]', 'critical', 5, now(), now() from repository where id = 'repo_e2eseeded000000001'`,
+    [SEEDED.hostileId],
+  );
+  await sql(
+    `insert into container_image (organization_id, image_id, packages, packages_at, matched_at, first_seen_at, last_seen_at)
+     select organization_id, 'img_e2esituation', '[]', now(), now(), now(), now() from repository
+     where id = 'repo_e2eseeded000000001'`,
+  );
+  await sql(
+    `insert into host_container (host_id, container_id, organization_id, name, image_ref, image_id, state, first_seen_at,
+       last_seen_at)
+     select 'agh_e2esituation00001', 'c_e2esituation', organization_id, 'edge <b>proxy</b>', 'nginx:1.27', 'img_e2esituation',
+       'running', now(), now() from repository where id = 'repo_e2eseeded000000001'`,
+  );
+  await sql(
+    `insert into container_image_finding (id, organization_id, image_id, vulnerability_id, package_name, package_version,
+       package_type, fixed_in, severity, severity_rank, first_seen_at, last_seen_at)
+     select 'cif_e2esituation00001', organization_id, 'img_e2esituation', $1, 'nginx', '1.27.0', 'binary', '["1.27.4"]',
+       'critical', 5, now(), now() from repository where id = 'repo_e2eseeded000000001'`,
+    [SEEDED.hostileId],
+  );
+  try {
+    await page.goto("/");
+    await page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Situation" })
+      .click();
+    await expect(page).toHaveURL(/\/situation$/);
+    // Each vulnerability once; the known exploited one first, with its systems of every kind.
+    const first = page.getByTestId("situation-row").first();
+    await expect(first).toContainText(SEEDED.hostileId);
+    await expect(first).toContainText("Known exploited");
+    await expect(first).toContainText("1 repository");
+    await expect(first).toContainText("1 container");
+    await expect(first).toContainText("1 host");
+    await expect(page.getByRole("navigation", { name: "Pagination" })).toContainText(
+      `${SEEDED.total} entries`,
+    );
+    const show = page.getByRole("group", { name: "Show vulnerabilities" });
+    await expect(show.getByRole("button", { name: /^Known exploited/ })).toContainText(
+      String(SEEDED.knownExploited),
+    );
+    await page.getByLabel("Kind of system").selectOption("host");
+    await expect(page.getByTestId("situation-row")).toHaveCount(1);
+
+    await first.getByRole("link", { name: SEEDED.hostileId }).click();
+    await expect(page).toHaveURL(new RegExp(`/situation/${SEEDED.hostileId}$`));
+    await expect(page.getByRole("heading", { name: SEEDED.hostileId, exact: true })).toBeVisible();
+    await expect(page.getByTestId("situation-count-affected")).toHaveText("3");
+    // What could not be checked is listed, never counted as fine.
+    await expect(page.getByTestId("situation-count-notChecked")).toHaveText("1");
+    await expect(page.getByTestId("situation-not-checked")).toContainText("old-1");
+    await expect(page.getByTestId("situation-not-checked")).toContainText("The host stopped reporting");
+
+    const systems = page.getByTestId("situation-system");
+    const host = systems.filter({ hasText: "web-1" }).filter({ hasText: "Host" }).first();
+    await expect(page.locator('[data-testid="situation-system"][data-path="server-package"]')).toContainText(
+      "web-1",
+    );
+    await expect(page.locator('[data-testid="situation-system"][data-path="server-package"]')).toContainText(
+      "Server: update the package",
+    );
+    await expect(host).toBeVisible();
+    // The container's name is reported text, shown as typed; no repository here builds its image.
+    const container = page.locator('[data-testid="situation-system"][data-path="server-image"]');
+    await expect(container).toContainText("edge <b>proxy</b>");
+    await expect(container.locator("b")).toHaveCount(0);
+    await expect(container).toContainText("Server: pull a newer image");
+    await expect(container.getByRole("link", { name: "on web-1" })).toHaveAttribute(
+      "href",
+      "/hosts/agh_e2esituation00001",
+    );
+    // The repository's dependency is a commit, with the way to its fix proposal.
+    const repository = page.locator('[data-testid="situation-system"][data-path="repository-dependency"]');
+    await expect(repository).toContainText(SEEDED.repositoryName);
+    await expect(repository).toContainText("A commit, not a server action.");
+    await expect(repository.getByRole("link", { name: "Fix proposal" })).toHaveAttribute(
+      "href",
+      /\/fixes\?repositoryId=repo_e2eseeded000000001&q=pkg-1$/,
+    );
+
+    const side = page.getByRole("group", { name: "Fixed by" });
+    await expect(side.getByRole("button", { name: /^On the server/ })).toContainText("2");
+    await side.getByRole("button", { name: /^In a repository/ }).click();
+    await expect(page).toHaveURL(/side=repository/);
+    await expect(systems).toHaveCount(1);
+    // The description is scanned content: text, never markup; only https sources are links.
+    const about = page.getByTestId("situation-about");
+    await expect(about).toContainText("<img src=x onerror=");
+    await expect(about.locator("img, script")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /^javascript:/ })).toHaveCount(0);
+    expect(await page.title()).not.toContain("pwned");
+  } finally {
+    await sql("delete from container_image_finding where id = 'cif_e2esituation00001'");
+    await sql("delete from host_container where container_id = 'c_e2esituation'");
+    await sql("delete from container_image where image_id = 'img_e2esituation'");
+    await sql("delete from host_package_finding where id = 'hpf_e2esituation00001'");
+    await sql("delete from agent_host where id like 'agh_e2esituation%'");
+    if (before) await sql("update host_settings set enabled = $1", [before.enabled]);
+    else await sql("delete from host_settings");
+  }
+  expect(problems).toEqual([]);
+});
+
 test("hostile scanner content is shown as text, never as markup or script links", async ({ page }) => {
   const problems = watchForProblems(page);
   await page.goto("/findings");

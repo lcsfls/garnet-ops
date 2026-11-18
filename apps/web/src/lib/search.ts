@@ -148,6 +148,22 @@ export const repositoryDetailSearch = z.object({
 });
 export type RepositoryDetailSearch = z.infer<typeof repositoryDetailSearch>;
 
+/** The situation list (ADR 0052). */
+export const situationSearch = z.object({
+  q: text(120),
+  show: z.enum(["exploited", "critical", "high"]).optional().catch(undefined),
+  kind: z.enum(["repository", "container", "host"]).optional().catch(undefined),
+  cursor: text(16),
+  pageSize,
+});
+export type SituationSearch = z.infer<typeof situationSearch>;
+
+/** One vulnerability's systems (ADR 0052): by who can fix them. */
+export const situationDetailSearch = z.object({
+  side: z.enum(["server", "repository", "none"]).optional().catch(undefined),
+});
+export type SituationDetailSearch = z.infer<typeof situationDetailSearch>;
+
 export const packageSearch = z.object({
   /** The full inventory instead of the packages with open findings (0.1.9). */
   view: z.enum(["inventory"]).optional().catch(undefined),

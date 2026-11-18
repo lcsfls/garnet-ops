@@ -223,6 +223,10 @@ What was removed, and the items that were open when it was:
 
 - [x] Secret and sensitive-file scanning of repositories and their history (ADR 0049, 0.1.3)
 - [ ] Container image scanning, IaC, SAST (resale-safe rules)
+- [~] The situation per vulnerability (ADR 0052): one view across repositories, running containers and hosts with the state of each
+      system and what fixes it (server, repository, or nobody yet); what could not be checked is listed, never counted as fine.
+      Still open: dependencies without a fixed version as "not checked"; configuration facts from the agent (nginx HTTP/2 first)
+      for "not reachable"; advisories from open feeds with the customer's model proposing and a person confirming; websites
 - [~] Mail via SMTP or Microsoft Graph and webhooks (Discord, Slack-compatible, JSON) for
       alerts (ADR 0010); per-channel minimum severity and repositories, Discord embeds (0.0.10); the security report by email, daily,
       weekly or monthly per person in their own zone, sent once per period (ADR 0047). Still open: invitation mail

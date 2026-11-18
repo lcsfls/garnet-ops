@@ -259,7 +259,9 @@ function kernelSummary(host: typeof h.$inferSelect) {
 }
 
 /** The repositories the person sees, keyed by the address key images are linked with. */
-async function visibleRepositoriesByKey(actor: Actor): Promise<Map<string, { id: string; name: string }>> {
+export async function visibleRepositoriesByKey(
+  actor: Actor,
+): Promise<Map<string, { id: string; name: string }>> {
   const rows = await db
     .select({ id: schema.repository.id, name: schema.repository.name, url: schema.repository.url })
     .from(schema.repository)

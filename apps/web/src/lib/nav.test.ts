@@ -35,6 +35,7 @@ describe("navigation of the developer pipeline", () => {
       "/",
       "/findings",
       "/secrets",
+      "/situation",
       "/early-warnings",
       "/statistics",
       "/repositories",

@@ -8,6 +8,13 @@ Security-relevant changes are listed under **Security** in every release.
 
 ## [Unreleased]
 
+### Added
+
+- **Situation** ([docs/situation.md](docs/situation.md), ADR 0052): a page under Daily that lists each open vulnerability once,
+  across repositories, running containers and hosts, known exploited first. A vulnerability's page shows every system that has
+  it and what fixes it: an update on the server, a newer image, a commit in a repository (a dependency, or the base image of an
+  image you build), or nobody yet. What could not be checked is listed on its own and never counted as fine.
+
 ## [0.1.10] - 2026-11-16
 <!-- title: Vulnerabilities by email, and update tests with data -->
 

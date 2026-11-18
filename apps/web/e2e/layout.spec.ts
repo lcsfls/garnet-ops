@@ -8,7 +8,7 @@ import {
   sidebarFooterOnOneLine,
   watchForProblems,
 } from "./helpers.ts";
-import { AI, EXPOSURE, FIXES, resetSystemStatus, sql } from "./seed.ts";
+import { AI, EXPOSURE, FIXES, resetSystemStatus, SEEDED, sql } from "./seed.ts";
 
 /** Layout baseline (AGENTS.md rule 5): every screen fits at 1080p with 100, 125 and 150 % scaling. */
 test.describe("signed out", () => {
@@ -67,6 +67,8 @@ test.describe("signed in", () => {
     { path: "/findings?id=fnd_e2e0000000000000001", heading: "Findings", name: "findings-detail" },
     { path: "/repositories", heading: "Repositories", name: "repositories" },
     { path: "/packages", heading: "Packages", name: "packages" },
+    { path: "/situation", heading: "Situation", name: "situation" },
+    { path: `/situation/${SEEDED.hostileId}`, heading: SEEDED.hostileId, name: "situation-detail" },
     { path: "/gates?repositoryId=repo_e2eseeded000000001", heading: "Quality gates", name: "gates" },
     { path: "/fixes", heading: "Fix proposals", name: "fixes" },
     { path: `/fixes?id=${FIXES.key("pkg-2")}`, heading: "Fix proposals", name: "fixes-detail" },

@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   type LucideIcon,
   Package,
+  Radar,
   ScrollText,
   Server,
   Settings,
@@ -25,6 +26,7 @@ export type NavTo =
   | "/findings"
   | "/secrets"
   | "/early-warnings"
+  | "/situation"
   | "/statistics"
   | "/repositories"
   | "/gates"
@@ -60,6 +62,7 @@ export const NAV: { label: MessageKey; items: NavItem[] }[] = [
       { to: "/", label: "nav.overview", icon: LayoutGrid },
       { to: "/findings", label: "nav.findings", icon: Bug },
       { to: "/secrets", label: "nav.secrets", icon: KeyRound },
+      { to: "/situation", label: "nav.situation", icon: Radar },
       { to: "/early-warnings", label: "nav.earlyWarnings", icon: Siren },
       { to: "/statistics", label: "nav.statistics", icon: ChartColumn },
     ],
